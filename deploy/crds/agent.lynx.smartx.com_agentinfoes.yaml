@@ -1,0 +1,125 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: agentinfoes.agent.lynx.smartx.com
+spec:
+  group: agent.lynx.smartx.com
+  names:
+    kind: AgentInfo
+    listKind: AgentInfoList
+    plural: agentinfoes
+    singular: agentinfo
+  scope: Cluster
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        conditions:
+          items:
+            properties:
+              lastHeartbeatTime:
+                format: date-time
+                type: string
+              message:
+                type: string
+              reason:
+                type: string
+              status:
+                type: string
+              type:
+                type: string
+            required:
+            - lastHeartbeatTime
+            - status
+            - type
+            type: object
+          type: array
+        hostname:
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        ovsInfo:
+          properties:
+            bridges:
+              items:
+                properties:
+                  name:
+                    type: string
+                  ports:
+                    items:
+                      properties:
+                        bondConfig:
+                          properties:
+                            bondMode:
+                              type: string
+                          type: object
+                        externalIDs:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        interfaces:
+                          items:
+                            properties:
+                              ips:
+                                items:
+                                  description: IPAddress is net ip address, can be
+                                    ipv4 or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                                  type: string
+                                type: array
+                              mac:
+                                type: string
+                              name:
+                                type: string
+                            type: object
+                          type: array
+                        name:
+                          type: string
+                        vlanConfig:
+                          properties:
+                            tag:
+                              format: int32
+                              type: integer
+                            trunks:
+                              items:
+                                format: int32
+                                type: integer
+                              type: array
+                            vlanMode:
+                              type: string
+                          required:
+                          - vlanMode
+                          type: object
+                      type: object
+                    type: array
+                type: object
+              type: array
+            version:
+              type: string
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
