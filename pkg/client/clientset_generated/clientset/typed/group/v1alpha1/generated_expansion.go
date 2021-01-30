@@ -18,8 +18,8 @@ limitations under the License.
 
 package v1alpha1
 
+type EndpointGroupExpansion interface{}
+
 type GroupMembersExpansion interface{}
 
 type GroupMembersPatchExpansion interface{}
-
-type VPortGroupExpansion interface{}

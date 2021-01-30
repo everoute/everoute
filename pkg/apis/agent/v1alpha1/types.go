@@ -28,7 +28,7 @@ import (
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,path=agentinfos
 
 type AgentInfo struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -30,8 +30,8 @@ func init() {
 		&GroupMembersList{},
 		&GroupMembersPatch{},
 		&GroupMembersPatchList{},
-		&VPortGroup{},
-		&VPortGroupList{},
+		&EndpointGroup{},
+		&EndpointGroupList{},
 	)
 }
 

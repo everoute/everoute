@@ -28,16 +28,16 @@ type FakeGroupV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeGroupV1alpha1) EndpointGroups() v1alpha1.EndpointGroupInterface {
+	return &FakeEndpointGroups{c}
+}
+
 func (c *FakeGroupV1alpha1) GroupMemberses() v1alpha1.GroupMembersInterface {
 	return &FakeGroupMemberses{c}
 }
 
 func (c *FakeGroupV1alpha1) GroupMembersPatches() v1alpha1.GroupMembersPatchInterface {
 	return &FakeGroupMembersPatches{c}
-}
-
-func (c *FakeGroupV1alpha1) VPortGroups() v1alpha1.VPortGroupInterface {
-	return &FakeVPortGroups{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

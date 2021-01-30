@@ -28,16 +28,16 @@ type FakeSecurityV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeSecurityV1alpha1) Endpoints() v1alpha1.EndpointInterface {
+	return &FakeEndpoints{c}
+}
+
 func (c *FakeSecurityV1alpha1) SecurityPolicies() v1alpha1.SecurityPolicyInterface {
 	return &FakeSecurityPolicies{c}
 }
 
 func (c *FakeSecurityV1alpha1) Tiers() v1alpha1.TierInterface {
 	return &FakeTiers{c}
-}
-
-func (c *FakeSecurityV1alpha1) VPorts() v1alpha1.VPortInterface {
-	return &FakeVPorts{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -25,41 +25,41 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// VPortLister helps list VPorts.
-type VPortLister interface {
-	// List lists all VPorts in the indexer.
-	List(selector labels.Selector) (ret []*v1alpha1.VPort, err error)
-	// Get retrieves the VPort from the index for a given name.
-	Get(name string) (*v1alpha1.VPort, error)
-	VPortListerExpansion
+// EndpointLister helps list Endpoints.
+type EndpointLister interface {
+	// List lists all Endpoints in the indexer.
+	List(selector labels.Selector) (ret []*v1alpha1.Endpoint, err error)
+	// Get retrieves the Endpoint from the index for a given name.
+	Get(name string) (*v1alpha1.Endpoint, error)
+	EndpointListerExpansion
 }
 
-// vPortLister implements the VPortLister interface.
-type vPortLister struct {
+// endpointLister implements the EndpointLister interface.
+type endpointLister struct {
 	indexer cache.Indexer
 }
 
-// NewVPortLister returns a new VPortLister.
-func NewVPortLister(indexer cache.Indexer) VPortLister {
-	return &vPortLister{indexer: indexer}
+// NewEndpointLister returns a new EndpointLister.
+func NewEndpointLister(indexer cache.Indexer) EndpointLister {
+	return &endpointLister{indexer: indexer}
 }
 
-// List lists all VPorts in the indexer.
-func (s *vPortLister) List(selector labels.Selector) (ret []*v1alpha1.VPort, err error) {
+// List lists all Endpoints in the indexer.
+func (s *endpointLister) List(selector labels.Selector) (ret []*v1alpha1.Endpoint, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.VPort))
+		ret = append(ret, m.(*v1alpha1.Endpoint))
 	})
 	return ret, err
 }
 
-// Get retrieves the VPort from the index for a given name.
-func (s *vPortLister) Get(name string) (*v1alpha1.VPort, error) {
+// Get retrieves the Endpoint from the index for a given name.
+func (s *endpointLister) Get(name string) (*v1alpha1.Endpoint, error) {
 	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("vport"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("endpoint"), name)
 	}
-	return obj.(*v1alpha1.VPort), nil
+	return obj.(*v1alpha1.Endpoint), nil
 }

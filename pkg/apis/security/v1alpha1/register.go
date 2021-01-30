@@ -26,8 +26,8 @@ import (
 
 func init() {
 	SchemeBuilder.Register(
-		&VPort{},
-		&VPortList{},
+		&Endpoint{},
+		&EndpointList{},
 		&SecurityPolicy{},
 		&SecurityPolicyList{},
 		&Tier{},

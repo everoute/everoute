@@ -18,8 +18,8 @@ limitations under the License.
 
 package v1alpha1
 
+type EndpointExpansion interface{}
+
 type SecurityPolicyExpansion interface{}
 
 type TierExpansion interface{}
-
-type VPortExpansion interface{}

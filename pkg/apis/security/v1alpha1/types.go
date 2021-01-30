@@ -38,12 +38,12 @@ type SecurityPolicy struct {
 }
 
 type SecurityPolicySpec struct {
-	Tier                 string               `json:"tier,omitempty"`
-	Priority             int32                `json:"priority"`
-	AppliedToVPortGroups []string             `json:"appliedToVPortGroups"`
-	AppliedToPorts       []SecurityPolicyPort `json:"appliedToPorts,omitempty"`
-	IngressRules         []Rule               `json:"ingressRules,omitempty"`
-	EgressRules          []Rule               `json:"egressRules,omitempty"`
+	Tier                    string               `json:"tier,omitempty"`
+	Priority                int32                `json:"priority"`
+	AppliedToEndpointGroups []string             `json:"appliedToEndpointGroups"`
+	AppliedToPorts          []SecurityPolicyPort `json:"appliedToPorts,omitempty"`
+	IngressRules            []Rule               `json:"ingressRules,omitempty"`
+	EgressRules             []Rule               `json:"egressRules,omitempty"`
 }
 
 // SecurityPolicyPhase defines the phase in which a SecurityPolicy is.
@@ -54,7 +54,7 @@ const (
 	SecurityPolicyPending SecurityPolicyPhase = "Pending"
 	// SecurityPolicyRealizing means the SecurityPolicy has been observed by Lynx and is being realized.
 	SecurityPolicyRealizing SecurityPolicyPhase = "Realizing"
-	// SecurityPolicyRealized means the SecurityPolicy has been enforced to all VPorts it applies to.
+	// SecurityPolicyRealized means the SecurityPolicy has been enforced to all Endpoints it applies to.
 	SecurityPolicyRealized SecurityPolicyPhase = "Realized"
 )
 
@@ -85,8 +85,8 @@ type Rule struct {
 
 // SecurityPolicyPeer describes the grouping selector of workloads.
 type SecurityPolicyPeer struct {
-	IPBlocks    []IPBlock `json:"ipBlocks,omitempty"`
-	VPortGroups []string  `json:"vportGroups,omitempty"`
+	IPBlocks       []IPBlock `json:"ipBlocks,omitempty"`
+	EndpointGroups []string  `json:"endpointGroups,omitempty"`
 }
 
 // IPBlock describes a particular CIDR.
@@ -191,29 +191,29 @@ type TierList struct {
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 
-type VPort struct {
+type Endpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VPortReference `json:"spec"`
-	Status VPortStatus    `json:"status,omitempty"`
+	Spec   EndpointReference `json:"spec"`
+	Status EndpointStatus    `json:"status,omitempty"`
 }
 
-type VPortReference struct {
+type EndpointReference struct {
 	ExternalIDName  string `json:"externalIDName"`
 	ExternalIDValue string `json:"externalIDValue"`
 }
 
-type VPortStatus struct {
+type EndpointStatus struct {
 	IPs        []types.IPAddress `json:"ips,omitempty"`
 	MacAddress string            `json:"macAddress,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VPortList contains a list of VPort
-type VPortList struct {
+// EndpointList contains a list of Endpoint
+type EndpointList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []VPort `json:"items"`
+	Items           []Endpoint `json:"items"`
 }

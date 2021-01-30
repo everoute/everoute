@@ -28,15 +28,8 @@ spec:
             description: GroupMember represents resource member to be populated in
               Groups.
             properties:
-              ips:
-                items:
-                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
-                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
-                  type: string
-                type: array
-              vportReference:
-                description: VPortReference maintains the reference to the VPort.
+              endpointReference:
+                description: EndpointReference maintains the reference to the Endpoint.
                 properties:
                   externalIDName:
                     type: string
@@ -46,8 +39,15 @@ spec:
                 - externalIDName
                 - externalIDValue
                 type: object
+              ips:
+                items:
+                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
+                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                  type: string
+                type: array
             required:
-            - vportReference
+            - endpointReference
             type: object
           type: array
         kind:

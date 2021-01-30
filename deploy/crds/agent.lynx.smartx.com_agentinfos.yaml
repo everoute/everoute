@@ -6,13 +6,13 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: agentinfoes.agent.lynx.smartx.com
+  name: agentinfos.agent.lynx.smartx.com
 spec:
   group: agent.lynx.smartx.com
   names:
     kind: AgentInfo
     listKind: AgentInfoList
-    plural: agentinfoes
+    plural: agentinfos
     singular: agentinfo
   scope: Cluster
   validation:

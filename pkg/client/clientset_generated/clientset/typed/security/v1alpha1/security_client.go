@@ -26,14 +26,18 @@ import (
 
 type SecurityV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	EndpointsGetter
 	SecurityPoliciesGetter
 	TiersGetter
-	VPortsGetter
 }
 
 // SecurityV1alpha1Client is used to interact with features provided by the security.lynx.smartx.com group.
 type SecurityV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *SecurityV1alpha1Client) Endpoints() EndpointInterface {
+	return newEndpoints(c)
 }
 
 func (c *SecurityV1alpha1Client) SecurityPolicies() SecurityPolicyInterface {
@@ -42,10 +46,6 @@ func (c *SecurityV1alpha1Client) SecurityPolicies() SecurityPolicyInterface {
 
 func (c *SecurityV1alpha1Client) Tiers() TierInterface {
 	return newTiers(c)
-}
-
-func (c *SecurityV1alpha1Client) VPorts() VPortInterface {
-	return newVPorts(c)
 }
 
 // NewForConfig creates a new SecurityV1alpha1Client for the given config.

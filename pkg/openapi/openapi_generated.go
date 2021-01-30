@@ -41,16 +41,20 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1.OVSInterface":            schema_pkg_apis_agent_v1alpha1_OVSInterface(ref),
 		"github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1.OVSPort":                 schema_pkg_apis_agent_v1alpha1_OVSPort(ref),
 		"github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1.VlanConfig":              schema_pkg_apis_agent_v1alpha1_VlanConfig(ref),
+		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroup":           schema_pkg_apis_group_v1alpha1_EndpointGroup(ref),
+		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroupList":       schema_pkg_apis_group_v1alpha1_EndpointGroupList(ref),
+		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroupSpec":       schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref),
+		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointReference":       schema_pkg_apis_group_v1alpha1_EndpointReference(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMember":             schema_pkg_apis_group_v1alpha1_GroupMember(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMembers":            schema_pkg_apis_group_v1alpha1_GroupMembers(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMembersList":        schema_pkg_apis_group_v1alpha1_GroupMembersList(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMembersPatch":       schema_pkg_apis_group_v1alpha1_GroupMembersPatch(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMembersPatchList":   schema_pkg_apis_group_v1alpha1_GroupMembersPatchList(ref),
 		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.GroupMembersReference":   schema_pkg_apis_group_v1alpha1_GroupMembersReference(ref),
-		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroup":              schema_pkg_apis_group_v1alpha1_VPortGroup(ref),
-		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroupList":          schema_pkg_apis_group_v1alpha1_VPortGroupList(ref),
-		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroupSpec":          schema_pkg_apis_group_v1alpha1_VPortGroupSpec(ref),
-		"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortReference":          schema_pkg_apis_group_v1alpha1_VPortReference(ref),
+		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Endpoint":             schema_pkg_apis_security_v1alpha1_Endpoint(ref),
+		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointList":         schema_pkg_apis_security_v1alpha1_EndpointList(ref),
+		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointReference":    schema_pkg_apis_security_v1alpha1_EndpointReference(ref),
+		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointStatus":       schema_pkg_apis_security_v1alpha1_EndpointStatus(ref),
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.IPBlock":              schema_pkg_apis_security_v1alpha1_IPBlock(ref),
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Rule":                 schema_pkg_apis_security_v1alpha1_Rule(ref),
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.SecurityPolicy":       schema_pkg_apis_security_v1alpha1_SecurityPolicy(ref),
@@ -62,10 +66,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Tier":                 schema_pkg_apis_security_v1alpha1_Tier(ref),
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.TierList":             schema_pkg_apis_security_v1alpha1_TierList(ref),
 		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.TierSpec":             schema_pkg_apis_security_v1alpha1_TierSpec(ref),
-		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPort":                schema_pkg_apis_security_v1alpha1_VPort(ref),
-		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortList":            schema_pkg_apis_security_v1alpha1_VPortList(ref),
-		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortReference":       schema_pkg_apis_security_v1alpha1_VPortReference(ref),
-		"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortStatus":          schema_pkg_apis_security_v1alpha1_VPortStatus(ref),
 		"k8s.io/api/apps/v1.ControllerRevision":                                       schema_k8sio_api_apps_v1_ControllerRevision(ref),
 		"k8s.io/api/apps/v1.ControllerRevisionList":                                   schema_k8sio_api_apps_v1_ControllerRevisionList(ref),
 		"k8s.io/api/apps/v1.DaemonSet":                                                schema_k8sio_api_apps_v1_DaemonSet(ref),
@@ -714,6 +714,146 @@ func schema_pkg_apis_agent_v1alpha1_VlanConfig(ref common.ReferenceCallback) com
 	}
 }
 
+func schema_pkg_apis_group_v1alpha1_EndpointGroup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroupSpec"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroupSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_group_v1alpha1_EndpointGroupList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EndpointGroupList contains a list of EndpointGroup",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroup"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EndpointGroupSpec defines the desired state for EndpointGroup.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Description is an optional field to add more information regarding the purpose of this Group.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Selector specifies a selector for Endpoint.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+				},
+				Required: []string{"selector"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_pkg_apis_group_v1alpha1_EndpointReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"externalIDName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"externalIDValue": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"externalIDName", "externalIDValue"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -721,10 +861,10 @@ func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) co
 				Description: "GroupMember represents resource member to be populated in Groups.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"vportReference": {
+					"endpointReference": {
 						SchemaProps: spec.SchemaProps{
-							Description: "VPortReference maintains the reference to the VPort.",
-							Ref:         ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortReference"),
+							Description: "EndpointReference maintains the reference to the Endpoint.",
+							Ref:         ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointReference"),
 						},
 					},
 					"ips": {
@@ -741,11 +881,11 @@ func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) co
 						},
 					},
 				},
-				Required: []string{"vportReference"},
+				Required: []string{"endpointReference"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortReference"},
+			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.EndpointReference"},
 	}
 }
 
@@ -997,7 +1137,7 @@ func schema_pkg_apis_group_v1alpha1_GroupMembersReference(ref common.ReferenceCa
 	}
 }
 
-func schema_pkg_apis_group_v1alpha1_VPortGroup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_security_v1alpha1_Endpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -1024,7 +1164,12 @@ func schema_pkg_apis_group_v1alpha1_VPortGroup(ref common.ReferenceCallback) com
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroupSpec"),
+							Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointReference"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointStatus"),
 						},
 					},
 				},
@@ -1032,15 +1177,15 @@ func schema_pkg_apis_group_v1alpha1_VPortGroup(ref common.ReferenceCallback) com
 			},
 		},
 		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroupSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointReference", "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.EndpointStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_pkg_apis_group_v1alpha1_VPortGroupList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_security_v1alpha1_EndpointList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "VPortGroupList contains a list of VPortGroup",
+				Description: "EndpointList contains a list of Endpoint",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1068,7 +1213,7 @@ func schema_pkg_apis_group_v1alpha1_VPortGroupList(ref common.ReferenceCallback)
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroup"),
+										Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Endpoint"),
 									},
 								},
 							},
@@ -1079,40 +1224,11 @@ func schema_pkg_apis_group_v1alpha1_VPortGroupList(ref common.ReferenceCallback)
 			},
 		},
 		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/group/v1alpha1.VPortGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Endpoint", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
-func schema_pkg_apis_group_v1alpha1_VPortGroupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "VPortGroupSpec defines the desired state for VPortGroup.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Description is an optional field to add more information regarding the purpose of this Group.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"selector": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Selector specifies a selector for VPort.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
-						},
-					},
-				},
-				Required: []string{"selector"},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
-	}
-}
-
-func schema_pkg_apis_group_v1alpha1_VPortReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_security_v1alpha1_EndpointReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -1132,6 +1248,37 @@ func schema_pkg_apis_group_v1alpha1_VPortReference(ref common.ReferenceCallback)
 					},
 				},
 				Required: []string{"externalIDName", "externalIDValue"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"ips": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"macAddress": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -1333,7 +1480,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPeer(ref common.ReferenceCa
 							},
 						},
 					},
-					"vportGroups": {
+					"endpointGroups": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
 							Items: &spec.SchemaOrArray{
@@ -1413,7 +1560,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 							Format: "int32",
 						},
 					},
-					"appliedToVPortGroups": {
+					"appliedToEndpointGroups": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
 							Items: &spec.SchemaOrArray{
@@ -1463,7 +1610,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"priority", "appliedToVPortGroups"},
+				Required: []string{"priority", "appliedToEndpointGroups"},
 			},
 		},
 		Dependencies: []string{
@@ -1625,153 +1772,6 @@ func schema_pkg_apis_security_v1alpha1_TierSpec(ref common.ReferenceCallback) co
 					},
 				},
 				Required: []string{"priority", "tierMode"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_security_v1alpha1_VPort(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortReference"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortStatus"),
-						},
-					},
-				},
-				Required: []string{"spec"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortReference", "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPortStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_security_v1alpha1_VPortList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "VPortList contains a list of VPort",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPort"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.VPort", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_security_v1alpha1_VPortReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"externalIDName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"externalIDValue": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-				Required: []string{"externalIDName", "externalIDValue"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_security_v1alpha1_VPortStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"ips": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
-						},
-					},
-					"macAddress": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
 			},
 		},
 	}

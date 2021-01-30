@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+// EndpointGroupListerExpansion allows custom methods to be added to
+// EndpointGroupLister.
+type EndpointGroupListerExpansion interface{}
+
 // GroupMembersListerExpansion allows custom methods to be added to
 // GroupMembersLister.
 type GroupMembersListerExpansion interface{}
@@ -25,7 +29,3 @@ type GroupMembersListerExpansion interface{}
 // GroupMembersPatchListerExpansion allows custom methods to be added to
 // GroupMembersPatchLister.
 type GroupMembersPatchListerExpansion interface{}
-
-// VPortGroupListerExpansion allows custom methods to be added to
-// VPortGroupLister.
-type VPortGroupListerExpansion interface{}

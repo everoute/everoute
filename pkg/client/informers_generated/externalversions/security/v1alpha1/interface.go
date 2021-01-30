@@ -24,12 +24,12 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Endpoints returns a EndpointInformer.
+	Endpoints() EndpointInformer
 	// SecurityPolicies returns a SecurityPolicyInformer.
 	SecurityPolicies() SecurityPolicyInformer
 	// Tiers returns a TierInformer.
 	Tiers() TierInformer
-	// VPorts returns a VPortInformer.
-	VPorts() VPortInformer
 }
 
 type version struct {
@@ -43,6 +43,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
+// Endpoints returns a EndpointInformer.
+func (v *version) Endpoints() EndpointInformer {
+	return &endpointInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // SecurityPolicies returns a SecurityPolicyInformer.
 func (v *version) SecurityPolicies() SecurityPolicyInformer {
 	return &securityPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -51,9 +56,4 @@ func (v *version) SecurityPolicies() SecurityPolicyInformer {
 // Tiers returns a TierInformer.
 func (v *version) Tiers() TierInformer {
 	return &tierInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// VPorts returns a VPortInformer.
-func (v *version) VPorts() VPortInformer {
-	return &vPortInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

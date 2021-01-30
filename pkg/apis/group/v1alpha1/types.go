@@ -40,12 +40,12 @@ type GroupMembers struct {
 
 // GroupMember represents resource member to be populated in Groups.
 type GroupMember struct {
-	// VPortReference maintains the reference to the VPort.
-	VPortReference VPortReference    `json:"vportReference"`
-	IPs            []types.IPAddress `json:"ips,omitempty"`
+	// EndpointReference maintains the reference to the Endpoint.
+	EndpointReference EndpointReference `json:"endpointReference"`
+	IPs               []types.IPAddress `json:"ips,omitempty"`
 }
 
-type VPortReference struct {
+type EndpointReference struct {
 	ExternalIDName  string `json:"externalIDName"`
 	ExternalIDValue string `json:"externalIDValue"`
 }
@@ -101,27 +101,27 @@ type GroupMembersPatchList struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 
-type VPortGroup struct {
+type EndpointGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VPortGroupSpec `json:"spec"`
+	Spec EndpointGroupSpec `json:"spec"`
 }
 
-// VPortGroupSpec defines the desired state for VPortGroup.
-type VPortGroupSpec struct {
+// EndpointGroupSpec defines the desired state for EndpointGroup.
+type EndpointGroupSpec struct {
 	// Description is an optional field to add more information regarding
 	// the purpose of this Group.
 	Description string `json:"description,omitempty"`
-	// Selector specifies a selector for VPort.
+	// Selector specifies a selector for Endpoint.
 	Selector *metav1.LabelSelector `json:"selector"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VPortGroupList contains a list of VPortGroup
-type VPortGroupList struct {
+// EndpointGroupList contains a list of EndpointGroup
+type EndpointGroupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []VPortGroup `json:"items"`
+	Items           []EndpointGroup `json:"items"`
 }
