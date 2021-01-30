@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+// EndpointListerExpansion allows custom methods to be added to
+// EndpointLister.
+type EndpointListerExpansion interface{}
+
 // SecurityPolicyListerExpansion allows custom methods to be added to
 // SecurityPolicyLister.
 type SecurityPolicyListerExpansion interface{}
@@ -25,7 +29,3 @@ type SecurityPolicyListerExpansion interface{}
 // TierListerExpansion allows custom methods to be added to
 // TierLister.
 type TierListerExpansion interface{}
-
-// VPortListerExpansion allows custom methods to be added to
-// VPortLister.
-type VPortListerExpansion interface{}

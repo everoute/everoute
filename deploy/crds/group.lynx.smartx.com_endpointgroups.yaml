@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: vportgroups.group.lynx.smartx.com
+  name: endpointgroups.group.lynx.smartx.com
 spec:
   group: group.lynx.smartx.com
   names:
-    kind: VPortGroup
-    listKind: VPortGroupList
-    plural: vportgroups
-    singular: vportgroup
+    kind: EndpointGroup
+    listKind: EndpointGroupList
+    plural: endpointgroups
+    singular: endpointgroup
   scope: Cluster
   validation:
     openAPIV3Schema:
@@ -31,14 +31,14 @@ spec:
         metadata:
           type: object
         spec:
-          description: VPortGroupSpec defines the desired state for VPortGroup.
+          description: EndpointGroupSpec defines the desired state for EndpointGroup.
           properties:
             description:
               description: Description is an optional field to add more information
                 regarding the purpose of this Group.
               type: string
             selector:
-              description: Selector specifies a selector for VPort.
+              description: Selector specifies a selector for Endpoint.
               properties:
                 matchExpressions:
                   description: matchExpressions is a list of label selector requirements.

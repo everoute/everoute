@@ -24,12 +24,12 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// EndpointGroups returns a EndpointGroupInformer.
+	EndpointGroups() EndpointGroupInformer
 	// GroupMemberses returns a GroupMembersInformer.
 	GroupMemberses() GroupMembersInformer
 	// GroupMembersPatches returns a GroupMembersPatchInformer.
 	GroupMembersPatches() GroupMembersPatchInformer
-	// VPortGroups returns a VPortGroupInformer.
-	VPortGroups() VPortGroupInformer
 }
 
 type version struct {
@@ -43,6 +43,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
+// EndpointGroups returns a EndpointGroupInformer.
+func (v *version) EndpointGroups() EndpointGroupInformer {
+	return &endpointGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // GroupMemberses returns a GroupMembersInformer.
 func (v *version) GroupMemberses() GroupMembersInformer {
 	return &groupMembersInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -51,9 +56,4 @@ func (v *version) GroupMemberses() GroupMembersInformer {
 // GroupMembersPatches returns a GroupMembersPatchInformer.
 func (v *version) GroupMembersPatches() GroupMembersPatchInformer {
 	return &groupMembersPatchInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// VPortGroups returns a VPortGroupInformer.
-func (v *version) VPortGroups() VPortGroupInformer {
-	return &vPortGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

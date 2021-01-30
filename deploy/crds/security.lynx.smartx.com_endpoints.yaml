@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: vports.security.lynx.smartx.com
+  name: endpoints.security.lynx.smartx.com
 spec:
   group: security.lynx.smartx.com
   names:
-    kind: VPort
-    listKind: VPortList
-    plural: vports
-    singular: vport
+    kind: Endpoint
+    listKind: EndpointList
+    plural: endpoints
+    singular: endpoint
   scope: Cluster
   subresources:
     status: {}

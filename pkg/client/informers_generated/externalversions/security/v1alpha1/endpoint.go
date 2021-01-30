@@ -32,58 +32,58 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// VPortInformer provides access to a shared informer and lister for
-// VPorts.
-type VPortInformer interface {
+// EndpointInformer provides access to a shared informer and lister for
+// Endpoints.
+type EndpointInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.VPortLister
+	Lister() v1alpha1.EndpointLister
 }
 
-type vPortInformer struct {
+type endpointInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewVPortInformer constructs a new informer for VPort type.
+// NewEndpointInformer constructs a new informer for Endpoint type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewVPortInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredVPortInformer(client, resyncPeriod, indexers, nil)
+func NewEndpointInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredEndpointInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredVPortInformer constructs a new informer for VPort type.
+// NewFilteredEndpointInformer constructs a new informer for Endpoint type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredVPortInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredEndpointInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().VPorts().List(context.TODO(), options)
+				return client.SecurityV1alpha1().Endpoints().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().VPorts().Watch(context.TODO(), options)
+				return client.SecurityV1alpha1().Endpoints().Watch(context.TODO(), options)
 			},
 		},
-		&securityv1alpha1.VPort{},
+		&securityv1alpha1.Endpoint{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *vPortInformer) defaultInformer(client clientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredVPortInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *endpointInformer) defaultInformer(client clientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredEndpointInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *vPortInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&securityv1alpha1.VPort{}, f.defaultInformer)
+func (f *endpointInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&securityv1alpha1.Endpoint{}, f.defaultInformer)
 }
 
-func (f *vPortInformer) Lister() v1alpha1.VPortLister {
-	return v1alpha1.NewVPortLister(f.Informer().GetIndexer())
+func (f *endpointInformer) Lister() v1alpha1.EndpointLister {
+	return v1alpha1.NewEndpointLister(f.Informer().GetIndexer())
 }

@@ -59,20 +59,20 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agent().V1alpha1().AgentInfos().Informer()}, nil
 
 		// Group=group.lynx.smartx.com, Version=v1alpha1
+	case groupv1alpha1.SchemeGroupVersion.WithResource("endpointgroups"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().EndpointGroups().Informer()}, nil
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMemberses().Informer()}, nil
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberspatches"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMembersPatches().Informer()}, nil
-	case groupv1alpha1.SchemeGroupVersion.WithResource("vportgroups"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().VPortGroups().Informer()}, nil
 
 		// Group=security.lynx.smartx.com, Version=v1alpha1
+	case securityv1alpha1.SchemeGroupVersion.WithResource("endpoints"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().Endpoints().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("securitypolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().SecurityPolicies().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("tiers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().Tiers().Informer()}, nil
-	case securityv1alpha1.SchemeGroupVersion.WithResource("vports"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().VPorts().Informer()}, nil
 
 	}
 

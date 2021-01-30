@@ -26,14 +26,18 @@ import (
 
 type GroupV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	EndpointGroupsGetter
 	GroupMembersesGetter
 	GroupMembersPatchesGetter
-	VPortGroupsGetter
 }
 
 // GroupV1alpha1Client is used to interact with features provided by the group.lynx.smartx.com group.
 type GroupV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *GroupV1alpha1Client) EndpointGroups() EndpointGroupInterface {
+	return newEndpointGroups(c)
 }
 
 func (c *GroupV1alpha1Client) GroupMemberses() GroupMembersInterface {
@@ -42,10 +46,6 @@ func (c *GroupV1alpha1Client) GroupMemberses() GroupMembersInterface {
 
 func (c *GroupV1alpha1Client) GroupMembersPatches() GroupMembersPatchInterface {
 	return newGroupMembersPatches(c)
-}
-
-func (c *GroupV1alpha1Client) VPortGroups() VPortGroupInterface {
-	return newVPortGroups(c)
 }
 
 // NewForConfig creates a new GroupV1alpha1Client for the given config.

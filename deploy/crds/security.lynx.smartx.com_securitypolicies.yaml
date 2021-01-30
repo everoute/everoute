@@ -34,6 +34,10 @@ spec:
           type: object
         spec:
           properties:
+            appliedToEndpointGroups:
+              items:
+                type: string
+              type: array
             appliedToPorts:
               items:
                 description: SecurityPolicyPort describes the port and protocol to
@@ -61,10 +65,6 @@ spec:
                 - protocol
                 type: object
               type: array
-            appliedToVPortGroups:
-              items:
-                type: string
-              type: array
             egressRules:
               items:
                 properties:
@@ -78,6 +78,10 @@ spec:
                   from:
                     description: If this field is empty, this rule matches all sources.
                     properties:
+                      endpointGroups:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -98,10 +102,6 @@ spec:
                           - ip
                           - prefixLength
                           type: object
-                        type: array
-                      vportGroups:
-                        items:
-                          type: string
                         type: array
                     type: object
                   name:
@@ -141,6 +141,10 @@ spec:
                   to:
                     description: If this field is empty, this rule matches all destinations.
                     properties:
+                      endpointGroups:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -161,10 +165,6 @@ spec:
                           - ip
                           - prefixLength
                           type: object
-                        type: array
-                      vportGroups:
-                        items:
-                          type: string
                         type: array
                     type: object
                 required:
@@ -186,6 +186,10 @@ spec:
                   from:
                     description: If this field is empty, this rule matches all sources.
                     properties:
+                      endpointGroups:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -206,10 +210,6 @@ spec:
                           - ip
                           - prefixLength
                           type: object
-                        type: array
-                      vportGroups:
-                        items:
-                          type: string
                         type: array
                     type: object
                   name:
@@ -249,6 +249,10 @@ spec:
                   to:
                     description: If this field is empty, this rule matches all destinations.
                     properties:
+                      endpointGroups:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -270,10 +274,6 @@ spec:
                           - prefixLength
                           type: object
                         type: array
-                      vportGroups:
-                        items:
-                          type: string
-                        type: array
                     type: object
                 required:
                 - action
@@ -287,7 +287,7 @@ spec:
             tier:
               type: string
           required:
-          - appliedToVPortGroups
+          - appliedToEndpointGroups
           - priority
           type: object
         status:
