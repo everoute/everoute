@@ -1,18 +1,34 @@
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
 
-all: codegen manifests controller
+all: codegen manifests bin
+
+bin: controller
+
+images:
+	docker build -f build/images/release/Dockerfile -t lynx/release .
 
 controller: fmt vet
-	go build -o bin/lynx-controller cmd/lynx-controller/main.go
+	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
+
+test:
+	go test ./...
 
 # Generate deepcopy, client, openapi codes
 codegen:
 	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt
 
+
+deploy-test:
+	bash hack/deploy.sh
+
+deploy-test-clean:
+	bash hack/undeploy.sh
+
 # Generate CRD manifests
 manifests:
 	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/crds output:stdout
+	$(CONTROLLER_GEN) rbac:roleName=lynx-controller paths=./... output:stdout > deploy/lynx-controller/role.yaml
 
 # Run go fmt against code
 fmt:
