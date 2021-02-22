@@ -816,12 +816,11 @@ func schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref common.ReferenceCallba
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector specifies a selector for Endpoint.",
+							Description: "Selector specifies a selector for Endpoint. An empty label selector matches all endpoints. A null label selector matches no endpoints.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
 				},
-				Required: []string{"selector"},
 			},
 		},
 		Dependencies: []string{

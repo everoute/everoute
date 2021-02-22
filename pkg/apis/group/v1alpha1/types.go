@@ -113,8 +113,9 @@ type EndpointGroupSpec struct {
 	// Description is an optional field to add more information regarding
 	// the purpose of this Group.
 	Description string `json:"description,omitempty"`
-	// Selector specifies a selector for Endpoint.
-	Selector *metav1.LabelSelector `json:"selector"`
+	// Selector specifies a selector for Endpoint. An empty label selector
+	// matches all endpoints. A null label selector matches no endpoints.
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

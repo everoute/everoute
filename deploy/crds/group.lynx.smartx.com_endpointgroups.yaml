@@ -38,7 +38,8 @@ spec:
                 regarding the purpose of this Group.
               type: string
             selector:
-              description: Selector specifies a selector for Endpoint.
+              description: Selector specifies a selector for Endpoint. An empty label
+                selector matches all endpoints. A null label selector matches no endpoints.
               properties:
                 matchExpressions:
                   description: matchExpressions is a list of label selector requirements.
@@ -80,8 +81,6 @@ spec:
                     are ANDed.
                   type: object
               type: object
-          required:
-          - selector
           type: object
       required:
       - spec
