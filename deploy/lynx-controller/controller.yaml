@@ -1,0 +1,55 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lynx-controller
+  namespace: kube-system
+  labels:
+    app: lynx
+    component: lynx-controller
+spec:
+  strategy:
+    # Ensure the existing Pod is killed before the new one is created.
+    type: Recreate
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lynx
+      component: lynx-controller
+  template:
+    metadata:
+      labels:
+        app: lynx
+        component: lynx-controller
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      serviceAccountName: lynx-controller
+      containers:
+        - name: lynx-controller
+          image: lynx/release
+          imagePullPolicy: IfNotPresent
+          command: ["lynx-controller"]
+          args:
+            - --enable-leader-election=true
+            - --port=9443
+            - -v=0
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/ssl/certs
+      volumes:
+        - name: tls-certs
+          # A secret named lynx-controller-tls must create first before lynx-controller deploy.
+          # example with openssl:
+          #    openssl req -x509 -newkey rsa:2048 -keyout ca.key -out ca.crt -days 365 -nodes -subj "/CN=ca"
+          #    export CABundle=$(cat ca.pem | base64 -w0)
+          #    openssl genrsa -out tls.key
+          #    openssl req -new -key tls.key -out tls.csr -subj "/CN=server"
+          #    openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out tls.crt -days 36500 -extfile <(printf "subjectAltName=DNS:lynx-validator-webhook.kube-system.svc")
+          #    kubectl create secret tls -n kube-system lynx-controller-tls --cert tls.crt --key tls.key
+          secret:
+            secretName: lynx-controller-tls
+            defaultMode: 0400
