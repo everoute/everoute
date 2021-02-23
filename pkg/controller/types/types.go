@@ -37,8 +37,9 @@ func (n ExternalID) MatchPorts(ports []agentv1alpha1.OVSPort) (index int, matche
 	const unMatchIndex = -1
 
 	for item := range ports {
-		ports[item].ExternalIDs[n.Name] = n.Value
-		return item, true
+		if ports[item].ExternalIDs[n.Name] == n.Value {
+			return item, true
+		}
 	}
 	return unMatchIndex, false
 }
