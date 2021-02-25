@@ -595,6 +595,18 @@ func schema_pkg_apis_agent_v1alpha1_OVSInterface(ref common.ReferenceCallback) c
 							Format: "",
 						},
 					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"ofport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"mac": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -696,19 +708,11 @@ func schema_pkg_apis_agent_v1alpha1_VlanConfig(ref common.ReferenceCallback) com
 					},
 					"trunks": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"integer"},
-										Format: "int32",
-									},
-								},
-							},
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 				},
-				Required: []string{"vlanMode"},
 			},
 		},
 	}

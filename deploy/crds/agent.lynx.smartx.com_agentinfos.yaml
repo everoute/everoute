@@ -85,6 +85,11 @@ spec:
                                 type: string
                               name:
                                 type: string
+                              ofport:
+                                format: int32
+                                type: integer
+                              type:
+                                type: string
                             type: object
                           type: array
                         name:
@@ -95,14 +100,10 @@ spec:
                               format: int32
                               type: integer
                             trunks:
-                              items:
-                                format: int32
-                                type: integer
-                              type: array
+                              format: int32
+                              type: integer
                             vlanMode:
                               type: string
-                          required:
-                          - vlanMode
                           type: object
                       type: object
                     type: array
