@@ -61,24 +61,25 @@ type OVSPort struct {
 type VlanMode string
 
 const (
-	VlanTrunk          VlanMode = "Trunk"
-	VlanAccess         VlanMode = "Access"
-	VlanNativeTagged   VlanMode = "NativeTagged"
-	VlanNativeUntagged VlanMode = "NativeUntagged"
+	VlanModeTrunk          VlanMode = "Trunk"
+	VlanModeAccess         VlanMode = "Access"
+	VlanModeNativeTagged   VlanMode = "NativeTagged"
+	VlanModeNativeUntagged VlanMode = "NativeUntagged"
+	VlanModeDot1qTunnel    VlanMode = "Dot1qTunnel"
 )
 
 type VlanConfig struct {
-	VlanMode VlanMode `json:"vlanMode"`
+	VlanMode VlanMode `json:"vlanMode,omitempty"`
 	Tag      int32    `json:"tag,omitempty"`
-	Trunks   []int32  `json:"trunks,omitempty"`
+	Trunks   int32    `json:"trunks,omitempty"`
 }
 
 type BondMode string
 
 const (
-	BondModeBalanceSLB   BondMode = "BondModeBalanceSLB"
-	BondModeActiveBackup BondMode = "BondModeActiveBackup"
-	BondModeBalanceLACP  BondMode = "BondModeBalanceLACP"
+	BondModeBalanceSLB   BondMode = "BalanceSLB"
+	BondModeActiveBackup BondMode = "ActiveBackup"
+	BondModeBalanceTCP   BondMode = "BalanceTCP"
 )
 
 type BondConfig struct {
@@ -86,9 +87,11 @@ type BondConfig struct {
 }
 
 type OVSInterface struct {
-	Name string            `json:"name,omitempty"`
-	Mac  string            `json:"mac,omitempty"`
-	IPs  []types.IPAddress `json:"ips,omitempty"`
+	Name   string            `json:"name,omitempty"`
+	Type   string            `json:"type,omitempty"`
+	Ofport int32             `json:"ofport,omitempty"`
+	Mac    string            `json:"mac,omitempty"`
+	IPs    []types.IPAddress `json:"ips,omitempty"`
 }
 
 type AgentConditionType string
