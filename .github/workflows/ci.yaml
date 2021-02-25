@@ -26,7 +26,11 @@ jobs:
         with:
           version: 2.3.1
       - run: echo "/usr/local/kubebuilder/bin" >> $GITHUB_PATH
-      - run: make test
+      - name: setup openvswitch
+        run: |
+          sudo apt install  -y openvswitch-switch
+          sudo systemctl start openvswitch-switch
+      - run: sudo make test
 
   run-deploy:
     runs-on: [ubuntu-20.04]
