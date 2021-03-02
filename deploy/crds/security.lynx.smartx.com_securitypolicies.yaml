@@ -35,35 +35,10 @@ spec:
         spec:
           properties:
             appliedToEndpointGroups:
+              description: A list of group which SecurityPolicy apply to. This field
+                must not empty.
               items:
                 type: string
-              type: array
-            appliedToPorts:
-              items:
-                description: SecurityPolicyPort describes the port and protocol to
-                  match in a rule.
-                properties:
-                  icmpCode:
-                    format: int32
-                    type: integer
-                  icmpType:
-                    format: int32
-                    type: integer
-                  portRange:
-                    pattern: ^(\d{1,5}-\d{1,5})|()$
-                    type: string
-                  protocol:
-                    description: The protocol (TCP, UDP, ICMP or SCTP) which traffic
-                      must match.
-                    enum:
-                    - TCP
-                    - UDP
-                    - ICMP
-                    - SCTP
-                    type: string
-                required:
-                - protocol
-                type: object
               type: array
             egressRules:
               items:
@@ -105,39 +80,35 @@ spec:
                         type: array
                     type: object
                   name:
+                    description: Name must be unique within the policy and not empty.
                     type: string
                   ports:
-                    description: If this field is unset or empty, this rule matches
-                      all ports.
+                    description: List of destination ports for outgoing traffic. This
+                      field must not empty.
                     items:
                       description: SecurityPolicyPort describes the port and protocol
                         to match in a rule.
                       properties:
-                        icmpCode:
-                          format: int32
-                          type: integer
-                        icmpType:
-                          format: int32
-                          type: integer
                         portRange:
-                          pattern: ^(\d{1,5}-\d{1,5})|()$
+                          description: PortRange is a range of port. If you want match
+                            all ports, you should set empty. If you want match single
+                            port, you should write like 22. If you want match a range
+                            of port, you should write like 20-80, ports between 20
+                            and 80 (include 20 and 80) will matches.
+                          pattern: ^(\d{1,5}-\d{1,5})|(\d{1,5})|()$
                           type: string
                         protocol:
-                          description: The protocol (TCP, UDP, ICMP or SCTP) which
-                            traffic must match.
+                          description: The protocol (TCP, UDP or ICMP) which traffic
+                            must match.
                           enum:
                           - TCP
                           - UDP
                           - ICMP
-                          - SCTP
                           type: string
                       required:
                       - protocol
                       type: object
                     type: array
-                  priority:
-                    format: int32
-                    type: integer
                   to:
                     description: If this field is empty, this rule matches all destinations.
                     properties:
@@ -170,7 +141,7 @@ spec:
                 required:
                 - action
                 - name
-                - priority
+                - ports
                 type: object
               type: array
             ingressRules:
@@ -213,39 +184,35 @@ spec:
                         type: array
                     type: object
                   name:
+                    description: Name must be unique within the policy and not empty.
                     type: string
                   ports:
-                    description: If this field is unset or empty, this rule matches
-                      all ports.
+                    description: List of destination ports for outgoing traffic. This
+                      field must not empty.
                     items:
                       description: SecurityPolicyPort describes the port and protocol
                         to match in a rule.
                       properties:
-                        icmpCode:
-                          format: int32
-                          type: integer
-                        icmpType:
-                          format: int32
-                          type: integer
                         portRange:
-                          pattern: ^(\d{1,5}-\d{1,5})|()$
+                          description: PortRange is a range of port. If you want match
+                            all ports, you should set empty. If you want match single
+                            port, you should write like 22. If you want match a range
+                            of port, you should write like 20-80, ports between 20
+                            and 80 (include 20 and 80) will matches.
+                          pattern: ^(\d{1,5}-\d{1,5})|(\d{1,5})|()$
                           type: string
                         protocol:
-                          description: The protocol (TCP, UDP, ICMP or SCTP) which
-                            traffic must match.
+                          description: The protocol (TCP, UDP or ICMP) which traffic
+                            must match.
                           enum:
                           - TCP
                           - UDP
                           - ICMP
-                          - SCTP
                           type: string
                       required:
                       - protocol
                       type: object
                     type: array
-                  priority:
-                    format: int32
-                    type: integer
                   to:
                     description: If this field is empty, this rule matches all destinations.
                     properties:
@@ -278,7 +245,7 @@ spec:
                 required:
                 - action
                 - name
-                - priority
+                - ports
                 type: object
               type: array
             priority:

@@ -38,12 +38,12 @@ type SecurityPolicy struct {
 }
 
 type SecurityPolicySpec struct {
-	Tier                    string               `json:"tier,omitempty"`
-	Priority                int32                `json:"priority"`
-	AppliedToEndpointGroups []string             `json:"appliedToEndpointGroups"`
-	AppliedToPorts          []SecurityPolicyPort `json:"appliedToPorts,omitempty"`
-	IngressRules            []Rule               `json:"ingressRules,omitempty"`
-	EgressRules             []Rule               `json:"egressRules,omitempty"`
+	Tier     string `json:"tier,omitempty"`
+	Priority int32  `json:"priority"`
+	// A list of group which SecurityPolicy apply to. This field must not empty.
+	AppliedToEndpointGroups []string `json:"appliedToEndpointGroups"`
+	IngressRules            []Rule   `json:"ingressRules,omitempty"`
+	EgressRules             []Rule   `json:"egressRules,omitempty"`
 }
 
 // SecurityPolicyPhase defines the phase in which a SecurityPolicy is.
@@ -70,13 +70,13 @@ type SecurityPolicyStatus struct {
 }
 
 type Rule struct {
+	// Name must be unique within the policy and not empty.
 	Name string `json:"name"`
 
-	Priority int32 `json:"priority"`
 	// Action specifies the action to be applied on the rule.
 	Action *RuleAction `json:"action"`
-	// If this field is unset or empty, this rule matches all ports.
-	Ports []SecurityPolicyPort `json:"ports,omitempty"`
+	// List of destination ports for outgoing traffic. This field must not empty.
+	Ports []SecurityPolicyPort `json:"ports"`
 	// If this field is empty, this rule matches all sources.
 	From SecurityPolicyPeer `json:"from,omitempty"`
 	// If this field is empty, this rule matches all destinations.
@@ -99,15 +99,20 @@ type IPBlock struct {
 
 // SecurityPolicyPort describes the port and protocol to match in a rule.
 type SecurityPolicyPort struct {
-	// The protocol (TCP, UDP, ICMP or SCTP) which traffic must match.
+	// The protocol (TCP, UDP or ICMP) which traffic must match.
 	Protocol Protocol `json:"protocol"`
-	// +kubebuilder:validation:Pattern="^(\\d{1,5}-\\d{1,5})|()$"
+	// PortRange is a range of port. If you want match all ports, you should set empty. If you
+	// want match single port, you should write like 22. If you want match a range of port, you
+	// should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches.
+	// +kubebuilder:validation:Pattern="^(\\d{1,5}-\\d{1,5})|(\\d{1,5})|()$"
 	PortRange string `json:"portRange,omitempty"` // only valid when Protocol is not ICMP
-	ICMPType  *int32 `json:"icmpType,omitempty"`  // only valid when Protocol is ICMP
-	ICMPCode  *int32 `json:"icmpCode,omitempty"`  // only valid when Protocol is ICMP
+
+	// ICMP type and code is not support in alpha1.
+	// ICMPType  *int32 `json:"icmpType,omitempty"`  // only valid when Protocol is ICMP
+	// ICMPCode  *int32 `json:"icmpCode,omitempty"`  // only valid when Protocol is ICMP
 }
 
-// +kubebuilder:validation:Enum=TCP;UDP;ICMP;SCTP
+// +kubebuilder:validation:Enum=TCP;UDP;ICMP
 type Protocol string
 
 const (
@@ -115,10 +120,12 @@ const (
 	ProtocolTCP Protocol = "TCP"
 	// ProtocolUDP is the UDP protocol.
 	ProtocolUDP Protocol = "UDP"
-	// ProtocolSCTP is the SCTP protocol.
-	ProtocolSCTP Protocol = "SCTP"
 	// ProtocolICMP is the ICMP protocol.
 	ProtocolICMP Protocol = "ICMP"
+
+	// ProtocolSCTP is not support in alpha1.
+	// ProtocolSCTP is the SCTP protocol.
+	// ProtocolSCTP Protocol = "SCTP"
 )
 
 // +kubebuilder:validation:Enum=Allow;Drop

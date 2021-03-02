@@ -91,9 +91,8 @@ var initObject = func() {
 			},
 			IngressRules: []securityv1alpha1.Rule{
 				{
-					Name:     "ruleA",
-					Priority: 20,
-					Action:   &ruleActionAllow,
+					Name:   "ruleA",
+					Action: &ruleActionAllow,
 					Ports: []securityv1alpha1.SecurityPolicyPort{
 						{
 							Protocol:  securityv1alpha1.ProtocolTCP,
@@ -134,9 +133,11 @@ var initObject = func() {
 			},
 			EgressRules: []securityv1alpha1.Rule{
 				{
-					Name:     "ruleA",
-					Priority: 30,
-					Action:   &ruleActionDrop,
+					Name:   "ruleA",
+					Action: &ruleActionDrop,
+					Ports: []securityv1alpha1.SecurityPolicyPort{{
+						Protocol: securityv1alpha1.ProtocolUDP,
+					}},
 					To: securityv1alpha1.SecurityPolicyPeer{
 						IPBlocks: []securityv1alpha1.IPBlock{
 							{
@@ -150,9 +151,11 @@ var initObject = func() {
 					},
 				},
 				{
-					Name:     "ruleB",
-					Priority: 31,
-					Action:   &ruleActionDrop,
+					Name:   "ruleB",
+					Action: &ruleActionDrop,
+					Ports: []securityv1alpha1.SecurityPolicyPort{{
+						Protocol: securityv1alpha1.ProtocolICMP,
+					}},
 				},
 			},
 		},
