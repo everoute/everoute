@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	admv1 "k8s.io/api/admission/v1"
@@ -364,6 +365,10 @@ func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo 
 	policy := curObj.(*securityv1alpha1.SecurityPolicy)
 	groups := sets.NewString(policy.Spec.AppliedToEndpointGroups...)
 
+	if len(groups) == 0 {
+		return fmt.Sprintf("at least one group should specified for policy applied to"), false
+	}
+
 	// all groups must exists before security policy create
 	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
 		groups.Insert(rule.From.EndpointGroups...)
@@ -415,6 +420,49 @@ func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error
 			}
 		}
 	}
+
+	if len(rule.Ports) == 0 {
+		return fmt.Errorf("rule field Ports must not empty slice")
+	}
+
+	for _, port := range rule.Ports {
+		err := v.validatePortRange(port.PortRange)
+		if err != nil {
+			return fmt.Errorf("PortRange %s with error format: %s", port.PortRange, err)
+		}
+	}
+
+	return nil
+}
+
+func (v *securityPolicyValidator) validatePortRange(portRange string) error {
+	const emptyPort = `^$`
+	const singlePort = `^(\d{1,5})$`
+	const multiplePort = `^(\d{1,5}-\d{1,5})$`
+
+	switch {
+	case regexp.MustCompile(emptyPort).Match([]byte(portRange)):
+		return nil
+	case regexp.MustCompile(singlePort).Match([]byte(portRange)):
+		port, _ := strconv.Atoi(portRange)
+		if port < 0 || port > 65535 {
+			return fmt.Errorf("port supported must between 0 and 65535")
+		}
+	case regexp.MustCompile(multiplePort).Match([]byte(portRange)):
+		portBegin, _ := strconv.Atoi(strings.Split(portRange, "-")[0])
+		portEnd, _ := strconv.Atoi(strings.Split(portRange, "-")[1])
+
+		if portBegin < 0 || portBegin > 65535 || portEnd < 0 || portEnd > 65535 {
+			return fmt.Errorf("port supported must between 0 and 65535")
+		}
+
+		if portBegin > portEnd {
+			return fmt.Errorf("port begin %d is bigger than end %d", portBegin, portEnd)
+		}
+	default:
+		return fmt.Errorf("unsupport format of portrange")
+	}
+
 	return nil
 }
 

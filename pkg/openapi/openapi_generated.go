@@ -1318,14 +1318,9 @@ func schema_pkg_apis_security_v1alpha1_Rule(ref common.ReferenceCallback) common
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"priority": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Description: "Name must be unique within the policy and not empty.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"action": {
@@ -1337,7 +1332,7 @@ func schema_pkg_apis_security_v1alpha1_Rule(ref common.ReferenceCallback) common
 					},
 					"ports": {
 						SchemaProps: spec.SchemaProps{
-							Description: "If this field is unset or empty, this rule matches all ports.",
+							Description: "List of destination ports for outgoing traffic. This field must not empty.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1361,7 +1356,7 @@ func schema_pkg_apis_security_v1alpha1_Rule(ref common.ReferenceCallback) common
 						},
 					},
 				},
-				Required: []string{"name", "priority", "action"},
+				Required: []string{"name", "action", "ports"},
 			},
 		},
 		Dependencies: []string{
@@ -1509,29 +1504,16 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPort(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"protocol": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The protocol (TCP, UDP, ICMP or SCTP) which traffic must match.",
+							Description: "The protocol (TCP, UDP or ICMP) which traffic must match.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"portRange": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"icmpType": {
-						SchemaProps: spec.SchemaProps{
-							Description: "only valid when Protocol is not ICMP",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"icmpCode": {
-						SchemaProps: spec.SchemaProps{
-							Description: "only valid when Protocol is ICMP",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "PortRange is a range of port. If you want match all ports, you should set empty. If you want match single port, you should write like 22. If you want match a range of port, you should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -1561,24 +1543,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"appliedToEndpointGroups": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "A list of group which SecurityPolicy apply to. This field must not empty.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Type:   []string{"string"},
 										Format: "",
-									},
-								},
-							},
-						},
-					},
-					"appliedToPorts": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.SecurityPolicyPort"),
 									},
 								},
 							},
@@ -1613,7 +1584,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Rule", "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.SecurityPolicyPort"},
+			"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.Rule"},
 	}
 }
 
