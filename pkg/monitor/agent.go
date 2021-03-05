@@ -67,11 +67,11 @@ type agentMonitor struct {
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
 func NewAgentMonitor(client client.Client) (*agentMonitor, error) {
 	monitor := &agentMonitor{
-		k8sClient:       client,
-		cacheLock:       sync.RWMutex{},
-		ovsdbCache:      make(map[string]map[string]ovsdb.Row),
-		ofportsCache:    make(map[int32][]types.IPAddress),
-		syncQueue:       workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		k8sClient:    client,
+		cacheLock:    sync.RWMutex{},
+		ovsdbCache:   make(map[string]map[string]ovsdb.Row),
+		ofportsCache: make(map[int32][]types.IPAddress),
+		syncQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
 
 	var err error
@@ -91,16 +91,35 @@ func NewAgentMonitor(client client.Client) (*agentMonitor, error) {
 	return monitor, nil
 }
 
-func (monitor *agentMonitor) Run(stopChan <-chan struct{}) {
+func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 	defer monitor.syncQueue.ShutDown()
+	defer monitor.ovsClient.Disconnect()
 
-	monitor.startOvsdbMonitor()
+	klog.Infof("start agent %s monitor", monitor.Name())
+	defer klog.Infof("shutting down agent %s monitor", monitor.Name())
+
+	var err error
+
+	err = monitor.rebuildOfportCache()
+	if err != nil {
+		klog.Errorf("unable rebuild ofport cache from apiserver: %s", err)
+		return err
+	}
+
+	err = monitor.startOvsdbMonitor()
+	if err != nil {
+		klog.Errorf("unable start ovsdb monitor: %s", err)
+		return err
+	}
 
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
 	<-stopChan
+
+	return nil
 }
 
-func (monitor *agentMonitor) startOvsdbMonitor() {
+func (monitor *agentMonitor) startOvsdbMonitor() error {
+	klog.Infof("start monitor ovsdb %s", "Open_vSwitch")
 	monitor.ovsClient.Register(ovsUpdateHandlerFunc(monitor.handleOvsUpdates))
 
 	selectAll := ovsdb.MonitorSelect{
@@ -118,10 +137,11 @@ func (monitor *agentMonitor) startOvsdbMonitor() {
 
 	initial, err := monitor.ovsClient.Monitor("Open_vSwitch", nil, requests)
 	if err != nil {
-		klog.Fatalf("failed to monitor ovsdb %s: %s", "Open_vSwitch", err)
+		return fmt.Errorf("monitor ovsdb %s: %s", "Open_vSwitch", err)
 	}
-
 	monitor.handleOvsUpdates(*initial)
+
+	return nil
 }
 
 func (monitor *agentMonitor) syncAgentInfoWorker() {
@@ -206,6 +226,41 @@ func (monitor *agentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 	agentInfo.Conditions = []agentv1alpha1.AgentCondition{agentHealthCondition}
 
 	return agentInfo, nil
+}
+
+// when agent restart, mapping of ofport to IPaddr lost, rebuild from agentInfo
+func (monitor *agentMonitor) rebuildOfportCache() error {
+	klog.Infof("rebuild ofport cache from agentInfo")
+
+	var ctx = context.Background()
+	var agentInfo agentv1alpha1.AgentInfo
+
+	err := monitor.k8sClient.Get(ctx, k8stypes.NamespacedName{Name: monitor.Name()}, &agentInfo)
+	if err != nil {
+		// ignore NotFoundError, agentInfo hasn't been created yet
+		return client.IgnoreNotFound(err)
+	}
+
+	monitor.cacheLock.Lock()
+	defer monitor.cacheLock.Unlock()
+
+	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, iface := range port.Interfaces {
+				if iface.Ofport < 0 || len(iface.IPs) == 0 {
+					// skip if interface has empty IPaddr
+					continue
+				}
+				if _, ok := monitor.ofportsCache[iface.Ofport]; ok {
+					// skip if monitor has learned ofport IPaddr
+					continue
+				}
+				monitor.ofportsCache[iface.Ofport] = iface.IPs
+			}
+		}
+	}
+
+	return nil
 }
 
 func (monitor *agentMonitor) HandleOfportUpdates(ofports map[int32][]types.IPAddress) {

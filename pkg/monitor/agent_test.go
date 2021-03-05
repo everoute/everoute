@@ -25,15 +25,16 @@ import (
 	"github.com/agiledragon/gomonkey"
 	ovsdb "github.com/contiv/libovsdb"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/smartxworks/lynx/pkg/types"
 )
 
 const (
@@ -45,24 +46,20 @@ var (
 	k8sClient client.Client
 	ovsClient *ovsdb.OvsdbClient
 	agentName string
+	monitor   *agentMonitor
+	stopChan  chan struct{}
 )
 
 func TestMain(m *testing.M) {
 	k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
 
-	// return new random agentname instead of read/write from file
+	// return new fake agentname instead of read/write from file
 	gomonkey.ApplyFunc(readOrGenerateAgentName, func() (string, error) {
-		return string(uuid.NewUUID()), nil
+		return `unit.test.agent.name`, nil
 	})
 
-	agentMonitor, err := NewAgentMonitor(k8sClient)
-	if err != nil {
-		klog.Fatal(err)
-	}
-	ovsClient = agentMonitor.ovsClient
-	agentName = agentMonitor.Name()
-
-	go agentMonitor.Run(ctrl.SetupSignalHandler())
+	monitor, ovsClient, stopChan = startAgentMonitor(k8sClient)
+	agentName = monitor.Name()
 
 	m.Run()
 }
@@ -122,6 +119,30 @@ func TestAgentMonitor(t *testing.T) {
 			_, err := getBridge(k8sClient, brName)
 			return isNotFoundError(err)
 		}, timeout, interval).Should(BeTrue())
+	})
+}
+
+func TestAgentMonitorRestart(t *testing.T) {
+	RegisterTestingT(t)
+
+	var ofport int32 = 10
+	var ipAddr = []types.IPAddress{"10.10.56.32"}
+
+	t.Logf("stop agent %s monitor", agentName)
+	close(stopChan)
+
+	t.Logf("set ofport %d IPAddr %v to agentInfo", ofport, ipAddr)
+	Expect(setOfportIPAddr(k8sClient, ofport, ipAddr)).Should(Succeed())
+
+	t.Logf("rerun agent %s monitor", agentName)
+	monitor, ovsClient, stopChan = startAgentMonitor(k8sClient)
+
+	t.Run("monitor should rebuild mapping of ofport to ipAddr", func(t *testing.T) {
+		Eventually(func() []types.IPAddress {
+			monitor.cacheLock.RLock()
+			defer monitor.cacheLock.RUnlock()
+			return monitor.ofportsCache[ofport]
+		}, timeout, interval).Should(Equal(ipAddr))
 	})
 }
 
@@ -323,4 +344,62 @@ func isNotFoundError(err error) bool {
 	default:
 		return false
 	}
+}
+
+func startAgentMonitor(k8sClient client.Client) (*agentMonitor, *ovsdb.OvsdbClient, chan struct{}) {
+	monitor, err := NewAgentMonitor(k8sClient)
+	if err != nil {
+		klog.Fatalf("fail to create agentMonitor: %s", err)
+	}
+
+	stopChan := make(chan struct{})
+	go monitor.Run(stopChan)
+
+	return monitor, monitor.ovsClient, stopChan
+}
+
+// create or update agntinfo with giving ofport and IPAddr
+func setOfportIPAddr(k8sClient client.Client, ofport int32, ipAddr []types.IPAddress) error {
+	var ctx = context.Background()
+	var agentInfoOld = &agentv1alpha1.AgentInfo{}
+
+	var agentInfo = &agentv1alpha1.AgentInfo{
+		OVSInfo: agentv1alpha1.OVSInfo{
+			Bridges: []agentv1alpha1.OVSBridge{
+				{
+					Ports: []agentv1alpha1.OVSPort{
+						{
+							Interfaces: []agentv1alpha1.OVSInterface{
+								{
+									Ofport: ofport,
+									IPs:    ipAddr,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	agentInfo.Name = agentName
+
+	err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: agentName}, agentInfoOld)
+	if errors.IsNotFound(err) {
+		if err = k8sClient.Create(ctx, agentInfo); err != nil {
+			return fmt.Errorf("couldn't create agent %s agentinfo: %s", agentName, err)
+		}
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
+	}
+
+	agentInfo.ObjectMeta = agentInfoOld.ObjectMeta
+	err = k8sClient.Update(ctx, agentInfo)
+	if err != nil {
+		return fmt.Errorf("couldn't update agent %s agentinfo: %s", agentName, err)
+	}
+
+	return nil
 }
