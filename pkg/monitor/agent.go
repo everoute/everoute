@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,16 +57,17 @@ type agentMonitor struct {
 	agentName string
 
 	// cacheLock is a read/write lock for accessing the cache
-	cacheLock    sync.RWMutex
-	ovsdbCache   map[string]map[string]ovsdb.Row
-	ofportsCache map[int32][]types.IPAddress
+	cacheLock                  sync.RWMutex
+	ovsdbCache                 map[string]map[string]ovsdb.Row
+	ofportsCache               map[int32][]types.IPAddress
+	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client) (*agentMonitor, error) {
+func NewAgentMonitor(client client.Client, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
 	monitor := &agentMonitor{
 		k8sClient:    client,
 		cacheLock:    sync.RWMutex{},

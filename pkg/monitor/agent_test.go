@@ -19,6 +19,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -58,8 +59,15 @@ func TestMain(m *testing.M) {
 		return `unit.test.agent.name`, nil
 	})
 
-	monitor, ovsClient, stopChan = startAgentMonitor(k8sClient)
-	agentName = monitor.Name()
+	var ofPortIpAddressMonitorChan chan map[uint32][]net.IP
+	agentMonitor, err := NewAgentMonitor(k8sClient, ofPortIpAddressMonitorChan)
+	if err != nil {
+		klog.Fatal(err)
+	}
+	ovsClient = agentMonitor.ovsClient
+	agentName = agentMonitor.Name()
+
+	go agentMonitor.Run(ctrl.SetupSignalHandler())
 
 	m.Run()
 }
