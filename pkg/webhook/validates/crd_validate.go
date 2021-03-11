@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -387,9 +388,9 @@ func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo 
 		return fmt.Sprintf("tier must create first: %s", err.Error()), false
 	}
 
-	// should has difference rule name in egress and ingress, rule name must not empty
-	if !v.validateRuleName(policy.Spec.IngressRules, policy.Spec.EgressRules) {
-		return fmt.Sprint("rules names must be unique within the policy and not empty"), false
+	// should has difference rule name in egress and ingress, rule name must conforms RFC 1123
+	if err := v.validateRuleName(policy.Spec.IngressRules, policy.Spec.EgressRules); err != nil {
+		return fmt.Sprintf("policy %s, format error with rule.Name: %s", policy.Name, err), false
 	}
 
 	// rule must complies validate values
@@ -466,19 +467,25 @@ func (v *securityPolicyValidator) validatePortRange(portRange string) error {
 	return nil
 }
 
-// validateRuleName validates if the name of each rule is unique within a policy and not empty
-func (v *securityPolicyValidator) validateRuleName(ingress, egress []securityv1alpha1.Rule) bool {
-	uniqueRuleName := sets.NewString()
-	isUnique := func(rules []securityv1alpha1.Rule) bool {
-		for _, rule := range rules {
-			if uniqueRuleName.Has(rule.Name) || rule.Name == "" {
-				return false
-			}
-			uniqueRuleName.Insert(rule.Name)
+// validateRuleName validates if the name of each rule is unique within a policy and if rule name
+// conforms RFC 1123.
+func (v *securityPolicyValidator) validateRuleName(ingress, egress []securityv1alpha1.Rule) error {
+	var uniqueRuleName = sets.NewString()
+
+	for _, rule := range append(ingress, egress...) {
+		if uniqueRuleName.Has(rule.Name) {
+			return fmt.Errorf("rule name %s appears more than twice", rule.Name)
 		}
-		return true
+
+		errs := validation.IsDNS1123Subdomain(rule.Name)
+		if len(errs) != 0 {
+			return fmt.Errorf("rule name %s not conforms RFC 1123", rule.Name)
+		}
+
+		uniqueRuleName.Insert(rule.Name)
 	}
-	return isUnique(ingress) && isUnique(egress)
+
+	return nil
 }
 
 func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {

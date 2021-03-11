@@ -1322,21 +1322,14 @@ func schema_pkg_apis_security_v1alpha1_Rule(ref common.ReferenceCallback) common
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Name must be unique within the policy and not empty.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"action": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Action specifies the action to be applied on the rule.",
+							Description: "Name must be unique within the policy and conforms RFC 1123.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"ports": {
 						SchemaProps: spec.SchemaProps{
-							Description: "List of destination ports for outgoing traffic. This field must not empty.",
+							Description: "List of destination ports for outgoing traffic. This field must not empty. Each item in this list is combined using a logical OR.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1349,18 +1342,18 @@ func schema_pkg_apis_security_v1alpha1_Rule(ref common.ReferenceCallback) common
 					},
 					"from": {
 						SchemaProps: spec.SchemaProps{
-							Description: "If this field is empty, this rule matches all sources.",
+							Description: "Giving sources which can access applied groups for this rule. If this field is empty or missing, this rule matches all sources. This field only works when rule is ingress.",
 							Ref:         ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.SecurityPolicyPeer"),
 						},
 					},
 					"to": {
 						SchemaProps: spec.SchemaProps{
-							Description: "If this field is empty, this rule matches all destinations.",
+							Description: "Giving destinations which can outgoing traffic of applied groups for this rule. If this field is empty or missing, this rule matches all destinations. This field only works when rule is egress.",
 							Ref:         ref("github.com/smartxworks/lynx/pkg/apis/security/v1alpha1.SecurityPolicyPeer"),
 						},
 					},
 				},
-				Required: []string{"name", "action", "ports"},
+				Required: []string{"name", "ports"},
 			},
 		},
 		Dependencies: []string{
@@ -1547,7 +1540,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"appliedToEndpointGroups": {
 						SchemaProps: spec.SchemaProps{
-							Description: "A list of group which SecurityPolicy apply to. This field must not empty.",
+							Description: "List of groups which SecurityPolicy applied to. Each item in this list is combined using a logical OR. This field must not empty.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1561,7 +1554,8 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"ingressRules": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "List of ingress rules to be applied to giving groups. If this field is empty then this SecurityPolicy does not allow any traffic.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1573,7 +1567,8 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"egressRules": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "List of egress rules to be applied to giving groups. If this field is empty then this SecurityPolicy limits all outgoing traffic.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1584,7 +1579,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"priority", "appliedToEndpointGroups"},
+				Required: []string{"tier", "priority", "appliedToEndpointGroups"},
 			},
 		},
 		Dependencies: []string{

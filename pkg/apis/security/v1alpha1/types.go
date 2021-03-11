@@ -38,12 +38,20 @@ type SecurityPolicy struct {
 }
 
 type SecurityPolicySpec struct {
-	Tier     string `json:"tier,omitempty"`
+	Tier     string `json:"tier"`
 	Priority int32  `json:"priority"`
-	// A list of group which SecurityPolicy apply to. This field must not empty.
+
+	// List of groups which SecurityPolicy applied to. Each item in this list is
+	// combined using a logical OR. This field must not empty.
 	AppliedToEndpointGroups []string `json:"appliedToEndpointGroups"`
-	IngressRules            []Rule   `json:"ingressRules,omitempty"`
-	EgressRules             []Rule   `json:"egressRules,omitempty"`
+
+	// List of ingress rules to be applied to giving groups. If this field is empty
+	// then this SecurityPolicy does not allow any traffic.
+	IngressRules []Rule `json:"ingressRules,omitempty"`
+
+	// List of egress rules to be applied to giving groups. If this field is empty
+	// then this SecurityPolicy limits all outgoing traffic.
+	EgressRules []Rule `json:"egressRules,omitempty"`
 }
 
 // SecurityPolicyPhase defines the phase in which a SecurityPolicy is.
@@ -70,16 +78,21 @@ type SecurityPolicyStatus struct {
 }
 
 type Rule struct {
-	// Name must be unique within the policy and not empty.
+	// Name must be unique within the policy and conforms RFC 1123.
 	Name string `json:"name"`
 
-	// Action specifies the action to be applied on the rule.
-	Action *RuleAction `json:"action"`
 	// List of destination ports for outgoing traffic. This field must not empty.
+	// Each item in this list is combined using a logical OR.
 	Ports []SecurityPolicyPort `json:"ports"`
-	// If this field is empty, this rule matches all sources.
+
+	// Giving sources which can access applied groups for this rule. If this field
+	// is empty or missing, this rule matches all sources. This field only works
+	// when rule is ingress.
 	From SecurityPolicyPeer `json:"from,omitempty"`
-	// If this field is empty, this rule matches all destinations.
+
+	// Giving destinations which can outgoing traffic of applied groups for this rule.
+	// If this field is empty or missing, this rule matches all destinations. This field
+	// only works when rule is egress.
 	To SecurityPolicyPeer `json:"to,omitempty"`
 }
 
