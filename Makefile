@@ -18,7 +18,6 @@ test:
 codegen:
 	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt
 
-
 deploy-test:
 	bash hack/deploy.sh
 
@@ -28,7 +27,6 @@ deploy-test-clean:
 # Generate CRD manifests
 manifests:
 	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/crds output:stdout
-	$(CONTROLLER_GEN) rbac:roleName=lynx-controller paths=./... output:stdout > deploy/lynx-controller/role.yaml
 
 # Run go fmt against code
 fmt:

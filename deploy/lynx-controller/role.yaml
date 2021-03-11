@@ -21,59 +21,24 @@ rules:
 - apiGroups:
   - agent.lynx.smartx.com
   resources:
-  - agentinfos
+  - '*'
   verbs:
-  - get
-  - list
-  - watch
+  - '*'
 - apiGroups:
   - group.lynx.smartx.com
   resources:
-  - endpointgroups
+  - '*'
   verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - group.lynx.smartx.com
-  resources:
-  - endpointgroups
-  - groupmembers
-  - groupmemberspatches
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+  - '*'
 - apiGroups:
   - security.lynx.smartx.com
   resources:
-  - endpoints
-  - endpoints/status
+  - '*'
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+  - '*'
 - apiGroups:
-  - security.lynx.smartx.com
+  - policyrule.lynx.smartx.com
   resources:
-  - securitypolicies
+  - '*'
   verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - security.lynx.smartx.com
-  resources:
-  - tiers
-  verbs:
-  - get
-  - list
-  - watch
+  - '*'

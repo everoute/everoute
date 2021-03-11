@@ -39,9 +39,6 @@ import (
 	"github.com/smartxworks/lynx/pkg/utils"
 )
 
-// +kubebuilder:rbac:groups=agent.lynx.smartx.com,resources=agentinfos,verbs=get;list;watch
-// +kubebuilder:rbac:groups=security.lynx.smartx.com,resources=endpoints;endpoints/status,verbs=get;list;watch;create;update;patch;delete
-
 // EndpointReconciler watch endpoints and agentinfos resources, synchronize the
 // endpoint status from agentinfo.
 type EndpointReconciler struct {
