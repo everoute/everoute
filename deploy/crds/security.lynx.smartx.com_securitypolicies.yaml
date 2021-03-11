@@ -35,23 +35,20 @@ spec:
         spec:
           properties:
             appliedToEndpointGroups:
-              description: A list of group which SecurityPolicy apply to. This field
-                must not empty.
+              description: List of groups which SecurityPolicy applied to. Each item
+                in this list is combined using a logical OR. This field must not empty.
               items:
                 type: string
               type: array
             egressRules:
+              description: List of egress rules to be applied to giving groups. If
+                this field is empty then this SecurityPolicy limits all outgoing traffic.
               items:
                 properties:
-                  action:
-                    description: Action specifies the action to be applied on the
-                      rule.
-                    enum:
-                    - Allow
-                    - Drop
-                    type: string
                   from:
-                    description: If this field is empty, this rule matches all sources.
+                    description: Giving sources which can access applied groups for
+                      this rule. If this field is empty or missing, this rule matches
+                      all sources. This field only works when rule is ingress.
                     properties:
                       endpointGroups:
                         items:
@@ -80,11 +77,13 @@ spec:
                         type: array
                     type: object
                   name:
-                    description: Name must be unique within the policy and not empty.
+                    description: Name must be unique within the policy and conforms
+                      RFC 1123.
                     type: string
                   ports:
                     description: List of destination ports for outgoing traffic. This
-                      field must not empty.
+                      field must not empty. Each item in this list is combined using
+                      a logical OR.
                     items:
                       description: SecurityPolicyPort describes the port and protocol
                         to match in a rule.
@@ -110,7 +109,10 @@ spec:
                       type: object
                     type: array
                   to:
-                    description: If this field is empty, this rule matches all destinations.
+                    description: Giving destinations which can outgoing traffic of
+                      applied groups for this rule. If this field is empty or missing,
+                      this rule matches all destinations. This field only works when
+                      rule is egress.
                     properties:
                       endpointGroups:
                         items:
@@ -139,23 +141,19 @@ spec:
                         type: array
                     type: object
                 required:
-                - action
                 - name
                 - ports
                 type: object
               type: array
             ingressRules:
+              description: List of ingress rules to be applied to giving groups. If
+                this field is empty then this SecurityPolicy does not allow any traffic.
               items:
                 properties:
-                  action:
-                    description: Action specifies the action to be applied on the
-                      rule.
-                    enum:
-                    - Allow
-                    - Drop
-                    type: string
                   from:
-                    description: If this field is empty, this rule matches all sources.
+                    description: Giving sources which can access applied groups for
+                      this rule. If this field is empty or missing, this rule matches
+                      all sources. This field only works when rule is ingress.
                     properties:
                       endpointGroups:
                         items:
@@ -184,11 +182,13 @@ spec:
                         type: array
                     type: object
                   name:
-                    description: Name must be unique within the policy and not empty.
+                    description: Name must be unique within the policy and conforms
+                      RFC 1123.
                     type: string
                   ports:
                     description: List of destination ports for outgoing traffic. This
-                      field must not empty.
+                      field must not empty. Each item in this list is combined using
+                      a logical OR.
                     items:
                       description: SecurityPolicyPort describes the port and protocol
                         to match in a rule.
@@ -214,7 +214,10 @@ spec:
                       type: object
                     type: array
                   to:
-                    description: If this field is empty, this rule matches all destinations.
+                    description: Giving destinations which can outgoing traffic of
+                      applied groups for this rule. If this field is empty or missing,
+                      this rule matches all destinations. This field only works when
+                      rule is egress.
                     properties:
                       endpointGroups:
                         items:
@@ -243,7 +246,6 @@ spec:
                         type: array
                     type: object
                 required:
-                - action
                 - name
                 - ports
                 type: object
@@ -256,6 +258,7 @@ spec:
           required:
           - appliedToEndpointGroups
           - priority
+          - tier
           type: object
         status:
           properties:

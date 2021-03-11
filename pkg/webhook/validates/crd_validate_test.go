@@ -45,8 +45,6 @@ var (
 	endpointA             *securityv1alpha1.Endpoint
 	endpointGroupA        *groupv1alpha1.EndpointGroup
 	endpointGroupB        *groupv1alpha1.EndpointGroup
-	ruleActionAllow       = securityv1alpha1.RuleActionAllow
-	ruleActionDrop        = securityv1alpha1.RuleActionDrop
 )
 
 const (
@@ -91,8 +89,7 @@ var initObject = func() {
 			},
 			IngressRules: []securityv1alpha1.Rule{
 				{
-					Name:   "ruleA",
-					Action: &ruleActionAllow,
+					Name: "rule1",
 					Ports: []securityv1alpha1.SecurityPolicyPort{
 						{
 							Protocol:  securityv1alpha1.ProtocolTCP,
@@ -133,8 +130,7 @@ var initObject = func() {
 			},
 			EgressRules: []securityv1alpha1.Rule{
 				{
-					Name:   "ruleA",
-					Action: &ruleActionDrop,
+					Name: "rule1",
 					Ports: []securityv1alpha1.SecurityPolicyPort{{
 						Protocol: securityv1alpha1.ProtocolUDP,
 					}},
@@ -151,8 +147,7 @@ var initObject = func() {
 					},
 				},
 				{
-					Name:   "ruleB",
-					Action: &ruleActionDrop,
+					Name: "rule2",
 					Ports: []securityv1alpha1.SecurityPolicyPort{{
 						Protocol: securityv1alpha1.ProtocolICMP,
 					}},
@@ -412,10 +407,10 @@ var _ = Describe("CRD Validate", func() {
 			policy.Spec.EgressRules[1].Name = policy.Spec.EgressRules[0].Name
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 		})
-		It("Create priority with empty rule name should not allowed", func() {
+		It("Create priority with wrong format rule name should not allowed", func() {
 			policy := securityPolicyEgress.DeepCopy()
 			policy.Name = "newPolicy"
-			policy.Spec.EgressRules[0].Name = ""
+			policy.Spec.EgressRules[0].Name = "rule@name#"
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Delete priority should allows allowed", func() {
