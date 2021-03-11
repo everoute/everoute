@@ -192,22 +192,27 @@ var _ = Describe("GroupController", func() {
 		})
 		Context("has more than 10 patches for the group", func() {
 			BeforeEach(func() {
-				// we create 10 patches by create and update an endpoint for 10 times
-				By("create an endpoint in the group")
-				ep := newTestEndpoint(map[string]string{"label.key": "label.value"}, "192.168.1.1")
-				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
-				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+				var members = groupv1alpha1.GroupMembers{}
 
-				By("update the endpoint for 10 times")
-				for i := 0; i < 10; i++ {
-					switch i % 2 {
-					case 0:
-						ep.Labels["label.key"] = "no.such.label.value"
-					case 1:
-						ep.Labels["label.key"] = "label.value"
-					}
-					Expect(k8sClient.Update(ctx, ep)).Should(Succeed())
+				By("get groupmembers of the group")
+				Eventually(func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, &members)
+				}, timeout, interval).Should(Succeed())
+
+				By("update groupmembers to a high revision")
+				members.Revision = 100
+				Expect(k8sClient.Update(ctx, &members)).Should(Succeed())
+
+				By("create 10 patches for the group")
+				for i := 1; i <= 10; i++ {
+					patch := newTestPatch(members.Name, members.Revision-int32(i))
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
 				}
+
+				By("update the group label to drive reconcile group")
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup))
+				epGroup.Spec.Selector = nil
+				Expect(k8sClient.Update(ctx, epGroup)).Should(Succeed())
 			})
 			It("should clean up old patches", func() {
 				Eventually(func() int {
@@ -304,6 +309,21 @@ func newTestEndpointGroup(matchLabels map[string]string) *groupv1alpha1.Endpoint
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
+		},
+	}
+}
+
+func newTestPatch(groupName string, revision int32) *groupv1alpha1.GroupMembersPatch {
+	name := "patch-test-" + string(uuid.NewUUID())
+
+	return &groupv1alpha1.GroupMembersPatch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: map[string]string{lynxctrl.OwnerGroupLabel: groupName},
+		},
+		AppliedToGroupMembers: groupv1alpha1.GroupMembersReference{
+			Name:     groupName,
+			Revision: revision,
 		},
 	}
 }
