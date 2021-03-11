@@ -42,9 +42,6 @@ import (
 	"github.com/smartxworks/lynx/pkg/utils"
 )
 
-// +kubebuilder:rbac:groups=security.lynx.smartx.com,resources=endpoints;endpoints/status,verbs=get;list;watch
-// +kubebuilder:rbac:groups=group.lynx.smartx.com,resources=endpointgroups;groupmembers;groupmemberspatches,verbs=get;list;watch;create;update;patch;delete
-
 // GroupReconciler watch endpoints and endpointgroups resources, create, update
 // or delete groupmembers and groupmemberspatches according to group members changes.
 type GroupReconciler struct {

@@ -41,11 +41,6 @@ type ValidateWebhook struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=security.lynx.smartx.com,resources=securitypolicies,verbs=get;list;watch
-// +kubebuilder:rbac:groups=security.lynx.smartx.com,resources=tiers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=security.lynx.smartx.com,resources=endpoints;endpoints/status,verbs=get;list;watch
-// +kubebuilder:rbac:groups=group.lynx.smartx.com,resources=endpointgroups,verbs=get;list;watch
-
 // SetupWithManager create and add a ValidateWebhook to the manager.
 func (v *ValidateWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	crdValidate := validates.NewCRDValidate(mgr.GetClient(), mgr.GetScheme())

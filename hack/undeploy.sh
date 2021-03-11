@@ -20,11 +20,14 @@ local_path=$(dirname "$(readlink -f ${0})")
 crds_path=${local_path}/../deploy/crds
 lynxcontroller_deploypath=${local_path}/../deploy/lynx-controller
 
-### remove secret tls certs
-kubectl delete secret -n kube-system lynx-controller-tls
+## remove all resources
+kubectl get -f deploy/crds/ | awk 'NR != 1 {print $1}' | xargs -l kubectl delete --all
 
 ### remove crds
 kubectl delete -f ${crds_path}
+
+### remove secret tls certs
+kubectl delete secret -n kube-system lynx-controller-tls
 
 ### remove lynx-controller
 kubectl delete -f ${lynxcontroller_deploypath}
