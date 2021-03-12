@@ -18,8 +18,6 @@ package main
 
 import (
 	"flag"
-	"os"
-	"runtime/debug"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
@@ -27,6 +25,7 @@ import (
 
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
+	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	endpointctrl "github.com/smartxworks/lynx/pkg/controller/endpoint"
 	groupctrl "github.com/smartxworks/lynx/pkg/controller/group"
@@ -41,10 +40,8 @@ func init() {
 	_ = agentv1alpha1.AddToScheme(scheme)
 	_ = securityv1alpha1.AddToScheme(scheme)
 	_ = groupv1alpha1.AddToScheme(scheme)
+	_ = policyv1alpha1.AddToScheme(scheme)
 }
-
-// For leader election
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 func main() {
 	var metricsAddr string
@@ -70,8 +67,7 @@ func main() {
 		CertDir:            tlsCertDir,
 	})
 	if err != nil {
-		klog.Errorf("unable to start manager: %s", err.Error())
-		os.Exit(1)
+		klog.Fatalf("unable to start manager: %s", err.Error())
 	}
 
 	// endpoint controller sync endpoint status from agentinfo.
@@ -79,9 +75,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.Errorf("unable to create endpoint controller: %s", err.Error())
-		klog.Error(string(debug.Stack()))
-		os.Exit(1)
+		klog.Fatalf("unable to create endpoint controller: %s", err.Error())
 	}
 
 	// group controller sync & manager group members.
@@ -89,24 +83,18 @@ func main() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.Errorf("unable to create group controller: %s", err.Error())
-		klog.Error(string(debug.Stack()))
-		os.Exit(1)
+		klog.Fatalf("unable to create group controller: %s", err.Error())
 	}
 
 	// register validate handle
 	if err = (&webhook.ValidateWebhook{
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		klog.Errorf("unable to create crd validate webhook %s", err.Error())
-		klog.Error(string(debug.Stack()))
-		os.Exit(1)
+		klog.Fatalf("unable to create crd validate webhook %s", err.Error())
 	}
 
 	klog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		klog.Errorf("error while running manager: %s", err.Error())
-		klog.Error(string(debug.Stack()))
-		os.Exit(1)
+		klog.Fatalf("error while running manager: %s", err.Error())
 	}
 }
