@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,22 +57,24 @@ type agentMonitor struct {
 	agentName string
 
 	// cacheLock is a read/write lock for accessing the cache
-	cacheLock    sync.RWMutex
-	ovsdbCache   map[string]map[string]ovsdb.Row
-	ofportsCache map[int32][]types.IPAddress
+	cacheLock                  sync.RWMutex
+	ovsdbCache                 map[string]map[string]ovsdb.Row
+	ofportsCache               map[int32][]types.IPAddress
+	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client) (*agentMonitor, error) {
+func NewAgentMonitor(client client.Client, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
 	monitor := &agentMonitor{
-		k8sClient:    client,
-		cacheLock:    sync.RWMutex{},
-		ovsdbCache:   make(map[string]map[string]ovsdb.Row),
-		ofportsCache: make(map[int32][]types.IPAddress),
-		syncQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		k8sClient:                  client,
+		cacheLock:                  sync.RWMutex{},
+		ovsdbCache:                 make(map[string]map[string]ovsdb.Row),
+		ofportsCache:               make(map[int32][]types.IPAddress),
+		ofPortIpAddressMonitorChan: ofPortIpAddressMonitorChan,
+		syncQueue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
 
 	var err error
@@ -111,11 +114,44 @@ func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 		klog.Errorf("unable start ovsdb monitor: %s", err)
 		return err
 	}
+	go monitor.HandleOfPortIpAddressUpdate(monitor.ofPortIpAddressMonitorChan, stopChan)
 
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
 	<-stopChan
 
 	return nil
+}
+
+func (monitor *agentMonitor) HandleOfPortIpAddressUpdate(ofPortIpAddressMonitorChan <-chan map[uint32][]net.IP, stopChan <-chan struct{}) {
+	for {
+		select {
+		case localEndpointInfo := <-ofPortIpAddressMonitorChan:
+			monitor.updateOfPortIpAddress(localEndpointInfo)
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+func (monitor *agentMonitor) updateOfPortIpAddress(localEndpointInfo map[uint32][]net.IP) {
+	monitor.cacheLock.Lock()
+	defer monitor.cacheLock.Unlock()
+
+	for port, ips := range localEndpointInfo {
+        // OfPort already updated, flush deprecated ofportsCache entry related with port 
+        if len(ips) == 0 {
+            delete(monitor.ofportsCache, int32(port))
+            break
+        }
+
+		var ipAddrs []types.IPAddress
+		for _, ip := range ips {
+			ipAddrs = append(ipAddrs, types.IPAddress(ip.String()))
+		}
+		monitor.ofportsCache[int32(port)] = ipAddrs
+	}
+
+	monitor.syncQueue.Add(monitor.Name())
 }
 
 func (monitor *agentMonitor) startOvsdbMonitor() error {
@@ -261,17 +297,6 @@ func (monitor *agentMonitor) rebuildOfportCache() error {
 	}
 
 	return nil
-}
-
-func (monitor *agentMonitor) HandleOfportUpdates(ofports map[int32][]types.IPAddress) {
-	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
-
-	for ofport, ips := range ofports {
-		monitor.ofportsCache[ofport] = ips
-	}
-
-	monitor.syncQueue.Add(monitor.Name())
 }
 
 func (monitor *agentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
