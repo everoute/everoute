@@ -14,12 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
-
-const (
-	DefaultMaxConcurrentReconciles   = 4
-	NumOfRetainedGroupMembersPatches = 3
-	DependentsCleanFinalizer         = "dependentsclean.finalizer.lynx.smartx.com"
-	OwnerGroupLabel                  = "ownergroup.label.lynx.smartx.com"
-	OwnerPolicyLabel                 = "ownerpolicy.label.lynx.smartx.com"
-)
+// Package cache contains cache storage policy controller needed.
+package cache

@@ -277,14 +277,16 @@ func (r *GroupReconciler) processEndpointGroupDelete(ctx context.Context, group 
 	klog.V(2).Infof("clean group dependents for deleting endpointgroup %s", group.Name)
 
 	// clean all group dependents groupmembers & groupmemberslist
-	err := r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
+	err := r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
 	if err != nil {
 		klog.Errorf("failed to delete endpointgroup %s dependents: %s", group.Name, err.Error())
+		return ctrl.Result{}, err
 	}
 
-	err = r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
+	err = r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
 	if err != nil {
 		klog.Errorf("failed to delete endpointgroup %s dependents: %s", group.Name, err.Error())
+		return ctrl.Result{}, err
 	}
 
 	group.ObjectMeta.Finalizers = []string{}

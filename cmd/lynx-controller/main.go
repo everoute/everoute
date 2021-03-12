@@ -29,6 +29,7 @@ import (
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	endpointctrl "github.com/smartxworks/lynx/pkg/controller/endpoint"
 	groupctrl "github.com/smartxworks/lynx/pkg/controller/group"
+	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/webhook"
 )
 
@@ -84,6 +85,14 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create group controller: %s", err.Error())
+	}
+
+	if err = (&policyctrl.PolicyReconciler{
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		ReadClient: mgr.GetAPIReader(),
+	}).SetupWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
 
 	// register validate handle
