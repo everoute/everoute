@@ -38,6 +38,8 @@ spec:
           properties:
             action:
               type: string
+            defaultPolicyRule:
+              type: boolean
             direction:
               type: string
             dstIpAddr:
