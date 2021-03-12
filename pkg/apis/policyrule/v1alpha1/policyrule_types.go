@@ -47,17 +47,18 @@ type PolicyRuleList struct {
 
 // PolicyRuleSpec defines the desired state of PolicyRule
 type PolicyRuleSpec struct {
-	RuleId     string        `json:"ruleId"`
-	Direction  RuleDirection `json:"direction"`
-	Tier       string        `json:"tier,omitempty"`
-	Priority   int32         `json:"priority"`
-	SrcIpAddr  string        `json:"srcIpAddr,omitempty"`
-	DstIpAddr  string        `json:"dstIpAddr,omitempty"`
-	IpProtocol string        `json:"ipProtocol"`
-	SrcPort    uint16        `json:"srcPort,omitempty"`
-	DstPort    uint16        `json:"dstPort,omitempty"`
-	TcpFlags   string        `json:"tcpFlags"`
-	Action     RuleAction    `json:"action"`
+	RuleId            string        `json:"ruleId"`
+	Direction         RuleDirection `json:"direction"`
+	DefaultPolicyRule bool          `json:"defaultPolicyRule,omitempty"`
+	Tier              string        `json:"tier,omitempty"`
+	Priority          int32         `json:"priority"`
+	SrcIpAddr         string        `json:"srcIpAddr,omitempty"`
+	DstIpAddr         string        `json:"dstIpAddr,omitempty"`
+	IpProtocol        string        `json:"ipProtocol"`
+	SrcPort           uint16        `json:"srcPort,omitempty"`
+	DstPort           uint16        `json:"dstPort,omitempty"`
+	TcpFlags          string        `json:"tcpFlags"`
+	Action            RuleAction    `json:"action"`
 }
 
 type RuleAction string
