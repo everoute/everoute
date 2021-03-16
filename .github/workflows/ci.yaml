@@ -31,6 +31,9 @@ jobs:
           sudo apt install  -y openvswitch-switch
           sudo systemctl start openvswitch-switch
       - run: sudo make test
+      - uses: codecov/codecov-action@v1
+        with:
+          files: ./coverage.out
 
   run-deploy:
     runs-on: [ubuntu-20.04]
