@@ -20,3 +20,6 @@ bin
 
 # openapi-gen report file
 violations.report
+
+# go coverage report file
+coverage.out
