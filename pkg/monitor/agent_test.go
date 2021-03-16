@@ -61,7 +61,14 @@ func TestMain(m *testing.M) {
 		return `unit.test.agent.name`, nil
 	})
 
-	monitor, ovsClient, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	var err error
+
+	ovsClient, err = ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
+	if err != nil {
+		klog.Fatalf("fail to connect ovs client: %s", err)
+	}
+
+	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
 	agentName = monitor.Name()
 
 	m.Run()
@@ -138,7 +145,7 @@ func TestAgentMonitorRestart(t *testing.T) {
 	Expect(setOfportIPAddr(k8sClient, ofport, ipAddr)).Should(Succeed())
 
 	t.Logf("rerun agent %s monitor", agentName)
-	monitor, ovsClient, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
 
 	t.Run("monitor should rebuild mapping of ofport to ipAddr", func(t *testing.T) {
 		Eventually(func() []types.IPAddress {
@@ -153,7 +160,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	RegisterTestingT(t)
 
 	t.Logf("init agentmonitor for %s", agentName)
-	monitor, ovsClient, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
 
 	var ofPort1 uint32 = 1
 	var ofPort2 uint32 = 2
@@ -454,7 +461,7 @@ func isNotFoundError(err error) bool {
 	}
 }
 
-func startAgentMonitor(k8sClient client.Client) (*agentMonitor, *ovsdb.OvsdbClient, chan struct{}, chan map[uint32][]net.IP) {
+func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, chan map[uint32][]net.IP) {
 	ofPortIpAddressMonitorChan = make(chan map[uint32][]net.IP, 1024)
 	monitor, err := NewAgentMonitor(k8sClient, ofPortIpAddressMonitorChan)
 	if err != nil {
@@ -464,7 +471,7 @@ func startAgentMonitor(k8sClient client.Client) (*agentMonitor, *ovsdb.OvsdbClie
 	stopChan := make(chan struct{})
 	go monitor.Run(stopChan)
 
-	return monitor, monitor.ovsClient, stopChan, ofPortIpAddressMonitorChan
+	return monitor, stopChan, ofPortIpAddressMonitorChan
 }
 
 // create or update agntinfo with giving ofport and IPAddr
