@@ -557,7 +557,10 @@ func mustUpdatePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPoli
 	var oldPolicy = &securityv1alpha1.SecurityPolicy{}
 
 	Eventually(func() error {
-		Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: policy.Name}, oldPolicy))
+		err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: policy.Name}, oldPolicy)
+		if err != nil {
+			return err
+		}
 		policy.ObjectMeta = oldPolicy.ObjectMeta
 		return k8sClient.Update(ctx, policy)
 	}, timeout, interval).Should(Succeed())
