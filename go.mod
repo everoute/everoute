@@ -7,7 +7,7 @@ require (
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1 // indirect
-	github.com/contiv/libovsdb v0.0.0-20160406174930-bbc744d8ddc8
+	github.com/contiv/libovsdb v0.0.0
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.3
 	github.com/kr/text v0.2.0 // indirect
@@ -25,3 +25,5 @@ require (
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
 	sigs.k8s.io/controller-runtime v0.6.0
 )
+
+replace github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632
