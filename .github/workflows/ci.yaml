@@ -30,7 +30,11 @@ jobs:
         run: |
           sudo apt install  -y openvswitch-switch
           sudo systemctl start openvswitch-switch
-      - run: sudo make test
+      - name: run lynx unit test
+        run: |
+          sudo make test
+          sudo make race-test
+          sudo make cover-test
       - uses: codecov/codecov-action@v1
         with:
           files: ./coverage.out
