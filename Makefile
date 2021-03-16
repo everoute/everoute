@@ -12,7 +12,7 @@ controller: fmt vet
 	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
 
 test:
-	go test ./...
+	go test -v -timeout 5m ./...
 
 # Generate deepcopy, client, openapi codes
 codegen:
