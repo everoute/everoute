@@ -12,7 +12,13 @@ controller: fmt vet
 	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
 
 test:
-	go test ./... --coverprofile=coverage.out
+	go test ./...
+
+cover-test:
+	go test ./... -coverprofile=coverage.out
+
+race-test:
+	go test ./... -race
 
 # Generate deepcopy, client, openapi codes
 codegen:
