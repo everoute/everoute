@@ -182,11 +182,7 @@ var _ = Describe("GroupController", func() {
 					}, timeout, interval).Should(BeTrue())
 				})
 				It("should clean depends patches for the endpointgroup", func() {
-					Eventually(func() int {
-						patchList := groupv1alpha1.GroupMembersPatchList{}
-						Expect(k8sClient.List(ctx, &patchList, client.MatchingLabels{lynxctrl.OwnerGroupLabel: epGroup.Name})).Should(Succeed())
-						return len(patchList.Items)
-					}, timeout, interval).Should(Equal(0))
+					assertPatchLen(ctx, epGroup.Name, 0)
 				})
 			})
 		})
@@ -208,11 +204,17 @@ var _ = Describe("GroupController", func() {
 					patch := newTestPatch(members.Name, members.Revision-int32(i))
 					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
 				}
+				assertPatchLen(ctx, epGroup.Name, 10)
 
 				By("update the group label to drive reconcile group")
-				Expect(k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup))
-				epGroup.Spec.Selector = nil
-				Expect(k8sClient.Update(ctx, epGroup)).Should(Succeed())
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup)
+					if err != nil {
+						return err
+					}
+					epGroup.Spec.Selector = nil
+					return k8sClient.Update(ctx, epGroup)
+				}, timeout, interval).Should(Succeed())
 			})
 			It("should clean up old patches", func() {
 				Eventually(func() int {
@@ -360,4 +362,12 @@ func assertHasGroupMembers(epGroup *groupv1alpha1.EndpointGroup, members groupv1
 
 		return members.GroupMembers
 	}, timeout, interval).Should(matcher)
+}
+
+func assertPatchLen(ctx context.Context, groupName string, length int) {
+	Eventually(func() int {
+		patchList := groupv1alpha1.GroupMembersPatchList{}
+		Expect(k8sClient.List(ctx, &patchList, client.MatchingLabels{lynxctrl.OwnerGroupLabel: groupName})).Should(Succeed())
+		return len(patchList.Items)
+	}, timeout, interval).Should(Equal(length))
 }
