@@ -15,7 +15,7 @@ test:
 	go test ./...
 
 cover-test:
-	go test ./... -coverprofile=coverage.out
+	go test ./... -coverprofile=coverage.out -coverpkg=./...
 
 race-test:
 	go test ./... -race
