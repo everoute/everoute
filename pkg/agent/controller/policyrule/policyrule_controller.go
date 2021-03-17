@@ -18,15 +18,13 @@ package policyrule
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
-
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/contiv/ofnet"
+	errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -51,65 +48,16 @@ type PolicyRuleReconciler struct {
 	Agent  *ofnet.OfnetAgent
 }
 
-type PolicyRuleController struct {
-	Controller controller.Controller
-}
-
-func InitManager(scheme *runtime.Scheme) manager.Manager {
-	var metricsAddr string
-	var enableLeaderElection bool
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	klog.InitFlags(nil)
-	flag.Parse()
-
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "f2274c76.lynx.smartx.com",
-	})
-	if err != nil {
-		klog.Fatalf("unable to start manager: %s", err.Error())
-		os.Exit(1)
-	}
-
-	return mgr
-}
-
-func NewPolicyRuleController(mgr manager.Manager, agent *ofnet.OfnetAgent) (*PolicyRuleController, error) {
-	c, err := controller.New("networkpolicy-controller", mgr, controller.Options{
-		Reconciler: &PolicyRuleReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Agent:  agent,
-		},
-	})
-	if err != nil {
-		klog.Fatalf("unable to create policyrule controller: %s", err.Error())
-		return nil, err
-	}
-
-	return &PolicyRuleController{
-		Controller: c,
-	}, err
-}
-
-func (c *PolicyRuleController) Run(stopChan <-chan struct{}, mgr manager.Manager) {
-	// +kubebuilder:scaffold:builder
-	klog.Infof("start manager")
-	if err := mgr.Start(stopChan); err != nil {
-		klog.Fatalf("error while running manager: %s", err.Error())
-		os.Exit(1)
-	}
-}
-
-func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager, c controller.Controller) error {
+func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
+	}
+
+	c, err := controller.New("policyrule-controller", mgr, controller.Options{
+		Reconciler: r,
+	})
+	if err != nil {
+		return err
 	}
 
 	c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRuleList{}}, &handler.Funcs{
@@ -125,46 +73,90 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager, c controller.C
 
 func (r *PolicyRuleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
+	klog.Infof("PolicyRuleReconiler received policyRule %s operation.", req.NamespacedName)
 
-	// your logic here
 	policyRule := networkpolicyv1alpha1.PolicyRule{}
-	if err := r.Get(ctx, req.NamespacedName, &policyRule); err != nil {
+	err := r.Get(ctx, req.NamespacedName, &policyRule)
+	if err != nil {
 		klog.Errorf("unable to fetch policyRule %s: %s", req.Name, err.Error())
+		if errors.IsNotFound(err) {
+			r.deletePolicyRuleFromDatapath(req.Name)
 
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+			return ctrl.Result{}, nil
+		}
+
+		return ctrl.Result{}, err
 	}
 
-	// PolicyRule status update ?
+	if policyRule.ObjectMeta.DeletionTimestamp != nil {
+		r.deletePolicyRuleFromDatapath(req.Name)
+		return ctrl.Result{}, nil
+	}
+
+	r.addPolicyRuleToDatapath(&policyRule)
 
 	return ctrl.Result{}, nil
 }
 
 func (r *PolicyRuleReconciler) addPolicyRule(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	policyRule, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
+	_, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
 	if !ok {
 		klog.Errorf("addPolicyRule receive event %v with error object", e)
+		return
 	}
 
-	// Process PolicyRuleList: convert it to ofnetPolicyRule, filter illegal PolicyRule; install ofnetPolicyRule flow
+	if e.Meta == nil {
+		klog.Errorf("AddPolicRule received with no metadata event: %v", e)
+		return
+	}
+
+	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+		Namespace: e.Meta.GetNamespace(),
+		Name:      e.Meta.GetName(),
+	}})
+}
+
+func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	_, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
+	if !ok {
+		klog.Errorf("addPolicyRule receive event %v with error object", e)
+		return
+	}
+
+	if e.Meta == nil {
+		klog.Errorf("AddPolicRule received with no metadata event: %v", e)
+		return
+	}
+
+	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+		Namespace: e.Meta.GetNamespace(),
+		Name:      e.Meta.GetName(),
+	}})
+}
+
+func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(ruleId string) {
+	var err error
+	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
+		RuleId: ruleId,
+	}
+
+	datapath := r.Agent.GetDatapath()
+	err = datapath.GetPolicyAgent().DelRule(ofnetPolicyRule, nil)
+	if err != nil {
+		// Update policyRule enforce status for statistics and display. TODO
+		klog.Errorf("del ofnetPolicyRule %v failed,", ofnetPolicyRule)
+	}
+}
+
+func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(policyRule *networkpolicyv1alpha1.PolicyRule) {
+	var err error
+
+	// Process PolicyRule: convert it to ofnetPolicyRule, filter illegal PolicyRule; install ofnetPolicyRule flow
+	ofnetPolicyRule, err := toOfnetPolicyRule(policyRule)
+	if err != nil {
+		klog.Errorf("Error when convert networkpolicyv1alpha1 %v policyRule to ofnetpolicyrule,", err)
+	}
 	rule := policyRule.Spec
-	ipProtoNo, err := protocolToInt(rule.IpProtocol)
-	if err != nil {
-		klog.Errorf("unsupport ipProtocol %s in PolicyRule", rule.IpProtocol)
-		// Mark policyRule as failed
-	}
-
-	var rulePriority int
-
-	if rule.DefaultPolicyRule {
-		rulePriority = defaultRulePriority
-	} else {
-		rulePriority = int(rule.Priority)
-	}
-
-	ruleAction, err := getRuleAction(rule.Action)
-	if err != nil {
-		klog.Errorf("unsupport ruleAction %s in PolicyRule", rule.Action)
-	}
 
 	ruleDirection, err := getRuleDirection(rule.Direction)
 	if err != nil {
@@ -175,38 +167,22 @@ func (r *PolicyRuleReconciler) addPolicyRule(e event.CreateEvent, q workqueue.Ra
 		klog.Errorf("unsupport ruleTier %s in policyRule.", rule.Tier)
 	}
 
-	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId:     rule.RuleId,
-		Priority:   rulePriority,
-		SrcIpAddr:  rule.SrcIpAddr,
-		DstIpAddr:  rule.DstIpAddr,
-		IpProtocol: ipProtoNo,
-		SrcPort:    rule.SrcPort,
-		DstPort:    rule.DstPort,
-		TcpFlags:   rule.TcpFlags,
-		Action:     ruleAction,
-	}
-
 	datapath := r.Agent.GetDatapath()
 	err = datapath.GetPolicyAgent().AddRuleToTier(ofnetPolicyRule, ruleDirection, ruleTier)
 	if err != nil {
 		// Update policyRule enforce status for statistics and display. TODO
+		klog.Errorf("add ofnetPolicyRule %v failed,", ofnetPolicyRule)
 	}
 }
 
-func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	// Add policyRule in policyRule list,
-	policyRule, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
-	if !ok {
-		klog.Errorf("addPolicyRule receive event %v with error object", e)
-	}
-
+func toOfnetPolicyRule(policyRule *networkpolicyv1alpha1.PolicyRule) (*ofnet.OfnetPolicyRule, error) {
+	// Process PolicyRule: convert it to ofnetPolicyRule, filter illegal PolicyRule; install ofnetPolicyRule flow
 	rule := policyRule.Spec
 	ipProtoNo, err := protocolToInt(rule.IpProtocol)
-
 	if err != nil {
 		klog.Errorf("unsupport ipProtocol %s in PolicyRule", rule.IpProtocol)
 		// Mark policyRule as failed
+		return nil, err
 	}
 
 	var rulePriority int
@@ -219,6 +195,7 @@ func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue
 	ruleAction, err := getRuleAction(rule.Action)
 	if err != nil {
 		klog.Errorf("unsupport ruleAction %s in PolicyRule", rule.Action)
+		return nil, err
 	}
 
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
@@ -233,11 +210,7 @@ func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue
 		Action:     ruleAction,
 	}
 
-	datapath := r.Agent.GetDatapath()
-	err = datapath.GetPolicyAgent().DelRule(ofnetPolicyRule, nil)
-	if err != nil {
-		// Update policyRule enforce status for statistics and display. TODO
-	}
+	return ofnetPolicyRule, nil
 }
 
 func protocolToInt(ipProtocol string) (uint8, error) {

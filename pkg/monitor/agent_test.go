@@ -233,10 +233,10 @@ func updateOfPort(oldOfPort uint32, newOfPort uint32, ofPortIpAddressMonitorChan
 	if _, ok := monitor.ofportsCache[int32(oldOfPort)]; !ok {
 		return fmt.Errorf("error when get ofportsCache, port: %d.", oldOfPort)
 	}
-    oldOfPortInfo := map[uint32][]net.IP{
-        oldOfPort: {},
-    }
-    ofPortIpAddressMonitorChan <- oldOfPortInfo
+	oldOfPortInfo := map[uint32][]net.IP{
+		oldOfPort: {},
+	}
+	ofPortIpAddressMonitorChan <- oldOfPortInfo
 
 	ipAddr := monitor.ofportsCache[int32(oldOfPort)]
 	newOfPortInfo := map[uint32][]net.IP{

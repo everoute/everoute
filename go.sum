@@ -514,6 +514,8 @@ github.com/segmentio/kafka-go v0.2.0/go.mod h1:X6itGqS9L4jDletMsxZ7Dz+JFWxM6JHfP
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
+github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632 h1:iLjttQYmBHtELtX1XP7Lw8Ju/ZgGpceFeAFJY8lDM0s=
+github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632/go.mod h1:uEPSg7wPLb7/z4egk6gXH/OA0ztsh2eUcYqjCBCeaCk=
 github.com/smartxworks/ofnet v0.0.0-20210315095710-7f729f6145f2 h1:KnZxmxERPW+kF7Udkxcxqr+EVLbM2CXBIKxS9bnKdfo=
 github.com/smartxworks/ofnet v0.0.0-20210315095710-7f729f6145f2/go.mod h1:+OuUO1n8LUqIphzW6/NLWXwt8XD5Hjk1U67E2wQzWZ0=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d h1:zE9ykElWQ6/NYmHa3jpm/yHnI4xSofP+UP6SpjHcSeM=

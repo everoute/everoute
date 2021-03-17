@@ -17,6 +17,7 @@ limitations under the License.
 package policyrule
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -28,8 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 )
@@ -39,6 +42,7 @@ var (
 	SrcIpAddr2  = "10.10.10.2"
 	DstIpAddr1  = "10.10.20.1"
 	DstIpAddr2  = "10.10.20.2"
+	DstIpAddr3  = "10.10.20.3"
 	SrcPort1    = 80
 	SrcPort2    = 8080
 	DstPort1    = 443
@@ -66,7 +70,7 @@ var (
 			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name: "policyRule1",
+			Name: "securityPolicy1-policyRule1",
 		},
 		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
 			RuleId:            "securityPolicy1-policyRule1",
@@ -84,25 +88,49 @@ var (
 		},
 		Status: networkpolicyv1alpha1.PolicyRuleStatus{},
 	}
-	policyRule1Updated = &networkpolicyv1alpha1.PolicyRule{
+	policyRule2 = &networkpolicyv1alpha1.PolicyRule{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "PolicyRule",
 			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name: "policyRule1Updated",
+			Name: "securityPolicy1-policyRule2",
 		},
 		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			RuleId:            "securityPolicy1-policyRule1Updated",
+			RuleId:            "securityPolicy1-policyRule2",
 			Direction:         networkpolicyv1alpha1.RuleDirectionOut,
 			DefaultPolicyRule: false,
 			Tier:              "tier0",
 			Priority:          100,
-			SrcIpAddr:         SrcIpAddr1,
+			SrcIpAddr:         SrcIpAddr2,
 			DstIpAddr:         DstIpAddr2,
-			IpProtocol:        IpProtocol1,
-			SrcPort:           uint16(SrcPort1),
-			DstPort:           uint16(DstPort1),
+			IpProtocol:        IpProtocol2,
+			SrcPort:           uint16(SrcPort2),
+			DstPort:           uint16(DstPort2),
+			TcpFlags:          "",
+			Action:            networkpolicyv1alpha1.RuleActionAllow,
+		},
+		Status: networkpolicyv1alpha1.PolicyRuleStatus{},
+	}
+	policyRule2Updated = &networkpolicyv1alpha1.PolicyRule{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "PolicyRule",
+			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "securityPolicy1-policyRule2Updated",
+		},
+		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
+			RuleId:            "securityPolicy1-policyRule2Updated",
+			Direction:         networkpolicyv1alpha1.RuleDirectionOut,
+			DefaultPolicyRule: false,
+			Tier:              "tier0",
+			Priority:          100,
+			SrcIpAddr:         SrcIpAddr2,
+			DstIpAddr:         DstIpAddr3,
+			IpProtocol:        IpProtocol2,
+			SrcPort:           uint16(SrcPort2),
+			DstPort:           uint16(DstPort2),
 			TcpFlags:          "",
 			Action:            networkpolicyv1alpha1.RuleActionAllow,
 		},
@@ -130,7 +158,7 @@ func TestMain(m *testing.M) {
 	agent.WaitForSwitchConnection()
 
 	queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	reconciler = newFakeReconciler(agent, policyRule1, policyRule1Updated)
+	reconciler = newFakeReconciler(agent, policyRule1, policyRule2)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
@@ -148,6 +176,18 @@ func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *Pol
 	}
 }
 
+func processQueue(r reconcile.Reconciler, q workqueue.RateLimitingInterface) error {
+	for i := 0; i < q.Len(); i++ {
+		request, _ := q.Get()
+		if _, err := r.Reconcile(request.(ctrl.Request)); err != nil {
+			return err
+		}
+		q.Done(request)
+	}
+
+	return nil
+}
+
 func TestProcessPolicyRule(t *testing.T) {
 	// AddPolicyRule event
 	t.Run("PolicyRule add", func(t *testing.T) {
@@ -155,6 +195,10 @@ func TestProcessPolicyRule(t *testing.T) {
 			Meta:   policyRule1.GetObjectMeta(),
 			Object: policyRule1,
 		}, queue)
+
+		if err := processQueue(reconciler, queue); err != nil {
+			t.Errorf("failed to process add policyRule1 %v.", policyRule1)
+		}
 
 		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
 		if _, ok := datapathRules["securityPolicy1-policyRule1"]; !ok {
@@ -164,25 +208,34 @@ func TestProcessPolicyRule(t *testing.T) {
 
 	// UpdatePolicyRule event: delete event && add event
 	t.Run("PolicyRule Del", func(t *testing.T) {
-		reconciler.deletePolicyRule(event.DeleteEvent{
-			Meta:   policyRule1.GetObjectMeta(),
-			Object: policyRule1,
-		}, queue)
 		reconciler.addPolicyRule(event.CreateEvent{
-			Meta:   policyRule1Updated.GetObjectMeta(),
-			Object: policyRule1Updated,
+			Meta:   policyRule2.GetObjectMeta(),
+			Object: policyRule2,
 		}, queue)
 
+		if err := processQueue(reconciler, queue); err != nil {
+			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
+		}
 		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
-		if _, ok := datapathRules["securityPolicy1-policyRule1"]; ok {
-			t.Errorf("Failed to update policyRule1 %v from datapath.", policyRule1)
+		if _, ok := datapathRules["securityPolicy1-policyRule2"]; !ok {
+			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
-		if _, ok := datapathRules["securityPolicy1-policyRule1Updated"]; !ok {
-			t.Errorf("Failed to update policyRule1 %v from datapath.", policyRule1)
+
+		reconciler.deletePolicyRule(event.DeleteEvent{
+			Meta:   policyRule2.GetObjectMeta(),
+			Object: policyRule2,
+		}, queue)
+
+		ctx := context.Background()
+		reconciler.Delete(ctx, policyRule2)
+
+		if err := processQueue(reconciler, queue); err != nil {
+			t.Errorf("failed to process del policyRule2 %v.", policyRule2)
 		}
-		rule := datapathRules["securityPolicy1-policyRule1Updated"]
-		if rule.Rule.DstIpAddr != DstIpAddr2 {
-			t.Errorf("Failed to update policyRule1 %v dstIpAddr field.", policyRule1)
+
+		datapathRules = reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		if _, ok := datapathRules["securityPolicy1-policyRule2"]; ok {
+			t.Errorf("Failed to del policyRule2 %v.", policyRule2)
 		}
 	})
 }

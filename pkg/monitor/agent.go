@@ -138,11 +138,11 @@ func (monitor *agentMonitor) updateOfPortIpAddress(localEndpointInfo map[uint32]
 	defer monitor.cacheLock.Unlock()
 
 	for port, ips := range localEndpointInfo {
-        // OfPort already updated, flush deprecated ofportsCache entry related with port 
-        if len(ips) == 0 {
-            delete(monitor.ofportsCache, int32(port))
-            break
-        }
+		// OfPort already updated, flush deprecated ofportsCache entry related with port
+		if len(ips) == 0 {
+			delete(monitor.ofportsCache, int32(port))
+			break
+		}
 
 		var ipAddrs []types.IPAddress
 		for _, ip := range ips {
