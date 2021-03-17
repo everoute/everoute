@@ -171,6 +171,8 @@ func (cache *GroupCache) ApplyPatch(patch *GroupPatch) {
 
 // PatchLen return patches length of the giving group.
 func (cache *GroupCache) PatchLen(groupName string) int {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
 	return len(cache.patches[groupName])
 }
 
