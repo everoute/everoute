@@ -11,6 +11,9 @@ images:
 controller: fmt vet
 	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
 
+agent:
+	go build -o bin/lynx-agent cmd/lynx-agent/*.go
+
 test:
 	go test ./...
 

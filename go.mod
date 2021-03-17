@@ -18,6 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1 // indirect
 	github.com/prometheus/procfs v0.2.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.1
 	k8s.io/apimachinery v0.20.1
 	k8s.io/client-go v0.20.1
@@ -29,6 +30,6 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210303025312-9765e623c87e
 	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632
-	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210318050024-60a467d3beab
+	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210319115500-4a28c8c0e0a3
 	github.com/osrg/gobgp => github.com/zwtop/gobgp v0.0.0-20210127101833-12edfc1f4514
 )
