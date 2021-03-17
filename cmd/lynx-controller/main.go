@@ -49,23 +49,26 @@ func main() {
 	var enableLeaderElection bool
 	var tlsCertDir string
 	var serverPort int
+	var leaderElectionNamespace string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for lynx webhook use.")
+	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
 	flag.IntVar(&serverPort, "port", 9443, "The port for the Lynx controller to serve on.")
 	klog.InitFlags(nil)
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               serverPort,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "24d5749e.lynx.smartx.com",
-		CertDir:            tlsCertDir,
+		Scheme:                  scheme,
+		MetricsBindAddress:      metricsAddr,
+		Port:                    serverPort,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionNamespace: leaderElectionNamespace,
+		LeaderElectionID:        "24d5749e.lynx.smartx.com",
+		CertDir:                 tlsCertDir,
 	})
 	if err != nil {
 		klog.Fatalf("unable to start manager: %s", err.Error())
