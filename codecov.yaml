@@ -1,6 +1,14 @@
 codecov:
   require_ci_to_pass: yes
 
+coverage:
+  status:
+    project:
+      default:
+        target: 60%
+        threshold: 10%
+    patch: off
+
 comment:
   layout: "reach,diff,tree"
   behavior: default
