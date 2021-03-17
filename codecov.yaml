@@ -1,0 +1,10 @@
+codecov:
+  require_ci_to_pass: yes
+
+comment:
+  layout: "reach,diff,tree"
+  behavior: default
+
+ignore:
+  - "**/*generate*.go"
+  - "pkg/client"
