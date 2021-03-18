@@ -1,0 +1,27 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: lynx-agent
+rules:
+- apiGroups:
+  - agent.lynx.smartx.com
+  resources:
+  - agentinfos
+  verbs:
+  - patch
+  - create
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policyrule.lynx.smartx.com
+  resources:
+  - policyrules
+  verbs:
+  - get
+  - list
+  - watch

@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -42,6 +43,7 @@ func init() {
 	_ = securityv1alpha1.AddToScheme(scheme)
 	_ = groupv1alpha1.AddToScheme(scheme)
 	_ = policyv1alpha1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
 }
 
 func main() {

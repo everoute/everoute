@@ -11,6 +11,7 @@ webhooks:
         name: lynx-validator-webhook
         namespace: kube-system
         path: /validate/crds
+        port: 9443
     failurePolicy: Fail
     name: validator.lynx.smartx.com
     rules:
@@ -46,7 +47,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 443
+    - port: 9443
       protocol: TCP
       # This port should match port lynx-controller exposed.
       targetPort: 9443
