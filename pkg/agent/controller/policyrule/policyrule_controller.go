@@ -59,7 +59,7 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRuleList{}}, &handler.Funcs{
+	c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRule{}}, &handler.Funcs{
 		CreateFunc: r.addPolicyRule,
 		DeleteFunc: r.deletePolicyRule,
 	})
