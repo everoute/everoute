@@ -10,35 +10,63 @@ rules:
   - ""
   resources:
   - configmaps
+  - events
   verbs:
+  - patch
   - create
+  - update
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - agent.lynx.smartx.com
   resources:
-  - '*'
+  - agentinfos
   verbs:
-  - '*'
+  - get
+  - list
+  - watch
 - apiGroups:
   - group.lynx.smartx.com
   resources:
-  - '*'
+  - groupmembers
+  - groupmemberspatches
+  - endpointgroups
   verbs:
-  - '*'
+  - patch
+  - create
+  - update
+  - delete
+  - deletecollection
+  - get
+  - list
+  - watch
 - apiGroups:
   - security.lynx.smartx.com
   resources:
-  - '*'
+  - tiers
+  - securitypolicies
+  - securitypolicies/status
+  - endpoints
+  - endpoints/status
   verbs:
-  - '*'
+  - patch
+  - update
+  - get
+  - list
+  - watch
 - apiGroups:
   - policyrule.lynx.smartx.com
   resources:
-  - '*'
+  - policyrules
+  - policyrules/status
   verbs:
-  - '*'
+  - patch
+  - create
+  - update
+  - delete
+  - deletecollection
+  - get
+  - list
+  - watch
