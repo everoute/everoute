@@ -49,6 +49,7 @@ func (v *ValidateWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	_ = validates.RegisterIndexFields(mgr.GetFieldIndexer())
 
 	mgr.GetWebhookServer().Register("/validate/crds", v.Handler(crdValidate))
+	mgr.GetWebhookServer().Register("/healthz", http.HandlerFunc(v.healthHandler))
 	return nil
 }
 
@@ -112,4 +113,9 @@ func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 		}
 	}
+}
+
+func (v *ValidateWebhook) healthHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "ok")
+	w.WriteHeader(http.StatusOK)
 }
