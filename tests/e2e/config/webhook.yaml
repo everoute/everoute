@@ -1,0 +1,36 @@
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validator.lynx.smartx.com
+webhooks:
+  - clientConfig:
+      # CaBundle must set as the ca for secret lynx-controller-tls.
+      caBundle: Cg==
+      # use local lynx-controller webhook
+      url: https://127.0.0.1:9443/validate/crds
+    failurePolicy: Fail
+    name: validator.lynx.smartx.com
+    rules:
+      - apiGroups:
+          - security.lynx.smartx.com
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - securitypolicies
+          - tiers
+          - endpoints
+      - apiGroups:
+          - group.lynx.smartx.com
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - endpointgroups

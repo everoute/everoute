@@ -108,7 +108,7 @@ function generate_lynx_controller_certs() {
   (
     openssl genrsa -out ${cert_path}/tls.key
     openssl req -new -key ${cert_path}/tls.key -out ${cert_path}/tls.csr -subj "/CN=lynx-controller"
-    openssl x509 -req -in ${cert_path}/tls.csr -CA ${cacert_path} -CAkey ${cakey_path} -CAcreateserial -out ${cert_path}/tls.crt -days 36500 -extfile <(printf "subjectAltName=DNS:lynx-validator-webhook.kube-system.svc")
+    openssl x509 -req -in ${cert_path}/tls.csr -CA ${cacert_path} -CAkey ${cakey_path} -CAcreateserial -out ${cert_path}/tls.crt -days 36500 -extfile <(printf "subjectAltName=IP:127.0.0.1")
   ) 1>/dev/null 2>/dev/null
 }
 
@@ -129,14 +129,12 @@ function setup_rbac() {
 }
 
 function setup_webhook() {
+  local cert_path=${1:-/etc/lynx/pki}
+
   local cacert_path=${cert_path}/ca.crt
-  local lynx_webhook_path="${BASEDIR}/deploy/lynx-controller/webhook.yaml"
+  local lynx_webhook_path="${BASEDIR}/tests/e2e/config/webhook.yaml"
 
   sed "s/caBundle: Cg==/caBundle: $(base64 -w0 < ${cacert_path})/g" < ${lynx_webhook_path} | kubectl apply -f -
-
-  # kube-proxy not deploy, so use dns to forward svc request
-  sed -i "/ lynx-validator-webhook.kube-system.svc$/d" /etc/hosts
-  echo "127.0.0.1 lynx-validator-webhook.kube-system.svc" >> /etc/hosts
 }
 
 function generate_kubeconfig() {
@@ -189,7 +187,8 @@ echo " "
 echo "========================================================="
 
 ETCD_VERSION="v3.4.15"
-KUBE_VERSION="v1.19.8"
+# kube-apiserver 1.19 or high has a issue with webhook: https://github.com/kubernetes/kubernetes/issues/100454
+KUBE_VERSION="v1.18.17"
 CERT_PATH=/etc/lynx/pki
 APISERVER_ADDR="${1:-127.0.0.1}"
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
@@ -217,8 +216,7 @@ generate_lynx_controller_certs ${CERT_PATH}
 echo "crds, rbac, validate webhook resource setup"
 setup_crds
 setup_rbac
-## todo: enable validate webhook
-#setup_webhook
+setup_webhook ${CERT_PATH}
 
 echo "========================================================="
 echo " "
