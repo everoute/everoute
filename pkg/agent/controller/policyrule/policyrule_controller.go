@@ -199,6 +199,8 @@ func protocolToInt(ipProtocol string) uint8 {
 		protoNo = 6
 	case "UDP":
 		protoNo = 17
+	case "":
+		protoNo = 0
 	default:
 		klog.Fatalf("unsupport ipProtocol %s in policyRule", ipProtocol)
 	}
