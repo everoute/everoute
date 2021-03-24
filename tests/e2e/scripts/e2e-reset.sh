@@ -17,5 +17,20 @@
 set -o pipefail
 set -o nounset
 
+LYNX_AGENT_HOSTLIST=${1:-}
+
+echo "clean lynx controlplane on localhost"
 eval kill -9 "$(pidof lynx-controller) $(pidof lynx-agent) $(pidof kube-apiserver) $(pidof etcd)"
 rm -rf /etc/lynx/
+
+for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
+  printf "clean lynx-agent and ovsdb on host %s\n" ${agent}
+
+  ssh_args="-o StrictHostKeyChecking=no"
+
+  ssh ${ssh_args} ${agent} 'bash -s' << "EOF"
+    ovs-vsctl list-br | xargs -l ovs-vsctl del-br
+    ip netns list | xargs -l ip netns del
+    kill -9 "$(pidof lynx-agent)"
+EOF
+done
