@@ -15,13 +15,13 @@ agent:
 	go build -o bin/lynx-agent cmd/lynx-agent/*.go
 
 test:
-	go test ./...
+	go test ./pkg/...
 
 cover-test:
-	go test ./... -coverprofile=coverage.out -coverpkg=./...
+	go test ./pkg/... -coverprofile=coverage.out -coverpkg=./pkg/...
 
 race-test:
-	go test ./... -race
+	go test ./pkg/... -race
 
 # Generate deepcopy, client, openapi codes
 codegen:

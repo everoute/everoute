@@ -76,6 +76,11 @@ function start_apiserver() {
   nohup kube-apiserver ${apiserver_args} ${apiserver_extra_args} ${apiserver_cert_args} > /var/log/kube-apiserver.log 2>&1 &
 }
 
+function start_lynxcontroller() {
+  lynx_controller_config="--kubeconfig /etc/lynx/kubeconfig/lynx-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/lynx/pki/ -v 10"
+  nohup /usr/local/bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
+}
+
 function generate_certs() {
   local cert_path=${1}
   local apiserver_addr=${2:-127.0.0.1}
@@ -180,12 +185,6 @@ users:
 EOF
 }
 
-echo "========================================================="
-echo " "
-echo "Start setup lynx e2e test environment."
-echo " "
-echo "========================================================="
-
 ETCD_VERSION="v3.4.15"
 # kube-apiserver 1.19 or high has a issue with webhook: https://github.com/kubernetes/kubernetes/issues/100454
 KUBE_VERSION="v1.18.17"
@@ -195,7 +194,7 @@ LOCAL_PATH=$(dirname "$(readlink -f ${0})")
 ## lynx project basedir
 BASEDIR=${LOCAL_PATH}/../../..
 
-echo "install etcd and kube-apiserver to localhost"
+echo "install etcd and kube-apiserver on localhost"
 install_etcd ${ETCD_VERSION}
 install_kube_plugin ${KUBE_VERSION} kube-apiserver
 install_kube_plugin ${KUBE_VERSION} kubectl
@@ -218,8 +217,5 @@ setup_crds
 setup_rbac
 setup_webhook ${CERT_PATH}
 
-echo "========================================================="
-echo " "
-echo "Installation is complete for lynx e2e environment!"
-echo " "
-echo "========================================================="
+echo "build and start lynx controller"
+start_lynxcontroller
