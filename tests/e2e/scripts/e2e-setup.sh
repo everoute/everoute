@@ -31,6 +31,8 @@ LOCAL_PATH=$(dirname "$(readlink -f ${0})")
 LYNX_E2E_CONFIG_FILE="/etc/lynx/e2e-config.yaml"
 
 echo "setup lynx controlplane on localhost"
+make controller
+cp bin/lynx-controller /usr/local/bin/lynx-controller
 bash ${LOCAL_PATH}/controlplane-setup.sh ${APISERVER_EXPOSE_IP}
 
 make agent

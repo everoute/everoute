@@ -77,9 +77,8 @@ function start_apiserver() {
 }
 
 function start_lynxcontroller() {
-  make controller
   lynx_controller_config="--kubeconfig /etc/lynx/kubeconfig/lynx-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/lynx/pki/ -v 10"
-  nohup bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
+  nohup /usr/local/bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
 }
 
 function generate_certs() {

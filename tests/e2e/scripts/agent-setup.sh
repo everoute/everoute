@@ -46,4 +46,4 @@ uplinkInfo:
 EOF
 
 echo "start lynx-agent"
-nohup lynx-agent --kubeconfig ${KUBECONFIG_PATH} > /var/log/lynx-agent.log 2>&1 &
+nohup /usr/local/bin/lynx-agent --kubeconfig ${KUBECONFIG_PATH} > /var/log/lynx-agent.log 2>&1 &
