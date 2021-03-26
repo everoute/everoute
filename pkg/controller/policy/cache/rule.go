@@ -121,7 +121,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, port RuleP
 	hashID := HashName(20, srcIPBlock, dstIPBlock, port)
 
 	policyRule.Name = genRuleName(policyName, ruleName, hashID)
-	policyRule.Spec.RuleId = fmt.Sprintf("%s/%s", rule.RuleID, hashID)
+	policyRule.Spec.RuleId = policyRule.Name
 	policyRule.Labels = map[string]string{
 		lynxctrl.OwnerPolicyLabel: policyName,
 	}
