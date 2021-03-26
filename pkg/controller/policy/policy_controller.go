@@ -337,9 +337,14 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 			}
 		}
 
-		ingressRule.Ports, err = flattenPorts(rule.Ports)
-		if err != nil {
-			return nil, err
+		if len(rule.Ports) == 0 {
+			// empty Ports matches all ports
+			ingressRule.Ports = []policycache.RulePort{{}}
+		} else {
+			ingressRule.Ports, err = flattenPorts(rule.Ports)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		completeRules = append(completeRules, ingressRule)
@@ -366,9 +371,14 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 			}
 		}
 
-		egressRule.Ports, err = flattenPorts(rule.Ports)
-		if err != nil {
-			return nil, err
+		if len(rule.Ports) == 0 {
+			// Empty ports matches all ports
+			egressRule.Ports = []policycache.RulePort{{}}
+		} else {
+			egressRule.Ports, err = flattenPorts(rule.Ports)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		completeRules = append(completeRules, egressRule)
