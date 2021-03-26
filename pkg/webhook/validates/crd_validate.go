@@ -422,10 +422,6 @@ func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error
 		}
 	}
 
-	if len(rule.Ports) == 0 {
-		return fmt.Errorf("rule field Ports must not empty slice")
-	}
-
 	for _, port := range rule.Ports {
 		err := v.validatePortRange(port.PortRange)
 		if err != nil {

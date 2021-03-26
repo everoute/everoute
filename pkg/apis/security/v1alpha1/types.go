@@ -81,9 +81,10 @@ type Rule struct {
 	// Name must be unique within the policy and conforms RFC 1123.
 	Name string `json:"name"`
 
-	// List of destination ports for outgoing traffic. This field must not empty.
-	// Each item in this list is combined using a logical OR.
-	Ports []SecurityPolicyPort `json:"ports"`
+	// List of destination ports for outgoing traffic. If this field is empty or
+	// missing, this rule matches all ports and protocols. Each item in this list
+	// is combined using a logical OR.
+	Ports []SecurityPolicyPort `json:"ports,omitempty"`
 
 	// Giving sources which can access applied groups for this rule. If this field
 	// is empty or missing, this rule matches all sources. This field only works

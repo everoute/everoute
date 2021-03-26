@@ -303,6 +303,22 @@ var _ = Describe("PolicyController", func() {
 			})
 		})
 
+		When("remove all ingress ports", func() {
+			var updPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				updPolicy = policy.DeepCopy()
+				updPolicy.Spec.IngressRules[0].Ports = nil
+
+				By(fmt.Sprintf("update policy %s ingress rule with empty ports", policy.Name))
+				mustUpdatePolicy(ctx, updPolicy)
+			})
+			It("should replace ingress policy rule ports", func() {
+				// empty Ports matches all ports
+				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 0, "")
+			})
+		})
 		When("update ingress protocol", func() {
 			var updPolicy *securityv1alpha1.SecurityPolicy
 
