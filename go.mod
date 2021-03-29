@@ -30,6 +30,6 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210303025312-9765e623c87e
 	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632
-	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210319115500-4a28c8c0e0a3
+	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210331075237-63518757ed1a
 	github.com/osrg/gobgp => github.com/zwtop/gobgp v0.0.0-20210127101833-12edfc1f4514
 )

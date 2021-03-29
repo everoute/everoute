@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"net"
-	"time"
 
 	"github.com/contiv/ofnet"
 	"github.com/contiv/ofnet/ovsdbDriver"
@@ -51,6 +50,7 @@ func main() {
 	if err != nil {
 		klog.Fatalf("error %v when get agentconfig.", err)
 	}
+	uplinkConfig := initUplinkConfig(agentConfig)
 
 	localIp := net.ParseIP(agentConfig.LocalIp)
 	var uplinks []string
@@ -70,15 +70,10 @@ func main() {
 	vlanArpLearnerAgent, err := ofnet.NewOfnetAgent(
 		agentConfig.BridgeName, agentConfig.DatapathName,
 		localIp, agentConfig.RpcPort, agentConfig.OvsCtlPort,
-		uplinks, ofPortIpAddrMoniotorChan)
+		uplinkConfig, uplinks, ofPortIpAddrMoniotorChan)
 	if err != nil {
 		klog.Fatalf("error %v when init ofnetAgent.", err)
 	}
-
-	// Wait for datapath init all tables. NOTE
-	time.Sleep(2 * time.Second)
-	uplinkConfig := initUplinkConfig(agentConfig)
-	vlanArpLearnerAgent.AddUplink(uplinkConfig)
 
 	// NetworkPolicy controller: watch policyRule crud and update flow
 	mgr, err := startManager(scheme, vlanArpLearnerAgent, stopChan)

@@ -144,7 +144,7 @@ func TestMain(m *testing.M) {
 	uplinks := []string{}
 
 	ovsdbDriver := ovsdbDriver.NewOvsDriver(BridgeName)
-	agent, err := ofnet.NewOfnetAgent(BridgeName, DPName, net.ParseIP(LocalIp), RPCPort, OVSPort, uplinks, ofPortUpdateChan)
+	agent, err := ofnet.NewOfnetAgent(BridgeName, DPName, net.ParseIP(LocalIp), RPCPort, OVSPort, nil, uplinks, ofPortUpdateChan)
 	if err != nil {
 		fmt.Println("Init ofnetAgent failed.")
 		return
