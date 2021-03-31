@@ -71,9 +71,18 @@ func (r *PolicyReconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error
 	defer r.reconcilerLock.Unlock()
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
-	if err != nil {
+	if client.IgnoreNotFound(err) != nil {
 		klog.Errorf("unable to fetch policy %s: %s", req.Name, err.Error())
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
+	}
+
+	if apierrors.IsNotFound(err) {
+		err := r.cleanPolicyDependents(ctx, req.Name)
+		if err != nil {
+			klog.Errorf("failed to delete policy %s dependents: %s", req.Name, err.Error())
+			return ctrl.Result{}, err
+		}
+		klog.Infof("succeed remove policy %s all rules", req.Name)
 	}
 
 	if r.isNewPolicy(&policy) {
@@ -230,14 +239,7 @@ func (r *PolicyReconciler) processPolicyCreate(ctx context.Context, policy *secu
 func (r *PolicyReconciler) processPolicyDelete(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
 	klog.V(2).Infof("clean policy %s dependents rules", policy.Name)
 
-	// remove policy completeRules from cache
-	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name)
-	for _, completeRule := range completeRules {
-		r.ruleCache.Delete(completeRule)
-	}
-
-	// remove depents rules from apiserver
-	err := r.DeleteAllOf(ctx, &policyv1alpha1.PolicyRule{}, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})
+	err := r.cleanPolicyDependents(ctx, policy.Name)
 	if err != nil {
 		klog.Errorf("failed to delete policy %s dependents: %s", policy.Name, err.Error())
 		return ctrl.Result{}, err
@@ -252,6 +254,23 @@ func (r *PolicyReconciler) processPolicyDelete(ctx context.Context, policy *secu
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *PolicyReconciler) cleanPolicyDependents(ctx context.Context, policyName string) error {
+	// remove policy completeRules from cache
+	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policyName)
+	for _, completeRule := range completeRules {
+		r.ruleCache.Delete(completeRule)
+	}
+
+	// remove depents rules from apiserver
+	err := r.DeleteAllOf(ctx, &policyv1alpha1.PolicyRule{}, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policyName})
+	if err != nil {
+		klog.Errorf("failed to delete policy %s dependents: %s", policyName, err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func (r *PolicyReconciler) processPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
