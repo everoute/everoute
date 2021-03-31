@@ -4,7 +4,6 @@ go 1.15
 
 require (
 	github.com/agiledragon/gomonkey v2.0.2+incompatible
-	github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1 // indirect
 	github.com/contiv/libovsdb v0.0.0
 	github.com/contiv/ofnet v0.0.0-00010101000000-000000000000
 	github.com/go-logr/logr v0.4.0 // indirect
@@ -29,7 +28,7 @@ require (
 
 replace (
 	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210303025312-9765e623c87e
-	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210316141948-240c56c99632
+	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210326110222-6c508538aa65
 	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210331075237-63518757ed1a
 	github.com/osrg/gobgp => github.com/zwtop/gobgp v0.0.0-20210127101833-12edfc1f4514
 )
