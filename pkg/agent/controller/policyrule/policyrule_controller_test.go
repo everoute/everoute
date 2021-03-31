@@ -27,6 +27,7 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -73,7 +74,6 @@ var (
 			Name: "securityPolicy1-policyRule1",
 		},
 		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			RuleId:            "securityPolicy1-policyRule1",
 			Direction:         networkpolicyv1alpha1.RuleDirectionOut,
 			DefaultPolicyRule: false,
 			Tier:              "tier0",
@@ -97,7 +97,6 @@ var (
 			Name: "securityPolicy1-policyRule2",
 		},
 		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			RuleId:            "securityPolicy1-policyRule2",
 			Direction:         networkpolicyv1alpha1.RuleDirectionOut,
 			DefaultPolicyRule: false,
 			Tier:              "tier0",
@@ -121,7 +120,6 @@ var (
 			Name: "securityPolicy1-policyRule2Updated",
 		},
 		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			RuleId:            "securityPolicy1-policyRule2Updated",
 			Direction:         networkpolicyv1alpha1.RuleDirectionOut,
 			DefaultPolicyRule: false,
 			Tier:              "tier0",
@@ -170,9 +168,10 @@ func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *Pol
 	_ = networkpolicyv1alpha1.AddToScheme(scheme)
 
 	return &PolicyRuleReconciler{
-		Client: fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
-		Scheme: scheme,
-		Agent:  agent,
+		Client:              fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
+		Scheme:              scheme,
+		Agent:               agent,
+		flowKeyReferenceMap: make(map[string]sets.String),
 	}
 }
 
@@ -200,8 +199,9 @@ func TestProcessPolicyRule(t *testing.T) {
 			t.Errorf("failed to process add policyRule1 %v.", policyRule1)
 		}
 
+		flowKey := flowKeyFromRuleName(policyRule1.Name)
 		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
-		if _, ok := datapathRules["securityPolicy1-policyRule1"]; !ok {
+		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule1 %v to datapath.", policyRule1)
 		}
 	})
@@ -216,8 +216,10 @@ func TestProcessPolicyRule(t *testing.T) {
 		if err := processQueue(reconciler, queue); err != nil {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
+
+		flowKey := flowKeyFromRuleName(policyRule1.Name)
 		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
-		if _, ok := datapathRules["securityPolicy1-policyRule2"]; !ok {
+		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
 
