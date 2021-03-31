@@ -83,6 +83,7 @@ func (r *PolicyReconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error
 			return ctrl.Result{}, err
 		}
 		klog.Infof("succeed remove policy %s all rules", req.Name)
+		return ctrl.Result{}, nil
 	}
 
 	if r.isNewPolicy(&policy) {
