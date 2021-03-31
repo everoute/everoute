@@ -17,7 +17,7 @@ limitations under the License.
 package cache
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -53,7 +53,7 @@ func HashName(length int, keys ...interface{}) string {
 	jsonKey, _ := json.Marshal(keys)
 	var name string
 
-	for _, char := range sha1.Sum(jsonKey) {
+	for _, char := range sha256.Sum256(jsonKey) {
 		name += string(allowRunes[int(char)%len(allowRunes)])
 	}
 

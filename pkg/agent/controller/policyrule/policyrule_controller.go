@@ -19,11 +19,14 @@ package policyrule
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/contiv/ofnet"
-	errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -45,12 +48,17 @@ type PolicyRuleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Agent  *ofnet.OfnetAgent
+
+	flowKeyReferenceMapLock sync.RWMutex
+	flowKeyReferenceMap     map[string]sets.String // Map flowKey to policyRule names
 }
 
 func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
+
+	r.flowKeyReferenceMap = make(map[string]sets.String)
 
 	c, err := controller.New("policyrule-controller", mgr, controller.Options{
 		Reconciler: r,
@@ -71,28 +79,21 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=networkpolicy.lynx.smartx.com,resources=policyrules/status,verbs=get;update;patch
 
 func (r *PolicyRuleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
-	klog.Infof("PolicyRuleReconiler received policyRule %s operation.", req.NamespacedName)
+	var ctx = context.Background()
+	var policyRule = networkpolicyv1alpha1.PolicyRule{}
 
-	policyRule := networkpolicyv1alpha1.PolicyRule{}
 	err := r.Get(ctx, req.NamespacedName, &policyRule)
-	if err != nil {
+	if client.IgnoreNotFound(err) != nil {
 		klog.Errorf("unable to fetch policyRule %s: %s", req.Name, err.Error())
-		if errors.IsNotFound(err) {
-			r.deletePolicyRuleFromDatapath(req.Name)
-
-			return ctrl.Result{}, nil
-		}
-
 		return ctrl.Result{}, err
 	}
 
-	if policyRule.ObjectMeta.DeletionTimestamp != nil {
-		r.deletePolicyRuleFromDatapath(req.Name)
+	if errors.IsNotFound(err) || !policyRule.DeletionTimestamp.IsZero() {
+		r.processPolicyRuleDelete(req.Name)
 		return ctrl.Result{}, nil
 	}
 
-	r.addPolicyRuleToDatapath(&policyRule)
+	r.processPolicyRuleAdd(&policyRule)
 
 	return ctrl.Result{}, nil
 }
@@ -133,10 +134,46 @@ func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue
 	}})
 }
 
-func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(ruleId string) {
+func (r *PolicyRuleReconciler) processPolicyRuleDelete(ruleName string) {
+	r.flowKeyReferenceMapLock.Lock()
+	defer r.flowKeyReferenceMapLock.Unlock()
+
+	var flowKey = flowKeyFromRuleName(ruleName)
+	if r.flowKeyReferenceMap[flowKey] == nil {
+		// already deleted
+		return
+	}
+
+	r.flowKeyReferenceMap[flowKey].Delete(ruleName)
+
+	if r.flowKeyReferenceMap[flowKey].Len() == 0 {
+		delete(r.flowKeyReferenceMap, flowKey)
+
+		klog.Infof("remove rule %s from datapath", flowKey)
+		r.deletePolicyRuleFromDatapath(flowKey)
+	}
+}
+
+func (r *PolicyRuleReconciler) processPolicyRuleAdd(policyRule *networkpolicyv1alpha1.PolicyRule) {
+	r.flowKeyReferenceMapLock.Lock()
+	defer r.flowKeyReferenceMapLock.Unlock()
+
+	var flowKey = flowKeyFromRuleName(policyRule.Name)
+
+	if r.flowKeyReferenceMap[flowKey] == nil {
+		r.flowKeyReferenceMap[flowKey] = sets.NewString()
+
+		klog.Infof("add rule %s to datapath", flowKey)
+		r.addPolicyRuleToDatapath(flowKey, &policyRule.Spec)
+	}
+
+	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
+}
+
+func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(flowKey string) {
 	var err error
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId: ruleId,
+		RuleId: flowKey,
 	}
 
 	datapath := r.Agent.GetDatapath()
@@ -147,11 +184,10 @@ func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(ruleId string) {
 	}
 }
 
-func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(policyRule *networkpolicyv1alpha1.PolicyRule) {
+func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec) {
 	// Process PolicyRule: convert it to ofnetPolicyRule, filter illegal PolicyRule; install ofnetPolicyRule flow
 	var err error
-	rule := policyRule.Spec
-	ofnetPolicyRule := toOfnetPolicyRule(policyRule)
+	ofnetPolicyRule := toOfnetPolicyRule(ruleId, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
@@ -163,8 +199,7 @@ func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(policyRule *networkpolicy
 	}
 }
 
-func toOfnetPolicyRule(policyRule *networkpolicyv1alpha1.PolicyRule) *ofnet.OfnetPolicyRule {
-	rule := policyRule.Spec
+func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec) *ofnet.OfnetPolicyRule {
 	ipProtoNo := protocolToInt(rule.IpProtocol)
 	ruleAction := getRuleAction(rule.Action)
 
@@ -176,7 +211,7 @@ func toOfnetPolicyRule(policyRule *networkpolicyv1alpha1.PolicyRule) *ofnet.Ofne
 	}
 
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId:     rule.RuleId,
+		RuleId:     ruleId,
 		Priority:   rulePriority,
 		SrcIpAddr:  rule.SrcIpAddr,
 		DstIpAddr:  rule.DstIpAddr,
@@ -247,4 +282,10 @@ func getRuleTier(ruleTier string) uint8 {
 		klog.Fatalf("unsupport ruleTier %s in policyRule.", ruleTier)
 	}
 	return tier
+}
+
+func flowKeyFromRuleName(ruleName string) string {
+	// rule name format like: policyname-rulename-namehash-flowkey
+	keys := strings.Split(ruleName, "-")
+	return keys[len(keys)-1]
 }

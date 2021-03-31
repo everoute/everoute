@@ -47,7 +47,6 @@ type PolicyRuleList struct {
 
 // PolicyRuleSpec defines the desired state of PolicyRule
 type PolicyRuleSpec struct {
-	RuleId            string        `json:"ruleId"`
 	Direction         RuleDirection `json:"direction"`
 	DefaultPolicyRule bool          `json:"defaultPolicyRule,omitempty"`
 	Tier              string        `json:"tier,omitempty"`

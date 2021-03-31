@@ -51,8 +51,6 @@ spec:
             priority:
               format: int32
               type: integer
-            ruleId:
-              type: string
             srcIpAddr:
               type: string
             srcPort:
@@ -66,7 +64,6 @@ spec:
           - direction
           - ipProtocol
           - priority
-          - ruleId
           - tcpFlags
           type: object
         status:

@@ -117,11 +117,9 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, port RuleP
 	ruleName := strings.Split(rule.RuleID, "/")[1]
 	policyName := strings.Split(rule.RuleID, "/")[0]
 
-	// use srcIPBlock dstIPBlock and Port as key generate hashID
-	hashID := HashName(20, srcIPBlock, dstIPBlock, port)
+	flowKey := HashName(32, policyRule.Spec)
 
-	policyRule.Name = genRuleName(policyName, ruleName, hashID)
-	policyRule.Spec.RuleId = fmt.Sprintf("%s/%s", rule.RuleID, hashID)
+	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
 	policyRule.Labels = map[string]string{
 		lynxctrl.OwnerPolicyLabel: policyName,
 	}
@@ -232,9 +230,9 @@ func NewCompleteRuleCache() cache.Indexer {
 }
 
 // genRuleName generate policy rule name as defined in RFC 1123.
-func genRuleName(policyName, ruleName, ruleID string) string {
+func genRuleName(policyName, ruleName, flowKey string) string {
 	var prefix = fmt.Sprintf("%s-%s", policyName, ruleName)
-	var suffix = fmt.Sprintf("%s-%s", HashName(10, policyName, ruleName), ruleID)
+	var suffix = fmt.Sprintf("%s-%s", HashName(10, policyName, ruleName), flowKey)
 
 	maxPrefixLength := validation.DNS1123SubdomainMaxLength - len(suffix) - 1
 	if len(prefix) >= maxPrefixLength {
