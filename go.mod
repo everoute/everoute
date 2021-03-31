@@ -6,17 +6,9 @@ require (
 	github.com/agiledragon/gomonkey v2.0.2+incompatible
 	github.com/contiv/libovsdb v0.0.0
 	github.com/contiv/ofnet v0.0.0-00010101000000-000000000000
-	github.com/go-logr/logr v0.4.0 // indirect
-	github.com/go-logr/zapr v0.3.1-0.20210105192823-aced49e5db50 // indirect
 	github.com/go-openapi/spec v0.19.3
-	github.com/kr/text v0.2.0 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.1
-	github.com/prometheus/client_golang v1.7.1 // indirect
-	github.com/prometheus/procfs v0.2.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.1
 	k8s.io/apimachinery v0.20.1
