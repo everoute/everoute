@@ -236,7 +236,7 @@ func (monitor *agentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 		},
 	}
 
-	ovsVersion, err := monitor.OVSVersion()
+	ovsVersion, err := monitor.fetchOvsVersionLocked()
 	if err == nil {
 		agentInfo.OVSInfo.Version = ovsVersion
 	}
@@ -247,7 +247,7 @@ func (monitor *agentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 	}
 
 	for uuid := range monitor.ovsdbCache["Bridge"] {
-		bridge, err := monitor.fetchBridge(ovsdb.UUID{GoUuid: uuid})
+		bridge, err := monitor.fetchBridgeLocked(ovsdb.UUID{GoUuid: uuid})
 		if err != nil {
 			return nil, fmt.Errorf("unable fetch bridge %s: %s", uuid, err)
 		}
@@ -324,10 +324,7 @@ func (monitor *agentMonitor) Name() string {
 	return monitor.agentName
 }
 
-func (monitor *agentMonitor) OVSVersion() (string, error) {
-	monitor.cacheLock.RLock()
-	defer monitor.cacheLock.RUnlock()
-
+func (monitor *agentMonitor) fetchOvsVersionLocked() (string, error) {
 	tableOvs := monitor.ovsdbCache["Open_vSwitch"]
 	if len(tableOvs) == 0 {
 		return "", fmt.Errorf("couldn't find table %s, agentMonitor may haven't start", "Open_vSwitch")
@@ -340,10 +337,7 @@ func (monitor *agentMonitor) OVSVersion() (string, error) {
 	return "", nil
 }
 
-func (monitor *agentMonitor) fetchPort(uuid ovsdb.UUID) (*agentv1alpha1.OVSPort, error) {
-	monitor.cacheLock.RLock()
-	defer monitor.cacheLock.RUnlock()
-
+func (monitor *agentMonitor) fetchPortLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSPort, error) {
 	ovsPort, ok := monitor.ovsdbCache["Port"][uuid.GoUuid]
 	if !ok {
 		return nil, fmt.Errorf("ovs port %s not found in cache", uuid)
@@ -378,7 +372,7 @@ func (monitor *agentMonitor) fetchPort(uuid ovsdb.UUID) (*agentv1alpha1.OVSPort,
 	}
 
 	for _, uuid := range listUUID(ovsPort.Fields["interfaces"]) {
-		iface, err := monitor.fetchInterface(uuid)
+		iface, err := monitor.fetchInterfaceLocked(uuid)
 		if err != nil {
 			return nil, err
 		}
@@ -388,10 +382,7 @@ func (monitor *agentMonitor) fetchPort(uuid ovsdb.UUID) (*agentv1alpha1.OVSPort,
 	return port, nil
 }
 
-func (monitor *agentMonitor) fetchInterface(uuid ovsdb.UUID) (*agentv1alpha1.OVSInterface, error) {
-	monitor.cacheLock.RLock()
-	defer monitor.cacheLock.RUnlock()
-
+func (monitor *agentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSInterface, error) {
 	ovsIface, ok := monitor.ovsdbCache["Interface"][uuid.GoUuid]
 	if !ok {
 		return nil, fmt.Errorf("ovs interface %s not found in cache", uuid)
@@ -414,10 +405,7 @@ func (monitor *agentMonitor) fetchInterface(uuid ovsdb.UUID) (*agentv1alpha1.OVS
 	return &iface, nil
 }
 
-func (monitor *agentMonitor) fetchBridge(uuid ovsdb.UUID) (*agentv1alpha1.OVSBridge, error) {
-	monitor.cacheLock.RLock()
-	defer monitor.cacheLock.RUnlock()
-
+func (monitor *agentMonitor) fetchBridgeLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSBridge, error) {
 	ovsBri, ok := monitor.ovsdbCache["Bridge"][uuid.GoUuid]
 	if !ok {
 		return nil, fmt.Errorf("ovs bridge %s not found in cache", uuid)
@@ -428,7 +416,7 @@ func (monitor *agentMonitor) fetchBridge(uuid ovsdb.UUID) (*agentv1alpha1.OVSBri
 	}
 
 	for _, uuid := range listUUID(ovsBri.Fields["ports"]) {
-		port, err := monitor.fetchPort(uuid)
+		port, err := monitor.fetchPortLocked(uuid)
 		if err != nil {
 			return nil, err
 		}
