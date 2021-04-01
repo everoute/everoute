@@ -28,10 +28,12 @@ import (
 	"time"
 
 	ovsdb "github.com/contiv/libovsdb"
+	"github.com/contiv/ofnet"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	typeuuid "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -43,8 +45,39 @@ import (
 )
 
 const (
-	AgentNameConfigPath = "/var/lib/lynx/agent/name"
+	AgentNameConfigPath   = "/var/lib/lynx/agent/name"
+	LocalEndpointIdentity = "attached-mac"
 )
+
+type ovsdbEventHandler interface {
+	AddLocalEndpoint(endpoint ofnet.OfnetEndpoint)
+	DeleteLocalEndpoint(endpoint ofnet.OfnetEndpoint)
+}
+
+type OvsdbEventHandlerFuncs struct {
+	LocalEndpointAddFunc    func(endpoint ofnet.OfnetEndpoint)
+	LocalEndpointDeleteFunc func(endpoint ofnet.OfnetEndpoint)
+}
+
+func (self OvsdbEventHandlerFuncs) AddLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
+	if self.LocalEndpointAddFunc != nil {
+		self.LocalEndpointAddFunc(endpoint)
+	}
+}
+
+func (self OvsdbEventHandlerFuncs) DeleteLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
+	if self.LocalEndpointDeleteFunc != nil {
+		self.LocalEndpointDeleteFunc(endpoint)
+	}
+}
+
+func (monitor *agentMonitor) RegisterOvsdbEventHandler(ovsdbEventHandler ovsdbEventHandler) {
+	if monitor.ovsdbEventHandler == nil {
+		klog.Fatalf("Failed to register ovsdbEventHandler")
+	}
+
+	monitor.ovsdbEventHandler = ovsdbEventHandler
+}
 
 // agentMonitor monitor agent state, update agentinfo to apiserver.
 type agentMonitor struct {
@@ -62,6 +95,9 @@ type agentMonitor struct {
 	ofportsCache               map[int32][]types.IPAddress
 	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
 
+	ovsdbEventHandler              ovsdbEventHandler
+	localEndpointHardwareAddrCache sets.String
+
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
 }
@@ -69,12 +105,13 @@ type agentMonitor struct {
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
 func NewAgentMonitor(client client.Client, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
 	monitor := &agentMonitor{
-		k8sClient:                  client,
-		cacheLock:                  sync.RWMutex{},
-		ovsdbCache:                 make(map[string]map[string]ovsdb.Row),
-		ofportsCache:               make(map[int32][]types.IPAddress),
-		ofPortIpAddressMonitorChan: ofPortIpAddressMonitorChan,
-		syncQueue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		k8sClient:                      client,
+		cacheLock:                      sync.RWMutex{},
+		ovsdbCache:                     make(map[string]map[string]ovsdb.Row),
+		ofportsCache:                   make(map[int32][]types.IPAddress),
+		ofPortIpAddressMonitorChan:     ofPortIpAddressMonitorChan,
+		localEndpointHardwareAddrCache: sets.NewString(),
+		syncQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
 
 	var err error
@@ -166,7 +203,7 @@ func (monitor *agentMonitor) startOvsdbMonitor() error {
 	}
 	requests := map[string]ovsdb.MonitorRequest{
 		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
-		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type"}},
+		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids"}},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
 	}
@@ -299,6 +336,60 @@ func (monitor *agentMonitor) rebuildOfportCache() error {
 	return nil
 }
 
+func (monitor *agentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *ofnet.OfnetEndpoint {
+	if rowupdate.New.Fields["external_ids"] == nil {
+		return nil
+	}
+
+	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	if _, ok := newExternalIds[LocalEndpointIdentity]; ok {
+		// LocalEndpoint already exists
+		if monitor.localEndpointHardwareAddrCache.Has(newExternalIds[LocalEndpointIdentity].(string)) {
+			return nil
+		}
+		monitor.localEndpointHardwareAddrCache.Insert(newExternalIds[LocalEndpointIdentity].(string))
+
+		return &ofnet.OfnetEndpoint{
+			MacAddrStr: newExternalIds[LocalEndpointIdentity].(string),
+		}
+	}
+
+	return nil
+}
+
+func (monitor *agentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *ofnet.OfnetEndpoint {
+	if rowupdate.Old.Fields["external_ids"] == nil {
+		return nil
+	}
+
+	oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	if _, ok := oldExternalIds[LocalEndpointIdentity]; ok {
+		if monitor.localEndpointHardwareAddrCache.Has(oldExternalIds[LocalEndpointIdentity].(string)) {
+			monitor.localEndpointHardwareAddrCache.Delete(oldExternalIds[LocalEndpointIdentity].(string))
+
+			return &ofnet.OfnetEndpoint{
+				MacAddrStr: oldExternalIds[LocalEndpointIdentity].(string),
+			}
+		}
+	}
+
+	return nil
+}
+
+func (monitor *agentMonitor) processEndpointAdd(rowupdate ovsdb.RowUpdate) {
+	addedEndpoints := monitor.filterEndpointAdded(rowupdate)
+	if addedEndpoints != nil {
+		go monitor.ovsdbEventHandler.AddLocalEndpoint(*addedEndpoints)
+	}
+}
+
+func (monitor *agentMonitor) processEndpointDel(rowupdate ovsdb.RowUpdate) {
+	deletedEndpoints := monitor.filterEndpointDeleted(rowupdate)
+	if deletedEndpoints != nil {
+		go monitor.ovsdbEventHandler.DeleteLocalEndpoint(*deletedEndpoints)
+	}
+}
+
 func (monitor *agentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 	monitor.cacheLock.Lock()
 	defer monitor.cacheLock.Unlock()
@@ -310,8 +401,16 @@ func (monitor *agentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 		for uuid, row := range tableUpdate.Rows {
 			empty := ovsdb.Row{}
 			if !reflect.DeepEqual(row.New, empty) {
+				if table == "Interface" {
+					monitor.processEndpointAdd(row)
+				}
+
 				monitor.ovsdbCache[table][uuid] = row.New
 			} else {
+				if table == "Interface" {
+					monitor.processEndpointDel(row)
+				}
+
 				delete(monitor.ovsdbCache[table], uuid)
 			}
 		}

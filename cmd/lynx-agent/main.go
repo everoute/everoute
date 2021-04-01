@@ -86,6 +86,20 @@ func main() {
 	if err != nil {
 		klog.Fatalf("error %v when start agentmonitor.", err)
 	}
+	agentmonitor.RegisterOvsdbEventHandler(monitor.OvsdbEventHandlerFuncs{
+		LocalEndpointAddFunc: func(endpoint ofnet.OfnetEndpoint) {
+			err := vlanArpLearnerAgent.GetDatapath().AddLocalEndpoint(endpoint)
+			if err != nil {
+				klog.Errorf("Failed to add local endpoint: %+v, error: %+v", endpoint, err)
+			}
+		},
+		LocalEndpointDeleteFunc: func(endpoint ofnet.OfnetEndpoint) {
+			err := vlanArpLearnerAgent.GetDatapath().RemoveLocalEndpoint(endpoint)
+			if err != nil {
+				klog.Errorf("Failed to del local endpoint: %+v, error: %+v", endpoint, err)
+			}
+		},
+	})
 	go agentmonitor.Run(stopChan)
 
 	<-stopChan
