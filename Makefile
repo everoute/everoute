@@ -14,6 +14,9 @@ controller: fmt vet
 agent:
 	go build -o bin/lynx-agent cmd/lynx-agent/*.go
 
+e2ectl:
+	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl.go
+
 test:
 	go test ./pkg/...
 
