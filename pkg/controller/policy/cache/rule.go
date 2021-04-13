@@ -215,7 +215,7 @@ func groupIndexFunc(obj interface{}) ([]string, error) {
 
 func policyIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	policyName := strings.Split(rule.RuleID, "/")[1]
+	policyName := strings.Split(rule.RuleID, "/")[0]
 	return []string{policyName}, nil
 }
 
