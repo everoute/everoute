@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	storecache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
@@ -421,6 +422,58 @@ var _ = Describe("GroupCache", func() {
 	})
 })
 
+var _ = Describe("CompleteRuleCache", func() {
+	var completeRuleCache storecache.Indexer
+
+	BeforeEach(func() {
+		completeRuleCache = cache.NewCompleteRuleCache()
+	})
+
+	When("add a completerule to rule cache", func() {
+		var policyName, ruleId, srcGroup, dstGroup string
+
+		BeforeEach(func() {
+			policyName = rand.String(6)
+			ruleId = fmt.Sprintf("%s/%s", policyName, rand.String(6))
+			srcGroup = rand.String(6)
+			dstGroup = rand.String(6)
+
+			completeRuleCache.Add(newTestCompleteRule(ruleId, srcGroup, dstGroup))
+		})
+		AfterEach(func() {
+			completeRuleCache.Delete(&cache.CompleteRule{RuleID: ruleId})
+		})
+
+		It("should get complete rule by policy index", func() {
+			objs, err := completeRuleCache.ByIndex(cache.PolicyIndex, policyName)
+			Expect(err).Should(Succeed())
+			Expect(objs).Should(HaveLen(1))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+		})
+
+		It("should get complete rule by source group index", func() {
+			objs, err := completeRuleCache.ByIndex(cache.GroupIndex, srcGroup)
+			Expect(err).Should(Succeed())
+			Expect(objs).Should(HaveLen(1))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+		})
+
+		It("should get complete rule by destination group index", func() {
+			objs, err := completeRuleCache.ByIndex(cache.GroupIndex, dstGroup)
+			Expect(err).Should(Succeed())
+			Expect(objs).Should(HaveLen(1))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+		})
+
+		It("should get complete rule by ruleID", func() {
+			obj, exists, err := completeRuleCache.GetByKey(ruleId)
+			Expect(err).Should(Succeed())
+			Expect(exists).Should(BeTrue())
+			Expect(obj.(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+		})
+	})
+})
+
 func newTestPort(protocol, portRange string) *securityv1alpha1.SecurityPolicyPort {
 	return &securityv1alpha1.SecurityPolicyPort{
 		Protocol:  securityv1alpha1.Protocol(protocol),
@@ -556,6 +609,14 @@ func newTestGroupMembersPatch(groupName string, revision int32, addMember, updMe
 		AddedGroupMembers:   addMembers,
 		UpdatedGroupMembers: updMembers,
 		RemovedGroupMembers: delMembers,
+	}
+}
+
+func newTestCompleteRule(ruleId string, srcGroup, dstGroup string) *cache.CompleteRule {
+	return &cache.CompleteRule{
+		RuleID:    ruleId,
+		SrcGroups: map[string]int32{srcGroup: 1},
+		DstGroups: map[string]int32{dstGroup: 1},
 	}
 }
 
