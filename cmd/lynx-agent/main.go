@@ -105,7 +105,26 @@ func main() {
 				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", portNo, err)
 			}
 		},
+		UplinkActiveSlaveUpdateFunc: func(uplinkName string, updates ofnet.PortUpdates) {
+			err := vlanArpLearnerAgent.UpdateUplink(uplinkName, updates)
+			if err != nil {
+				klog.Errorf("Failed to update uplink: %+v active slave, error: %+v", uplinkName, err)
+			}
+		},
+		UplinkAddFunc: func(port *ofnet.PortInfo) {
+			err := vlanArpLearnerAgent.AddUplink(port)
+			if err != nil {
+				klog.Errorf("Failed to add uplink: %+v, error: %+v", port, err)
+			}
+		},
+		UplinkDelFunc: func(portName string) {
+			err := vlanArpLearnerAgent.RemoveUplink(portName)
+			if err != nil {
+				klog.Errorf("Failed to del uplink: %+v, error: %+v", portName, err)
+			}
+		},
 	})
+
 	go agentmonitor.Run(stopChan)
 
 	<-stopChan

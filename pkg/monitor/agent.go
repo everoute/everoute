@@ -47,16 +47,24 @@ import (
 const (
 	AgentNameConfigPath   = "/var/lib/lynx/agent/name"
 	LocalEndpointIdentity = "attached-mac"
+	UplinkPortIdentity    = "uplink-port"
+	UplinkUpdateInterval  = 300
 )
 
 type ovsdbEventHandler interface {
 	AddLocalEndpoint(endpointInfo ofnet.EndpointInfo)
 	DeleteLocalEndpoint(portNo uint32)
+	UpdateUplinkActiveSlave(ofPort uint32)
+	AddUplink(port *ofnet.PortInfo)
+	DeleteUplink(portName string)
 }
 
 type OvsdbEventHandlerFuncs struct {
-	LocalEndpointAddFunc    func(endpointInfo ofnet.EndpointInfo)
-	LocalEndpointDeleteFunc func(portNo uint32)
+	LocalEndpointAddFunc        func(endpointInfo ofnet.EndpointInfo)
+	LocalEndpointDeleteFunc     func(portNo uint32)
+	UplinkActiveSlaveUpdateFunc func(portName string, updates ofnet.PortUpdates)
+	UplinkAddFunc               func(port *ofnet.PortInfo)
+	UplinkDelFunc               func(portName string)
 }
 
 func (handler OvsdbEventHandlerFuncs) AddLocalEndpoint(endpointInfo ofnet.EndpointInfo) {
@@ -68,6 +76,29 @@ func (handler OvsdbEventHandlerFuncs) AddLocalEndpoint(endpointInfo ofnet.Endpoi
 func (handler OvsdbEventHandlerFuncs) DeleteLocalEndpoint(portNo uint32) {
 	if handler.LocalEndpointDeleteFunc != nil {
 		handler.LocalEndpointDeleteFunc(portNo)
+	}
+}
+
+func (handler OvsdbEventHandlerFuncs) UpdateUplinkActiveSlave(ofPort uint32) {
+	if handler.UplinkActiveSlaveUpdateFunc != nil {
+		portUpdate := ofnet.PortUpdates{
+			Updates: []ofnet.PortUpdate{{
+				UpdateInfo: ofPort,
+			}},
+		}
+		handler.UplinkActiveSlaveUpdateFunc("", portUpdate)
+	}
+}
+
+func (handler OvsdbEventHandlerFuncs) AddUplink(port *ofnet.PortInfo) {
+	if handler.UplinkAddFunc != nil {
+		handler.UplinkAddFunc(port)
+	}
+}
+
+func (handler OvsdbEventHandlerFuncs) DeleteUplink(portName string) {
+	if handler.UplinkDelFunc != nil {
+		handler.UplinkDelFunc(portName)
 	}
 }
 
@@ -100,6 +131,9 @@ type agentMonitor struct {
 
 	ovsdbEventHandler              ovsdbEventHandler
 	localEndpointHardwareAddrCache sets.String
+	inUpdatingUplinkMutex          sync.RWMutex
+	inUpdatingUplinkPortMap        map[string]ovsdb.RowUpdate
+	isUpdatingUplinkActive         bool
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
@@ -114,6 +148,8 @@ func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[u
 		ofportsCache:                   make(map[int32][]types.IPAddress),
 		ofPortIPAddressMonitorChan:     ofPortIPAddressMonitorChan,
 		localEndpointHardwareAddrCache: sets.NewString(),
+		inUpdatingUplinkPortMap:        make(map[string]ovsdb.RowUpdate),
+		isUpdatingUplinkActive:         false,
 		syncQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
 
@@ -162,7 +198,8 @@ func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 	return nil
 }
 
-func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[uint32][]net.IP, stopChan <-chan struct{}) {
+func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[uint32][]net.IP,
+	stopChan <-chan struct{}) {
 	for {
 		select {
 		case localEndpointInfo := <-ofPortIPAddressMonitorChan:
@@ -205,7 +242,8 @@ func (monitor *agentMonitor) startOvsdbMonitor() error {
 		Modify:  true,
 	}
 	requests := map[string]ovsdb.MonitorRequest{
-		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
+		"Port": {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode",
+			"bond_active_slave", "vlan_mode", "tag", "trunks"}},
 		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids"}},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
@@ -416,18 +454,235 @@ func (monitor *agentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *u
 	return nil
 }
 
-func (monitor *agentMonitor) processEndpointAdd(rowupdate ovsdb.RowUpdate) {
+func (monitor *agentMonitor) filterUplinkPort(rowupdate ovsdb.RowUpdate) bool {
+	if rowupdate.New.Fields["external_ids"] == nil {
+		return false
+	}
+
+	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	if _, ok := newExternalIds[UplinkPortIdentity]; ok {
+		return true
+	}
+
+	return false
+}
+
+func (monitor *agentMonitor) filterBondModeUpdate(rowupdate ovsdb.RowUpdate) bool {
+	if rowupdate.New.Fields["bond_mode"] != nil && rowupdate.Old.Fields["bond_mode"] != nil &&
+		!reflect.DeepEqual(rowupdate.New.Fields["bond_mode"], rowupdate.Old.Fields["bond_mode"]) {
+		return true
+	}
+
+	return false
+}
+
+func (monitor *agentMonitor) filterBondActiveSlaveUpdate(rowupdate ovsdb.RowUpdate) bool {
+	if rowupdate.New.Fields["bond_active_slave"] != nil && rowupdate.Old.Fields["bond_active_slave"] != nil &&
+		!reflect.DeepEqual(rowupdate.New.Fields["bond_active_slave"], rowupdate.Old.Fields["bond_active_slave"]) {
+		return true
+	}
+
+	return false
+}
+
+func (monitor *agentMonitor) filterCurrentBondActiveSlave(rowupdate ovsdb.RowUpdate) *uint32 {
+	var activeInterfaceOfPort uint32
+
+	curActiveSlaveMacAddr, _ := rowupdate.New.Fields["bond_active_slave"].(string)
+	if curActiveSlaveMacAddr == "" {
+		return nil
+	}
+
+	bondInterfaceUUIDs := listUUID(rowupdate.New.Fields["interfaces"])
+	for _, interfaceUUID := range bondInterfaceUUIDs {
+		ovsInterface, ok := monitor.ovsdbCache["Interface"][interfaceUUID.GoUuid]
+		if !ok {
+			klog.Infof("Failed to get ovs interface: %+v", interfaceUUID)
+			continue
+		}
+
+		interfaceMac, _ := ovsInterface.Fields["mac_in_use"].(string)
+		if interfaceMac == curActiveSlaveMacAddr {
+			ofPort, ok := ovsInterface.Fields["ofport"].(float64)
+			if ok && ofPort > 0 {
+				activeInterfaceOfPort = uint32(ofPort)
+			}
+
+			return &activeInterfaceOfPort
+		}
+	}
+
+	return nil
+}
+
+func (monitor *agentMonitor) filterUplinkAlreadyAdded(rowupdate ovsdb.RowUpdate) bool {
+	if rowupdate.Old.Fields["external_ids"] != nil {
+		oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+		if _, ok := oldExternalIds[UplinkPortIdentity]; ok {
+			// UplinkPortIdentity already exists --- uplinkPortExternalIds fields already exists in rowOld.
+			return true
+		}
+	}
+
+	return false
+}
+
+func (monitor *agentMonitor) filterUplinkDeleted(rowupdate ovsdb.RowUpdate) *string {
+	if rowupdate.Old.Fields["external_ids"] == nil {
+		return nil
+	}
+
+	oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	if _, ok := oldExternalIds[UplinkPortIdentity]; ok {
+		uplinkPortName := rowupdate.Old.Fields["name"].(string)
+
+		return &uplinkPortName
+	}
+
+	return nil
+}
+
+func (monitor *agentMonitor) buildUplinkPortInfo(rowupdate ovsdb.RowUpdate) *ofnet.PortInfo {
+	var portInfo ofnet.PortInfo
+	var mbrLinkInfo []*ofnet.LinkInfo
+	var portType string = "individual"
+	uplinkPortName := rowupdate.New.Fields["name"].(string)
+
+	uplinkInterfaceUUIDs := listUUID(rowupdate.New.Fields["interfaces"])
+	if len(uplinkInterfaceUUIDs) > 1 {
+		portType = "bond"
+	}
+
+	for _, interfaceUUID := range uplinkInterfaceUUIDs {
+		var interfaceOfPort uint32
+		uplinkInterface, ok := monitor.ovsdbCache["Interface"][interfaceUUID.GoUuid]
+		if !ok {
+			return nil
+		}
+
+		interfaceName, _ := uplinkInterface.Fields["name"].(string)
+		ofport, ok := uplinkInterface.Fields["ofport"].(float64)
+		if !ok {
+			return nil
+		}
+
+		if ofport < 0 {
+			return nil
+		}
+
+		// OfPort of UplinkPort member link interface is not initialized
+		if ofport == 0 {
+			return nil
+		}
+
+		interfaceOfPort = uint32(ofport)
+
+		mbrLinkInfo = append(mbrLinkInfo, &ofnet.LinkInfo{
+			Name:       interfaceName,
+			OfPort:     interfaceOfPort,
+			LinkStatus: 0,
+			Port:       &portInfo,
+		})
+	}
+
+	portInfo = ofnet.PortInfo{
+		Name:       uplinkPortName,
+		Type:       portType,
+		LinkStatus: 0,
+		MbrLinks:   mbrLinkInfo,
+	}
+
+	return &portInfo
+}
+
+func (monitor *agentMonitor) processInterfaceUpdate(rowupdate ovsdb.RowUpdate) {
 	addedEndpoints := monitor.filterEndpointAdded(rowupdate)
 	if addedEndpoints != nil {
 		go monitor.ovsdbEventHandler.AddLocalEndpoint(*addedEndpoints)
 	}
 }
 
-func (monitor *agentMonitor) processEndpointDel(rowupdate ovsdb.RowUpdate) {
+func (monitor *agentMonitor) processInterfaceDelete(rowupdate ovsdb.RowUpdate) {
 	deletedEndpoints := monitor.filterEndpointDeleted(rowupdate)
 	if deletedEndpoints != nil {
 		go monitor.ovsdbEventHandler.DeleteLocalEndpoint(*deletedEndpoints)
 	}
+}
+
+func (monitor *agentMonitor) processPortUpdate(rowupdate ovsdb.RowUpdate) {
+	if !monitor.filterUplinkPort(rowupdate) {
+		// Whether it's uplink port
+		return
+	}
+
+	if monitor.filterBondModeUpdate(rowupdate) {
+		return
+	}
+
+	if monitor.filterBondActiveSlaveUpdate(rowupdate) {
+		curActiveSlaveInterfaceOfPort := monitor.filterCurrentBondActiveSlave(rowupdate)
+		if curActiveSlaveInterfaceOfPort != nil {
+			monitor.processBondActiveSlaveSwitch(*curActiveSlaveInterfaceOfPort)
+		}
+		return
+	}
+
+	addedUplinkPortName, _ := rowupdate.New.Fields["name"].(string)
+	if monitor.filterUplinkAlreadyAdded(rowupdate) {
+		// Add port event of received uplink port already processed in previous round, this event is update some other
+		// column in port table
+		return
+	}
+
+	monitor.inUpdatingUplinkMutex.Lock()
+	defer monitor.inUpdatingUplinkMutex.Unlock()
+
+	monitor.inUpdatingUplinkPortMap[addedUplinkPortName] = rowupdate
+
+	if !monitor.isUpdatingUplinkActive {
+		go monitor.processInUpdatingUplinkAdd()
+		monitor.isUpdatingUplinkActive = true
+	}
+}
+
+func (monitor *agentMonitor) processInUpdatingUplinkAdd() {
+	for {
+		monitor.inUpdatingUplinkMutex.Lock()
+
+		for portname, row := range monitor.inUpdatingUplinkPortMap {
+			monitor.cacheLock.Lock()
+			addedUplinkPort := monitor.buildUplinkPortInfo(row)
+			monitor.cacheLock.Unlock()
+
+			if addedUplinkPort != nil {
+				go monitor.ovsdbEventHandler.AddUplink(addedUplinkPort)
+				delete(monitor.inUpdatingUplinkPortMap, portname)
+
+				continue
+			}
+		}
+
+		if len(monitor.inUpdatingUplinkPortMap) == 0 {
+			monitor.isUpdatingUplinkActive = false
+			monitor.inUpdatingUplinkMutex.Unlock()
+
+			return
+		}
+
+		monitor.inUpdatingUplinkMutex.Unlock()
+		time.Sleep(time.Millisecond * UplinkUpdateInterval)
+	}
+}
+
+func (monitor *agentMonitor) processPortDelete(rowupdate ovsdb.RowUpdate) {
+	deletedUplinkPortName := monitor.filterUplinkDeleted(rowupdate)
+	if deletedUplinkPortName != nil {
+		go monitor.ovsdbEventHandler.DeleteUplink(*deletedUplinkPortName)
+	}
+}
+
+func (monitor *agentMonitor) processBondActiveSlaveSwitch(curBondActiveSlaveInterfaceOfPort uint32) {
+	go monitor.ovsdbEventHandler.UpdateUplinkActiveSlave(curBondActiveSlaveInterfaceOfPort)
 }
 
 func (monitor *agentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
@@ -441,14 +696,20 @@ func (monitor *agentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 		for uuid, row := range tableUpdate.Rows {
 			empty := ovsdb.Row{}
 			if !reflect.DeepEqual(row.New, empty) {
-				if table == "Interface" {
-					monitor.processEndpointAdd(row)
+				switch table {
+				case "Interface":
+					monitor.processInterfaceUpdate(row)
+				case "Port":
+					monitor.processPortUpdate(row)
 				}
 
 				monitor.ovsdbCache[table][uuid] = row.New
 			} else {
-				if table == "Interface" {
-					monitor.processEndpointDel(row)
+				switch table {
+				case "Interface":
+					monitor.processInterfaceDelete(row)
+				case "Port":
+					monitor.processPortDelete(row)
 				}
 
 				delete(monitor.ovsdbCache[table], uuid)

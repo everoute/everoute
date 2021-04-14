@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -49,19 +50,23 @@ const (
 type Iface struct {
 	IfaceName string
 	IfaceType string
-	MacAddr   net.HardwareAddr
+	MacAddr   string
 	OfPort    uint32
 }
 
 var (
-	k8sClient                  client.Client
-	ovsClient                  *ovsdb.OvsdbClient
-	agentName                  string
-	monitor                    *agentMonitor
-	stopChan                   chan struct{}
-	ofPortIPAddressMonitorChan chan map[uint32][]net.IP
-	localEndpointLock          sync.RWMutex
-	localEndpointMap           map[uint32]net.HardwareAddr
+	k8sClient                     client.Client
+	ovsClient                     *ovsdb.OvsdbClient
+	agentName                     string
+	monitor                       *agentMonitor
+	stopChan                      chan struct{}
+	ofPortIPAddressMonitorChan    chan map[uint32][]net.IP
+	localEndpointLock             sync.RWMutex
+	localEndpointMap              map[uint32]net.HardwareAddr
+	curActiveSlaveLock            sync.RWMutex
+	curActiveSlaveInterfaceOfPort *uint32
+	uplinkLock                    sync.RWMutex
+	curUplinkPortInfoMap          map[string]ofnet.PortInfo
 )
 
 func TestMain(m *testing.M) {
@@ -79,6 +84,9 @@ func TestMain(m *testing.M) {
 		klog.Fatalf("fail to connect ovs client: %s", err)
 	}
 
+	localEndpointMap = make(map[uint32]net.HardwareAddr)
+	curUplinkPortInfoMap = make(map[string]ofnet.PortInfo)
+
 	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
 	agentName = monitor.Name()
 
@@ -88,6 +96,13 @@ func TestMain(m *testing.M) {
 func TestAgentMonitor(t *testing.T) {
 	RegisterTestingT(t)
 
+	testAgentInfoSync(t)
+	testIPAddressLearning(t)
+	testOvsDBEventHandler(t)
+	testAgentMonitorRestart(t)
+}
+
+func testAgentInfoSync(t *testing.T) {
 	brName := string(uuid.NewUUID())
 	portName := string(uuid.NewUUID())
 	ifaceName := portName
@@ -95,7 +110,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("create new bridge %s", brName)
 	Expect(createBridge(ovsClient, brName)).Should(Succeed())
-
 	t.Run("monitor should create new bridge", func(t *testing.T) {
 		Eventually(func() error {
 			_, err := getBridge(k8sClient, brName)
@@ -105,7 +119,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("create new port %s", portName)
 	Expect(createPort(ovsClient, brName, portName)).Should(Succeed())
-
 	t.Run("monitor should create new port", func(t *testing.T) {
 		Eventually(func() error {
 			_, err := getPort(k8sClient, brName, portName)
@@ -115,7 +128,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("update port %s externalIDs to %+v", portName, externalIDs)
 	Expect(updatePort(ovsClient, portName, externalIDs)).Should(Succeed())
-
 	t.Run("monitor should update port externalID", func(t *testing.T) {
 		Eventually(func() map[string]string {
 			port, _ := getPort(k8sClient, brName, portName)
@@ -125,7 +137,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("update interface %s externalIDs to %+v", ifaceName, externalIDs)
 	Expect(updateInterface(ovsClient, ifaceName, externalIDs)).Should(Succeed())
-
 	t.Run("monitor should update interface externalID", func(t *testing.T) {
 		Eventually(func() map[string]string {
 			iface, _ := getIface(k8sClient, brName, portName, ifaceName)
@@ -135,7 +146,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("delete port %s on bridge %s", portName, brName)
 	Expect(deletePort(ovsClient, brName, portName)).Should(Succeed())
-
 	t.Run("monitor should delete port", func(t *testing.T) {
 		Eventually(func() bool {
 			_, err := getPort(k8sClient, brName, portName)
@@ -145,7 +155,6 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Logf("delete bridge %s", brName)
 	Expect(deleteBridge(ovsClient, brName)).Should(Succeed())
-
 	t.Run("monitor should delete bridge", func(t *testing.T) {
 		Eventually(func() bool {
 			_, err := getBridge(k8sClient, brName)
@@ -154,9 +163,7 @@ func TestAgentMonitor(t *testing.T) {
 	})
 }
 
-func TestAgentMonitorRestart(t *testing.T) {
-	RegisterTestingT(t)
-
+func testAgentMonitorRestart(t *testing.T) {
 	var ofport int32 = 10
 	var ipAddr = []types.IPAddress{"10.10.56.32"}
 
@@ -178,12 +185,7 @@ func TestAgentMonitorRestart(t *testing.T) {
 	})
 }
 
-func TestAgentMonitorIpAddressLearning(t *testing.T) {
-	RegisterTestingT(t)
-
-	t.Logf("init agentmonitor for %s", agentName)
-	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
-
+func testIPAddressLearning(t *testing.T) {
 	var ofPort1 uint32 = 1
 	var ofPort2 uint32 = 2
 	var ipAddr1 = []net.IP{net.ParseIP("10.10.10.1")}
@@ -214,7 +216,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	})
 
 	t.Logf("Update ovsPort related IpAddress from %v to %v.", ipAddr1, ipAddr2)
-	Expect(updateIpAddress(ofPort2, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
+	Expect(updateIPAddress(ofPort2, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should update learned OfPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() string {
@@ -226,26 +228,59 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	})
 }
 
-func TestOvsDbEventHandler(t *testing.T) {
-	RegisterTestingT(t)
-
+func testOvsDBEventHandler(t *testing.T) {
 	bridgeName := string(uuid.NewUUID())
+
+	t.Logf("create new bridge %s", bridgeName)
+	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
+
+	testEndpointOperation(t, bridgeName)
+	testStandAloneUplinkOperation(t, bridgeName)
+	testBondUplinkOperation(t, bridgeName)
+
+	Expect(deleteBridge(ovsClient, bridgeName)).Should(Succeed())
+}
+
+func testBondUplinkOperation(t *testing.T, bridgeName string) {
+	var bondUplinkPortInfo ofnet.PortInfo
+	eth2LinkInfo := ofnet.LinkInfo{
+		Name:       eth2Iface.IfaceName,
+		OfPort:     eth2Iface.OfPort,
+		LinkStatus: 0,
+		Port:       &bondUplinkPortInfo,
+	}
+	eth3LinkInfo := ofnet.LinkInfo{
+		Name:       eth3Iface.IfaceName,
+		OfPort:     eth3Iface.OfPort,
+		LinkStatus: 0,
+		Port:       &bondUplinkPortInfo,
+	}
+	bondUplinkPortInfo = ofnet.PortInfo{
+		Name:       bondUplinkPortName,
+		Type:       "bond",
+		LinkStatus: 0,
+		MbrLinks:   []*ofnet.LinkInfo{&eth3LinkInfo, &eth2LinkInfo},
+	}
+
+	testBondUplinkAdd(t, bridgeName, bondUplinkPortInfo)
+	testBondUplinkUpdate(t)
+	testBondUplinkDelete(t, bridgeName)
+}
+
+func testEndpointOperation(t *testing.T, bridgeName string) {
 	ep1Port := "ep1"
 	ep1MacAddrStr := "00:11:11:11:11:11"
 	ep1InterfaceExternalIds := map[string]string{"attached-mac": ep1MacAddrStr}
 	ep1Iface := Iface{
 		IfaceName: "ep1Iface",
 		IfaceType: "internal",
+		MacAddr:   ep1MacAddrStr,
 		OfPort:    uint32(11),
 	}
-
-	t.Logf("create new bridge %s", bridgeName)
-	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
 
 	// Add local endpoint, set attached interface externalIDs
 	Expect(createOvsPort(bridgeName, ep1Port, []Iface{ep1Iface}, 0)).Should(Succeed())
 	Expect(updateInterface(ovsClient, ep1Iface.IfaceName, ep1InterfaceExternalIds)).Should(Succeed())
-
 	t.Run("Add local endpoint ep1", func(t *testing.T) {
 		Eventually(func() string {
 			localEndpointLock.Lock()
@@ -278,6 +313,246 @@ func TestOvsDbEventHandler(t *testing.T) {
 	})
 }
 
+func testStandAloneUplinkOperation(t *testing.T, bridgeName string) {
+	standAloneUplinkPortName := "eth1"
+	uplinkPortExternalIds := map[string]string{"uplink-port": "true"}
+	eth1Iface := Iface{
+		IfaceName: "eth1Iface",
+		IfaceType: "internal",
+		OfPort:    uint32(1),
+	}
+
+	var standAloneUplinkPortInfo ofnet.PortInfo
+	eth1LinkInfo := ofnet.LinkInfo{
+		Name:       eth1Iface.IfaceName,
+		OfPort:     eth1Iface.OfPort,
+		LinkStatus: 0,
+		Port:       &standAloneUplinkPortInfo,
+	}
+	standAloneUplinkPortInfo = ofnet.PortInfo{
+		Name:       standAloneUplinkPortName,
+		Type:       "individual",
+		LinkStatus: 0,
+		MbrLinks:   []*ofnet.LinkInfo{&eth1LinkInfo},
+	}
+
+	// Add standAlone uplink port
+	Expect(createOvsPort(bridgeName, standAloneUplinkPortName, []Iface{eth1Iface}, 0)).Should(Succeed())
+	Expect(updatePort(ovsClient, standAloneUplinkPortName, uplinkPortExternalIds)).Should(Succeed())
+	t.Run("Add standAlone uplink port", func(t *testing.T) {
+		Eventually(func() bool {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			portInfo, ok := curUplinkPortInfoMap[standAloneUplinkPortName]
+			if !ok {
+				return false
+			}
+
+			if reflect.DeepEqual(portInfo, standAloneUplinkPortInfo) {
+				return true
+			}
+
+			return false
+		}, timeout, interval).Should(Equal(true))
+	})
+
+	// Delete standAlone uplink port
+	Expect(deletePort(ovsClient, bridgeName, standAloneUplinkPortName, eth1Iface.IfaceName)).Should(Succeed())
+
+	t.Run("Delete standAlone uplink port", func(t *testing.T) {
+		Eventually(func() bool {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			if _, ok := curUplinkPortInfoMap[standAloneUplinkPortName]; ok {
+				return true
+			}
+
+			return false
+		}, timeout, interval).Should(Equal(false))
+	})
+}
+
+var (
+	bondUplinkPortName    = "bond"
+	uplinkPortExternalIds = map[string]string{"uplink-port": "true"}
+
+	eth2Iface = Iface{
+		IfaceName: "eth2Iface",
+		IfaceType: "internal",
+		OfPort:    uint32(2),
+	}
+	eth3Iface = Iface{
+		IfaceName: "eth3Iface",
+		IfaceType: "internal",
+		OfPort:    uint32(3),
+	}
+)
+
+func testBondUplinkAdd(t *testing.T, bridgeName string, bondUplinkPortInfo ofnet.PortInfo) {
+	// Add bonded uplink port
+	Expect(createOvsPort(bridgeName, bondUplinkPortName, []Iface{eth2Iface, eth3Iface}, 0)).Should(Succeed())
+	Expect(updatePort(ovsClient, bondUplinkPortName, uplinkPortExternalIds)).Should(Succeed())
+	t.Run("Add bond uplink port", func(t *testing.T) {
+		Eventually(func() bool {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			portInfo, ok := curUplinkPortInfoMap[bondUplinkPortName]
+			if !ok {
+				return false
+			}
+
+			if portInfoDeepEqual(portInfo, bondUplinkPortInfo) {
+				return true
+			}
+
+			return false
+		}, timeout, interval).Should(Equal(true))
+	})
+}
+
+func testBondUplinkUpdate(t *testing.T) {
+	var curNonActiveMacMap map[uint32]string
+
+	// Change bonded uplink port bond mode.
+	Expect(updateBondMode(ovsClient, bondUplinkPortName, "balance-slb")).Should(Succeed())
+
+	// Wait for mocked bond uplink interfaces in initialized status
+	t.Run("Get updated bonded port mbrLink interface mac", func(t *testing.T) {
+		Eventually(func() bool {
+			curNonActiveMacMap = getBondInfo(bondUplinkPortName)
+
+			return len(curNonActiveMacMap) > 0
+		}, timeout, interval).Should(Equal(true))
+	})
+
+	// Update bonded uplink port active-slave
+	Expect(updateBondActiveSlave(ovsClient, bondUplinkPortName, curNonActiveMacMap[eth3Iface.OfPort])).Should(Succeed())
+	t.Run("Update bond active slave", func(t *testing.T) {
+		Eventually(func() bool {
+			curActiveSlaveLock.Lock()
+			defer curActiveSlaveLock.Unlock()
+
+			if curActiveSlaveInterfaceOfPort == nil {
+				return false
+			}
+
+			return *curActiveSlaveInterfaceOfPort == eth3Iface.OfPort
+		}, timeout, interval).Should(Equal(true))
+	})
+}
+
+func testBondUplinkDelete(t *testing.T, bridgeName string) {
+	// Delete bonded uplink port
+	Expect(deletePort(ovsClient, bridgeName, bondUplinkPortName, eth2Iface.IfaceName,
+		eth3Iface.IfaceName)).Should(Succeed())
+	t.Run("Delete bond uplink port", func(t *testing.T) {
+		Eventually(func() bool {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			if _, ok := curUplinkPortInfoMap[bondUplinkPortName]; ok {
+				return true
+			}
+
+			return false
+		}, timeout, interval).Should(Equal(false))
+	})
+}
+
+func portInfoDeepEqual(portInfo1 ofnet.PortInfo, portInfo2 ofnet.PortInfo) bool {
+	if portInfo1.Name != portInfo2.Name {
+		return false
+	}
+	if portInfo1.Type != portInfo2.Type {
+		return false
+	}
+	if portInfo1.LinkStatus != portInfo2.LinkStatus {
+		return false
+	}
+
+	if len(portInfo1.MbrLinks) != len(portInfo2.MbrLinks) {
+		return false
+	}
+
+	var isLinkEqual bool = false
+	for _, mbrLink1 := range portInfo1.MbrLinks {
+		for _, mbrLink2 := range portInfo2.MbrLinks {
+			if linkInfoDeepEqual(*mbrLink1, *mbrLink2) {
+				isLinkEqual = true
+				break
+			}
+		}
+
+		if !isLinkEqual {
+			break
+		}
+	}
+
+	return isLinkEqual
+}
+
+func linkInfoDeepEqual(link1 ofnet.LinkInfo, link2 ofnet.LinkInfo) bool {
+	if link1.Name != link2.Name {
+		return false
+	}
+
+	// We just compare port name that attach this link to determine whether two link equal, and avoid cycle-dependency
+	// loop
+	if link1.Port.Name != link2.Port.Name {
+		return false
+	}
+
+	if link1.OfPort != link2.OfPort {
+		return false
+	}
+
+	if link1.LinkStatus != link2.LinkStatus {
+		return false
+	}
+
+	return true
+}
+
+func getBondInfo(portName string) map[uint32]string {
+	var bondInterfaceUUIDs []ovsdb.UUID
+	var curActiveSlaveMacAddrStr string
+	nonActiveSlaveMacAddrMap := make(map[uint32]string)
+
+	monitor.cacheLock.Lock()
+	defer monitor.cacheLock.Unlock()
+
+	for _, row := range monitor.ovsdbCache["Port"] {
+		name := row.Fields["name"].(string)
+		if name == portName {
+			bondInterfaceUUIDs = listUUID(row.Fields["interfaces"])
+			curActiveSlaveMacAddrStr, _ = row.Fields["bond_active_slave"].(string)
+			break
+		}
+	}
+
+	for _, interfaceUUID := range bondInterfaceUUIDs {
+		ovsInterface, ok := monitor.ovsdbCache["Interface"][interfaceUUID.GoUuid]
+		if !ok {
+			klog.Infof("Failed to get bonded uplink port interface: %+v", interfaceUUID)
+			continue
+		}
+
+		interfaceMac, _ := ovsInterface.Fields["mac_in_use"].(string)
+		interfaceOfPort, _ := ovsInterface.Fields["ofport"].(float64)
+
+		if interfaceMac == curActiveSlaveMacAddrStr {
+			continue
+		}
+
+		nonActiveSlaveMacAddrMap[uint32(interfaceOfPort)] = interfaceMac
+	}
+
+	return nonActiveSlaveMacAddrMap
+}
+
 func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ovsdb.Operation) {
 	var intfOperations []ovsdb.Operation
 	intfUUID := []ovsdb.UUID{}
@@ -290,6 +565,9 @@ func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ov
 		intf["name"] = iface.IfaceName
 		intf["type"] = iface.IfaceType
 		intf["ofport"] = float64(iface.OfPort)
+		if iface.MacAddr != "" {
+			intf["mac_in_use"] = iface.MacAddr
+		}
 
 		intfOp := ovsdb.Operation{
 			Op:       opStr,
@@ -352,7 +630,7 @@ func createOvsPort(bridgeName, portName string, interfaces []Iface, vlanTag uint
 	operations = append(operations, portOp, mutateOp)
 
 	// Perform OVS transaction
-	_, err = ovsdbTransact(ovsClient, "Open_vSwitch", operations...)
+	_, err = ovsdbTransact(ovsClient, operations...)
 
 	return err
 }
@@ -372,7 +650,35 @@ func updateInterface(client *ovsdb.OvsdbClient, ifaceName string, externalIDs ma
 		Where: []interface{}{[]interface{}{"name", "==", ifaceName}},
 	}
 
-	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
+	_, err := ovsdbTransact(client, portOperation)
+	return err
+}
+
+func updateBondActiveSlave(client *ovsdb.OvsdbClient, portName, activeSlaveMacStr string) error {
+	portOperation := ovsdb.Operation{
+		Op:    "update",
+		Table: "Port",
+		Row: map[string]interface{}{
+			"bond_active_slave": activeSlaveMacStr,
+		},
+		Where: []interface{}{[]interface{}{"name", "==", portName}},
+	}
+
+	_, err := ovsdbTransact(client, portOperation)
+	return err
+}
+
+func updateBondMode(client *ovsdb.OvsdbClient, portName, bondMode string) error {
+	portOperation := ovsdb.Operation{
+		Op:    "update",
+		Table: "Port",
+		Row: map[string]interface{}{
+			"bond_mode": bondMode,
+		},
+		Where: []interface{}{[]interface{}{"name", "==", portName}},
+	}
+
+	_, err := ovsdbTransact(client, portOperation)
 	return err
 }
 
@@ -419,7 +725,7 @@ func updateOfPort(oldOfPort uint32, newOfPort uint32, ofPortIPAddressMonitorChan
 	return nil
 }
 
-func updateIpAddress(ofPort uint32, newIpAddr []net.IP, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) error {
+func updateIPAddress(ofPort uint32, newIPAddr []net.IP, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) error {
 	monitor.cacheLock.RLock()
 	defer monitor.cacheLock.RUnlock()
 
@@ -427,7 +733,7 @@ func updateIpAddress(ofPort uint32, newIpAddr []net.IP, ofPortIPAddressMonitorCh
 		return fmt.Errorf("error when get ofportcache, port: %d.", ofPort)
 	}
 	ofPortInfo := map[uint32][]net.IP{
-		ofPort: newIpAddr,
+		ofPort: newIPAddr,
 	}
 	ofPortIPAddressMonitorChan <- ofPortInfo
 	return nil
@@ -452,7 +758,7 @@ func createBridge(client *ovsdb.OvsdbClient, brName string) error {
 		Where:     []interface{}{[]interface{}{"_uuid", "excludes", ovsdb.UUID{GoUuid: emptyUUID}}},
 	}
 
-	_, err := ovsdbTransact(client, "Open_vSwitch", bridgeOperation, mutateOperation)
+	_, err := ovsdbTransact(client, bridgeOperation, mutateOperation)
 	return err
 }
 
@@ -475,7 +781,7 @@ func deleteBridge(client *ovsdb.OvsdbClient, brName string) error {
 		Where:     []interface{}{[]interface{}{"_uuid", "excludes", ovsdb.UUID{GoUuid: emptyUUID}}},
 	}
 
-	_, err = ovsdbTransact(client, "Open_vSwitch", bridgeOperation, mutateOperation)
+	_, err = ovsdbTransact(client, bridgeOperation, mutateOperation)
 	return err
 }
 
@@ -507,7 +813,7 @@ func createPort(client *ovsdb.OvsdbClient, brName, portName string) error {
 		Where:     []interface{}{[]interface{}{"name", "==", brName}},
 	}
 
-	_, err := ovsdbTransact(client, "Open_vSwitch", ifaceOperation, portOperation, mutateOperation)
+	_, err := ovsdbTransact(client, ifaceOperation, portOperation, mutateOperation)
 	return err
 }
 
@@ -526,7 +832,7 @@ func updatePort(client *ovsdb.OvsdbClient, portName string, externalIDs map[stri
 		Where: []interface{}{[]interface{}{"name", "==", portName}},
 	}
 
-	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
+	_, err := ovsdbTransact(client, portOperation)
 	return err
 }
 
@@ -566,7 +872,7 @@ func deletePort(client *ovsdb.OvsdbClient, brName, portName string, ifaceNames .
 	}
 	operations = append(operations, mutateOperation)
 
-	_, err = ovsdbTransact(client, "Open_vSwitch", operations...)
+	_, err = ovsdbTransact(client, operations...)
 	return err
 }
 
@@ -577,7 +883,7 @@ func getMemberUUID(client *ovsdb.OvsdbClient, tableName, memberName string) (ovs
 		Where: []interface{}{[]interface{}{"name", "==", memberName}},
 	}
 
-	result, err := ovsdbTransact(client, "Open_vSwitch", selectOperation)
+	result, err := ovsdbTransact(client, selectOperation)
 	if err != nil {
 		return ovsdb.UUID{}, err
 	}
@@ -591,8 +897,8 @@ func getMemberUUID(client *ovsdb.OvsdbClient, tableName, memberName string) (ovs
 	}, nil
 }
 
-func ovsdbTransact(client *ovsdb.OvsdbClient, database string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
-	results, err := client.Transact(database, operation...)
+func ovsdbTransact(client *ovsdb.OvsdbClient, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+	results, err := client.Transact("Open_vSwitch", operation...)
 	for item, result := range results {
 		if result.Error != "" {
 			return results, fmt.Errorf("operator %v: %s, details: %s", operation[item], result.Error, result.Details)
@@ -661,7 +967,6 @@ func isNotFoundError(err error) bool {
 
 func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, chan map[uint32][]net.IP) {
 	ofPortIPAddressMonitorChan = make(chan map[uint32][]net.IP, 1024)
-	localEndpointMap = make(map[uint32]net.HardwareAddr)
 
 	monitor, err := NewAgentMonitor(k8sClient, ofPortIPAddressMonitorChan)
 	if err != nil {
@@ -680,6 +985,25 @@ func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, c
 			defer localEndpointLock.Unlock()
 
 			delete(localEndpointMap, portNo)
+		},
+		UplinkAddFunc: func(portInfo *ofnet.PortInfo) {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			curUplinkPortInfoMap[portInfo.Name] = *portInfo
+		},
+		UplinkDelFunc: func(portName string) {
+			uplinkLock.Lock()
+			defer uplinkLock.Unlock()
+
+			delete(curUplinkPortInfoMap, portName)
+		},
+		UplinkActiveSlaveUpdateFunc: func(portName string, portUpdates ofnet.PortUpdates) {
+			curActiveSlaveLock.Lock()
+			defer curActiveSlaveLock.Unlock()
+
+			ofPort := portUpdates.Updates[0].UpdateInfo.(uint32)
+			curActiveSlaveInterfaceOfPort = &ofPort
 		},
 	})
 
