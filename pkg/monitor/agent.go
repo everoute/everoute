@@ -72,8 +72,11 @@ func (self OvsdbEventHandlerFuncs) DeleteLocalEndpoint(endpoint ofnet.OfnetEndpo
 }
 
 func (monitor *agentMonitor) RegisterOvsdbEventHandler(ovsdbEventHandler ovsdbEventHandler) {
-	if monitor.ovsdbEventHandler == nil {
-		klog.Fatalf("Failed to register ovsdbEventHandler")
+	if ovsdbEventHandler == nil {
+		klog.Fatalf("Failed to register ovsdbEventHandler: register nil ovsdbEventHandler not allow")
+	}
+	if monitor.ovsdbEventHandler != nil {
+		klog.Fatalf("Failed to register ovsdbEventHandler: monitor ovsdbEventHandler already register")
 	}
 
 	monitor.ovsdbEventHandler = ovsdbEventHandler
