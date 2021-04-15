@@ -26,6 +26,9 @@ cover-test:
 race-test:
 	go test ./pkg/... -race
 
+e2e-test:
+	go test ./tests/e2e/...
+
 # Generate deepcopy, client, openapi codes
 codegen:
 	$(APISERVER_BOOT) build generated --generator deepcopy --copyright hack/boilerplate.go.txt
