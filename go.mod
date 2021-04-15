@@ -25,7 +25,7 @@ require (
 )
 
 replace (
-	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210303025312-9765e623c87e
+	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210415080703-4361a8a1982d
 	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210326110222-6c508538aa65
 	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210331075237-63518757ed1a
 	github.com/osrg/gobgp => github.com/zwtop/gobgp v0.0.0-20210127101833-12edfc1f4514
