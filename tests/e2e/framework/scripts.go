@@ -60,7 +60,10 @@ const (
 		# send arp packets so than lynx agent can learn ip addr
 		ip netns exec ${netns} nohup arping -AI ${vethpeername} ${ipaddress} &>/dev/null &
 
-		ovs-vsctl add-port ${defaultbridge} ${portname} -- set port ${portname} external_ids=${port_id_name}=${port_id_value}
+		attached_mac=$(ip netns exec ${netns} cat /sys/class/net/${vethpeername}/address)
+		ovs-vsctl add-port ${defaultbridge} ${portname} \
+			-- set port ${portname} external_ids=${port_id_name}=${port_id_value} \
+			-- set interface ${portname} external_ids:attached-mac="${attached_mac}"
 
 		if [[ ${tcp_port} != 0 ]]; then
 			ip netns exec ${netns} iperf -Dsp ${tcp_port}
