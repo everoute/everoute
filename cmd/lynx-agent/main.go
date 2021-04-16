@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"net"
+	"time"
 
 	"github.com/contiv/ofnet"
 	"github.com/contiv/ofnet/ovsdbDriver"
@@ -74,6 +75,11 @@ func main() {
 	if err != nil {
 		klog.Fatalf("error %v when init ofnetAgent.", err)
 	}
+
+	// We need to wait for long enough to guarantee that datapath completes flowtable initialize. It is a temporary
+	// method.
+	// Implement datapath initialized status Synchronization mechanism. TODO
+	time.Sleep(5 * time.Second)
 
 	// NetworkPolicy controller: watch policyRule crud and update flow
 	mgr, err := startManager(scheme, vlanArpLearnerAgent, stopChan)
