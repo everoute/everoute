@@ -39,6 +39,17 @@ jobs:
         with:
           files: ./coverage.out
 
+  golint:
+    runs-on: [ubuntu-20.04]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: golangci/golangci-lint-action@v2.5.2
+        with:
+          version: v1.39
+          # skip cache because of flaky behaviors
+          skip-build-cache: true
+          skip-pkg-cache: true
+
   run-deploy:
     runs-on: [ubuntu-20.04]
 
