@@ -24,9 +24,12 @@ DEFAULT_BRIDGE="vlanLearnBridge"
 OFPORT_NUM=10
 AGENT_CONFIG_PATH=/var/lib/lynx/agentconfig.yaml
 
+echo "add uplink interface if not exists"
+ip link show ${UPLINK_IFACE} || ip link add ${UPLINK_IFACE} type bridge
+
 echo "add vlan bridge and uplink port"
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
-ovs-vsctl add-port ${DEFAULT_BRIDGE} ${UPLINK_IFACE} -- set Interface ${UPLINK_IFACE} ofport=${OFPORT_NUM}
+ovs-vsctl add-port ${DEFAULT_BRIDGE} ${UPLINK_IFACE} -- set Port ${UPLINK_IFACE} external_ids=uplink-port="true" -- set Interface ${UPLINK_IFACE} ofport=${OFPORT_NUM}
 
 echo "generate lynx-agent config"
 mkdir -p "$(dirname ${AGENT_CONFIG_PATH})"
