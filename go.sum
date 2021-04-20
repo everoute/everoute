@@ -503,6 +503,8 @@ github.com/smartxworks/ofnet v0.0.0-20210331075237-63518757ed1a h1:sAwYvB0RHQ7Om
 github.com/smartxworks/ofnet v0.0.0-20210331075237-63518757ed1a/go.mod h1:+OuUO1n8LUqIphzW6/NLWXwt8XD5Hjk1U67E2wQzWZ0=
 github.com/smartxworks/ofnet v0.0.0-20210407074217-dd0569b4770c h1:uV8Qa7TvaWZAVclDA+KrYWtyY+MHdMewQnmSNf/hIbE=
 github.com/smartxworks/ofnet v0.0.0-20210407074217-dd0569b4770c/go.mod h1:LSJ4rJg8NhHLF+C9or4s++Sotb4Yzme12KUWerijGRo=
+github.com/smartxworks/ofnet v0.0.0-20210421082223-e16c95931aae h1:OMX2Y9ako7P7kAsK/hrsYbmmNijzTVxjMLTm5kGWKEs=
+github.com/smartxworks/ofnet v0.0.0-20210421082223-e16c95931aae/go.mod h1:LSJ4rJg8NhHLF+C9or4s++Sotb4Yzme12KUWerijGRo=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d h1:zE9ykElWQ6/NYmHa3jpm/yHnI4xSofP+UP6SpjHcSeM=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d/go.mod h1:OnSkiWE9lh6wB0YB77sQom3nweQdgAjqCqsofrRNTgc=
 github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIKYqbNC9s=

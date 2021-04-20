@@ -21,11 +21,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/agiledragon/gomonkey"
 	ovsdb "github.com/contiv/libovsdb"
+	"github.com/contiv/ofnet"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -44,6 +46,13 @@ const (
 	interval = time.Millisecond * 250
 )
 
+type Iface struct {
+	IfaceName string
+	IfaceType string
+	MacAddr   net.HardwareAddr
+	OfPort    uint32
+}
+
 var (
 	k8sClient                  client.Client
 	ovsClient                  *ovsdb.OvsdbClient
@@ -51,6 +60,8 @@ var (
 	monitor                    *agentMonitor
 	stopChan                   chan struct{}
 	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
+	localEndpointLock          sync.RWMutex
+	localEndpointMap           map[uint32]net.HardwareAddr
 )
 
 func TestMain(m *testing.M) {
@@ -202,6 +213,213 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 			return ofPortInfoToString(ipAddrs)
 		}, timeout, interval).Should(Equal(ipInfoToString(ipAddr2)))
 	})
+}
+
+func TestOvsDbEventHandler(t *testing.T) {
+	RegisterTestingT(t)
+
+	bridgeName := string(uuid.NewUUID())
+	ep1Port := "ep1"
+	ep1MacAddrStr := "00:11:11:11:11:11"
+	ep1InterfaceExternalIds := map[string]string{"attached-mac": ep1MacAddrStr}
+	ep1Iface := Iface{
+		IfaceName: "ep1Iface",
+		IfaceType: "internal",
+		OfPort:    uint32(11),
+	}
+
+	t.Logf("create new bridge %s", bridgeName)
+	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
+
+	// Add local endpoint, set attached interface externalIDs
+	Expect(createOvsPort(bridgeName, ep1Port, []Iface{ep1Iface}, 0)).Should(Succeed())
+	Expect(updateInterface(ovsClient, ep1Iface.IfaceName, ep1InterfaceExternalIds)).Should(Succeed())
+
+	t.Run("Add local endpoint ep1", func(t *testing.T) {
+		Eventually(func() string {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
+
+			if ep1MacAddr, ok := localEndpointMap[ep1Iface.OfPort]; ok {
+				return ep1MacAddr.String()
+			}
+
+			return ""
+		}, timeout, interval).Should(Equal(ep1MacAddrStr))
+	})
+
+	//  Delete local endpoint
+	Expect(deleteOvsPort(bridgeName, ep1Port, []Iface{ep1Iface})).Should(Succeed())
+
+	t.Run("Delete local endpoint ep1", func(t *testing.T) {
+		Eventually(func() bool {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
+
+			if ep1MacAddr, ok := localEndpointMap[ep1Iface.OfPort]; ok {
+				if ep1MacAddr.String() == ep1MacAddrStr {
+					return false
+				}
+			}
+
+			return true
+		}, timeout, interval).Should(Equal(true))
+	})
+}
+
+func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ovsdb.Operation) {
+	var intfOperations []ovsdb.Operation
+	intfUUID := []ovsdb.UUID{}
+
+	for _, iface := range interfaces {
+		intfUUIDStr := iface.IfaceName
+		intfUUID = append(intfUUID, ovsdb.UUID{GoUuid: intfUUIDStr})
+
+		intf := make(map[string]interface{})
+		intf["name"] = iface.IfaceName
+		intf["type"] = iface.IfaceType
+		intf["ofport"] = float64(iface.OfPort)
+
+		intfOp := ovsdb.Operation{
+			Op:       opStr,
+			Table:    "Interface",
+			Row:      intf,
+			UUIDName: iface.IfaceName,
+		}
+
+		intfOperations = append(intfOperations, intfOp)
+	}
+
+	return intfUUID, intfOperations
+}
+
+func createOvsPort(bridgeName, portName string, interfaces []Iface, vlanTag uint) error {
+	var err error
+	portUUIDStr := portName
+	portUUID := []ovsdb.UUID{{GoUuid: portUUIDStr}}
+	opStr := "insert"
+
+	// Add interface to interfaces table
+	intfUUID, intfOperations := getOvsDBInterfaceInfo(opStr, interfaces)
+
+	// Insert a row in Port table
+	port := make(map[string]interface{})
+	port["name"] = portName
+	if vlanTag != 0 {
+		port["vlan_mode"] = "access"
+		port["tag"] = vlanTag
+	} else {
+		port["vlan_mode"] = "trunk"
+	}
+
+	port["interfaces"], err = ovsdb.NewOvsSet(intfUUID)
+	if err != nil {
+		return err
+	}
+
+	// Add an entry in Port table
+	portOp := ovsdb.Operation{
+		Op:       opStr,
+		Table:    "Port",
+		Row:      port,
+		UUIDName: portUUIDStr,
+	}
+
+	// mutate the Ports column of the row in the Bridge table
+	mutateSet, _ := ovsdb.NewOvsSet(portUUID)
+	mutation := ovsdb.NewMutation("ports", opStr, mutateSet)
+	condition := ovsdb.NewCondition("name", "==", bridgeName)
+	mutateOp := ovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Bridge",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	var operations []ovsdb.Operation
+	operations = append(operations, intfOperations...)
+	operations = append(operations, portOp, mutateOp)
+
+	// Perform OVS transaction
+	_, err = ovsdbTransact(ovsClient, "Open_vSwitch", operations...)
+
+	return err
+}
+
+func deleteOvsPort(bridgeName, portName string, interfaces []Iface) error {
+	var err error
+	portUUIDStr := portName
+	portUUID := []ovsdb.UUID{{GoUuid: portUUIDStr}}
+	opStr := "delete"
+
+	var intfOperations []ovsdb.Operation
+	for _, iface := range interfaces {
+		condition := ovsdb.NewCondition("name", "==", iface.IfaceName)
+		intfOp := ovsdb.Operation{
+			Op:    opStr,
+			Table: "Interface",
+			Where: []interface{}{condition},
+		}
+
+		intfOperations = append(intfOperations, intfOp)
+	}
+
+	// Delete a row in Port table
+	condition := ovsdb.NewCondition("name", "==", portName)
+	portOperation := ovsdb.Operation{
+		Op:    opStr,
+		Table: "Port",
+		Where: []interface{}{condition},
+	}
+
+	// also fetch the port-uuid from cache
+	monitor.cacheLock.Lock()
+	for uuid, row := range monitor.ovsdbCache["Port"] {
+		name := row.Fields["name"].(string)
+		if name == portName {
+			portUUID = []ovsdb.UUID{{GoUuid: uuid}}
+			break
+		}
+	}
+	monitor.cacheLock.Unlock()
+
+	// mutate the Ports column of the row in the Bridge table
+	mutateSet, _ := ovsdb.NewOvsSet(portUUID)
+	mutation := ovsdb.NewMutation("ports", opStr, mutateSet)
+	condition = ovsdb.NewCondition("name", "==", bridgeName)
+	mutateOperation := ovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Bridge",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	var operations []ovsdb.Operation
+	operations = append(operations, intfOperations...)
+	operations = append(operations, portOperation, mutateOperation)
+
+	_, err = ovsdbTransact(ovsClient, "Open_vSwitch", operations...)
+
+	return err
+}
+
+func updateInterface(client *ovsdb.OvsdbClient, ifaceName string, externalIDs map[string]string) error {
+	if externalIDs == nil {
+		externalIDs = make(map[string]string)
+	}
+	ovsExternalIDs, _ := ovsdb.NewOvsMap(externalIDs)
+
+	portOperation := ovsdb.Operation{
+		Op:    "update",
+		Table: "Interface",
+		Row: map[string]interface{}{
+			"external_ids": ovsExternalIDs,
+		},
+		Where: []interface{}{[]interface{}{"name", "==", ifaceName}},
+	}
+
+	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
+	return err
 }
 
 func ofPortInfoToString(ips []types.IPAddress) string {
@@ -463,10 +681,27 @@ func isNotFoundError(err error) bool {
 
 func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, chan map[uint32][]net.IP) {
 	ofPortIpAddressMonitorChan = make(chan map[uint32][]net.IP, 1024)
+	localEndpointMap = make(map[uint32]net.HardwareAddr)
+
 	monitor, err := NewAgentMonitor(k8sClient, ofPortIpAddressMonitorChan)
 	if err != nil {
 		klog.Fatalf("fail to create agentMonitor: %s", err)
 	}
+
+	monitor.RegisterOvsdbEventHandler(OvsdbEventHandlerFuncs{
+		LocalEndpointAddFunc: func(endpointInfo ofnet.EndpointInfo) {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
+
+			localEndpointMap[endpointInfo.PortNo] = endpointInfo.MacAddr
+		},
+		LocalEndpointDeleteFunc: func(portNo uint32) {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
+
+			delete(localEndpointMap, portNo)
+		},
+	})
 
 	stopChan := make(chan struct{})
 	go monitor.Run(stopChan)
