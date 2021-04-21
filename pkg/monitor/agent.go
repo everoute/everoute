@@ -59,15 +59,15 @@ type OvsdbEventHandlerFuncs struct {
 	LocalEndpointDeleteFunc func(endpoint ofnet.OfnetEndpoint)
 }
 
-func (self OvsdbEventHandlerFuncs) AddLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
-	if self.LocalEndpointAddFunc != nil {
-		self.LocalEndpointAddFunc(endpoint)
+func (handler OvsdbEventHandlerFuncs) AddLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
+	if handler.LocalEndpointAddFunc != nil {
+		handler.LocalEndpointAddFunc(endpoint)
 	}
 }
 
-func (self OvsdbEventHandlerFuncs) DeleteLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
-	if self.LocalEndpointDeleteFunc != nil {
-		self.LocalEndpointDeleteFunc(endpoint)
+func (handler OvsdbEventHandlerFuncs) DeleteLocalEndpoint(endpoint ofnet.OfnetEndpoint) {
+	if handler.LocalEndpointDeleteFunc != nil {
+		handler.LocalEndpointDeleteFunc(endpoint)
 	}
 }
 
