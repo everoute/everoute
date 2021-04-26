@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +45,7 @@ import (
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
 )
 
 type Framework struct {
@@ -57,6 +60,11 @@ type Framework struct {
 	agents     []string               // agents name or ip address
 	clientMap  map[string]*ssh.Client // agents client map
 
+	vmInfoLock       sync.RWMutex
+	vmIPMap          map[string]string      // vm name to ip addr map
+	groupVMMap       map[string]sets.String // map group to a list of vm blongs to it
+	groupSelectorMap map[string]string      // group name to group selector map
+
 	timeout  time.Duration
 	interval time.Duration
 }
@@ -65,12 +73,15 @@ func FrameworkFromConfig(configFile string) (*Framework, error) {
 	var err error
 
 	var f = &Framework{
-		ctx:        context.Background(),
-		ipPoolCidr: "10.0.0.0/24",
-		ipUsed:     map[string]bool{"10.0.0.0": true, "10.0.0.255": true},
-		clientMap:  make(map[string]*ssh.Client),
-		timeout:    time.Second * 20,
-		interval:   time.Millisecond * 250,
+		ctx:              context.Background(),
+		ipPoolCidr:       "10.0.0.0/24",
+		ipUsed:           map[string]bool{"10.0.0.0": true, "10.0.0.255": true},
+		clientMap:        make(map[string]*ssh.Client),
+		vmIPMap:          make(map[string]string),
+		groupVMMap:       make(map[string]sets.String),
+		groupSelectorMap: make(map[string]string),
+		timeout:          time.Second * 20,
+		interval:         time.Millisecond * 250,
 	}
 
 	f.k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{
@@ -125,7 +136,17 @@ func (f *Framework) CheckAgentHealth(port, timeout int) map[string]bool {
 	return healthMap
 }
 
+func (f *Framework) SetupGroup(name string, label string) {
+	f.vmInfoLock.Lock()
+	defer f.vmInfoLock.Unlock()
+
+	f.groupSelectorMap[name] = label
+}
+
 func (f *Framework) SetupVMs(vms ...*VM) error {
+	f.vmInfoLock.Lock()
+	defer f.vmInfoLock.Unlock()
+
 	for _, vm := range vms {
 		if vm.status != nil {
 			return fmt.Errorf("vm %s has been setup already", vm.Name)
@@ -145,6 +166,18 @@ func (f *Framework) SetupVMs(vms ...*VM) error {
 		vm.status.ipAddr, err = f.randomIPv4(vm.ExpectCidr)
 		if err != nil {
 			return fmt.Errorf("get random ip for vm %s: %s", vm.Name, err)
+		}
+
+		f.vmIPMap[vm.Name] = vm.status.ipAddr
+
+		for groupName, groupLabel := range f.groupSelectorMap {
+			if vm.Labels == groupLabel {
+				if f.groupVMMap[groupName] == nil {
+					f.groupVMMap[groupName] = sets.NewString()
+				}
+
+				f.groupVMMap[groupName].Insert(vm.Name)
+			}
 		}
 
 		c, err := f.getAgentClient(vm.status.agent)
@@ -171,6 +204,9 @@ func (f *Framework) SetupVMs(vms ...*VM) error {
 }
 
 func (f *Framework) CleanVMs(vms ...*VM) error {
+	f.vmInfoLock.Lock()
+	defer f.vmInfoLock.Unlock()
+
 	for _, vm := range vms {
 		if vm.status == nil {
 			return fmt.Errorf("cant clean vm %s because vm haven't setup yet", vm.Name)
@@ -179,6 +215,14 @@ func (f *Framework) CleanVMs(vms ...*VM) error {
 		c, err := f.getAgentClient(vm.status.agent)
 		if err != nil {
 			return err
+		}
+
+		delete(f.vmIPMap, vm.Name)
+
+		for groupName, groupVMSet := range f.groupVMMap {
+			if groupVMSet.Has(vm.Name) {
+				f.groupVMMap[groupName].Delete(vm.Name)
+			}
 		}
 
 		stdout, rc, err := runScriptRemote(c, destroyVM, vm.status.netns)
@@ -197,6 +241,32 @@ func (f *Framework) CleanVMs(vms ...*VM) error {
 		klog.Infof("clean vm %s on agent %s, netns = %s", vm.Name, vm.status.agent, vm.status.netns)
 	}
 	return nil
+}
+
+func (f *Framework) UpdateVMGroup(vm *VM, newLabels string) {
+	f.vmInfoLock.Lock()
+	defer f.vmInfoLock.Unlock()
+
+	// Delete vm from old group it blongs to previously
+	for groupName, groupVMSet := range f.groupVMMap {
+		if groupVMSet.Has(vm.Name) {
+			f.groupVMMap[groupName].Delete(vm.Name)
+		}
+	}
+
+	// Add a vm to new group.
+	// Generally, group is defined by a set of label, so, we should use the intersection of the vm's label set and the
+	// group's label set to determined whether the vm is belongs to specific group. Now, we only use one label per vm,
+	// Thus, we just compare grouplabels and vmlabels directly
+	for groupName, groupLabel := range f.groupSelectorMap {
+		if newLabels == groupLabel {
+			if f.groupVMMap[groupName] == nil {
+				f.groupVMMap[groupName] = sets.NewString()
+			}
+
+			f.groupVMMap[groupName].Insert(vm.Name)
+		}
+	}
 }
 
 func (f *Framework) UpdateVMLabels(vm *VM) error {
@@ -224,6 +294,10 @@ func (f *Framework) UpdateVMRandIP(vm *VM) error {
 	if err != nil {
 		return err
 	}
+
+	f.vmInfoLock.Lock()
+	f.vmIPMap[vm.Name] = expectIPv4
+	f.vmInfoLock.Unlock()
 
 	stdout, rc, err := runScriptRemote(c, updateVMIP, vm.status.netns, expectIPv4)
 	if err != nil {
@@ -367,6 +441,227 @@ func (f *Framework) reachable(src *VM, dst *VM, protocol string, port int) ([]by
 	}
 
 	return out, rc == 0, err
+}
+
+func runOpenflowCmd(cmd, brName string) ([]byte, error) {
+	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 %s %s", cmd, brName)
+	out, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
+	if err != nil {
+		klog.Errorf("error running ovs-ofctl %s %s. Error: %v", cmd, brName, err)
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// dump the flows and parse the Output
+func (f *Framework) FlowDump(brName string) ([]string, error) {
+	flowDump, err := runOpenflowCmd("dump-flows", brName)
+	if err != nil {
+		klog.Errorf("Error running dump-flows on %s. Err: %v", brName, err)
+		return nil, err
+	}
+
+	flowOutStr := string(flowDump)
+	flowDB := strings.Split(flowOutStr, "\n")[1:]
+
+	var flowList []string
+	for _, flow := range flowDB {
+		felem := strings.Fields(flow)
+		if len(felem) > 2 {
+			felem = append([]string{felem[2]}, felem[5:]...)
+			fstr := strings.Join(felem, " ")
+			flowList = append(flowList, fstr)
+		}
+	}
+
+	klog.Infof("flowList: %+v", flowList)
+
+	return flowList, nil
+}
+
+// Find a flow in flow list and match its action
+func (f *Framework) FlowMatch(flowList []string, matchStr string) bool {
+	for _, flowEntry := range flowList {
+		klog.Infof("Looking for (%s) in (%s)", matchStr, flowEntry)
+		if strings.Contains(flowEntry, matchStr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *Framework) getTableIds(tier string) (*int, *int) {
+	var ingressTableID, egressTableID int
+	switch tier {
+	case "tier0":
+		ingressTableID = 10
+		egressTableID = 30
+	case "tier1":
+		ingressTableID = 11
+		egressTableID = 31
+	case "tier2":
+		ingressTableID = 12
+		egressTableID = 32
+	}
+
+	return &ingressTableID, &egressTableID
+}
+
+func (f *Framework) GetExpectedFlows(securityPolicy securityv1alpha1.SecurityPolicy) []string {
+	f.vmInfoLock.Lock()
+	defer f.vmInfoLock.Unlock()
+
+	var appliedGroupIPs, ingressGroupIPs, egressGroupIPs []string
+	var ingressGroupPorts, egressGroupPorts []cache.RulePort
+
+	for _, rule := range securityPolicy.Spec.IngressRules {
+		for _, endpointGroupName := range rule.From.EndpointGroups {
+			for vmName := range f.groupVMMap[endpointGroupName] {
+				ingressGroupIPs = append(ingressGroupIPs, f.vmIPMap[vmName])
+			}
+		}
+
+		rulePorts, err := flattenPorts(rule.Ports)
+		if err != nil {
+			return nil
+		}
+		ingressGroupPorts = append(ingressGroupPorts, rulePorts...)
+	}
+
+	for _, rule := range securityPolicy.Spec.EgressRules {
+		for _, endpointGroupName := range rule.To.EndpointGroups {
+			for vmName := range f.groupVMMap[endpointGroupName] {
+				egressGroupIPs = append(egressGroupIPs, f.vmIPMap[vmName])
+			}
+		}
+
+		rulePorts, err := flattenPorts(rule.Ports)
+		if err != nil {
+			return nil
+		}
+		egressGroupPorts = append(egressGroupPorts, rulePorts...)
+	}
+
+	for _, appliedToGroupName := range securityPolicy.Spec.AppliedToEndpointGroups {
+		for vmName := range f.groupVMMap[appliedToGroupName] {
+			appliedGroupIPs = append(appliedGroupIPs, f.vmIPMap[vmName])
+		}
+	}
+
+	return f.computePolicyFlow(securityPolicy, appliedGroupIPs, ingressGroupIPs, egressGroupIPs, ingressGroupPorts,
+		egressGroupPorts)
+}
+
+func (f *Framework) computePolicyFlow(securityPolicy securityv1alpha1.SecurityPolicy, appliedToGroupIPs,
+	ingressGroupIPs, egressGroupIPs []string, ingressGroupPorts, egressGroupPorts []cache.RulePort) []string {
+	var flows []string
+	priority := securityPolicy.Spec.Priority + 10
+	ingressTableID, egressTableID := f.getTableIds(securityPolicy.Spec.Tier)
+
+	if ingressTableID == nil || egressTableID == nil {
+		return nil
+	}
+	ingressNextTableID, egressNextTableID := *ingressTableID+1, *egressTableID+1
+
+	for _, appliedToIP := range appliedToGroupIPs {
+		for _, srcIP := range ingressGroupIPs {
+			// Except appliedToIP == srcIP, NOTE error implement in policyrule controller
+			for _, ingressGroupPort := range ingressGroupPorts {
+				var flow string
+				protocol := getProtocolStr(ingressGroupPort.Protocol)
+
+				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
+						*ingressTableID, priority, *protocol, srcIP, appliedToIP, ingressNextTableID)
+				} else if ingressGroupPort.DstPort != 0 {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
+						*ingressTableID, priority, *protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
+						ingressNextTableID)
+				}
+				flows = append(flows, flow)
+			}
+
+			if len(ingressGroupPorts) == 0 {
+				flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", ingressTableID,
+					priority, srcIP, appliedToIP)
+				flows = append(flows, flow)
+			}
+		}
+
+		for _, dstIP := range egressGroupIPs {
+			for _, egressGroupPort := range egressGroupPorts {
+				var flow string
+				protocol := getProtocolStr(egressGroupPort.Protocol)
+
+				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
+						*egressTableID, priority, *protocol, appliedToIP, dstIP, egressNextTableID)
+				} else if egressGroupPort.DstPort != 0 {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
+						*egressTableID, priority, *protocol, appliedToIP, dstIP, egressGroupPort.DstPort, egressNextTableID)
+				}
+				flows = append(flows, flow)
+			}
+
+			if len(egressGroupPorts) == 0 {
+				flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", egressTableID,
+					priority, appliedToIP, dstIP)
+				flows = append(flows, flow)
+			}
+		}
+	}
+
+	return flows
+}
+
+func getProtocolStr(protocol securityv1alpha1.Protocol) *string {
+	var protocolStr string
+	switch protocol {
+	case securityv1alpha1.ProtocolTCP:
+		protocolStr = "tcp"
+	case securityv1alpha1.ProtocolUDP:
+		protocolStr = "udp"
+	case securityv1alpha1.ProtocolICMP:
+		protocolStr = "icmp"
+	}
+
+	return &protocolStr
+}
+
+func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]cache.RulePort, error) {
+	var rulePortList []cache.RulePort
+	var rulePortMap = make(map[cache.RulePort]struct{})
+
+	for _, port := range ports {
+		if port.Protocol == securityv1alpha1.ProtocolICMP {
+			portItem := cache.RulePort{
+				Protocol: port.Protocol,
+			}
+			rulePortMap[portItem] = struct{}{}
+			continue
+		}
+
+		begin, end, err := cache.UnmarshalPortRange(port.PortRange)
+		if err != nil {
+			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
+		}
+
+		for portNumber := begin; portNumber <= end; portNumber++ {
+			portItem := cache.RulePort{
+				DstPort:  portNumber,
+				Protocol: port.Protocol,
+			}
+			rulePortMap[portItem] = struct{}{}
+		}
+	}
+
+	for port := range rulePortMap {
+		rulePortList = append(rulePortList, port)
+	}
+
+	return rulePortList, nil
 }
 
 func (f *Framework) Timeout() time.Duration {
