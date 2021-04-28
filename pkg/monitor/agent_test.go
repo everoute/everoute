@@ -59,7 +59,7 @@ var (
 	agentName                  string
 	monitor                    *agentMonitor
 	stopChan                   chan struct{}
-	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
+	ofPortIPAddressMonitorChan chan map[uint32][]net.IP
 	localEndpointLock          sync.RWMutex
 	localEndpointMap           map[uint32]net.HardwareAddr
 )
@@ -79,7 +79,7 @@ func TestMain(m *testing.M) {
 		klog.Fatalf("fail to connect ovs client: %s", err)
 	}
 
-	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
 	agentName = monitor.Name()
 
 	m.Run()
@@ -156,7 +156,7 @@ func TestAgentMonitorRestart(t *testing.T) {
 	Expect(setOfportIPAddr(k8sClient, ofport, ipAddr)).Should(Succeed())
 
 	t.Logf("rerun agent %s monitor", agentName)
-	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
 
 	t.Run("monitor should rebuild mapping of ofport to ipAddr", func(t *testing.T) {
 		Eventually(func() []types.IPAddress {
@@ -171,7 +171,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	RegisterTestingT(t)
 
 	t.Logf("init agentmonitor for %s", agentName)
-	monitor, stopChan, ofPortIpAddressMonitorChan = startAgentMonitor(k8sClient)
+	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
 
 	var ofPort1 uint32 = 1
 	var ofPort2 uint32 = 2
@@ -179,7 +179,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	var ipAddr2 = []net.IP{net.ParseIP("10.10.10.2")}
 
 	t.Logf("Add OfPort %d, IpAddress %v.", ofPort1, ipAddr1)
-	Expect(addOfPortIpAddress(ofPort1, ipAddr1, ofPortIpAddressMonitorChan)).Should(Succeed())
+	Expect(addOfPortIPAddress(ofPort1, ipAddr1, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should learning ofPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() string {
@@ -191,7 +191,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	})
 
 	t.Logf("Update ovsPort related OfPort from %d to %d.", ofPort1, ofPort2)
-	Expect(updateOfPort(ofPort1, ofPort2, ofPortIpAddressMonitorChan)).Should(Succeed())
+	Expect(updateOfPort(ofPort1, ofPort2, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should update Learned OfPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() string {
@@ -203,7 +203,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	})
 
 	t.Logf("Update ovsPort related IpAddress from %v to %v.", ipAddr1, ipAddr2)
-	Expect(updateIpAddress(ofPort2, ipAddr2, ofPortIpAddressMonitorChan)).Should(Succeed())
+	Expect(updateIpAddress(ofPort2, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should update learned OfPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() string {
@@ -438,13 +438,13 @@ func ipInfoToString(ips []net.IP) string {
 	return buffer.String()
 }
 
-func addOfPortIpAddress(ofPort uint32, ipAddr []net.IP, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) error {
+func addOfPortIPAddress(ofPort uint32, ipAddr []net.IP, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) error {
 	ofPortInfo := map[uint32][]net.IP{ofPort: ipAddr}
-	ofPortIpAddressMonitorChan <- ofPortInfo
+	ofPortIPAddressMonitorChan <- ofPortInfo
 	return nil
 }
 
-func updateOfPort(oldOfPort uint32, newOfPort uint32, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) error {
+func updateOfPort(oldOfPort uint32, newOfPort uint32, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) error {
 	monitor.cacheLock.RLock()
 	defer monitor.cacheLock.RUnlock()
 
@@ -454,18 +454,18 @@ func updateOfPort(oldOfPort uint32, newOfPort uint32, ofPortIpAddressMonitorChan
 	oldOfPortInfo := map[uint32][]net.IP{
 		oldOfPort: {},
 	}
-	ofPortIpAddressMonitorChan <- oldOfPortInfo
+	ofPortIPAddressMonitorChan <- oldOfPortInfo
 
 	ipAddr := monitor.ofportsCache[int32(oldOfPort)]
 	newOfPortInfo := map[uint32][]net.IP{
 		newOfPort: {net.ParseIP(ipAddr[0].String())},
 	}
-	ofPortIpAddressMonitorChan <- newOfPortInfo
+	ofPortIPAddressMonitorChan <- newOfPortInfo
 
 	return nil
 }
 
-func updateIpAddress(ofPort uint32, newIpAddr []net.IP, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) error {
+func updateIpAddress(ofPort uint32, newIpAddr []net.IP, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) error {
 	monitor.cacheLock.RLock()
 	defer monitor.cacheLock.RUnlock()
 
@@ -475,7 +475,7 @@ func updateIpAddress(ofPort uint32, newIpAddr []net.IP, ofPortIpAddressMonitorCh
 	ofPortInfo := map[uint32][]net.IP{
 		ofPort: newIpAddr,
 	}
-	ofPortIpAddressMonitorChan <- ofPortInfo
+	ofPortIPAddressMonitorChan <- ofPortInfo
 	return nil
 }
 
@@ -680,10 +680,10 @@ func isNotFoundError(err error) bool {
 }
 
 func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, chan map[uint32][]net.IP) {
-	ofPortIpAddressMonitorChan = make(chan map[uint32][]net.IP, 1024)
+	ofPortIPAddressMonitorChan = make(chan map[uint32][]net.IP, 1024)
 	localEndpointMap = make(map[uint32]net.HardwareAddr)
 
-	monitor, err := NewAgentMonitor(k8sClient, ofPortIpAddressMonitorChan)
+	monitor, err := NewAgentMonitor(k8sClient, ofPortIPAddressMonitorChan)
 	if err != nil {
 		klog.Fatalf("fail to create agentMonitor: %s", err)
 	}
@@ -706,7 +706,7 @@ func startAgentMonitor(k8sClient client.Client) (*agentMonitor, chan struct{}, c
 	stopChan := make(chan struct{})
 	go monitor.Run(stopChan)
 
-	return monitor, stopChan, ofPortIpAddressMonitorChan
+	return monitor, stopChan, ofPortIPAddressMonitorChan
 }
 
 // create or update agntinfo with giving ofport and IPAddr
