@@ -96,7 +96,7 @@ type agentMonitor struct {
 	cacheLock                  sync.RWMutex
 	ovsdbCache                 map[string]map[string]ovsdb.Row
 	ofportsCache               map[int32][]types.IPAddress
-	ofPortIpAddressMonitorChan chan map[uint32][]net.IP
+	ofPortIPAddressMonitorChan chan map[uint32][]net.IP
 
 	ovsdbEventHandler              ovsdbEventHandler
 	localEndpointHardwareAddrCache sets.String
@@ -106,13 +106,13 @@ type agentMonitor struct {
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client, ofPortIpAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
+func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
 	monitor := &agentMonitor{
 		k8sClient:                      client,
 		cacheLock:                      sync.RWMutex{},
 		ovsdbCache:                     make(map[string]map[string]ovsdb.Row),
 		ofportsCache:                   make(map[int32][]types.IPAddress),
-		ofPortIpAddressMonitorChan:     ofPortIpAddressMonitorChan,
+		ofPortIPAddressMonitorChan:     ofPortIPAddressMonitorChan,
 		localEndpointHardwareAddrCache: sets.NewString(),
 		syncQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
@@ -154,7 +154,7 @@ func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 		klog.Errorf("unable start ovsdb monitor: %s", err)
 		return err
 	}
-	go monitor.HandleOfPortIpAddressUpdate(monitor.ofPortIpAddressMonitorChan, stopChan)
+	go monitor.HandleOfPortIPAddressUpdate(monitor.ofPortIPAddressMonitorChan, stopChan)
 
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
 	<-stopChan
@@ -162,18 +162,18 @@ func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 	return nil
 }
 
-func (monitor *agentMonitor) HandleOfPortIpAddressUpdate(ofPortIpAddressMonitorChan <-chan map[uint32][]net.IP, stopChan <-chan struct{}) {
+func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[uint32][]net.IP, stopChan <-chan struct{}) {
 	for {
 		select {
-		case localEndpointInfo := <-ofPortIpAddressMonitorChan:
-			monitor.updateOfPortIpAddress(localEndpointInfo)
+		case localEndpointInfo := <-ofPortIPAddressMonitorChan:
+			monitor.updateOfPortIPAddress(localEndpointInfo)
 		case <-stopChan:
 			return
 		}
 	}
 }
 
-func (monitor *agentMonitor) updateOfPortIpAddress(localEndpointInfo map[uint32][]net.IP) {
+func (monitor *agentMonitor) updateOfPortIPAddress(localEndpointInfo map[uint32][]net.IP) {
 	monitor.cacheLock.Lock()
 	defer monitor.cacheLock.Unlock()
 
