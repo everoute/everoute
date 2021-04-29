@@ -256,8 +256,8 @@ var _ = Describe("GroupController", func() {
 func endpointToGroupMember(ep *securityv1alpha1.Endpoint) groupv1alpha1.GroupMember {
 	return groupv1alpha1.GroupMember{
 		EndpointReference: groupv1alpha1.EndpointReference{
-			ExternalIDName:  ep.Spec.ExternalIDName,
-			ExternalIDValue: ep.Spec.ExternalIDValue,
+			ExternalIDName:  ep.Spec.Reference.ExternalIDName,
+			ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 		},
 		IPs: ep.Status.IPs,
 	}
@@ -289,9 +289,11 @@ func newTestEndpoint(labels map[string]string, ip types.IPAddress) *securityv1al
 			Name:   name,
 			Labels: labels,
 		},
-		Spec: securityv1alpha1.EndpointReference{
-			ExternalIDName:  id,
-			ExternalIDValue: id,
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  id,
+				ExternalIDValue: id,
+			},
 		},
 		Status: securityv1alpha1.EndpointStatus{
 			IPs: []types.IPAddress{ip},

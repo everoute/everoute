@@ -167,9 +167,11 @@ var initObject = func() {
 				"app":  "validate-test",
 			},
 		},
-		Spec: securityv1alpha1.EndpointReference{
-			ExternalIDName:  "idk1",
-			ExternalIDValue: "idv1",
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  "idk1",
+				ExternalIDValue: "idv1",
+			},
 		},
 	}
 	endpointGroupA = &groupv1alpha1.EndpointGroup{
@@ -345,7 +347,7 @@ var _ = Describe("CRD Validate", func() {
 		It("Create endpoint with empty id should not allowed", func() {
 			endpointB := endpointA.DeepCopy()
 			endpointB.Name = "endpointB"
-			endpointB.Spec.ExternalIDName = ""
+			endpointB.Spec.Reference.ExternalIDName = ""
 			Expect(validate.Validate(fakeAdmissionReview(endpointB, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Create validate endpoint should allowed", func() {
@@ -355,7 +357,7 @@ var _ = Describe("CRD Validate", func() {
 		})
 		It("Update endpoint id should not allowed", func() {
 			endpointB := endpointA.DeepCopy()
-			endpointB.Spec.ExternalIDValue = "update-id-value"
+			endpointB.Spec.Reference.ExternalIDValue = "update-id-value"
 			Expect(validate.Validate(fakeAdmissionReview(endpointB, endpointA, "")).Allowed).Should(BeFalse())
 		})
 		It("Delete endpoint should always allowed", func() {

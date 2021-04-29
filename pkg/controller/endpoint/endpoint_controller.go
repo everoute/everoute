@@ -252,7 +252,7 @@ func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.E
 // GetEndpointID return ID of an endpoint, it's unique in one cluster.
 func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 	return ctrltypes.ExternalID{
-		Name:  ep.Spec.ExternalIDName,
-		Value: ep.Spec.ExternalIDValue,
+		Name:  ep.Spec.Reference.ExternalIDName,
+		Value: ep.Spec.Reference.ExternalIDValue,
 	}
 }

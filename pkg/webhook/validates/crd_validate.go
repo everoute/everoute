@@ -248,14 +248,14 @@ type endpointValidator resourceValidator
 func (v endpointValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	endpoint := curObj.(*securityv1alpha1.Endpoint)
 
-	if endpoint.Spec.ExternalIDName == "" || endpoint.Spec.ExternalIDValue == "" {
+	if endpoint.Spec.Reference.ExternalIDName == "" || endpoint.Spec.Reference.ExternalIDValue == "" {
 		return "create endpoint with empty id not allowed", false
 	}
 
-	if strings.ContainsRune(endpoint.Spec.ExternalIDName, ctrltypes.Separator) {
+	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDName, ctrltypes.Separator) {
 		return "externalIDName contains rune / not allow", false
 	}
-	if strings.ContainsRune(endpoint.Spec.ExternalIDValue, ctrltypes.Separator) {
+	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDValue, ctrltypes.Separator) {
 		return "externalIDValue contains rune / not allow", false
 	}
 

@@ -34,13 +34,26 @@ spec:
           type: object
         spec:
           properties:
-            externalIDName:
+            managePlaneID:
+              description: Lynx allows endpoints from different sources, we distinguish
+                the source of endpoint by field ManagePlaneID.
               type: string
-            externalIDValue:
-              type: string
+            reference:
+              properties:
+                externalIDName:
+                  type: string
+                externalIDValue:
+                  type: string
+              required:
+              - externalIDName
+              - externalIDValue
+              type: object
+            vid:
+              format: int32
+              type: integer
           required:
-          - externalIDName
-          - externalIDValue
+          - reference
+          - vid
           type: object
         status:
           properties:

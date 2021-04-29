@@ -216,8 +216,16 @@ type Endpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   EndpointReference `json:"spec"`
-	Status EndpointStatus    `json:"status,omitempty"`
+	Spec   EndpointSpec   `json:"spec"`
+	Status EndpointStatus `json:"status,omitempty"`
+}
+
+type EndpointSpec struct {
+	// Lynx allows endpoints from different sources, we distinguish the source
+	// of endpoint by field ManagePlaneID.
+	ManagePlaneID string            `json:"managePlaneID,omitempty"`
+	VID           uint32            `json:"vid"`
+	Reference     EndpointReference `json:"reference"`
 }
 
 type EndpointReference struct {
