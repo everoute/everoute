@@ -371,8 +371,8 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 
 		member := groupv1alpha1.GroupMember{
 			EndpointReference: groupv1alpha1.EndpointReference{
-				ExternalIDName:  ep.Spec.ExternalIDName,
-				ExternalIDValue: ep.Spec.ExternalIDValue,
+				ExternalIDName:  ep.Spec.Reference.ExternalIDName,
+				ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 			},
 			IPs: ep.Status.IPs,
 		}

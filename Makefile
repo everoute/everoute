@@ -30,7 +30,7 @@ e2e-test:
 	go test ./tests/e2e/...
 
 # Generate deepcopy, client, openapi codes
-codegen:
+codegen: manifests
 	$(APISERVER_BOOT) build generated openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt
 
 deploy-test:

@@ -481,9 +481,11 @@ func toEndpoint(vm *VM) *securityv1alpha1.Endpoint {
 			},
 			Labels: AsMapLables(vm.Labels),
 		},
-		Spec: securityv1alpha1.EndpointReference{
-			ExternalIDName:  "external_uuid",
-			ExternalIDValue: fmt.Sprintf("uuid-%s", vm.status.netns),
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  "external_uuid",
+				ExternalIDValue: fmt.Sprintf("uuid-%s", vm.status.netns),
+			},
 		},
 	}
 }

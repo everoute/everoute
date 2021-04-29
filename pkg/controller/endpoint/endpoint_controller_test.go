@@ -124,9 +124,11 @@ var (
 		ObjectMeta: v1.ObjectMeta{
 			Name: "fakeEndpointA",
 		},
-		Spec: securityv1alpha1.EndpointReference{
-			ExternalIDName:  "idk1",
-			ExternalIDValue: "idv1",
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  "idk1",
+				ExternalIDValue: "idv1",
+			},
 		},
 	}
 )

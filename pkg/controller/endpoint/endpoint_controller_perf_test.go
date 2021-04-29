@@ -76,9 +76,11 @@ func getEndpoints() []*securityv1alpha1.Endpoint {
 		ep.Name = fmt.Sprintf("endpoint%d", i)
 
 		id := fmt.Sprintf("id%d", rand.Int63n(numOfEndpoints))
-		ep.Spec = securityv1alpha1.EndpointReference{
-			ExternalIDName:  id,
-			ExternalIDValue: id,
+		ep.Spec = securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  id,
+				ExternalIDValue: id,
+			},
 		}
 	}
 	return eps
