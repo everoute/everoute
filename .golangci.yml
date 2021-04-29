@@ -21,7 +21,6 @@ linters:
     - exportloopref
     - exhaustive
     - funlen
-    - gochecknoinits
     - goconst
     - gocritic
     - gocyclo
