@@ -1,0 +1,47 @@
+# mock tower query vms and labels
+type Query {
+    vms: [VM!]!
+    labels: [Label!]!
+}
+
+# mock tower subscribe vm and label
+type Subscription {
+    vm: VMEvent!
+    label: LabelEvent!
+}
+
+# mock tower user login
+type Mutation {
+    login(data: LoginInput!): Login!
+}
+
+type Login {
+    token: String!
+}
+
+input LoginInput {
+    password: String!
+    source: UserSource!
+    username: String!
+}
+
+enum UserSource {
+    LDAP
+    LOCAL
+}
+
+type VMEvent {
+    mutation: MutationType!
+    node: VM!
+}
+
+type LabelEvent {
+    mutation: MutationType!
+    node: Label!
+}
+
+enum MutationType {
+    CREATED
+    DELETED
+    UPDATED
+}

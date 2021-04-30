@@ -1,0 +1,53 @@
+type VM {
+    id: ID!
+    name: String!
+    description: String!
+    vcpu: Int!
+    memory: Float!
+    vm_nics: [VMNic!]
+    status: VMStatus!
+}
+
+enum VMStatus {
+    DELETED
+    RUNNING
+    STOPPED
+    SUSPENDED
+    UNKNOWN
+}
+
+type VMNic {
+    id: ID!
+    vlan: Vlan
+    enabled: Boolean
+    mirror: Boolean
+    model: VMNicModel
+    interface_id: String
+}
+
+enum VMNicModel {
+    E1000
+    VIRTIO
+}
+
+type Vlan {
+    id: ID!
+    name: String!
+    vlan_id: Int!
+    type: NetworkType!
+}
+
+enum NetworkType {
+    ACCESS
+    MANAGEMENT
+    MIGRATION
+    STORAGE
+    VM
+}
+
+type Label {
+    id: ID!
+    key: String!
+    value: String
+    vms: [VM!]
+}
