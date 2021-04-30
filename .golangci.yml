@@ -3,6 +3,8 @@ linters-settings:
     # [deprecated] comma-separated list of pairs of the form pkg:regex
     # the regex is used to ignore names within pkg. (default "fmt:.*").
     ignore: fmt:.*,io/ioutil:^Read.*,io:Close
+  lll:
+    line-length: 170
 
 run:
   timeout: 10m
@@ -19,7 +21,6 @@ linters:
     - dupl
     - errcheck
     - exportloopref
-    - exhaustive
     - funlen
     - goconst
     - gocritic
