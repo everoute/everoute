@@ -1,0 +1,13 @@
+client:
+  user_info:
+    username: admin
+    password: passwd
+    source: LDAP
+  url: ws://tower.smartx.com
+election:
+  enable: true
+  name: lynx.plugin.tower
+  namespace: default
+controller:
+  resync: 1h
+  workers: 10
