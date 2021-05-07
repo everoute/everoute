@@ -239,6 +239,44 @@ func (f *Framework) UpdateVMRandIP(vm *VM) error {
 	return nil
 }
 
+func (f *Framework) MigrateVM(vm *VM) error {
+	if f.CleanVMs(vm) != nil {
+		klog.Errorf("Failed to delete oldVM while vm migration: %v", vm.Name)
+	}
+
+	for {
+		newAgent := f.randomAgent()
+		if newAgent != vm.status.agent {
+			vm.status.agent = newAgent
+			break
+		}
+	}
+
+	c, err := f.getAgentClient(vm.status.agent)
+	if err != nil {
+		return err
+	}
+
+	stdout, rc, err := runScriptRemote(c, startNewVM, vm.status.netns,
+		vm.status.ipAddr, strconv.Itoa(vm.TCPPort), strconv.Itoa(vm.UDPPort))
+	if err != nil {
+		return err
+	}
+	if rc != 0 {
+		return fmt.Errorf(string(stdout))
+	}
+
+	var vmEp = toEndpoint(vm)
+	if err := f.k8sClient.Create(f.ctx, vmEp); err != nil {
+		return err
+	}
+
+	klog.Infof("setup vm %s on agent %s, ip = %s, netns = %s", vm.Name,
+		vm.status.agent, vm.status.ipAddr, vm.status.netns)
+
+	return nil
+}
+
 func (f *Framework) SetupObjects(objects ...metav1.Object) error {
 	for _, object := range objects {
 		err := f.k8sClient.Create(f.ctx, object.(runtime.Object).DeepCopyObject())

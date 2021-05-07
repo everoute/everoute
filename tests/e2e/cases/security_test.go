@@ -144,6 +144,23 @@ var _ = Describe("SecurityPolicy", func() {
 					assertReachable([]*framework.VM{server02}, []*framework.VM{server01, db01, db02}, "TCP", false)
 				})
 			})
+
+			When("Migrate vm from one node to another node", func() {
+				BeforeEach(func() {
+					Eventually(func() error {
+						Skip("Require at least one agent")
+
+						return e2eEnv.MigrateVM(server01)
+					}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
+				})
+
+				It("Should limit connections between webserver group and other groups", func() {
+					assertReachable([]*framework.VM{client}, []*framework.VM{server01, db01, db02}, "TCP", false)
+
+					assertReachable([]*framework.VM{nginx}, []*framework.VM{server01}, "TCP", true)
+					assertReachable([]*framework.VM{server01}, []*framework.VM{db01, db02}, "TCP", true)
+				})
+			})
 		})
 
 		When("limits icmp packets between components", func() {
