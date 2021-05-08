@@ -27,9 +27,7 @@ jobs:
           version: 2.3.1
       - run: echo "/usr/local/kubebuilder/bin" >> $GITHUB_PATH
       - name: setup openvswitch
-        run: |
-          sudo apt install  -y openvswitch-switch
-          sudo systemctl start openvswitch-switch
+        run: sudo sh -c "apt update && apt install -y openvswitch-switch && systemctl start openvswitch-switch"
       - name: run lynx unit test
         run: |
           sudo make test
@@ -76,7 +74,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: install e2e environment dependency
-        run: sudo sh -c "apt install -y iperf iputils-arping openvswitch-switch && systemctl start openvswitch-switch"
+        run: sudo sh -c "apt update && apt install -y iperf iputils-arping openvswitch-switch && systemctl start openvswitch-switch"
 
       - name: allow ssh connect to localhost
         run: sudo -H sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
