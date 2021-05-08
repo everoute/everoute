@@ -324,6 +324,81 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 	})
+
+	Context("Complicated securityPolicy definition that contains semanticly conflict policyrules", func() {
+		var group1VM01, group2VM01, group3VM01 *framework.VM
+		var group1, group2, group3 *groupv1alpha1.EndpointGroup
+		var epTCPPort int
+
+		BeforeEach(func() {
+			epTCPPort = 80
+
+			group1VM01 = &framework.VM{
+				Name:    "group1-vm01",
+				TCPPort: epTCPPort,
+				Labels:  "group=group1",
+			}
+			group2VM01 = &framework.VM{
+				Name:    "group2-vm01",
+				TCPPort: epTCPPort,
+				Labels:  "group=group2",
+			}
+			group3VM01 = &framework.VM{
+				Name:    "group3-vm01",
+				TCPPort: epTCPPort,
+				Labels:  "group=group3",
+			}
+
+			group1 = newGroup("group1", "group=group1")
+			group2 = newGroup("group2", "group=group2")
+			group3 = newGroup("group3", "group=group3")
+
+			Expect(e2eEnv.SetupVMs(group1VM01, group2VM01, group3VM01)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(group1, group2, group3)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(e2eEnv.CleanVMs(group1VM01, group2VM01, group3VM01)).Should(Succeed())
+			Expect(e2eEnv.CleanObjects(group1, group2, group3)).Should(Succeed())
+		})
+
+		When("Define securityPolicy without semanticly conflicts with any of securityPolicy already exists", func() {
+			var securityPolicy1, securityPolicy2 *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				securityPolicy1 = newPolicy("group1-policy", tier0, 50, "group1")
+				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2.Name)
+
+				Expect(e2eEnv.SetupObjects(securityPolicy1)).Should(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(e2eEnv.CleanObjects(securityPolicy1)).Should(Succeed())
+			})
+
+			It("should allow group2 to communicate with group1", func() {
+				assertReachable([]*framework.VM{group2VM01}, []*framework.VM{group1VM01}, "TCP", true)
+			})
+
+			When("Define a securityPolicy which semanticly conflict with existing securityPolicy", func() {
+				BeforeEach(func() {
+					securityPolicy2 = newPolicy("group2-policy", tier0, 50, "group2")
+					addEngressRule(securityPolicy2, "TCP", epTCPPort, group3.Name)
+
+					Expect(e2eEnv.SetupObjects(securityPolicy2)).Should(Succeed())
+				})
+
+				AfterEach(func() {
+					Expect(e2eEnv.CleanObjects(securityPolicy2)).Should(Succeed())
+				})
+
+				// TODO, add auto non-symtric securityPolicy rule complement, and modify test assert condition
+				It("should allow group2 to communicate with group1", func() {
+					assertReachable([]*framework.VM{group2VM01}, []*framework.VM{group1VM01}, "TCP", false)
+				})
+			})
+		})
+	})
 })
 
 func newGroup(name string, labels string) *groupv1alpha1.EndpointGroup {
