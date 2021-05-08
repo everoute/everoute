@@ -135,9 +135,11 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 		return
 	}
 
-	ports := []agentv1alpha1.OVSPort{}
+	ifaces := []agentv1alpha1.OVSInterface{}
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
-		ports = append(ports, bridge.Ports...)
+		for _, port := range bridge.Ports {
+			ifaces = append(ifaces, port.Interfaces...)
+		}
 	}
 
 	epList := securityv1alpha1.EndpointList{}
@@ -145,7 +147,7 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 
 	// Enqueue all endpoints for update status in the agentinfo.
 	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchPorts(ports); matches {
+		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
 			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 				Name: ep.Name,
 			}})
@@ -154,19 +156,23 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 }
 
 func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	ports := []agentv1alpha1.OVSPort{}
+	ifaces := []agentv1alpha1.OVSInterface{}
 
 	newAgentInfo, ok := e.ObjectNew.(*agentv1alpha1.AgentInfo)
 	if ok {
 		for _, bridge := range newAgentInfo.OVSInfo.Bridges {
-			ports = append(ports, bridge.Ports...)
+			for _, port := range bridge.Ports {
+				ifaces = append(ifaces, port.Interfaces...)
+			}
 		}
 	}
 
 	oldAgentInfo, ok := e.ObjectOld.(*agentv1alpha1.AgentInfo)
 	if ok {
 		for _, bridge := range oldAgentInfo.OVSInfo.Bridges {
-			ports = append(ports, bridge.Ports...)
+			for _, port := range bridge.Ports {
+				ifaces = append(ifaces, port.Interfaces...)
+			}
 		}
 	}
 
@@ -175,7 +181,7 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 
 	// Enqueue all endpoints for update status in the agentinfo.
 	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchPorts(ports); matches {
+		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
 			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 				Name: ep.Name,
 			}})
@@ -190,9 +196,11 @@ func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.Ra
 		return
 	}
 
-	ports := []agentv1alpha1.OVSPort{}
+	ifaces := []agentv1alpha1.OVSInterface{}
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
-		ports = append(ports, bridge.Ports...)
+		for _, port := range bridge.Ports {
+			ifaces = append(ifaces, port.Interfaces...)
+		}
 	}
 
 	epList := securityv1alpha1.EndpointList{}
@@ -200,7 +208,7 @@ func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.Ra
 
 	// Enqueue all endpoints for update status in the agentinfo.
 	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchPorts(ports); matches {
+		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
 			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 				Name: ep.Name,
 			}})
@@ -215,24 +223,23 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		return nil, err
 	}
 
-	toEndpointStatus := func(port agentv1alpha1.OVSPort) (*securityv1alpha1.EndpointStatus, error) {
+	toEndpointStatus := func(iface agentv1alpha1.OVSInterface) *securityv1alpha1.EndpointStatus {
 		status := new(securityv1alpha1.EndpointStatus)
-		if len(port.Interfaces) != 1 {
-			return nil, fmt.Errorf("an endpoint should has one interface")
-		}
 
-		status.IPs = make([]types.IPAddress, len(port.Interfaces[0].IPs))
-		copy(status.IPs, port.Interfaces[0].IPs)
-		status.MacAddress = port.Interfaces[0].Mac
+		status.IPs = make([]types.IPAddress, len(iface.IPs))
+		copy(status.IPs, iface.IPs)
+		status.MacAddress = iface.Mac
 
-		return status, nil
+		return status
 	}
 
 	for _, agentInfo := range agentInfoList.Items {
 		for _, bridge := range agentInfo.OVSInfo.Bridges {
-			index, matches := id.MatchPorts(bridge.Ports)
-			if matches {
-				return toEndpointStatus(bridge.Ports[index])
+			for _, port := range bridge.Ports {
+				index, matches := id.MatchIface(port.Interfaces)
+				if matches {
+					return toEndpointStatus(port.Interfaces[index]), nil
+				}
 			}
 		}
 	}

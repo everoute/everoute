@@ -66,14 +66,14 @@ var (
 							Interfaces: []agentv1alpha1.OVSInterface{
 								{
 									Name: "iface1",
-									Mac:  ovsPortStatusA.MacAddress,
-									IPs:  ovsPortStatusA.IPs,
+									ExternalIDs: map[string]string{
+										"idk1": "idv1",
+										"idk2": "idv2",
+										"idk3": "idv3",
+									},
+									Mac: ovsPortStatusA.MacAddress,
+									IPs: ovsPortStatusA.IPs,
 								},
-							},
-							ExternalIDs: map[string]string{
-								"idk1": "idv1",
-								"idk2": "idv2",
-								"idk3": "idv3",
 							},
 						},
 					},
@@ -101,14 +101,14 @@ var (
 							Interfaces: []agentv1alpha1.OVSInterface{
 								{
 									Name: "iface1",
-									Mac:  ovsPortStatusB.MacAddress,
-									IPs:  ovsPortStatusB.IPs,
+									ExternalIDs: map[string]string{
+										"idk1": "idv1",
+										"idk2": "idv2",
+										"idk3": "idv3",
+									},
+									Mac: ovsPortStatusB.MacAddress,
+									IPs: ovsPortStatusB.IPs,
 								},
-							},
-							ExternalIDs: map[string]string{
-								"idk1": "idv1",
-								"idk2": "idv2",
-								"idk3": "idv3",
 							},
 						},
 					},

@@ -32,12 +32,12 @@ const (
 	Separator = '/'
 )
 
-// MatchPorts return the matches port index, if unmatch, index will be -1.
-func (n ExternalID) MatchPorts(ports []agentv1alpha1.OVSPort) (index int, matches bool) {
+// MatchIface return the matches ovs interface index, if unmatch, index will be -1.
+func (n ExternalID) MatchIface(ifaces []agentv1alpha1.OVSInterface) (index int, matches bool) {
 	const unMatchIndex = -1
 
-	for item := range ports {
-		if ports[item].ExternalIDs[n.Name] == n.Value {
+	for item := range ifaces {
+		if ifaces[item].ExternalIDs[n.Name] == n.Value {
 			return item, true
 		}
 	}
