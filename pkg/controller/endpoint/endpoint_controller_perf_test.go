@@ -48,10 +48,10 @@ func getAgentInfos() []*agentv1alpha1.AgentInfo {
 
 			bridge.Ports = append(bridge.Ports, agentv1alpha1.OVSPort{
 				Interfaces: []agentv1alpha1.OVSInterface{{
-					Mac: fmt.Sprintf("mac:address"),
-					IPs: []types.IPAddress{"192.168.2.2", "192.168.1.1"},
+					ExternalIDs: map[string]string{id: id},
+					Mac:         "mac:address",
+					IPs:         []types.IPAddress{"192.168.2.2", "192.168.1.1"},
 				}},
-				ExternalIDs: map[string]string{id: id},
 			})
 		}
 		return bridge

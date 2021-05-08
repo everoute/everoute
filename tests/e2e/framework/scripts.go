@@ -62,7 +62,7 @@ const (
 
 		attached_mac=$(ip netns exec ${netns} cat /sys/class/net/${vethpeername}/address)
 		ovs-vsctl add-port ${defaultbridge} ${portname} \
-			-- set port ${portname} external_ids=${port_id_name}=${port_id_value} \
+			-- set interface ${portname} external_ids=${port_id_name}=${port_id_value} \
 			-- set interface ${portname} external_ids:attached-mac="${attached_mac}"
 
 		if [[ ${tcp_port} != 0 ]]; then
