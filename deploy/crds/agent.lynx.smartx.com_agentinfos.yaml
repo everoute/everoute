@@ -74,6 +74,10 @@ spec:
                         interfaces:
                           items:
                             properties:
+                              externalIDs:
+                                additionalProperties:
+                                  type: string
+                                type: object
                               ips:
                                 items:
                                   description: IPAddress is net ip address, can be
