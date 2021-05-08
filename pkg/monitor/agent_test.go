@@ -90,6 +90,7 @@ func TestAgentMonitor(t *testing.T) {
 
 	brName := string(uuid.NewUUID())
 	portName := string(uuid.NewUUID())
+	ifaceName := portName
 	externalIDs := map[string]string{"lynx.agent.monitor.externalID.name": "lynx.agent.monitor.externalID.value"}
 
 	t.Logf("create new bridge %s", brName)
@@ -119,6 +120,16 @@ func TestAgentMonitor(t *testing.T) {
 		Eventually(func() map[string]string {
 			port, _ := getPort(k8sClient, brName, portName)
 			return port.ExternalIDs
+		}, timeout, interval).Should(Equal(externalIDs))
+	})
+
+	t.Logf("update interface %s externalIDs to %+v", ifaceName, externalIDs)
+	Expect(updateInterface(ovsClient, ifaceName, externalIDs)).Should(Succeed())
+
+	t.Run("monitor should update interface externalID", func(t *testing.T) {
+		Eventually(func() map[string]string {
+			iface, _ := getIface(k8sClient, brName, portName, ifaceName)
+			return iface.ExternalIDs
 		}, timeout, interval).Should(Equal(externalIDs))
 	})
 
@@ -666,6 +677,21 @@ func getPort(client client.Client, brName, portName string) (*agentv1alpha1.OVSP
 	}
 
 	return nil, notFoundError(fmt.Errorf("port %s not found in agentInfo", portName))
+}
+
+func getIface(client client.Client, brName, portName, ifaceName string) (*agentv1alpha1.OVSInterface, error) {
+	port, err := getPort(client, brName, portName)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, iface := range port.Interfaces {
+		if iface.Name == ifaceName {
+			return &iface, nil
+		}
+	}
+
+	return nil, notFoundError(fmt.Errorf("port %s not found in agentInfo", ifaceName))
 }
 
 type notFoundError error

@@ -528,12 +528,23 @@ func (monitor *agentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID) (*agentv1alph
 	}
 
 	iface := agentv1alpha1.OVSInterface{
-		Name: ovsIface.Fields["name"].(string),
-		Type: ovsIface.Fields["type"].(string),
+		Name:        ovsIface.Fields["name"].(string),
+		Type:        ovsIface.Fields["type"].(string),
+		ExternalIDs: make(map[string]string),
 	}
 
-	// field type is ovsdb.OvsSet instead of string when field empty
-	iface.Mac, _ = ovsIface.Fields["mac_in_use"].(string)
+	externalIDs := ovsIface.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	for name, value := range externalIDs {
+		iface.ExternalIDs[name.(string)] = value.(string)
+	}
+
+	if mac, ok := iface.ExternalIDs["attached-mac"]; ok {
+		// if attached-mac found, use attached-mac as endpoint mac
+		iface.Mac = mac
+	} else {
+		// field type is ovsdb.OvsSet instead of string when field empty
+		iface.Mac, _ = ovsIface.Fields["mac_in_use"].(string)
+	}
 
 	ofport, ok := ovsIface.Fields["ofport"].(float64)
 	if ok && ofport >= 0 {
