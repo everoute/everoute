@@ -117,5 +117,4 @@ func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 
 func (v *ValidateWebhook) healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "ok")
-	w.WriteHeader(http.StatusOK)
 }
