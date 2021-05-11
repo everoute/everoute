@@ -152,6 +152,22 @@ const (
 
 		ip netns exec ${local_netns} ping -c ${ping_count} -W ${timeout} ${remote_ipaddr}
 	`
+
+	shutdownLynxController = `
+        eval kill -9 "$(pidof lynx-controller)"
+    `
+	startLynxController = `
+        lynx_controller_config="--kubeconfig /etc/lynx/kubeconfig/lynx-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/lynx/pki/ -v 10"
+        nohup /usr/local/bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
+        sleep 10
+    `
+	shutdownLynxAgent = `
+        eval kill -9 "$(pidof lynx-agent)"
+    `
+	startLynxAgent = `
+        lynx_agent_kubeconfig="--kubeconfig /var/lib/lynx/agent-kubeconfig.yaml"
+        nohup /usr/local/bin/lynx-agent ${lynx_agent_kubeconfig} > /var/log/lynx-agent.log 2>&1 &
+    `
 )
 
 func runScriptRemote(client *ssh.Client, script string, arg ...string) ([]byte, int, error) {

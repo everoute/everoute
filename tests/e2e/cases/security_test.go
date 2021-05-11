@@ -324,6 +324,104 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 	})
+
+	// lynxAgent and controller failover/restart
+	Context("lynxAgent and lynxController failover", func() {
+		var nginx02, server03, server04, db03, db04, client *framework.VM
+		var nginxGroup, serverGroup, dbGroup *groupv1alpha1.EndpointGroup
+		var nginxPort, serverPort, dbPort int
+
+		BeforeEach(func() {
+			nginxPort, serverPort, dbPort = 80, 80, 443
+
+			nginx02 = &framework.VM{Name: "nginx02", TCPPort: nginxPort, Labels: "component=nginx"}
+			server03 = &framework.VM{Name: "server03", TCPPort: serverPort, Labels: "component=webserver"}
+			server04 = &framework.VM{Name: "server04", TCPPort: serverPort, Labels: "component=webserver"}
+			db03 = &framework.VM{Name: "db03", TCPPort: dbPort, Labels: "component=database"}
+			db04 = &framework.VM{Name: "db04", TCPPort: dbPort, Labels: "component=database"}
+			client = &framework.VM{Name: "client"}
+
+			nginxGroup = newGroup("nginx", "component=nginx")
+			serverGroup = newGroup("webserver", "component=webserver")
+			dbGroup = newGroup("database", "component=database")
+
+			Expect(e2eEnv.SetupVMs(nginx02, server03, server04, db03, db04, client)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(nginxGroup, serverGroup, dbGroup)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(e2eEnv.CleanVMs(nginx02, server03, server04, db03, db04, client)).Should(Succeed())
+			Expect(e2eEnv.CleanObjects(nginxGroup, serverGroup, dbGroup)).Should(Succeed())
+		})
+
+		When("limits tcp packets between components", func() {
+			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				nginxPolicy = newPolicy("nginx-policy", tier0, 50, nginxGroup.Name)
+				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
+				addEngressRule(nginxPolicy, "TCP", serverPort, serverGroup.Name)
+
+				serverPolicy = newPolicy("server-policy", tier0, 50, serverGroup.Name)
+				addIngressRule(serverPolicy, "TCP", serverPort, nginxGroup.Name)
+				addEngressRule(serverPolicy, "TCP", dbPort, dbGroup.Name)
+
+				dbPolicy = newPolicy("db-policy", tier0, 50, dbGroup.Name)
+				addIngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name, serverGroup.Name)
+				addEngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name)
+
+				Expect(e2eEnv.SetupObjects(nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+			})
+
+			When("lynxAgent failover", func() {
+				BeforeEach(func() {
+					Expect(e2eEnv.ShutdownLynxAgent()).Should(Succeed())
+					Expect(e2eEnv.StartLynxAgent()).Should(Succeed())
+				})
+
+				AfterEach(func() {
+					Expect(e2eEnv.CleanObjects(nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+				})
+
+				It("should allow normal packets and limits illegal packets", func() {
+					assertReachable([]*framework.VM{nginx02}, []*framework.VM{db03, db04}, "TCP", false)
+					assertReachable([]*framework.VM{client}, []*framework.VM{server03, server04, db03, db04}, "TCP", false)
+
+					assertReachable([]*framework.VM{client}, []*framework.VM{nginx02}, "TCP", true)
+					assertReachable([]*framework.VM{nginx02}, []*framework.VM{server03, server04}, "TCP", true)
+					assertReachable([]*framework.VM{server03, server04, db03, db04}, []*framework.VM{db03, db04}, "TCP", true)
+				})
+			})
+
+			When("lynxController failover", func() {
+				BeforeEach(func() {
+					Expect(e2eEnv.ShutdownLynxController()).Should(Succeed())
+					Expect(e2eEnv.StartLynxController()).Should(Succeed())
+
+					Eventually(func() error {
+						Skip("no valid case")
+						server04.Labels = ""
+						return e2eEnv.UpdateVMLabels(server04)
+					}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
+				})
+
+				AfterEach(func() {
+					Expect(e2eEnv.CleanObjects(nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+				})
+
+				It("should allow normal packets and limits illegal packets", func() {
+					assertReachable([]*framework.VM{server04}, []*framework.VM{server03, db03, db04}, "TCP", false)
+
+					assertReachable([]*framework.VM{nginx02}, []*framework.VM{db03, db04}, "TCP", false)
+					assertReachable([]*framework.VM{client}, []*framework.VM{server03, db03, db04}, "TCP", false)
+
+					assertReachable([]*framework.VM{client}, []*framework.VM{nginx02}, "TCP", true)
+					assertReachable([]*framework.VM{nginx02}, []*framework.VM{server03}, "TCP", true)
+					assertReachable([]*framework.VM{server03, db03, db04}, []*framework.VM{db03, db04}, "TCP", true)
+				})
+			})
+		})
+	})
 })
 
 func newGroup(name string, labels string) *groupv1alpha1.EndpointGroup {

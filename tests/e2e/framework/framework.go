@@ -115,6 +115,62 @@ type vmStatus struct {
 	netns  string
 }
 
+func (f *Framework) ShutdownLynxAgent() error {
+	for _, client := range f.clientMap {
+		out, rc, err := runScriptRemote(client, shutdownLynxAgent)
+		if err != nil {
+			return err
+		}
+		if rc != 0 {
+			return fmt.Errorf(string(out))
+		}
+	}
+
+	return nil
+}
+
+func (f *Framework) StartLynxAgent() error {
+	for _, client := range f.clientMap {
+		out, rc, err := runScriptRemote(client, startLynxAgent)
+		if err != nil {
+			return err
+		}
+		if rc != 0 {
+			return fmt.Errorf(string(out))
+		}
+	}
+
+	return nil
+}
+
+func (f *Framework) ShutdownLynxController() error {
+	for _, client := range f.clientMap {
+		out, rc, err := runScriptRemote(client, shutdownLynxController)
+		if err != nil {
+			return err
+		}
+		if rc != 0 {
+			return fmt.Errorf(string(out))
+		}
+	}
+
+	return nil
+}
+
+func (f *Framework) StartLynxController() error {
+	for _, client := range f.clientMap {
+		out, rc, err := runScriptRemote(client, startLynxController)
+		if err != nil {
+			return err
+		}
+		if rc != 0 {
+			return fmt.Errorf(string(out))
+		}
+	}
+
+	return nil
+}
+
 func (f *Framework) CheckAgentHealth(port, timeout int) map[string]bool {
 	f.agentsLock.RLock()
 	defer f.agentsLock.RUnlock()
