@@ -215,8 +215,9 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicyFlows, icmpDropPolicyFlows []string
 
 			BeforeEach(func() {
-				// NOTE it's not icmp drop
 				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, serverGroup.Name, dbGroup.Name)
+				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
+
 				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, nginxGroup.Name)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
@@ -232,6 +233,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			It("should allow normal packets and limits illegal packets", func() {
 				assertReachable([]*framework.VM{client}, []*framework.VM{server01, server02, db01, db02}, "ICMP", false)
+				assertReachable([]*framework.VM{client}, []*framework.VM{server01, server02, db01, db02}, "TCP", true)
 				assertReachable([]*framework.VM{client}, []*framework.VM{nginx}, "ICMP", true)
 			})
 
