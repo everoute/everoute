@@ -260,7 +260,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 	})
 
 	//  Delete local endpoint
-	Expect(deleteOvsPort(bridgeName, ep1Port, []Iface{ep1Iface})).Should(Succeed())
+	Expect(deletePort(ovsClient, bridgeName, ep1Port, ep1Iface.IfaceName)).Should(Succeed())
 
 	t.Run("Delete local endpoint ep1", func(t *testing.T) {
 		Eventually(func() bool {
@@ -352,63 +352,6 @@ func createOvsPort(bridgeName, portName string, interfaces []Iface, vlanTag uint
 	operations = append(operations, portOp, mutateOp)
 
 	// Perform OVS transaction
-	_, err = ovsdbTransact(ovsClient, "Open_vSwitch", operations...)
-
-	return err
-}
-
-func deleteOvsPort(bridgeName, portName string, interfaces []Iface) error {
-	var err error
-	portUUIDStr := portName
-	portUUID := []ovsdb.UUID{{GoUuid: portUUIDStr}}
-	opStr := "delete"
-
-	var intfOperations []ovsdb.Operation
-	for _, iface := range interfaces {
-		condition := ovsdb.NewCondition("name", "==", iface.IfaceName)
-		intfOp := ovsdb.Operation{
-			Op:    opStr,
-			Table: "Interface",
-			Where: []interface{}{condition},
-		}
-
-		intfOperations = append(intfOperations, intfOp)
-	}
-
-	// Delete a row in Port table
-	condition := ovsdb.NewCondition("name", "==", portName)
-	portOperation := ovsdb.Operation{
-		Op:    opStr,
-		Table: "Port",
-		Where: []interface{}{condition},
-	}
-
-	// also fetch the port-uuid from cache
-	monitor.cacheLock.Lock()
-	for uuid, row := range monitor.ovsdbCache["Port"] {
-		name := row.Fields["name"].(string)
-		if name == portName {
-			portUUID = []ovsdb.UUID{{GoUuid: uuid}}
-			break
-		}
-	}
-	monitor.cacheLock.Unlock()
-
-	// mutate the Ports column of the row in the Bridge table
-	mutateSet, _ := ovsdb.NewOvsSet(portUUID)
-	mutation := ovsdb.NewMutation("ports", opStr, mutateSet)
-	condition = ovsdb.NewCondition("name", "==", bridgeName)
-	mutateOperation := ovsdb.Operation{
-		Op:        "mutate",
-		Table:     "Bridge",
-		Mutations: []interface{}{mutation},
-		Where:     []interface{}{condition},
-	}
-
-	var operations []ovsdb.Operation
-	operations = append(operations, intfOperations...)
-	operations = append(operations, portOperation, mutateOperation)
-
 	_, err = ovsdbTransact(ovsClient, "Open_vSwitch", operations...)
 
 	return err
@@ -587,16 +530,25 @@ func updatePort(client *ovsdb.OvsdbClient, portName string, externalIDs map[stri
 	return err
 }
 
-func deletePort(client *ovsdb.OvsdbClient, brName, portName string) error {
+func deletePort(client *ovsdb.OvsdbClient, brName, portName string, ifaceNames ...string) error {
 	portUUID, err := getMemberUUID(client, "Port", portName)
 	if err != nil {
 		return fmt.Errorf("can't found uuid of port %s: %s", portName, err)
 	}
 
-	ifaceOperation := ovsdb.Operation{
-		Op:    "delete",
-		Table: "Interface",
-		Where: []interface{}{[]interface{}{"name", "==", portName}},
+	if len(ifaceNames) == 0 {
+		// delete port default iface if ifaceNames not specific
+		ifaceNames = []string{portName}
+	}
+	operations := make([]ovsdb.Operation, 0, len(ifaceNames)+2)
+
+	for _, ifaceName := range ifaceNames {
+		ifaceOperation := ovsdb.Operation{
+			Op:    "delete",
+			Table: "Interface",
+			Where: []interface{}{[]interface{}{"name", "==", ifaceName}},
+		}
+		operations = append(operations, ifaceOperation)
 	}
 
 	portOperation := ovsdb.Operation{
@@ -604,6 +556,7 @@ func deletePort(client *ovsdb.OvsdbClient, brName, portName string) error {
 		Table: "Port",
 		Where: []interface{}{[]interface{}{"name", "==", portName}},
 	}
+	operations = append(operations, portOperation)
 
 	mutateOperation := ovsdb.Operation{
 		Op:        "mutate",
@@ -611,8 +564,9 @@ func deletePort(client *ovsdb.OvsdbClient, brName, portName string) error {
 		Mutations: []interface{}{[]interface{}{"ports", "delete", portUUID}},
 		Where:     []interface{}{[]interface{}{"name", "==", brName}},
 	}
+	operations = append(operations, mutateOperation)
 
-	_, err = ovsdbTransact(client, "Open_vSwitch", ifaceOperation, portOperation, mutateOperation)
+	_, err = ovsdbTransact(client, "Open_vSwitch", operations...)
 	return err
 }
 
@@ -641,7 +595,7 @@ func ovsdbTransact(client *ovsdb.OvsdbClient, database string, operation ...ovsd
 	results, err := client.Transact(database, operation...)
 	for item, result := range results {
 		if result.Error != "" {
-			return results, fmt.Errorf("operator %d: %s", item, result.Error)
+			return results, fmt.Errorf("operator %v: %s, details: %s", operation[item], result.Error, result.Details)
 		}
 	}
 
