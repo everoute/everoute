@@ -84,8 +84,10 @@ var initObject = func() {
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier:     "tier-pri50",
 			Priority: 60,
-			AppliedToEndpointGroups: []string{
-				"group01",
+			AppliedTo: securityv1alpha1.AppliedTo{
+				EndpointGroups: []string{
+					"group01",
+				},
 			},
 			IngressRules: []securityv1alpha1.Rule{
 				{
@@ -125,8 +127,10 @@ var initObject = func() {
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier:     "tier-pri50",
 			Priority: 70,
-			AppliedToEndpointGroups: []string{
-				"group01",
+			AppliedTo: securityv1alpha1.AppliedTo{
+				EndpointGroups: []string{
+					"group01",
+				},
 			},
 			EgressRules: []securityv1alpha1.Rule{
 				{
@@ -376,7 +380,7 @@ var _ = Describe("CRD Validate", func() {
 		It("Create priority with unexists EndpointGroup should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()
 			policy.Name = "newPolicy"
-			policy.Spec.AppliedToEndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
+			policy.Spec.AppliedTo.EndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Create validate priority should allowed", func() {
@@ -390,7 +394,7 @@ var _ = Describe("CRD Validate", func() {
 		})
 		It("Update priority with unexists EndpointGroup should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()
-			policy.Spec.AppliedToEndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
+			policy.Spec.AppliedTo.EndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
 			Expect(validate.Validate(fakeAdmissionReview(policy, securityPolicyIngress, "")).Allowed).Should(BeFalse())
 		})
 		It("Update validate priority should allowed", func() {

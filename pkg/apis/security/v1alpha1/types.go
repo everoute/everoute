@@ -41,9 +41,8 @@ type SecurityPolicySpec struct {
 	Tier     string `json:"tier"`
 	Priority int32  `json:"priority"`
 
-	// List of groups which SecurityPolicy applied to. Each item in this list is
-	// combined using a logical OR. This field must not empty.
-	AppliedToEndpointGroups []string `json:"appliedToEndpointGroups"`
+	// Object to be applied to list of ingress rule and egress rule
+	AppliedTo AppliedTo `json:"appliedTo"`
 
 	// List of ingress rules to be applied to giving groups. If this field is empty
 	// then this SecurityPolicy does not allow any traffic.
@@ -52,6 +51,14 @@ type SecurityPolicySpec struct {
 	// List of egress rules to be applied to giving groups. If this field is empty
 	// then this SecurityPolicy limits all outgoing traffic.
 	EgressRules []Rule `json:"egressRules,omitempty"`
+}
+
+type AppliedTo struct {
+	// List of groups which SecurityPolicy applied to. Each item in this list is
+	// combined using a logical OR. This field must not empty.
+	EndpointGroups []string `json:"endpointGroups,omitempty"`
+	// Endpoint which SecurityPolicy applied to
+	Endpoints []string `json:"endpoints,omitempty"`
 }
 
 // SecurityPolicyPhase defines the phase in which a SecurityPolicy is.
@@ -101,6 +108,7 @@ type Rule struct {
 type SecurityPolicyPeer struct {
 	IPBlocks       []IPBlock `json:"ipBlocks,omitempty"`
 	EndpointGroups []string  `json:"endpointGroups,omitempty"`
+	Endpoints      []string  `json:"endpoints,omitempty"`
 }
 
 // IPBlock describes a particular CIDR.

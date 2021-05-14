@@ -544,7 +544,7 @@ func (f *Framework) GetExpectedFlows(securityPolicy securityv1alpha1.SecurityPol
 		egressGroupPorts = append(egressGroupPorts, rulePorts...)
 	}
 
-	for _, appliedToGroupName := range securityPolicy.Spec.AppliedToEndpointGroups {
+	for _, appliedToGroupName := range securityPolicy.Spec.AppliedTo.EndpointGroups {
 		for vmName := range f.groupVMMap[appliedToGroupName] {
 			appliedGroupIPs = append(appliedGroupIPs, f.vmIPMap[vmName])
 		}
