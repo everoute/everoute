@@ -114,7 +114,7 @@ func RegisterIndexFields(f client.FieldIndexer) error {
 	// index endpointGroup in SecurityPolicy object
 	f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyEndpointGroupIndex, func(object runtime.Object) []string {
 		policy := object.(*securityv1alpha1.SecurityPolicy)
-		groups := sets.NewString(policy.Spec.AppliedToEndpointGroups...)
+		groups := sets.NewString(policy.Spec.AppliedTo.EndpointGroups...)
 
 		for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
 			groups.Insert(rule.From.EndpointGroups...)
@@ -364,10 +364,10 @@ type securityPolicyValidator resourceValidator
 
 func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	policy := curObj.(*securityv1alpha1.SecurityPolicy)
-	groups := sets.NewString(policy.Spec.AppliedToEndpointGroups...)
+	groups := sets.NewString(policy.Spec.AppliedTo.EndpointGroups...)
 
-	if len(groups) == 0 {
-		return fmt.Sprintf("at least one group should specified for policy applied to"), false
+	if len(groups) == 0 && len(policy.Spec.AppliedTo.Endpoints) == 0 {
+		return "at least one group or endpoint should specified for policy applied to", false
 	}
 
 	// all groups must exists before security policy create

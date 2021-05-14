@@ -345,9 +345,11 @@ func newPolicy(name, tier string, priority int32, appliedGroup ...string) *secur
 	policy.Name = name
 
 	policy.Spec = securityv1alpha1.SecurityPolicySpec{
-		Tier:                    tier,
-		Priority:                priority,
-		AppliedToEndpointGroups: appliedGroup,
+		Tier:     tier,
+		Priority: priority,
+		AppliedTo: securityv1alpha1.AppliedTo{
+			EndpointGroups: appliedGroup,
+		},
 	}
 
 	return policy

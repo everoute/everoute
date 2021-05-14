@@ -219,9 +219,11 @@ func addPolicy(f *framework.Framework, name string, tier string, priority int32,
 	policy.Name = name
 
 	policy.Spec = v1alpha1.SecurityPolicySpec{
-		Tier:                    tier,
-		Priority:                priority,
-		AppliedToEndpointGroups: strings.Split(appliedGroups, ","),
+		Tier:     tier,
+		Priority: priority,
+		AppliedTo: v1alpha1.AppliedTo{
+			EndpointGroups: strings.Split(appliedGroups, ","),
+		},
 	}
 
 	return f.SetupObjects(policy)

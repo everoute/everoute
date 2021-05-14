@@ -329,7 +329,7 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 
 	appliedToPeer := securityv1alpha1.SecurityPolicyPeer{
 		IPBlocks:       nil,
-		EndpointGroups: policy.Spec.AppliedToEndpointGroups,
+		EndpointGroups: policy.Spec.AppliedTo.EndpointGroups,
 	}
 	appliedGroups, appliedIPBlocks, err := r.getPeerGroupsAndIPBlocks(&appliedToPeer)
 	if err != nil {

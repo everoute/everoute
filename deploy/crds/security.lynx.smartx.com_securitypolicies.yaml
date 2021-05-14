@@ -34,12 +34,23 @@ spec:
           type: object
         spec:
           properties:
-            appliedToEndpointGroups:
-              description: List of groups which SecurityPolicy applied to. Each item
-                in this list is combined using a logical OR. This field must not empty.
-              items:
-                type: string
-              type: array
+            appliedTo:
+              description: Object to be applied to list of ingress rule and egress
+                rule
+              properties:
+                endpointGroups:
+                  description: List of groups which SecurityPolicy applied to. Each
+                    item in this list is combined using a logical OR. This field must
+                    not empty.
+                  items:
+                    type: string
+                  type: array
+                endpoints:
+                  description: Endpoint which SecurityPolicy applied to
+                  items:
+                    type: string
+                  type: array
+              type: object
             egressRules:
               description: List of egress rules to be applied to giving groups. If
                 this field is empty then this SecurityPolicy limits all outgoing traffic.
@@ -51,6 +62,10 @@ spec:
                       all sources. This field only works when rule is ingress.
                     properties:
                       endpointGroups:
+                        items:
+                          type: string
+                        type: array
+                      endpoints:
                         items:
                           type: string
                         type: array
@@ -116,6 +131,10 @@ spec:
                       rule is egress.
                     properties:
                       endpointGroups:
+                        items:
+                          type: string
+                        type: array
+                      endpoints:
                         items:
                           type: string
                         type: array
@@ -159,6 +178,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      endpoints:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -224,6 +247,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      endpoints:
+                        items:
+                          type: string
+                        type: array
                       ipBlocks:
                         items:
                           description: IPBlock describes a particular CIDR.
@@ -256,7 +283,7 @@ spec:
             tier:
               type: string
           required:
-          - appliedToEndpointGroups
+          - appliedTo
           - priority
           - tier
           type: object

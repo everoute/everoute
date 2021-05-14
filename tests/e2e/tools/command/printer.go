@@ -120,7 +120,7 @@ func printPolicy(output io.Writer, policies []securityv1alpha1.SecurityPolicy) e
 		row = append(row, policy.Name)
 		row = append(row, policy.Spec.Tier)
 		row = append(row, policy.Spec.Priority)
-		row = append(row, strings.Join(policy.Spec.AppliedToEndpointGroups, ","))
+		row = append(row, strings.Join(policy.Spec.AppliedTo.EndpointGroups, ","))
 
 		addRow(table, row)
 	}

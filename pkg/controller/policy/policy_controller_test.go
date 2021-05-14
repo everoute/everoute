@@ -172,7 +172,7 @@ var _ = Describe("PolicyController", func() {
 				newEp := newTestEndpoint("192.168.1.2")
 				newGroup = newTestGroupMembers(0, endpointToMember(newEp))
 				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.AppliedToEndpointGroups = append(updPolicy.Spec.AppliedToEndpointGroups, newGroup.Name)
+				updPolicy.Spec.AppliedTo.EndpointGroups = append(updPolicy.Spec.AppliedTo.EndpointGroups, newGroup.Name)
 
 				By(fmt.Sprintf("update policy %s with new applied group %s", policy.Name, newGroup.Name))
 				Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
@@ -516,7 +516,9 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			AppliedToEndpointGroups: []string{appliedToGroup},
+			AppliedTo: securityv1alpha1.AppliedTo{
+				EndpointGroups: []string{appliedToGroup},
+			},
 			IngressRules: []securityv1alpha1.Rule{
 				{
 					Name: "ingress",
