@@ -80,15 +80,15 @@ var _ = Describe("SecurityPolicy", func() {
 			var nginxPolicyFlows, serverPolicyFlows, dbPolicyFlows []string
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier1, 50, nginxGroup.Name)
+				nginxPolicy = newPolicy("nginx-policy", tier1, 50, []string{nginxGroup.Name}, []string{})
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
 				addEngressRule(nginxPolicy, "TCP", serverPort, serverGroup.Name)
 
-				serverPolicy = newPolicy("server-policy", tier1, 50, serverGroup.Name)
+				serverPolicy = newPolicy("server-policy", tier1, 50, []string{serverGroup.Name}, []string{})
 				addIngressRule(serverPolicy, "TCP", serverPort, nginxGroup.Name)
 				addEngressRule(serverPolicy, "TCP", dbPort, dbGroup.Name)
 
-				dbPolicy = newPolicy("db-policy", tier1, 50, dbGroup.Name)
+				dbPolicy = newPolicy("db-policy", tier1, 50, []string{dbGroup.Name}, []string{})
 				addIngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name, serverGroup.Name)
 				addEngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name)
 
@@ -215,10 +215,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicyFlows, icmpDropPolicyFlows []string
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, serverGroup.Name, dbGroup.Name)
+				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, []string{serverGroup.Name, dbGroup.Name}, []string{})
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, nginxGroup.Name)
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, []string{nginxGroup.Name}, []string{})
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
 				Expect(e2eEnv.SetupObjects(icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
@@ -245,6 +245,88 @@ var _ = Describe("SecurityPolicy", func() {
 
 		// todo: isolate virtual machine
 		XWhen("isolate virtual machine with viruses", func() {})
+	})
+
+	Context("vm isolation", func() {
+		var nginx, server01, server02, db01, db02, client *framework.VM
+		var nginxGroup, serverGroup, dbGroup, clientGroup *groupv1alpha1.EndpointGroup
+		var clientPort, nginxPort, serverPort, dbPort int
+
+		BeforeEach(func() {
+			clientPort, nginxPort, serverPort, dbPort = 80, 443, 443, 3306
+
+			nginx = &framework.VM{Name: "nginx", TCPPort: nginxPort, Labels: "component=nginx"}
+			server01 = &framework.VM{Name: "server01", TCPPort: serverPort, Labels: "component=webserver"}
+			server02 = &framework.VM{Name: "server02", TCPPort: serverPort, Labels: "component=webserver"}
+			db01 = &framework.VM{Name: "db01", TCPPort: dbPort, Labels: "component=database"}
+			db02 = &framework.VM{Name: "db02", TCPPort: dbPort, Labels: "component=database"}
+			client = &framework.VM{Name: "client", TCPPort: clientPort, Labels: "component=client"}
+
+			nginxGroup = newGroup("nginx", "component=nginx")
+			serverGroup = newGroup("webserver", "component=webserver")
+			dbGroup = newGroup("database", "component=database")
+			clientGroup = newGroup("client", "component=client")
+
+			Expect(e2eEnv.SetupVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(nginxGroup, serverGroup, dbGroup, clientGroup)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(e2eEnv.CleanVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
+			Expect(e2eEnv.CleanObjects(nginxGroup, serverGroup, dbGroup, clientGroup)).Should(Succeed())
+		})
+
+		When("Isolate vm", func() {
+			var isolationPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				isolationPolicy = newPolicy("isolation-policy", tier0, 50, []string{}, []string{db01.Name})
+				Expect(e2eEnv.SetupObjects(isolationPolicy)).Should(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(e2eEnv.CleanObjects(isolationPolicy)).Should(Succeed())
+			})
+
+			It("Isolated vm should not allow to communicate with all of vm", func() {
+				assertReachable([]*framework.VM{client, nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
+			})
+		})
+
+		When("Forensic vm", func() {
+			var forensicPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				forensicPolicy = newPolicy("forensic-policy", tier0, 100, []string{}, []string{db01.Name})
+				addIngressRule(forensicPolicy, "TCP", 3306, clientGroup.Name)
+
+				Expect(e2eEnv.SetupObjects(forensicPolicy)).Should(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(e2eEnv.CleanObjects(forensicPolicy)).Should(Succeed())
+			})
+
+			It("Isolated vm should not allow to communicate with all of vm except forensic defined allowed endpoint", func() {
+				assertReachable([]*framework.VM{nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
+				assertReachable([]*framework.VM{db01}, []*framework.VM{nginx, server01, server02, db02}, "TCP", false)
+
+				assertReachable([]*framework.VM{client}, []*framework.VM{db01}, "TCP", true)
+			})
+
+			When("forensic update vm status after setup policy", func() {
+				BeforeEach(func() {
+					Expect(e2eEnv.UpdateVMRandIP(db01)).Should(Succeed())
+				})
+
+				It("Isolated vm should not allow to communicate with all of vm except forensic defined allowed endpoint", func() {
+					assertReachable([]*framework.VM{nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
+					assertReachable([]*framework.VM{db01}, []*framework.VM{client, nginx, server01, server02, db02}, "TCP", false)
+
+					assertReachable([]*framework.VM{client}, []*framework.VM{db01}, "TCP", true)
+				})
+			})
+		})
 	})
 
 	// This case test policy with udp and ipblocks can works. We setup two peers ntp server and client in different cidr,
@@ -288,10 +370,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var ntpProductionPolicyFlows, ntpDevelopmentPolicyFlows []string
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, 50, ntpProduction.Name)
+				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, 50, []string{ntpProduction.Name}, []string{})
 				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, productionCidr)
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, 50, ntpDevelopment.Name)
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, 50, []string{ntpDevelopment.Name}, []string{})
 				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, developmentCidr)
 
 				Expect(e2eEnv.SetupObjects(ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
@@ -340,7 +422,8 @@ func newGroup(name string, labels string) *groupv1alpha1.EndpointGroup {
 	return group
 }
 
-func newPolicy(name, tier string, priority int32, appliedGroup ...string) *securityv1alpha1.SecurityPolicy {
+func newPolicy(name, tier string, priority int32, appliedGroup []string,
+	endpoints []string) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
 
@@ -349,6 +432,7 @@ func newPolicy(name, tier string, priority int32, appliedGroup ...string) *secur
 		Priority: priority,
 		AppliedTo: securityv1alpha1.AppliedTo{
 			EndpointGroups: appliedGroup,
+			Endpoints:      endpoints,
 		},
 	}
 
