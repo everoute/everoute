@@ -34,6 +34,13 @@ spec:
           type: object
         spec:
           properties:
+            action:
+              description: 'SecurityPolicy action type: allow means forward to nextTable,
+                passthrough means directly forwarding'
+              enum:
+              - Allow
+              - Drop
+              type: string
             appliedTo:
               description: Object to be applied to list of ingress rule and egress
                 rule

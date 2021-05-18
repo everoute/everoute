@@ -63,8 +63,9 @@ type PolicyRuleSpec struct {
 type RuleAction string
 
 const (
-	RuleActionAllow RuleAction = "Allow"
-	RuleActionDrop  RuleAction = "Drop"
+	RuleActionAllow       RuleAction = "Allow"
+	RuleActionPassthrough RuleAction = "Passthrough"
+	RuleActionDrop        RuleAction = "Drop"
 )
 
 type RuleDirection string

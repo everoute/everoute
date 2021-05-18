@@ -365,9 +365,15 @@ type securityPolicyValidator resourceValidator
 func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	policy := curObj.(*securityv1alpha1.SecurityPolicy)
 	groups := sets.NewString(policy.Spec.AppliedTo.EndpointGroups...)
+	actionSet := sets.NewString(string(securityv1alpha1.RuleActionPassthrough),
+		string(securityv1alpha1.RuleActionAllow), string(securityv1alpha1.RuleActionDrop))
 
 	if len(groups) == 0 && len(policy.Spec.AppliedTo.Endpoints) == 0 {
 		return "at least one group or endpoint should specified for policy applied to", false
+	}
+
+	if !actionSet.Has(string(policy.Spec.Action)) {
+		return "security policy action type should specified for policy applied to", false
 	}
 
 	// all groups must exists before security policy create

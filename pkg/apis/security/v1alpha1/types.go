@@ -51,6 +51,9 @@ type SecurityPolicySpec struct {
 	// List of egress rules to be applied to giving groups. If this field is empty
 	// then this SecurityPolicy limits all outgoing traffic.
 	EgressRules []Rule `json:"egressRules,omitempty"`
+
+	// SecurityPolicy action type: allow means forward to nextTable, passthrough means directly forwarding
+	Action RuleAction `json:"action,omitempty"`
 }
 
 type AppliedTo struct {
@@ -156,7 +159,10 @@ const (
 type RuleAction string
 
 const (
-	// RuleActionAllow describes that rule matching traffic must be allowed.
+	// RuleActionPassthrough describes that rule matching traffic must be skip other policy enforcement
+	RuleActionPassthrough RuleAction = "Passthrough"
+	// RuleActionAllow describes that rule matching traffic must be allowed, and then excute successive policy
+	// enforcement.
 	RuleActionAllow RuleAction = "Allow"
 	// RuleActionDrop describes that rule matching traffic must be dropped.
 	RuleActionDrop RuleAction = "Drop"

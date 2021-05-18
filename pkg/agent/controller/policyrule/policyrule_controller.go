@@ -245,6 +245,8 @@ func protocolToInt(ipProtocol string) uint8 {
 func getRuleAction(ruleAction networkpolicyv1alpha1.RuleAction) string {
 	var action string
 	switch ruleAction {
+	case networkpolicyv1alpha1.RuleActionPassthrough:
+		action = "passthrough"
 	case networkpolicyv1alpha1.RuleActionAllow:
 		action = "allow"
 	case networkpolicyv1alpha1.RuleActionDrop:
