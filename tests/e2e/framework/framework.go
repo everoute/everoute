@@ -563,7 +563,7 @@ func (f *Framework) computePolicyFlow(securityPolicy securityv1alpha1.SecurityPo
 	if ingressTableID == nil || egressTableID == nil {
 		return nil
 	}
-	ingressNextTableID, egressNextTableID := *ingressTableID+1, *egressTableID+1
+	ingressNextTableID, egressNextTableID := 20, 45
 
 	for _, appliedToIP := range appliedToGroupIPs {
 		for _, srcIP := range ingressGroupIPs {
