@@ -18,8 +18,7 @@ package command
 
 import (
 	"fmt"
-	"github.com/smartxworks/lynx/tests/e2e/framework"
-	"k8s.io/klog"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -53,10 +52,35 @@ func mapJoin(m map[string]string, connector string, separator string) string {
 	return str
 }
 
-func GetFrameWorkOrDie() *framework.Framework {
-	var f, err = framework.FrameworkFromConfig("/etc/lynx/e2e-config.yaml")
-	if err != nil {
-		klog.Fatalf("unable featch framework: %s", err)
+func selectorFromString(sl string) *metav1.LabelSelector {
+	if sl == "all" {
+		// nil for select all endpoint
+		return nil
 	}
-	return f
+
+	var list = strings.Split(sl, ",")
+	var matchLabels = make(map[string]string, len(list))
+
+	for _, label := range list {
+		if len(label) != 0 {
+			matchLabels[strings.Split(label, "=")[0]] = strings.Split(label, "=")[1]
+		}
+	}
+
+	return &metav1.LabelSelector{
+		MatchLabels: matchLabels,
+	}
+}
+
+func labelsFromString(labels string) map[string]string {
+	var list = strings.Split(labels, ",")
+	var labelMap = make(map[string]string, len(list))
+
+	for _, label := range list {
+		if len(label) != 0 {
+			labelMap[strings.Split(label, "=")[0]] = strings.Split(label, "=")[1]
+		}
+	}
+
+	return labelMap
 }

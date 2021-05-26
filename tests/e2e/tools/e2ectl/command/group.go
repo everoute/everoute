@@ -22,7 +22,6 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
@@ -114,16 +113,13 @@ func newGroupListCommand(f *framework.Framework) *cobra.Command {
 func addGroup(f *framework.Framework, name string, selector string) error {
 	group := &groupv1alpha1.EndpointGroup{}
 	group.Name = name
+	group.Spec.Selector = selectorFromString(selector)
 
-	group.Spec.Selector = &metav1.LabelSelector{
-		MatchLabels: framework.AsMapLables(selector),
-	}
-
-	return f.SetupObjects(group)
+	return f.SetupObjects(context.TODO(), group)
 }
 
 func delGroup(f *framework.Framework, name string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var group = &groupv1alpha1.EndpointGroup{}
 
 	err := client.Get(context.TODO(), types.NamespacedName{Name: name}, group)
@@ -135,7 +131,7 @@ func delGroup(f *framework.Framework, name string) error {
 }
 
 func listGroup(f *framework.Framework, output io.Writer) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var epList = &v1alpha1.EndpointList{}
 	var groupList = &groupv1alpha1.EndpointGroupList{}
 
@@ -153,7 +149,7 @@ func listGroup(f *framework.Framework, output io.Writer) error {
 }
 
 func setGroupSelector(f *framework.Framework, name string, selector string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var group = &groupv1alpha1.EndpointGroup{}
 
 	err := client.Get(context.TODO(), types.NamespacedName{Name: name}, group)
@@ -161,9 +157,6 @@ func setGroupSelector(f *framework.Framework, name string, selector string) erro
 		return err
 	}
 
-	group.Spec.Selector = &metav1.LabelSelector{
-		MatchLabels: framework.AsMapLables(selector),
-	}
-
+	group.Spec.Selector = selectorFromString(selector)
 	return client.Update(context.TODO(), group)
 }

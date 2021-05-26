@@ -80,7 +80,7 @@ jobs:
         run: sudo -H sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
 
       - name: setup e2e environment
-        run: sudo -H bash tests/e2e/scripts/e2e-setup.sh 127.0.0.1 localhost
+        run: sudo -H bash tests/e2e/scripts/e2e-setup.sh
 
       - name: run e2e test cases
         run: sudo -H make e2e-test
