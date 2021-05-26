@@ -45,7 +45,7 @@ func newTierInitCommand(f *framework.Framework) *cobra.Command {
 		Use:   "init",
 		Short: "Init default tier: tier0, tier1, tier2",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initTier(f)
+			return initTier(cmd.Context(), f)
 		},
 	}
 
@@ -65,8 +65,8 @@ func newTierListCommand(f *framework.Framework) *cobra.Command {
 	return cmd
 }
 
-func initTier(f *framework.Framework) error {
-	err := f.SetupObjects(defaultTier(tier0), defaultTier(tier1), defaultTier(tier2))
+func initTier(ctx context.Context, f *framework.Framework) error {
+	err := f.SetupObjects(ctx, defaultTier(tier0), defaultTier(tier1), defaultTier(tier2))
 	if err != nil {
 		return fmt.Errorf("unable setup default tier: %s", err)
 	}
@@ -76,7 +76,7 @@ func initTier(f *framework.Framework) error {
 }
 
 func listTier(f *framework.Framework, output io.Writer) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var tierList = &v1alpha1.TierList{}
 
 	err := client.List(context.TODO(), tierList)
@@ -95,20 +95,20 @@ const (
 )
 
 func defaultTier(name string) *v1alpha1.Tier {
-	defaultTier := &v1alpha1.Tier{}
-	defaultTier.Name = name
-	defaultTier.Spec.TierMode = v1alpha1.TierWhiteList
+	tier := &v1alpha1.Tier{}
+	tier.Name = name
+	tier.Spec.TierMode = v1alpha1.TierWhiteList
 
 	switch name {
 	case tier0:
-		defaultTier.Spec.Priority = 0
+		tier.Spec.Priority = 0
 	case tier1:
-		defaultTier.Spec.Priority = 1
+		tier.Spec.Priority = 1
 	case tier2:
-		defaultTier.Spec.Priority = 2
+		tier.Spec.Priority = 2
 	default:
 		klog.Fatalf("tier %s is not default tier", name)
 	}
 
-	return defaultTier
+	return tier
 }

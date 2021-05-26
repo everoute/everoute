@@ -226,11 +226,11 @@ func addPolicy(f *framework.Framework, name string, tier string, priority int32,
 		},
 	}
 
-	return f.SetupObjects(policy)
+	return f.SetupObjects(context.TODO(), policy)
 }
 
 func delPolicy(f *framework.Framework, name string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
 	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name}, policy)
@@ -242,7 +242,7 @@ func delPolicy(f *framework.Framework, name string) error {
 }
 
 func listPolicy(f *framework.Framework, output io.Writer) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policyList = &v1alpha1.SecurityPolicyList{}
 
 	err := client.List(context.TODO(), policyList)
@@ -254,7 +254,7 @@ func listPolicy(f *framework.Framework, output io.Writer) error {
 }
 
 func showPolicy(f *framework.Framework, output io.Writer, name string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
 	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name}, policy)
@@ -279,7 +279,7 @@ func showPolicy(f *framework.Framework, output io.Writer, name string) error {
 }
 
 func addPolicyRule(f *framework.Framework, policyName, ruleName, ruleDirection, peers, protocol, ports string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
 	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName}, policy)
@@ -307,7 +307,7 @@ func addPolicyRule(f *framework.Framework, policyName, ruleName, ruleDirection, 
 }
 
 func setPolicyRule(f *framework.Framework, policyName, ruleName, protocol, ports string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 	var rule *v1alpha1.Rule
 
@@ -337,7 +337,7 @@ func setPolicyRule(f *framework.Framework, policyName, ruleName, protocol, ports
 }
 
 func delPolicyRule(f *framework.Framework, policyName, ruleName string) error {
-	var client = f.GetClient()
+	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
 	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName}, policy)

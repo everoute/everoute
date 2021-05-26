@@ -30,14 +30,14 @@ import (
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/types"
-	"github.com/smartxworks/lynx/tests/e2e/framework"
-)
-
-const (
-	DefaultBridgeName = "vlanLearnBridge"
+	"github.com/smartxworks/lynx/tests/e2e/framework/matcher"
+	"github.com/smartxworks/lynx/tests/e2e/framework/model"
 )
 
 var _ = Describe("SecurityPolicy", func() {
+	AfterEach(func() {
+		Expect(e2eEnv.ResetResource(ctx)).Should(Succeed())
+	})
 
 	// This case test policy with tcp and icmp can works. We setup three groups of vms (nginx/webserver/database), create
 	// and verify policy allow connection: all sources to nginx, nginx to webservers, webserver to databases, and connect
@@ -47,283 +47,270 @@ var _ = Describe("SecurityPolicy", func() {
 	//  --->  |  nginx  |  <---->  | webservers |  <---->  | databases |
 	//        | --------|          |----------- |          |---------- |
 	//
-	Context("environment with virtual machines provide public http service [Feature:TCP] [Feature:ICMP]", func() {
-		var nginx, server01, server02, db01, db02, client *framework.VM
+	Context("environment with endpoints provide public http service [Feature:TCP] [Feature:ICMP]", func() {
+		var nginx, server01, server02, db01, db02, client *model.Endpoint
 		var nginxGroup, serverGroup, dbGroup *groupv1alpha1.EndpointGroup
 		var nginxPort, serverPort, dbPort int
 
 		BeforeEach(func() {
 			nginxPort, serverPort, dbPort = 443, 443, 3306
 
-			nginx = &framework.VM{Name: "nginx", TCPPort: nginxPort, Labels: "component=nginx"}
-			server01 = &framework.VM{Name: "server01", TCPPort: serverPort, Labels: "component=webserver"}
-			server02 = &framework.VM{Name: "server02", TCPPort: serverPort, Labels: "component=webserver"}
-			db01 = &framework.VM{Name: "db01", TCPPort: dbPort, Labels: "component=database"}
-			db02 = &framework.VM{Name: "db02", TCPPort: dbPort, Labels: "component=database"}
-			client = &framework.VM{Name: "client"}
+			nginx = &model.Endpoint{Name: "nginx", TCPPort: nginxPort, Labels: map[string]string{"component": "nginx"}}
+			server01 = &model.Endpoint{Name: "server01", TCPPort: serverPort, Labels: map[string]string{"component": "webserver"}}
+			server02 = &model.Endpoint{Name: "server02", TCPPort: serverPort, Labels: map[string]string{"component": "webserver"}}
+			db01 = &model.Endpoint{Name: "db01", TCPPort: dbPort, Labels: map[string]string{"component": "database"}}
+			db02 = &model.Endpoint{Name: "db02", TCPPort: dbPort, Labels: map[string]string{"component": "database"}}
+			client = &model.Endpoint{Name: "client"}
 
-			nginxGroup = newGroup("nginx", "component=nginx")
-			serverGroup = newGroup("webserver", "component=webserver")
-			dbGroup = newGroup("database", "component=database")
+			nginxGroup = newGroup("nginx", map[string]string{"component": "nginx"})
+			serverGroup = newGroup("webserver", map[string]string{"component": "webserver"})
+			dbGroup = newGroup("database", map[string]string{"component": "database"})
 
-			Expect(e2eEnv.SetupVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(nginxGroup, serverGroup, dbGroup)).Should(Succeed())
-		})
-
-		AfterEach(func() {
-			Expect(e2eEnv.CleanVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
-			Expect(e2eEnv.CleanObjects(nginxGroup, serverGroup, dbGroup)).Should(Succeed())
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, nginx, server01, server02, db01, db02, client)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(ctx, nginxGroup, serverGroup, dbGroup)).Should(Succeed())
 		})
 
 		When("limits tcp packets between components", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
-			var nginxPolicyFlows, serverPolicyFlows, dbPolicyFlows []string
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier1, 50, []string{nginxGroup.Name}, []string{})
+				nginxPolicy = newPolicy("nginx-policy", tier1, 50, []string{nginxGroup.Name}, nil)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
 				addEngressRule(nginxPolicy, "TCP", serverPort, serverGroup.Name)
 
-				serverPolicy = newPolicy("server-policy", tier1, 50, []string{serverGroup.Name}, []string{})
+				serverPolicy = newPolicy("server-policy", tier1, 50, []string{serverGroup.Name}, nil)
 				addIngressRule(serverPolicy, "TCP", serverPort, nginxGroup.Name)
 				addEngressRule(serverPolicy, "TCP", dbPort, dbGroup.Name)
 
-				dbPolicy = newPolicy("db-policy", tier1, 50, []string{dbGroup.Name}, []string{})
+				dbPolicy = newPolicy("db-policy", tier1, 50, []string{dbGroup.Name}, nil)
 				addIngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name, serverGroup.Name)
 				addEngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name)
 
-				Expect(e2eEnv.SetupObjects(nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
-
-				// Should wait for all the flows setup
-				nginxPolicyFlows = e2eEnv.GetExpectedFlows(*nginxPolicy)
-				serverPolicyFlows = e2eEnv.GetExpectedFlows(*serverPolicy)
-				dbPolicyFlows = e2eEnv.GetExpectedFlows(*dbPolicy)
-			})
-
-			AfterEach(func() {
-				Expect(e2eEnv.CleanObjects(nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
 			})
 
 			It("should allow normal packets and limits illegal packets", func() {
-				assertReachable([]*framework.VM{nginx}, []*framework.VM{db01, db02}, "TCP", false)
-				assertReachable([]*framework.VM{client}, []*framework.VM{server01, server02, db01, db02}, "TCP", false)
-
-				assertReachable([]*framework.VM{client}, []*framework.VM{nginx}, "TCP", true)
-				assertReachable([]*framework.VM{nginx}, []*framework.VM{server01, server02}, "TCP", true)
-				assertReachable([]*framework.VM{server01, server02, db01, db02}, []*framework.VM{db01, db02}, "TCP", true)
-			})
-
-			It("Should install all of necessary flow in datapath", func() {
-				assertFlowExists(nginxPolicyFlows)
-				assertFlowExists(serverPolicyFlows)
-				assertFlowExists(dbPolicyFlows)
-			})
-
-			When("add virtual machine into the database group", func() {
-				var db03 *framework.VM
-				var serverPolicyFlows, dbPolicyFlows []string
-
-				BeforeEach(func() {
-					db03 = &framework.VM{Name: "db03", TCPPort: 3306, Labels: "component=database"}
-					Expect(e2eEnv.SetupVMs(db03)).Should(Succeed())
-
-					serverPolicyFlows = e2eEnv.GetExpectedFlows(*serverPolicy)
-					dbPolicyFlows = e2eEnv.GetExpectedFlows(*dbPolicy)
+				assertFlowMatches(&SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+					Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 				})
 
-				AfterEach(func() {
-					Expect(e2eEnv.CleanVMs(db03)).Should(Succeed())
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", false)
+
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "TCP", true)
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01, server02}, "TCP", true)
+				assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{db01, db02}, "TCP", true)
+			})
+
+			When("add endpoint into the database group", func() {
+				var db03 *model.Endpoint
+
+				BeforeEach(func() {
+					db03 = &model.Endpoint{Name: "db03", TCPPort: 3306, Labels: map[string]string{"component": "database"}}
+					Expect(e2eEnv.EndpointManager().SetupMany(ctx, db03)).Should(Succeed())
 				})
 
 				It("should allow normal packets and limits illegal packets for new member", func() {
-					// NOTE always success in this case, even if failed to add updated flow
-					assertReachable([]*framework.VM{nginx, client}, []*framework.VM{db03}, "TCP", false)
-					assertReachable([]*framework.VM{server01, server02, db01, db02}, []*framework.VM{db03}, "TCP", true)
+					assertFlowMatches(&SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+					})
 
-					assertFlowExists(serverPolicyFlows)
-					assertFlowExists(dbPolicyFlows)
+					// NOTE always success in this case, even if failed to add updated flow
+					assertReachable([]*model.Endpoint{nginx, client}, []*model.Endpoint{db03}, "TCP", false)
+					assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{db03}, "TCP", true)
 				})
 			})
 
-			When("update virtual machine ip address in the nginx group", func() {
-				var nginxPolicyFlows, serverPolicyFlows []string
-
+			When("update endpoint ip addr in the nginx group", func() {
 				BeforeEach(func() {
-					Expect(e2eEnv.UpdateVMRandIP(nginx)).Should(Succeed())
-
-					nginxPolicyFlows = e2eEnv.GetExpectedFlows(*nginxPolicy)
-					serverPolicyFlows = e2eEnv.GetExpectedFlows(*serverPolicy)
+					Expect(e2eEnv.EndpointManager().RenewIPMany(ctx, nginx)).Should(Succeed())
 				})
 
 				It("should allow normal packets and limits illegal packets for update member", func() {
-					assertReachable([]*framework.VM{nginx}, []*framework.VM{db01, db02}, "TCP", false)
-					assertReachable([]*framework.VM{nginx}, []*framework.VM{server01, server02}, "TCP", true)
-				})
+					assertFlowMatches(&SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+					})
 
-				It("Should install all of necessary flow in datapath for ipAddr updated vm", func() {
-					assertFlowExists(nginxPolicyFlows)
-					assertFlowExists(serverPolicyFlows)
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01, db02}, "TCP", false)
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01, server02}, "TCP", true)
 				})
 			})
 
-			When("remove virtual machine from the webserver group", func() {
-				var nginxPolicyFlows, serverPolicyFlows, dbPolicyFlows []string
-
+			When("remove endpoint from the webserver group", func() {
 				BeforeEach(func() {
-					Eventually(func() error {
-						server02.Labels = ""
-						return e2eEnv.UpdateVMLabels(server02)
-					}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
-
-					e2eEnv.UpdateVMGroup(server02, "")
-					nginxPolicyFlows = e2eEnv.GetExpectedFlows(*nginxPolicy)
-					serverPolicyFlows = e2eEnv.GetExpectedFlows(*serverPolicy)
-					dbPolicyFlows = e2eEnv.GetExpectedFlows(*dbPolicy)
+					server02.Labels = map[string]string{}
+					Expect(e2eEnv.EndpointManager().UpdateMany(ctx, server02)).Should(Succeed())
 				})
 
 				It("should limits illegal packets for remove member", func() {
-					assertReachable([]*framework.VM{server02}, []*framework.VM{server01, db01, db02}, "TCP", false)
-				})
+					assertFlowMatches(&SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+					})
 
-				It("Should install all of necessary flow in datapath for updated vm set", func() {
-					assertFlowExists(nginxPolicyFlows)
-					assertFlowExists(serverPolicyFlows)
-					assertFlowExists(dbPolicyFlows)
+					assertReachable([]*model.Endpoint{server02}, []*model.Endpoint{server01, db01, db02}, "TCP", false)
 				})
 			})
 
-			When("Migrate vm from one node to another node", func() {
+			When("Migrate endpoint from one node to another node", func() {
 				BeforeEach(func() {
-					Eventually(func() error {
-						Skip("Require at least one agent")
-
-						return e2eEnv.MigrateVM(server01)
-					}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
+					if len(e2eEnv.NodeManager().ListAgent()) <= 1 {
+						Skip("Require at least two agent")
+					}
+					Expect(e2eEnv.EndpointManager().MigrateMany(ctx, server01)).Should(Succeed())
 				})
 
 				It("Should limit connections between webserver group and other groups", func() {
-					assertReachable([]*framework.VM{client}, []*framework.VM{server01, db01, db02}, "TCP", false)
+					assertFlowMatches(&SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+					})
 
-					assertReachable([]*framework.VM{nginx}, []*framework.VM{server01}, "TCP", true)
-					assertReachable([]*framework.VM{server01}, []*framework.VM{db01, db02}, "TCP", true)
+					assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, db01, db02}, "TCP", false)
+
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", true)
+					assertReachable([]*model.Endpoint{server01}, []*model.Endpoint{db01, db02}, "TCP", true)
 				})
 			})
 		})
 
 		When("limits icmp packets between components", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
-			var icmpAllowPolicyFlows, icmpDropPolicyFlows []string
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, []string{serverGroup.Name, dbGroup.Name}, []string{})
+				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, []string{serverGroup.Name, dbGroup.Name}, nil)
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, []string{nginxGroup.Name}, []string{})
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, []string{nginxGroup.Name}, nil)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
-				Expect(e2eEnv.SetupObjects(icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
-
-				icmpAllowPolicyFlows = e2eEnv.GetExpectedFlows(*icmpAllowPolicy)
-				icmpDropPolicyFlows = e2eEnv.GetExpectedFlows(*icmpDropPolicy)
-			})
-
-			AfterEach(func() {
-				Expect(e2eEnv.CleanObjects(icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
 			})
 
 			It("should allow normal packets and limits illegal packets", func() {
-				assertReachable([]*framework.VM{client}, []*framework.VM{server01, server02, db01, db02}, "ICMP", false)
-				assertReachable([]*framework.VM{client}, []*framework.VM{server01, server02, db01, db02}, "TCP", true)
-				assertReachable([]*framework.VM{client}, []*framework.VM{nginx}, "ICMP", true)
-			})
+				assertFlowMatches(&SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{icmpAllowPolicy, icmpDropPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
+					Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+				})
 
-			It("Should install all of necessary icmp policy flow to datapath", func() {
-				assertFlowExists(icmpAllowPolicyFlows)
-				assertFlowExists(icmpDropPolicyFlows)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "ICMP", false)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "ICMP", true)
 			})
 		})
-
-		// todo: isolate virtual machine
-		XWhen("isolate virtual machine with viruses", func() {})
 	})
 
-	Context("vm isolation", func() {
-		var nginx, server01, server02, db01, db02, client *framework.VM
-		var nginxGroup, serverGroup, dbGroup, clientGroup *groupv1alpha1.EndpointGroup
-		var clientPort, nginxPort, serverPort, dbPort int
+	Context("endpoint isolation [Feature:ISOLATION]", func() {
+		var ep01, ep02, ep03, ep04 *model.Endpoint
+		var forensicGroup *groupv1alpha1.EndpointGroup
+		var tcpPort int
 
 		BeforeEach(func() {
-			clientPort, nginxPort, serverPort, dbPort = 80, 443, 443, 3306
+			if e2eEnv.EndpointManager().Name() == "tower" {
+				Skip("isolation vm from tower need tower support")
+			}
+			tcpPort = 443
 
-			nginx = &framework.VM{Name: "nginx", TCPPort: nginxPort, Labels: "component=nginx"}
-			server01 = &framework.VM{Name: "server01", TCPPort: serverPort, Labels: "component=webserver"}
-			server02 = &framework.VM{Name: "server02", TCPPort: serverPort, Labels: "component=webserver"}
-			db01 = &framework.VM{Name: "db01", TCPPort: dbPort, Labels: "component=database"}
-			db02 = &framework.VM{Name: "db02", TCPPort: dbPort, Labels: "component=database"}
-			client = &framework.VM{Name: "client", TCPPort: clientPort, Labels: "component=client"}
+			ep01 = &model.Endpoint{Name: "ep01", TCPPort: tcpPort}
+			ep02 = &model.Endpoint{Name: "ep02", TCPPort: tcpPort}
+			ep03 = &model.Endpoint{Name: "ep03", TCPPort: tcpPort}
+			ep04 = &model.Endpoint{Name: "ep04", TCPPort: tcpPort}
 
-			nginxGroup = newGroup("nginx", "component=nginx")
-			serverGroup = newGroup("webserver", "component=webserver")
-			dbGroup = newGroup("database", "component=database")
-			clientGroup = newGroup("client", "component=client")
+			forensicGroup = newGroup("forensic", map[string]string{"component": "forensic"})
 
-			Expect(e2eEnv.SetupVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(nginxGroup, serverGroup, dbGroup, clientGroup)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(ctx, forensicGroup)).Should(Succeed())
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ep01, ep02, ep03, ep04)).Should(Succeed())
 		})
 
-		AfterEach(func() {
-			Expect(e2eEnv.CleanVMs(nginx, server01, server02, db01, db02, client)).Should(Succeed())
-			Expect(e2eEnv.CleanObjects(nginxGroup, serverGroup, dbGroup, clientGroup)).Should(Succeed())
-		})
-
-		When("Isolate vm", func() {
+		When("Isolate endpoint", func() {
 			var isolationPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				isolationPolicy = newPolicy("isolation-policy", tier0, 50, []string{}, []string{db01.Name})
-				Expect(e2eEnv.SetupObjects(isolationPolicy)).Should(Succeed())
+				isolationPolicy = newPolicy("isolation-policy", tier0, 50, nil, []string{ep01.Name})
+
+				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
 			})
 
-			AfterEach(func() {
-				Expect(e2eEnv.CleanObjects(isolationPolicy)).Should(Succeed())
-			})
+			It("Isolated endpoint should not allow to communicate with all of endpoint", func() {
+				securityModel := &SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{isolationPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
+					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
+				}
 
-			It("Isolated vm should not allow to communicate with all of vm", func() {
-				assertReachable([]*framework.VM{client, nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
+				By("verify all agents has correct flows")
+				assertFlowMatches(securityModel)
+
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+				expectedTruthTable.SetAllFrom(ep01.Name, false)
+				expectedTruthTable.SetAllTo(ep01.Name, false)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 			})
 		})
 
-		When("Forensic vm", func() {
+		When("Forensic endpoint", func() {
 			var forensicPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				forensicPolicy = newPolicy("forensic-policy", tier0, 100, []string{}, []string{db01.Name})
-				addIngressRule(forensicPolicy, "TCP", 3306, clientGroup.Name)
+				forensicPolicy = newPolicy("forensic-policy", tier0, 100, nil, []string{ep01.Name})
+				addIngressRule(forensicPolicy, "TCP", tcpPort, forensicGroup.Name)
 
-				Expect(e2eEnv.SetupObjects(forensicPolicy)).Should(Succeed())
+				// set ep02 as forensic endpoint
+				ep02.Labels = map[string]string{"component": "forensic"}
+
+				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep02)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy)).Should(Succeed())
 			})
 
-			AfterEach(func() {
-				Expect(e2eEnv.CleanObjects(forensicPolicy)).Should(Succeed())
+			It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
+				securityModel := &SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
+					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
+				}
+
+				By("verify all agents has correct flows")
+				assertFlowMatches(securityModel)
+
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+				expectedTruthTable.SetAllFrom(ep01.Name, false)
+				expectedTruthTable.SetAllTo(ep01.Name, false)
+				expectedTruthTable.Set(ep02.Name, ep01.Name, true)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 			})
 
-			It("Isolated vm should not allow to communicate with all of vm except forensic defined allowed endpoint", func() {
-				assertReachable([]*framework.VM{nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
-				assertReachable([]*framework.VM{db01}, []*framework.VM{nginx, server01, server02, db02}, "TCP", false)
-
-				assertReachable([]*framework.VM{client}, []*framework.VM{db01}, "TCP", true)
-			})
-
-			When("forensic update vm status after setup policy", func() {
+			When("forensic update endpoint status after setup policy", func() {
 				BeforeEach(func() {
-					Expect(e2eEnv.UpdateVMRandIP(db01)).Should(Succeed())
+					Expect(e2eEnv.EndpointManager().RenewIPMany(ctx, ep01)).Should(Succeed())
 				})
 
-				It("Isolated vm should not allow to communicate with all of vm except forensic defined allowed endpoint", func() {
-					assertReachable([]*framework.VM{nginx, server01, server02, db02}, []*framework.VM{db01}, "TCP", false)
-					assertReachable([]*framework.VM{db01}, []*framework.VM{client, nginx, server01, server02, db02}, "TCP", false)
+				It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
+					securityModel := &SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
+						Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
+						Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
+					}
 
-					assertReachable([]*framework.VM{client}, []*framework.VM{db01}, "TCP", true)
+					By("verify all agents has correct flows")
+					assertFlowMatches(securityModel)
+
+					By("verify reachable between endpoints")
+					expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+					expectedTruthTable.SetAllFrom(ep01.Name, false)
+					expectedTruthTable.SetAllTo(ep01.Name, false)
+					expectedTruthTable.Set(ep02.Name, ep01.Name, true)
+					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 				})
 			})
 		})
@@ -336,9 +323,9 @@ var _ = Describe("SecurityPolicy", func() {
 	//  | "10.0.0.0/28"  |  <--->  | ntp-production |    | ntp-development |  <--->  | "10.0.0.16/28" |
 	//  | ---------------|         |--------------- |    |---------------- |         |--------------- |
 	//
-	Context("environment with virtual machines provide internal udp service [Feature:UDP] [Feature:IPBlocks]", func() {
-		var ntp01, ntp02, client01, client02 *framework.VM
-		var ntpProduction, ntpDevelopment *groupv1alpha1.EndpointGroup
+	Context("environment with endpoints provide internal udp service [Feature:UDP] [Feature:IPBlocks]", func() {
+		var ntp01, ntp02, client01, client02 *model.Endpoint
+		var ntpProductionGroup, ntpDevelopmentGroup *groupv1alpha1.EndpointGroup
 
 		var ntpPort int
 		var productionCidr, developmentCidr string
@@ -348,82 +335,67 @@ var _ = Describe("SecurityPolicy", func() {
 			productionCidr = "10.0.0.0/28"
 			developmentCidr = "10.0.0.16/28"
 
-			client01 = &framework.VM{Name: "ntp-client01", ExpectCidr: productionCidr}
-			client02 = &framework.VM{Name: "ntp-client02", ExpectCidr: developmentCidr}
-			ntp01 = &framework.VM{Name: "ntp01-server", ExpectCidr: productionCidr, UDPPort: ntpPort, Labels: "component=ntp,env=production"}
-			ntp02 = &framework.VM{Name: "ntp02-server", ExpectCidr: developmentCidr, UDPPort: ntpPort, Labels: "component=ntp,env=development"}
+			client01 = &model.Endpoint{Name: "ntp-client01", ExpectSubnet: productionCidr}
+			client02 = &model.Endpoint{Name: "ntp-client02", ExpectSubnet: developmentCidr}
+			ntp01 = &model.Endpoint{Name: "ntp01-server", ExpectSubnet: productionCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "production"}}
+			ntp02 = &model.Endpoint{Name: "ntp02-server", ExpectSubnet: developmentCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "development"}}
 
-			ntpProduction = newGroup("ntp-production", "component=ntp,env=production")
-			ntpDevelopment = newGroup("ntp-development", "component=ntp,env=development")
+			ntpProductionGroup = newGroup("ntp-production", map[string]string{"component": "ntp", "env": "production"})
+			ntpDevelopmentGroup = newGroup("ntp-development", map[string]string{"component": "ntp", "env": "development"})
 
-			Expect(e2eEnv.SetupVMs(ntp01, ntp02, client01, client02)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(ntpProduction, ntpDevelopment)).Should(Succeed())
-		})
-
-		AfterEach(func() {
-			Expect(e2eEnv.CleanVMs(ntp01, ntp02, client01, client02)).Should(Succeed())
-			Expect(e2eEnv.CleanObjects(ntpProduction, ntpDevelopment)).Should(Succeed())
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ntp01, ntp02, client01, client02)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(ctx, ntpProductionGroup, ntpDevelopmentGroup)).Should(Succeed())
 		})
 
 		When("limits udp packets by ipBlocks between server and client", func() {
 			var ntpProductionPolicy, ntpDevelopmentPolicy *securityv1alpha1.SecurityPolicy
-			var ntpProductionPolicyFlows, ntpDevelopmentPolicyFlows []string
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, 50, []string{ntpProduction.Name}, []string{})
+				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, 50, []string{ntpProductionGroup.Name}, nil)
 				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, productionCidr)
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, 50, []string{ntpDevelopment.Name}, []string{})
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, 50, []string{ntpDevelopmentGroup.Name}, nil)
 				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, developmentCidr)
 
-				Expect(e2eEnv.SetupObjects(ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
-
-				ntpProductionPolicyFlows = e2eEnv.GetExpectedFlows(*ntpProductionPolicy)
-				ntpDevelopmentPolicyFlows = e2eEnv.GetExpectedFlows(*ntpDevelopmentPolicy)
-			})
-
-			AfterEach(func() {
-				Expect(e2eEnv.CleanObjects(ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
 			})
 
 			It("should allow normal packets and limits illegal packets", func() {
+				By("verify agent has correct open flows")
+				assertFlowMatches(&SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{ntpProductionPolicy, ntpDevelopmentPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{ntpProductionGroup, ntpDevelopmentGroup},
+					Endpoints: []*model.Endpoint{ntp01, ntp02, client01, client02},
+				})
+
 				By("verify policy limits illegal packets")
-				assertReachable([]*framework.VM{client01}, []*framework.VM{ntp02}, "UDP", false)
-				assertReachable([]*framework.VM{client02}, []*framework.VM{ntp01}, "UDP", false)
+				assertReachable([]*model.Endpoint{client01}, []*model.Endpoint{ntp02}, "UDP", false)
+				assertReachable([]*model.Endpoint{client02}, []*model.Endpoint{ntp01}, "UDP", false)
 
 				By("verify reachable between servers")
-				assertReachable([]*framework.VM{ntp01}, []*framework.VM{ntp02}, "UDP", false)
-				assertReachable([]*framework.VM{ntp02}, []*framework.VM{ntp01}, "UDP", false)
+				assertReachable([]*model.Endpoint{ntp01}, []*model.Endpoint{ntp02}, "UDP", false)
+				assertReachable([]*model.Endpoint{ntp02}, []*model.Endpoint{ntp01}, "UDP", false)
 
 				By("verify reachable between server and client")
-				assertReachable([]*framework.VM{client01}, []*framework.VM{ntp01}, "UDP", true)
-				assertReachable([]*framework.VM{client02}, []*framework.VM{ntp02}, "UDP", true)
-			})
-
-			It("Should install all of necessary udp policy flow to datapath", func() {
-				assertFlowExists(ntpDevelopmentPolicyFlows)
-				assertFlowExists(ntpProductionPolicyFlows)
+				assertReachable([]*model.Endpoint{client01}, []*model.Endpoint{ntp01}, "UDP", true)
+				assertReachable([]*model.Endpoint{client02}, []*model.Endpoint{ntp02}, "UDP", true)
 			})
 		})
 	})
 })
 
-func newGroup(name string, labels string) *groupv1alpha1.EndpointGroup {
+func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGroup {
 	group := &groupv1alpha1.EndpointGroup{}
 	group.Name = name
-	selector := framework.AsMapLables(labels)
 
 	group.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: selector,
 	}
 
-	e2eEnv.SetupGroup(name, labels)
-
 	return group
 }
 
-func newPolicy(name, tier string, priority int32, appliedGroup []string,
-	endpoints []string) *securityv1alpha1.SecurityPolicy {
+func newPolicy(name, tier string, priority int32, appliedGroup []string, endpoints []string) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
 
@@ -488,13 +460,31 @@ func getPeer(peers ...string) securityv1alpha1.SecurityPolicyPeer {
 	return policyPeer
 }
 
-func assertReachable(sources []*framework.VM, destinations []*framework.VM, protocol string, expectReach bool) {
+func assertFlowMatches(securityModel *SecurityModel) {
+	// todo: expectFlows should always not empty, check it first
+	expectFlows := securityModel.ExpectedFlows()
+
+	Eventually(func() map[string][]string {
+		allFlows, err := e2eEnv.NodeManager().DumpFlowAll()
+		Expect(err).Should(Succeed())
+		return allFlows
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.ContainsFlow(expectFlows))
+}
+
+func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, protocol string, expectReach bool) {
 	Eventually(func() error {
 		var errList []error
 
 		for _, src := range sources {
 			for _, dst := range destinations {
-				reach, err := e2eEnv.Reachable(src, dst, protocol)
+				var port int
+				if protocol == "TCP" {
+					port = dst.TCPPort
+				}
+				if protocol == "UDP" {
+					port = dst.UDPPort
+				}
+				reach, err := e2eEnv.EndpointManager().Reachable(ctx, src.Name, dst.Name, protocol, port)
 				Expect(err).Should(Succeed())
 
 				if reach == expectReach {
@@ -509,19 +499,10 @@ func assertReachable(sources []*framework.VM, destinations []*framework.VM, prot
 	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
 }
 
-func assertFlowExists(expectFlows []string) {
-	Eventually(func() error {
-		var errList []error
-		currentDatapathFlows, _ := e2eEnv.FlowDump(DefaultBridgeName)
-
-		for _, flow := range expectFlows {
-			if e2eEnv.FlowMatch(currentDatapathFlows, flow) {
-				continue
-			}
-			errList = append(errList,
-				fmt.Errorf("Policy flow %+v was not found", flow))
-		}
-
-		return errors.NewAggregate(errList)
-	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
+func assertMatchReachTable(protocol string, port int, expectedTruthTable *model.TruthTable) {
+	Eventually(func() *model.TruthTable {
+		tt, err := e2eEnv.EndpointManager().ReachTruthTable(ctx, protocol, port)
+		Expect(err).Should(Succeed())
+		return tt
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.MatchTruthTable(expectedTruthTable, true))
 }

@@ -26,7 +26,7 @@ import (
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/types"
+	"github.com/smartxworks/lynx/tests/e2e/framework/model"
 )
 
 func printTier(output io.Writer, tiers []securityv1alpha1.Tier) error {
@@ -45,32 +45,19 @@ func printTier(output io.Writer, tiers []securityv1alpha1.Tier) error {
 	return printTable(output, table)
 }
 
-func printVM(output io.Writer, eps []securityv1alpha1.Endpoint) error {
-	var table = newTable("name", "agent", "netns", "labels", "tcp-port", "udp-port", "ipaddr")
-
-	var ipsToString = func(ips []types.IPAddress) string {
-		var list string
-		if len(ips) == 0 {
-			return ""
-		}
-
-		for _, ip := range ips {
-			list = fmt.Sprintf("%s,%s", list, ip.String())
-		}
-
-		return list[1:]
-	}
+func printEndpoint(output io.Writer, eps []*model.Endpoint) error {
+	var table = newTable("name", "host", "local-id", "labels", "tcp-port", "udp-port", "ip-addr")
 
 	for _, ep := range eps {
 		var row = []interface{}{}
 
 		row = append(row, ep.Name)
-		row = append(row, ep.Annotations["Agent"])
-		row = append(row, ep.Annotations["Netns"])
+		row = append(row, ep.Status.Host)
+		row = append(row, ep.Status.LocalID)
 		row = append(row, mapJoin(ep.Labels, "=", ","))
-		row = append(row, ep.Annotations["TCPPort"])
-		row = append(row, ep.Annotations["UDPPort"])
-		row = append(row, ipsToString(ep.Status.IPs))
+		row = append(row, ep.TCPPort)
+		row = append(row, ep.UDPPort)
+		row = append(row, ep.Status.IPAddr)
 
 		addRow(table, row)
 	}
@@ -88,7 +75,7 @@ func printGroup(output io.Writer, groups []groupv1alpha1.EndpointGroup, eps []se
 		return mapJoin(selector.MatchLabels, "=", ",")
 	}
 
-	var selectEndpoint = func(ls *metav1.LabelSelector, eps []securityv1alpha1.Endpoint) string {
+	var selectEndpointNames = func(ls *metav1.LabelSelector, eps []securityv1alpha1.Endpoint) string {
 		var epList []string
 
 		for _, ep := range selectEndpoint(ls, &securityv1alpha1.EndpointList{Items: eps}).Items {
@@ -103,7 +90,7 @@ func printGroup(output io.Writer, groups []groupv1alpha1.EndpointGroup, eps []se
 
 		row = append(row, group.Name)
 		row = append(row, selectorToString(group.Spec.Selector))
-		row = append(row, selectEndpoint(group.Spec.Selector, eps))
+		row = append(row, selectEndpointNames(group.Spec.Selector, eps))
 
 		addRow(table, row)
 	}

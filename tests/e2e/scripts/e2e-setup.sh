@@ -28,7 +28,6 @@ APISERVER_EXPOSE_IP=${1:-127.0.0.1}
 LYNX_AGENT_HOSTLIST=${2:-127.0.0.1}
 UPLINK_IFACE=${3:-ens11}
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
-LYNX_E2E_CONFIG_FILE="/etc/lynx/e2e-config.yaml"
 
 echo "setup lynx controlplane on localhost"
 make controller
@@ -36,6 +35,7 @@ cp bin/lynx-controller /usr/local/bin/lynx-controller
 bash ${LOCAL_PATH}/controlplane-setup.sh ${APISERVER_EXPOSE_IP}
 
 make agent
+make e2e-tools
 for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
   printf "deploy lynx-agent on host %s\n" ${agent}
 
@@ -44,13 +44,36 @@ for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
 
   ssh ${ssh_args} ${agent} mkdir -p /usr/local/bin/ "$(dirname ${agent_kubeconfig})"
   scp ${ssh_args} bin/lynx-agent ${agent}:/usr/local/bin/lynx-agent
+  scp ${ssh_args} bin/net-utils ${agent}:/usr/local/bin/net-utils
   scp ${ssh_args} /etc/lynx/kubeconfig/lynx-agent.yaml ${agent}:${agent_kubeconfig}
 
   ssh ${ssh_args} ${agent} 'bash -s' < ${LOCAL_PATH}/agent-setup.sh ${UPLINK_IFACE} ${agent_kubeconfig}
 done
 
 echo "generate lynx e2e environment config"
-echo ${LYNX_AGENT_HOSTLIST} > ${LYNX_E2E_CONFIG_FILE}
+kubectl apply -f - << EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lynx-e2e-framework-config
+  namespace: kube-system
+data:
+  config: |-
+    nodes:
+$(
+  for agent in $(echo ${APISERVER_EXPOSE_IP},${LYNX_AGENT_HOSTLIST} | sed "s/,/\n/g" | sort -u); do
+    printf "    - name: %s\n" $agent
+    printf "      roles: \n"
+    printf "      - agent \n"
+    if [[ $agent == "${APISERVER_EXPOSE_IP}" ]]; then
+    printf "      - controller \n"
+    fi
+    printf "      user: %s\n" ${USER}
+    printf "      dial-address: %s:22\n" $agent
+    printf "      bridge-name: vlanLearnBridge\n"
+  done
+)
+EOF
 
 echo "========================================================="
 echo " "

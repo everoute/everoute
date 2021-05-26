@@ -12,6 +12,7 @@ require (
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.3
+	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/gorilla/websocket v1.4.2
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.1

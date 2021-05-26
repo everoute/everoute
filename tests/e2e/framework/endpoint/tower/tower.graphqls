@@ -1,0 +1,240 @@
+type Mutation {
+    createVm(data: VmCreateInput!, effect: CreateVmEffect!): Vm!
+    updateVm(data: VmUpdateInput!, where: VmWhereUniqueInput!): Vm
+    deleteVm(where: VmWhereUniqueInput!): Vm
+    createLabel(data: LabelCreateInput!): Label!
+    updateLabel(data: LabelUpdateInput!, where: LabelWhereUniqueInput!): Label
+    deleteLabel(where: LabelWhereUniqueInput!): Label
+}
+
+type Query {
+    vm(where: VmWhereUniqueInput!): Vm
+    vms: [Vm!]!
+    label(where: LabelWhereUniqueInput!): Label
+    labels: [Label!]!
+    vmTemplate(where: VmTemplateWhereUniqueInput!): VmTemplate
+    host(where: HostWhereUniqueInput!): Host
+}
+
+type Cluster {
+    id: ID!
+}
+
+type FrozenDisks {
+    bus: String!
+    path: String!
+    size: Float!
+    type: String!
+}
+
+type FrozenVlan {
+    vlan_local_id: String!
+}
+
+type TemplateNic {
+    vlan: FrozenVlan!
+}
+
+type Vm {
+    description: String!
+    entityAsyncStatus: EntityAsyncStatus
+    host: Host
+    id: ID!
+    local_id: String!
+    name: String!
+    status: VmStatus!
+}
+
+type Label {
+    id: ID!
+    key: String!
+    value: String
+    vms: [Vm!]
+}
+
+type Host {
+    data_ip: String!
+    id: ID!
+    name: String!
+}
+
+type Cpu {
+    cores: Int!
+    sockets: Int!
+}
+
+type VmTemplate {
+    clock_offset: String!
+    cluster: Cluster!
+    cpu: Cpu!
+    cpu_model: String!
+    firmware: String!
+    ha: Boolean!
+    id: ID!
+    vm_disks: [FrozenDisks!]
+    vm_nics: [TemplateNic!]
+    memory: Float!
+    vcpu: Int!
+    win_opt: Boolean!
+}
+
+input CpuInput {
+    cores: Int!
+    sockets: Int!
+}
+
+input CreateVmEffect {
+    clone_id: String
+    created_from_template_id: String
+    is_full_copy: Boolean
+}
+
+input DeleteVmEffect {
+    include_snapshots: Boolean
+}
+
+input ConnectInput {
+    connect: UniqueInput
+}
+
+input ConnectManyInput {
+    connect: [UniqueInput!]
+    disconnect: [UniqueInput!]
+}
+
+input HostWhereUniqueInput {
+    id: ID
+}
+
+input LabelCreateInput {
+    key: String!
+    value: String
+    vms: ConnectManyInput
+}
+
+input LabelUpdateInput {
+    vms: ConnectManyInput
+}
+
+input LabelWhereUniqueInput {
+    id: ID
+}
+
+input UniqueInput {
+    id: ID
+    local_id: String!
+}
+
+input VmDiskCreateManyWithoutVmInput {
+    create: [VmDiskCreateWithoutVmInput!]
+}
+
+input VmDiskCreateWithoutVmInput {
+    boot: Int!
+    bus: String!
+    index: Int
+    type: String!
+    vm_volume: VmVolumeCreateOneWithoutVm_disksInput
+}
+
+input VmNicCreateManyWithoutVmInput {
+    create: [VmNicCreateWithoutVmInput!]
+}
+
+input VmNicCreateWithoutVmInput {
+    enabled: Boolean
+    local_id: String!
+    model: VmNicModel
+    vlan: ConnectInput
+}
+
+input VmWhereUniqueInput {
+    id: ID
+}
+
+input VmTemplateWhereUniqueInput {
+    id: ID
+}
+
+input VmUpdateInput {
+    description: String
+    node_ip: String
+}
+
+input VmVolumeCreateOneWithoutVm_disksInput {
+    create: VmVolumeCreateWithoutVm_disksInput
+}
+
+input VmVolumeCreateWithoutVm_disksInput {
+    cluster: ConnectInput!
+    elf_storage_policy: VmVolumeElfStoragePolicyType!
+    local_created_at: String!
+    local_id: String!
+    mounting: Boolean!
+    name: String!
+    path: String!
+    sharing: Boolean!
+    size: Float!
+}
+
+input VmCreateInput {
+    clock_offset: String!
+    cluster: ConnectInput
+    cpu: CpuInput!
+    cpu_model: String!
+    description: String!
+    firmware: String!
+    ha: Boolean!
+    host: ConnectInput
+    id: ID
+    in_recycle_bin: Boolean!
+    internal: Boolean!
+    ips: String!
+    local_id: String!
+    memory: Float!
+    name: String!
+    nested_virtualization: Boolean!
+    node_ip: String!
+    protected: Boolean!
+    status: VmStatus!
+    vcpu: Int!
+    vm_disks: VmDiskCreateManyWithoutVmInput
+    vm_nics: VmNicCreateManyWithoutVmInput
+    vm_tools_status: VmToolsStatus!
+    win_opt: Boolean!
+}
+
+enum EntityAsyncStatus {
+    CREATING
+    DELETING
+    UPDATING
+}
+
+enum VmNicModel {
+    E1000
+    VIRTIO
+}
+
+enum VmStatus {
+    DELETED
+    RUNNING
+    STOPPED
+    SUSPENDED
+    UNKNOWN
+}
+
+enum VmToolsStatus {
+    NOT_INSTALLED
+    NOT_RUNNING
+    RESTRICTION
+    RUNNING
+}
+
+enum VmVolumeElfStoragePolicyType {
+    REPLICA_1_THICK_PROVISION
+    REPLICA_1_THIN_PROVISION
+    REPLICA_2_THICK_PROVISION
+    REPLICA_2_THIN_PROVISION
+    REPLICA_3_THICK_PROVISION
+    REPLICA_3_THIN_PROVISION
+}

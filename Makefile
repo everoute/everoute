@@ -3,19 +3,23 @@ APISERVER_BOOT=$(shell which apiserver-boot)
 
 all: codegen manifests bin
 
-bin: controller
+bin: controller agent e2e-tools plugins
 
 images:
 	docker build -f build/images/release/Dockerfile -t lynx/release .
 
-controller: fmt vet
+controller:
 	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
 
 agent:
-	go build -o bin/lynx-agent cmd/lynx-agent/*.go
+	CGO_ENABLED=0 go build -o bin/lynx-agent cmd/lynx-agent/*.go
 
-e2ectl:
-	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl.go
+e2e-tools:
+	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go
+	CGO_ENABLED=0 go build -o bin/net-utils tests/e2e/tools/net-utils/*.go
+
+plugins:
+	CGO_ENABLED=0 go build -o bin/lynx-plugin-tower plugin/tower/cmd/*.go
 
 test:
 	go test ./pkg/...

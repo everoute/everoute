@@ -5,8 +5,7 @@ This document show how to setup or reset the lynx e2e environment.
 
 ### requirement
 - At least one linux virtual machine for e2e environment.
-- Openvswitch should installed for every agent node.
-- At least two virtual network card on every agent node.
+- Openvswitch should be installed for every agent node.
 
 ### step
 1. Clone [lynx](https://github.com/smartxworks/lynx.git) into you e2e test environment.

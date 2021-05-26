@@ -19,11 +19,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/smartxworks/lynx/tests/e2e/framework"
-	"github.com/smartxworks/lynx/tests/e2e/tools/command"
+	"github.com/smartxworks/lynx/tests/e2e/tools/e2ectl/command"
 )
 
 func main() {
@@ -38,7 +39,7 @@ func rootCommand() *cobra.Command {
 		Short: "E2ectl: help you quickly start lynx e2e test",
 	}
 
-	f, err := framework.FrameworkFromConfig("/etc/lynx/e2e-config.yaml")
+	f, err := framework.NewFromKube(filepath.Join(os.Getenv("HOME"), ".kube", "config"))
 	if err != nil {
 		fmt.Printf("unable init e2e framework: %s\n", err)
 		os.Exit(1)
@@ -48,12 +49,11 @@ func rootCommand() *cobra.Command {
 	rootCmd.Root().SetHelpCommand(&cobra.Command{Hidden: true})
 	rootCmd.ResetFlags()
 
-	rootCmd.AddCommand(command.NewVMCommand(f))
+	rootCmd.AddCommand(command.NewEndpointCommand(f))
 	rootCmd.AddCommand(command.NewTierCommand(f))
 	rootCmd.AddCommand(command.NewGroupCommand(f))
 	rootCmd.AddCommand(command.NewPolicyCommand(f))
 	rootCmd.AddCommand(command.NewReachCommand(f))
-	rootCmd.AddCommand(command.NewCheckCommand(f))
 
 	return rootCmd
 }
