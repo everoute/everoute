@@ -53,6 +53,11 @@ var _ = BeforeSuite(func() {
 
 	err = e2eEnv.SetupObjects(ctx, defaultTier(tier0), defaultTier(tier1), defaultTier(tier2))
 	Expect(err).ToNot(HaveOccurred())
+
+	// Will random restart controller and agent when e2e. Skip restart controller when provider
+	// is netns, because it may cause failed when create endpoint (failed to call webhook).
+	restarter := e2eEnv.NodeManager().ServiceRestarter(10, 30, e2eEnv.EndpointManager().Name() == "netns")
+	go restarter.Run(make(chan struct{}))
 })
 
 var _ = AfterSuite(func() {
