@@ -32,6 +32,7 @@ import (
 	errutils "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog"
 
 	"github.com/smartxworks/lynx/tests/e2e/framework/config"
 )
@@ -132,7 +133,9 @@ func (n *Node) reRunProcess(name string) error {
 		return err
 	}
 	defer session.Close()
-	return session.Start(processCommand)
+
+	// start as daemon, and redirect output to log file
+	return session.Start(fmt.Sprintf("%s >> /var/log/%s.log 2>&1", processCommand, name))
 }
 
 func (n *Node) checkProcess(name string) (bool, error) {
@@ -318,4 +321,59 @@ func (m *Manager) ListController() []*Controller {
 		}
 	}
 	return agents
+}
+
+func (m *Manager) ServiceRestarter(minInterval, maxInterval int, ignoreController bool) *ServiceRestarter {
+	var serviceList []Service
+
+	for _, agent := range m.ListAgent() {
+		serviceList = append(serviceList, agent)
+	}
+
+	if !ignoreController {
+		for _, controller := range m.ListController() {
+			serviceList = append(serviceList, controller)
+		}
+	}
+
+	return &ServiceRestarter{
+		minInterval: minInterval,
+		maxInterval: maxInterval,
+		serviceList: serviceList,
+	}
+}
+
+type Service interface {
+	GetName() string
+	Restart() error
+	Healthz() (bool, error)
+	FetchLog() ([]byte, error)
+}
+
+// ServiceRestarter control automatically restart part of services after every random interval.
+type ServiceRestarter struct {
+	minInterval int
+	maxInterval int
+	serviceList []Service
+}
+
+func (c *ServiceRestarter) Run(stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-time.After(time.Duration(rand.IntnRange(c.minInterval, c.maxInterval)) * time.Second):
+			for _, service := range c.serviceList {
+				if rand.Intn(2) == 0 {
+					continue
+				}
+				klog.Infof("will restart service %s", service.GetName())
+
+				if err := service.Restart(); err != nil {
+					log, _ := service.FetchLog()
+					klog.Fatalf("failed to restart service %s: %s, log\n: %s", service.GetName(), err, string(log))
+				}
+			}
+		case <-stopCh:
+			return
+		}
+	}
 }

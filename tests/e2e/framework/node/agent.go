@@ -18,8 +18,9 @@ package node
 
 import (
 	"fmt"
-	"k8s.io/klog"
 	"strings"
+
+	"k8s.io/klog"
 )
 
 type Agent struct {
@@ -35,7 +36,11 @@ func (n *Agent) Restart() error {
 }
 
 func (n *Agent) FetchLog() ([]byte, error) {
-	return n.fetchFile(agentBinaryName)
+	return n.fetchFile(fmt.Sprintf("/var/log/%s.log", agentBinaryName))
+}
+
+func (n *Agent) GetName() string {
+	return fmt.Sprintf("%s/%s", n.Name, agentBinaryName)
 }
 
 func (n *Agent) Healthz() (bool, error) {

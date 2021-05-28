@@ -16,6 +16,10 @@ limitations under the License.
 
 package node
 
+import (
+	"fmt"
+)
+
 type Controller struct {
 	*Node
 }
@@ -28,8 +32,12 @@ func (n *Controller) Restart() error {
 	return n.reRunProcess(controllerBinaryName)
 }
 
+func (n *Controller) GetName() string {
+	return fmt.Sprintf("%s/%s", n.Name, controllerBinaryName)
+}
+
 func (n *Controller) FetchLog() ([]byte, error) {
-	return n.fetchFile(controllerBinaryName)
+	return n.fetchFile(fmt.Sprintf("/var/log/%s.log", controllerBinaryName))
 }
 
 func (n *Controller) Healthz() (bool, error) {
