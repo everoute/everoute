@@ -280,6 +280,10 @@ spec:
             priority:
               format: int32
               type: integer
+            symmetricMode:
+              description: SymmetricMode will generated symmetry rules for the policy.
+                Defaults to false.
+              type: boolean
             tier:
               type: string
           required:

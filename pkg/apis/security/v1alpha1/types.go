@@ -41,6 +41,10 @@ type SecurityPolicySpec struct {
 	Tier     string `json:"tier"`
 	Priority int32  `json:"priority"`
 
+	// SymmetricMode will generated symmetry rules for the policy.
+	// Defaults to false.
+	SymmetricMode bool `json:"symmetricMode,omitempty"`
+
 	// Object to be applied to list of ingress rule and egress rule
 	AppliedTo AppliedTo `json:"appliedTo"`
 
