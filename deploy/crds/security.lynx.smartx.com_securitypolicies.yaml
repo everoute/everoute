@@ -280,6 +280,22 @@ spec:
             priority:
               format: int32
               type: integer
+            symmetricMode:
+              description: SymmetricMode will generated symmetry policies for the
+                policy. Defaults to false.
+              type: boolean
+            symmetricSourceRef:
+              description: Reference to symmetric source. Present only if the policy
+                is symmetry policy. Populated by the lynx controller. Read-only.
+              properties:
+                policyName:
+                  type: string
+                ruleName:
+                  type: string
+              required:
+              - policyName
+              - ruleName
+              type: object
             tier:
               type: string
           required:

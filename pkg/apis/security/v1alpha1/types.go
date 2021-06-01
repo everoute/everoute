@@ -41,6 +41,14 @@ type SecurityPolicySpec struct {
 	Tier     string `json:"tier"`
 	Priority int32  `json:"priority"`
 
+	// SymmetricMode will generated symmetry policies for the policy.
+	// Defaults to false.
+	SymmetricMode bool `json:"symmetricMode,omitempty"`
+
+	// Reference to symmetric source. Present only if the policy is symmetry policy.
+	// Populated by the lynx controller. Read-only.
+	SymmetricSourceRef *PolicyRuleReference `json:"symmetricSourceRef,omitempty"`
+
 	// Object to be applied to list of ingress rule and egress rule
 	AppliedTo AppliedTo `json:"appliedTo"`
 
@@ -51,6 +59,11 @@ type SecurityPolicySpec struct {
 	// List of egress rules to be applied to giving groups. If this field is empty
 	// then this SecurityPolicy limits all outgoing traffic.
 	EgressRules []Rule `json:"egressRules,omitempty"`
+}
+
+type PolicyRuleReference struct {
+	PolicyName string `json:"policyName"`
+	RuleName   string `json:"ruleName"`
 }
 
 type AppliedTo struct {
