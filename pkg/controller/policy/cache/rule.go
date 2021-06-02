@@ -41,6 +41,9 @@ type CompleteRule struct {
 	Action    policyv1alpha1.RuleAction
 	Direction policyv1alpha1.RuleDirection
 
+	// SymmetricMode will ignore direction, generate both ingress and egress rule
+	SymmetricMode bool
+
 	// DefaultPolicyRule is true when the it's the default egress or ingress rule in policy.
 	DefaultPolicyRule bool
 
@@ -90,7 +93,13 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, po
 	for _, srcIPBlock := range srcIPBlocks {
 		for _, dstIPBlock := range dstIPBlocks {
 			for _, port := range ports {
-				policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, port))
+				if rule.SymmetricMode {
+					// SymmetricMode will ignore rule direction, create both ingress and egress
+					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, policyv1alpha1.RuleDirectionIn, port))
+					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, policyv1alpha1.RuleDirectionOut, port))
+				} else {
+					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, rule.Direction, port))
+				}
 			}
 		}
 	}
@@ -98,10 +107,10 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, po
 	return policyRuleList
 }
 
-func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, port RulePort) policyv1alpha1.PolicyRule {
+func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction policyv1alpha1.RuleDirection, port RulePort) policyv1alpha1.PolicyRule {
 	policyRule := policyv1alpha1.PolicyRule{
 		Spec: policyv1alpha1.PolicyRuleSpec{
-			Direction:         rule.Direction,
+			Direction:         direction,
 			DefaultPolicyRule: rule.DefaultPolicyRule,
 			Tier:              rule.Tier,
 			Priority:          rule.Priority,

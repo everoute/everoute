@@ -420,13 +420,14 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 
 	for _, rule := range policy.Spec.IngressRules {
 		ingressRule := &policycache.CompleteRule{
-			RuleID:      fmt.Sprintf("%s/%s.%s", policy.Name, "ingress", rule.Name),
-			Priority:    policy.Spec.Priority,
-			Tier:        policy.Spec.Tier,
-			Action:      policyv1alpha1.RuleActionAllow,
-			Direction:   policyv1alpha1.RuleDirectionIn,
-			DstGroups:   policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-			DstIPBlocks: policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+			RuleID:        fmt.Sprintf("%s/%s.%s", policy.Name, "ingress", rule.Name),
+			Priority:      policy.Spec.Priority,
+			Tier:          policy.Spec.Tier,
+			Action:        policyv1alpha1.RuleActionAllow,
+			Direction:     policyv1alpha1.RuleDirectionIn,
+			SymmetricMode: policy.Spec.SymmetricMode,
+			DstGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+			DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 		}
 
 		if len(rule.From.IPBlocks)+len(rule.From.EndpointGroups) == 0 {
@@ -454,13 +455,14 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 
 	for _, rule := range policy.Spec.EgressRules {
 		egressRule := &policycache.CompleteRule{
-			RuleID:      fmt.Sprintf("%s/%s.%s", policy.Name, "egress", rule.Name),
-			Priority:    policy.Spec.Priority,
-			Tier:        policy.Spec.Tier,
-			Action:      policyv1alpha1.RuleActionAllow,
-			Direction:   policyv1alpha1.RuleDirectionOut,
-			SrcGroups:   policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-			SrcIPBlocks: policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+			RuleID:        fmt.Sprintf("%s/%s.%s", policy.Name, "egress", rule.Name),
+			Priority:      policy.Spec.Priority,
+			Tier:          policy.Spec.Tier,
+			Action:        policyv1alpha1.RuleActionAllow,
+			Direction:     policyv1alpha1.RuleDirectionOut,
+			SymmetricMode: policy.Spec.SymmetricMode,
+			SrcGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+			SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 		}
 
 		if len(rule.To.IPBlocks)+len(rule.To.EndpointGroups) == 0 {
@@ -492,6 +494,7 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 		Tier:              policy.Spec.Tier,
 		Action:            policyv1alpha1.RuleActionDrop,
 		Direction:         policyv1alpha1.RuleDirectionIn,
+		SymmetricMode:     false, // never generate symmetric rule for default rule
 		DefaultPolicyRule: true,
 		DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
 		DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
@@ -505,6 +508,7 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 		Tier:              policy.Spec.Tier,
 		Action:            policyv1alpha1.RuleActionDrop,
 		Direction:         policyv1alpha1.RuleDirectionOut,
+		SymmetricMode:     false, // never generate symmetric rule for default rule
 		DefaultPolicyRule: true,
 		SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
 		SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),

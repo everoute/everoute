@@ -83,8 +83,7 @@ var _ = Describe("PolicyController", func() {
 		}, timeout, interval).Should(BeZero())
 	})
 
-	Context("a policy and needed groups has been create", func() {
-		var policy *securityv1alpha1.SecurityPolicy
+	Context("policy needed endpoints and groups has been create", func() {
 		var group1, group2, group3 *groupv1alpha1.GroupMembers
 		var ep1, ep2, ep3 *securityv1alpha1.Endpoint
 
@@ -95,276 +94,352 @@ var _ = Describe("PolicyController", func() {
 			group1 = newTestGroupMembers(0, endpointToMember(ep1))
 			group2 = newTestGroupMembers(0, endpointToMember(ep2))
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
-			policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "22"), newTestPort("UDP", "80"))
 
-			By(fmt.Sprintf("create policy %s and groups %v", policy.Name, []string{group1.Name, group2.Name, group3.Name}))
-			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			By(fmt.Sprintf("create endpoints %s and groups %v", []string{ep1.Name, ep2.Name, ep3.Name}, []string{group1.Name, group2.Name, group3.Name}))
 			Expect(k8sClient.Create(ctx, group1)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group2)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group3)).Should(Succeed())
 		})
 
-		It("should flatten policy to rules", func() {
-			assertPolicyRulesNum(ctx, policy, 4)
-
-			assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-			assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-
-			// default ingress/egress rule (drop all to/from source)
-			assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-			assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-		})
-
-		When("create a patch add member in applied group", func() {
-			var patch *groupv1alpha1.GroupMembersPatch
-			var addEp *securityv1alpha1.Endpoint
+		When("create a sample policy with ingress and egress", func() {
+			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				addEp = newTestEndpoint("192.168.1.2")
-				patch = newTestGroupMembersPatch(group1.Name, group1.Revision, endpointToMember(addEp), nil, nil)
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "22"), newTestPort("UDP", "80"))
 
-				By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-				Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
 			})
-			It("should sync policy rules", func() {
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.2/32", 22, "TCP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.2/32", 0, "192.168.3.1/32", 80, "UDP")
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 4)
+
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+
+				// default ingress/egress rule (drop all to/from source)
+				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+
+			When("create a patch add member in applied group", func() {
+				var patch *groupv1alpha1.GroupMembersPatch
+				var addEp *securityv1alpha1.Endpoint
+
+				BeforeEach(func() {
+					addEp = newTestEndpoint("192.168.1.2")
+					patch = newTestGroupMembersPatch(group1.Name, group1.Revision, endpointToMember(addEp), nil, nil)
+
+					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should sync policy rules", func() {
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.2/32", 22, "TCP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.2/32", 0, "192.168.3.1/32", 80, "UDP")
+				})
+			})
+			When("create a patch remove member in ingress group", func() {
+				var patch *groupv1alpha1.GroupMembersPatch
+				var delEp *securityv1alpha1.Endpoint
+
+				BeforeEach(func() {
+					delEp = ep2.DeepCopy() // remove ep2 in group2
+					patch = newTestGroupMembersPatch(group2.Name, group2.Revision, nil, nil, endpointToMember(delEp))
+
+					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should remove ingress policy rules", func() {
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+				})
+			})
+			When("create a patch update member in egress group", func() {
+				var patch *groupv1alpha1.GroupMembersPatch
+				var updEp *securityv1alpha1.Endpoint
+
+				BeforeEach(func() {
+					updEp = ep3.DeepCopy() // update ep3 in group3
+					updEp.Status.IPs = []types.IPAddress{"192.168.3.2"}
+					patch = newTestGroupMembersPatch(group3.Name, group3.Revision, nil, endpointToMember(updEp), nil)
+
+					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should replace an egress policy rule", func() {
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.2/32", 80, "UDP")
+				})
+			})
+
+			When("add a group into applied groups", func() {
+				var newGroup *groupv1alpha1.GroupMembers
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					newEp := newTestEndpoint("192.168.1.2")
+					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.AppliedTo.EndpointGroups = append(updPolicy.Spec.AppliedTo.EndpointGroups, newGroup.Name)
+
+					By(fmt.Sprintf("update policy %s with new applied group %s", policy.Name, newGroup.Name))
+					Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should add ingress egress and default policy rule", func() {
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.2/32", 22, "TCP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.2/32", 0, "192.168.3.1/32", 80, "UDP")
+
+					// add endpoint into default rule
+					assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.2/32", 0, "")
+					assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.2/32", 0, "", 0, "")
+				})
+			})
+			When("add a group into ingress groups", func() {
+				var newGroup *groupv1alpha1.GroupMembers
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					newEp := newTestEndpoint("192.168.2.2")
+					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.IngressRules[0].From.EndpointGroups = append(updPolicy.Spec.IngressRules[0].From.EndpointGroups, newGroup.Name)
+
+					By(fmt.Sprintf("update policy %s with new ingress group %s", policy.Name, newGroup.Name))
+					Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should add an ingress policy rule", func() {
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.2/32", 0, "192.168.1.1/32", 22, "TCP")
+				})
+			})
+			When("remove groups from egress groups", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.EgressRules[0].To.EndpointGroups = nil
+
+					By(fmt.Sprintf("update policy %s with empty egress groups", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should remove egress policy rules", func() {
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+				})
+				It("should add an egress policy rule allow all destinations", func() {
+					// empty to securityPeer match all destinations
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "", 80, "UDP")
+				})
+			})
+
+			When("add an new empty from peer ingress rule", func() {
+				var newRule *securityv1alpha1.Rule
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					newRule = newTestRule(newTestPort("ICMP", ""), "", "")
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.IngressRules = append(updPolicy.Spec.IngressRules, *newRule)
+
+					By(fmt.Sprintf("update policy %s an new empty from peer ingress rule %s", policy.Name, newRule.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should add an ingress policy rule allow all sources", func() {
+					// empty from securityPeer match all sources
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "", 0, "192.168.1.1/32", 0, "ICMP")
+				})
+			})
+			When("remove all egress rules", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.EgressRules = nil
+
+					By(fmt.Sprintf("update policy %s remove all egress rule", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should remove egress policy rules", func() {
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+				})
+			})
+
+			When("update policy tier", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+				var tier string
+
+				BeforeEach(func() {
+					tier = "tier-test-" + rand.String(6)
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.Tier = tier
+
+					By(fmt.Sprintf("update policy %s with new tier %s", policy.Name, tier))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should replace policy rules tier", func() {
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+					assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+
+					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertHasPolicyRule(ctx, updPolicy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+					assertHasPolicyRule(ctx, updPolicy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+				})
+			})
+			When("update policy priority", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					priority := int32(rand.Intn(math.MaxInt32))
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.Priority = priority
+
+					By(fmt.Sprintf("update policy %s with new priority %d", policy.Name, priority))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should replace policy rules priority", func() {
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+					assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+
+					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertHasPolicyRule(ctx, updPolicy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+					assertHasPolicyRule(ctx, updPolicy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+				})
+			})
+
+			When("remove all ingress ports", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.IngressRules[0].Ports = nil
+
+					By(fmt.Sprintf("update policy %s ingress rule with empty ports", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should replace ingress policy rule ports", func() {
+					// empty Ports matches all ports
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 0, "")
+				})
+			})
+			When("update ingress protocol", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					protocol := securityv1alpha1.ProtocolUDP
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.IngressRules[0].Ports[0].Protocol = protocol
+
+					By(fmt.Sprintf("update policy %s ingress rule with new protocol %s", policy.Name, protocol))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should replace ingress policy rule protocol", func() {
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "UDP")
+				})
+			})
+			When("update egress portrange", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					portRange := "8080-8082"
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.EgressRules[0].Ports[0].PortRange = portRange
+
+					By(fmt.Sprintf("update policy %s ingress rule with new portRange %s", policy.Name, portRange))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should sync egress policy rules", func() {
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8080, "UDP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8081, "UDP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8082, "UDP")
+				})
+			})
+
+			When("remove security policy", func() {
+				BeforeEach(func() {
+					Expect(k8sClient.Delete(ctx, policy)).Should(Succeed())
+				})
+
+				It("should remove all the policy generate rules", func() {
+					assertPolicyRulesNum(ctx, policy, 0)
+				})
+			})
+
+			When("enable policy SymmetricMode", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.SymmetricMode = true
+
+					By(fmt.Sprintf("update policy %s with SymmetricMode enable", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+
+				It("should generated symmetric policy rules", func() {
+					// 2 ingress, 2 egress, 2 default rules
+					assertPolicyRulesNum(ctx, policy, 6)
+
+					// ingress symmetry egress rule
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					// egress symmetry ingress rule
+					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+				})
 			})
 		})
-		When("create a patch remove member in ingress group", func() {
-			var patch *groupv1alpha1.GroupMembersPatch
-			var delEp *securityv1alpha1.Endpoint
+
+		When("create a sample policy with SymmetricMode enable", func() {
+			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				delEp = ep2.DeepCopy() // remove ep2 in group2
-				patch = newTestGroupMembersPatch(group2.Name, group2.Revision, nil, nil, endpointToMember(delEp))
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy.Spec.SymmetricMode = true
 
-				By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-				Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				By(fmt.Sprintf("create policy %s with SymmetricMode enable", policy.Name))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
 			})
-			It("should remove ingress policy rules", func() {
-				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 6)
+
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+
+				// symmetry rules
+				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+
+				// default ingress/egress rule (drop all to/from source)
+				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
 			})
-		})
-		When("create a patch update member in egress group", func() {
-			var patch *groupv1alpha1.GroupMembersPatch
-			var updEp *securityv1alpha1.Endpoint
 
-			BeforeEach(func() {
-				updEp = ep3.DeepCopy() // update ep3 in group3
-				updEp.Status.IPs = []types.IPAddress{"192.168.3.2"}
-				patch = newTestGroupMembersPatch(group3.Name, group3.Revision, nil, endpointToMember(updEp), nil)
+			When("disable policy SymmetricMode", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
 
-				By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-				Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-			})
-			It("should replace an egress policy rule", func() {
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.2/32", 80, "UDP")
-			})
-		})
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.SymmetricMode = false
 
-		When("add a group into applied groups", func() {
-			var newGroup *groupv1alpha1.GroupMembers
-			var updPolicy *securityv1alpha1.SecurityPolicy
+					By(fmt.Sprintf("update policy %s with SymmetricMode disable", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
 
-			BeforeEach(func() {
-				newEp := newTestEndpoint("192.168.1.2")
-				newGroup = newTestGroupMembers(0, endpointToMember(newEp))
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.AppliedTo.EndpointGroups = append(updPolicy.Spec.AppliedTo.EndpointGroups, newGroup.Name)
+				It("should remove symmetric policy rules", func() {
+					assertPolicyRulesNum(ctx, policy, 4)
 
-				By(fmt.Sprintf("update policy %s with new applied group %s", policy.Name, newGroup.Name))
-				Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should add ingress egress and default policy rule", func() {
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.2/32", 22, "TCP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.2/32", 0, "192.168.3.1/32", 80, "UDP")
-
-				// add endpoint into default rule
-				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.2/32", 0, "")
-				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.2/32", 0, "", 0, "")
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				})
 			})
 		})
-		When("add a group into ingress groups", func() {
-			var newGroup *groupv1alpha1.GroupMembers
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				newEp := newTestEndpoint("192.168.2.2")
-				newGroup = newTestGroupMembers(0, endpointToMember(newEp))
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.IngressRules[0].From.EndpointGroups = append(updPolicy.Spec.IngressRules[0].From.EndpointGroups, newGroup.Name)
-
-				By(fmt.Sprintf("update policy %s with new ingress group %s", policy.Name, newGroup.Name))
-				Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should add an ingress policy rule", func() {
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.2/32", 0, "192.168.1.1/32", 22, "TCP")
-			})
-		})
-		When("remove groups from egress groups", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.EgressRules[0].To.EndpointGroups = nil
-
-				By(fmt.Sprintf("update policy %s with empty egress groups", policy.Name))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should remove egress policy rules", func() {
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-			})
-			It("should add an egress policy rule allow all destinations", func() {
-				// empty to securityPeer match all destinations
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "", 80, "UDP")
-			})
-		})
-
-		When("add an new empty from peer ingress rule", func() {
-			var newRule *securityv1alpha1.Rule
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				newRule = newTestRule(newTestPort("ICMP", ""), "", "")
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.IngressRules = append(updPolicy.Spec.IngressRules, *newRule)
-
-				By(fmt.Sprintf("update policy %s an new empty from peer ingress rule %s", policy.Name, newRule.Name))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should add an ingress policy rule allow all sources", func() {
-				// empty from securityPeer match all sources
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "", 0, "192.168.1.1/32", 0, "ICMP")
-			})
-		})
-		When("remove all egress rules", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.EgressRules = nil
-
-				By(fmt.Sprintf("update policy %s remove all egress rule", policy.Name))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should remove egress policy rules", func() {
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-			})
-		})
-
-		When("update policy tier", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-			var tier string
-
-			BeforeEach(func() {
-				tier = "tier-test-" + rand.String(6)
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.Tier = tier
-
-				By(fmt.Sprintf("update policy %s with new tier %s", policy.Name, tier))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should replace policy rules tier", func() {
-				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-				assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-
-				assertHasPolicyRule(ctx, updPolicy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertHasPolicyRule(ctx, updPolicy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertHasPolicyRule(ctx, updPolicy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-				assertHasPolicyRule(ctx, updPolicy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-			})
-		})
-		When("update policy priority", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				priority := int32(rand.Intn(math.MaxInt32))
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.Priority = priority
-
-				By(fmt.Sprintf("update policy %s with new priority %d", policy.Name, priority))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should replace policy rules priority", func() {
-				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-				assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-
-				assertHasPolicyRule(ctx, updPolicy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertHasPolicyRule(ctx, updPolicy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertHasPolicyRule(ctx, updPolicy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-				assertHasPolicyRule(ctx, updPolicy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-			})
-		})
-
-		When("remove all ingress ports", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.IngressRules[0].Ports = nil
-
-				By(fmt.Sprintf("update policy %s ingress rule with empty ports", policy.Name))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should replace ingress policy rule ports", func() {
-				// empty Ports matches all ports
-				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 0, "")
-			})
-		})
-		When("update ingress protocol", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				protocol := securityv1alpha1.ProtocolUDP
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.IngressRules[0].Ports[0].Protocol = protocol
-
-				By(fmt.Sprintf("update policy %s ingress rule with new protocol %s", policy.Name, protocol))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should replace ingress policy rule protocol", func() {
-				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "UDP")
-			})
-		})
-		When("update egress portrange", func() {
-			var updPolicy *securityv1alpha1.SecurityPolicy
-
-			BeforeEach(func() {
-				portRange := "8080-8082"
-				updPolicy = policy.DeepCopy()
-				updPolicy.Spec.EgressRules[0].Ports[0].PortRange = portRange
-
-				By(fmt.Sprintf("update policy %s ingress rule with new portRange %s", policy.Name, portRange))
-				mustUpdatePolicy(ctx, updPolicy)
-			})
-			It("should sync egress policy rules", func() {
-				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8080, "UDP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8081, "UDP")
-				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8082, "UDP")
-			})
-		})
-
-		When("remove security policy", func() {
-			BeforeEach(func() {
-				Expect(k8sClient.Delete(ctx, policy)).Should(Succeed())
-			})
-
-			It("should remove all the policy generate rules", func() {
-				assertPolicyRulesNum(ctx, policy, 0)
-			})
-		})
-
 	})
 })
 
