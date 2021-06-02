@@ -426,6 +426,7 @@ var _ = Describe("SecurityPolicy", func() {
 			BeforeEach(func() {
 				securityPolicy1 = newPolicy("group1-policy", tier0, 50, []string{"group1"}, nil)
 				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2.Name)
+				securityPolicy1.Spec.SymmetricMode = true
 
 				Expect(e2eEnv.SetupObjects(ctx, securityPolicy1)).Should(Succeed())
 			})
@@ -450,9 +451,8 @@ var _ = Describe("SecurityPolicy", func() {
 					Expect(e2eEnv.CleanObjects(ctx, securityPolicy2)).Should(Succeed())
 				})
 
-				// TODO, add auto non-symtric securityPolicy rule complement, and modify test assert condition
-				It("should allow group2 to communicate with group1", func() {
-					assertReachable([]*model.Endpoint{group2Endpoint01}, []*model.Endpoint{group1Endpoint1}, "TCP", false)
+				It("should deny group2 to communicate with group1", func() {
+					assertReachable([]*model.Endpoint{group2Endpoint01}, []*model.Endpoint{group1Endpoint1}, "TCP", true)
 				})
 			})
 		})
