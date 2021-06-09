@@ -348,7 +348,7 @@ func (m *provider) setupNewEndpoint(endpoint *model.Endpoint) error {
 		return err
 	}
 
-	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort)
+	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort, endpoint.VID)
 }
 
 func (m *provider) destroyEndpoint(endpoint *model.Endpoint) error {

@@ -49,10 +49,13 @@ type provider struct {
 	// template for create vm. A valid template should meet the following conditions:
 	// 1. Template with binary net-utils (build from tests/e2e/tools/net-utils).
 	// 2. VMTools has been installed on the vm template.
-	// 3. At least one network card should be provide (need vlan info).
 	vmTemplateID         string
 	vmTemplateCachedLock sync.Mutex
 	vmTemplateCached     *VMTemplate
+
+	// create vm in the specify vds
+	vdsID           string
+	mutationVdsLock sync.Mutex
 
 	// vmKeyFunc get vm's tower id from endpoint name
 	vmKeyFunc func(name string) string
@@ -61,12 +64,13 @@ type provider struct {
 	mutationLabelLock sync.Mutex
 }
 
-func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID string) model.EndpointProvider {
+func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID, vdsID string) model.EndpointProvider {
 	return &provider{
 		ipPool:       pool,
 		nodeManager:  nodeManager,
 		towerClient:  towerClient,
 		vmTemplateID: vmTemplateID,
+		vdsID:        vdsID,
 		vmKeyFunc:    vmKeyFuncDefault,
 	}
 }
@@ -119,7 +123,7 @@ func (m *provider) Create(ctx context.Context, endpoint *model.Endpoint) (*model
 		return nil, err
 	}
 
-	_, err = m.newFromTemplate(endpoint.Name, endpoint.Status.Host, description)
+	_, err = m.newFromTemplate(endpoint.Name, endpoint.Status.Host, endpoint.VID, description)
 	if err != nil {
 		return nil, fmt.Errorf("create %s from template %s: %s", endpoint.Name, m.vmTemplateID, err)
 	}
@@ -240,11 +244,15 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 	return m.guestExec(ctx, client, domain, cmd, nil, arg...)
 }
 
-func (m *provider) newFromTemplate(name string, agent string, describe string) (*VM, error) {
+func (m *provider) newFromTemplate(name string, agent string, vlanID int, describe string) (*VM, error) {
 	var err error
+	var vlanUUID string
 	var vmID = m.vmKeyFunc(name)
 
 	if err = m.cacheVMTemplate(); err != nil {
+		return nil, err
+	}
+	if vlanUUID, err = m.mutationQueryVlan(context.TODO(), vlanID); err != nil {
 		return nil, err
 	}
 
@@ -300,16 +308,15 @@ func (m *provider) newFromTemplate(name string, agent string, describe string) (
 		vmCreateInput.VMDisks.Create = append(vmCreateInput.VMDisks.Create, diskCreateInput)
 	}
 
-	for _, vmNic := range m.vmTemplateCached.VMNics {
-		var mode = VMNicModelVirtio
-		var enable = true
-		vmNicCreateInput := VMNicCreateWithoutVMInput{
+	var mode = VMNicModelVirtio
+	var enable = true
+	vmCreateInput.VMNics.Create = []VMNicCreateWithoutVMInput{
+		{
 			Enabled: &enable,
 			LocalID: "",
 			Model:   &mode,
-			Vlan:    &ConnectInput{&UniqueInput{LocalID: &vmNic.Vlan.VlanLocalID}},
-		}
-		vmCreateInput.VMNics.Create = append(vmCreateInput.VMNics.Create, vmNicCreateInput)
+			Vlan:    &ConnectInput{&UniqueInput{ID: &vlanUUID}},
+		},
 	}
 
 	return mutationCreateVM(m.towerClient, &vmCreateInput, &vmCreateEffect)
@@ -355,6 +362,46 @@ func (m *provider) mutationEndpointLabels(name string, labels map[string]string)
 	return errors.NewAggregate(errList)
 }
 
+// mutationQueryVlan find vlan by id. If not found, it will be create.
+func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, error) {
+	m.mutationVdsLock.Lock()
+	defer m.mutationVdsLock.Unlock()
+
+	if vlanID < 0 || vlanID > 4095 {
+		return "", fmt.Errorf("valide vlan id must between 0-4095")
+	}
+
+	var vlanUUID string
+	if towerVlans, err := queryVlans(m.towerClient); err == nil {
+		for _, vlan := range towerVlans {
+			if vlan.Vds.ID == m.vdsID && vlan.VlanID == vlanID {
+				vlanUUID = vlan.ID
+				break
+			}
+		}
+	} else {
+		return "", fmt.Errorf("failed to query vlans: %s", err)
+	}
+
+	if vlanUUID == "" {
+		vlan, err := mutationCreateVlan(m.towerClient, &VlanCreateInput{
+			Name:   fmt.Sprintf("vlan%d", vlanID),
+			Type:   NetworkTypeVM,
+			Vds:    &ConnectInput{Connect: &UniqueInput{ID: &m.vdsID}},
+			VlanID: vlanID,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to create vlan: %s", err)
+		}
+		if err = m.waitForVlanReady(ctx, vlan.ID); err != nil {
+			return "", fmt.Errorf("failed to wait for vlan ready: %s", err)
+		}
+		vlanUUID = vlan.ID
+	}
+
+	return vlanUUID, nil
+}
+
 func (m *provider) waitForVMReady(ctx context.Context, name string) error {
 	var vmID = m.vmKeyFunc(name)
 	var interval = 100 * time.Millisecond
@@ -374,6 +421,29 @@ func (m *provider) waitForVMReady(ctx context.Context, name string) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timeout wait for %s ready", name)
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (m *provider) waitForVlanReady(ctx context.Context, vlanUUID string) error {
+	var interval = 100 * time.Millisecond
+
+	for {
+		vlan, err := queryVlan(m.towerClient, &VlanWhereUniqueInput{ID: &vlanUUID})
+		if err != nil {
+			// if not found, operation deleted has completed
+			return ignoreNotFound(err)
+		}
+		if vlan.EntityAsyncStatus == nil {
+			return nil
+		}
+
+		klog.V(8).Infof("waiting for vlan %s entityAsyncStatus %s to be ready", vlan.Name, *vlan.EntityAsyncStatus)
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout wait for %s ready", vlanUUID)
 		case <-time.After(interval):
 		}
 	}
@@ -497,7 +567,7 @@ func (m *provider) setupIPAddrPorts(ctx context.Context, endpoint *model.Endpoin
 		tcpPort=${3}
 		vethName=eth0
 
-		realIP=$(ip addr show ${vethName} | grep -Eo '([0-9]*\.){3}[0-9]*/[0-9]*')
+		realIP=$(ip addr show ${vethName} | grep -Eo '([0-9]*\.){3}[0-9]*/[0-9]*' || true)
 		if [[ "${realIP}" != "${ipAddr}" ]]; then
 			ip addr flush ${vethName}
 			ip addr add dev ${vethName} ${ipAddr}

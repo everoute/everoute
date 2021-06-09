@@ -5,6 +5,7 @@ type Mutation {
     createLabel(data: LabelCreateInput!): Label!
     updateLabel(data: LabelUpdateInput!, where: LabelWhereUniqueInput!): Label
     deleteLabel(where: LabelWhereUniqueInput!): Label
+    createVlan(data: VlanCreateInput!): Vlan!
 }
 
 type Query {
@@ -12,6 +13,8 @@ type Query {
     vms: [Vm!]!
     label(where: LabelWhereUniqueInput!): Label
     labels: [Label!]!
+    vlan(where: VlanWhereUniqueInput!): Vlan
+    vlans: [Vlan!]
     vmTemplate(where: VmTemplateWhereUniqueInput!): VmTemplate
     host(where: HostWhereUniqueInput!): Host
 }
@@ -33,6 +36,21 @@ type FrozenVlan {
 
 type TemplateNic {
     vlan: FrozenVlan!
+}
+
+type Vlan {
+    entityAsyncStatus: EntityAsyncStatus
+    id: ID!
+    local_id: String!
+    name: String!
+    vds: Vds!
+    vlan_id: Int!
+}
+
+type Vds {
+    id: ID!
+    name: String!
+    ovsbr_name: String!
 }
 
 type Vm {
@@ -125,6 +143,19 @@ input UniqueInput {
     local_id: String!
 }
 
+input VlanCreateInput {
+    local_id: String!
+    name: String!
+    type: NetworkType!
+    vds: ConnectInput!
+    vlan_id: Int!
+}
+
+input VlanWhereUniqueInput {
+    id: ID
+    local_id: String
+}
+
 input VmDiskCreateManyWithoutVmInput {
     create: [VmDiskCreateWithoutVmInput!]
 }
@@ -208,6 +239,14 @@ enum EntityAsyncStatus {
     CREATING
     DELETING
     UPDATING
+}
+
+enum NetworkType {
+    ACCESS
+    MANAGEMENT
+    MIGRATION
+    STORAGE
+    VM
 }
 
 enum VmNicModel {

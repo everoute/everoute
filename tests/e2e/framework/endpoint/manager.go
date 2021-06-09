@@ -48,7 +48,7 @@ func NewManager(pool ipam.Pool, nodeManager *node.Manager, config *config.Endpoi
 		provider = netns.NewProvider(pool, nodeManager, crdClient)
 
 	case *config.Provider == "tower":
-		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID)
+		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID)
 
 	default:
 		panic("unknown provider " + *config.Provider)
