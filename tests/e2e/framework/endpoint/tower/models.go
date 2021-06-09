@@ -102,6 +102,34 @@ type UniqueInput struct {
 	LocalID *string `json:"local_id,omitempty"`
 }
 
+type Vds struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	OvsbrName string `json:"ovsbr_name"`
+}
+
+type Vlan struct {
+	EntityAsyncStatus *EntityAsyncStatus `json:"entityAsyncStatus"`
+	ID                string             `json:"id"`
+	LocalID           string             `json:"local_id"`
+	Name              string             `json:"name"`
+	Vds               *Vds               `json:"vds"`
+	VlanID            int                `json:"vlan_id"`
+}
+
+type VlanCreateInput struct {
+	LocalID string        `json:"local_id"`
+	Name    string        `json:"name"`
+	Type    NetworkType   `json:"type"`
+	Vds     *ConnectInput `json:"vds"`
+	VlanID  int           `json:"vlan_id"`
+}
+
+type VlanWhereUniqueInput struct {
+	ID      *string `json:"id"`
+	LocalID *string `json:"local_id"`
+}
+
 type VM struct {
 	Description       string             `json:"description"`
 	EntityAsyncStatus *EntityAsyncStatus `json:"entityAsyncStatus"`
@@ -212,6 +240,16 @@ const (
 	EntityAsyncStatusCreating EntityAsyncStatus = "CREATING"
 	EntityAsyncStatusDeleting EntityAsyncStatus = "DELETING"
 	EntityAsyncStatusUpdating EntityAsyncStatus = "UPDATING"
+)
+
+type NetworkType string
+
+const (
+	NetworkTypeAccess     NetworkType = "ACCESS"
+	NetworkTypeManagement NetworkType = "MANAGEMENT"
+	NetworkTypeMigration  NetworkType = "MIGRATION"
+	NetworkTypeStorage    NetworkType = "STORAGE"
+	NetworkTypeVM         NetworkType = "VM"
 )
 
 type VMNicModel string

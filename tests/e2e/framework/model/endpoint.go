@@ -28,6 +28,9 @@ type Endpoint struct {
 
 	// The endpoint expect IP addr from the subnet
 	ExpectSubnet string
+	// Virtual network identifier, update VID not supported.
+	// VID must between 0-4095 when network is vlan.
+	VID int
 	// Expose tcp port. TODO: support tcp-ports
 	TCPPort int
 	// Expose udp port. TODO: support udp-ports

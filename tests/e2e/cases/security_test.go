@@ -457,6 +457,55 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 	})
+
+	// This case would setup endpoints in random vlan, and check reachable between them.
+	Context("environment with endpoints from specify vlan [Feature:VLAN]", func() {
+		var groupA, groupB, groupC *groupv1alpha1.EndpointGroup
+		var endpointA, endpointB, endpointC *model.Endpoint
+		var tcpPort, vlanID int
+
+		BeforeEach(func() {
+			tcpPort = rand.IntnRange(1000, 5000)
+			vlanID = rand.IntnRange(0, 4095)
+
+			endpointA = &model.Endpoint{Name: "ep.a", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gx"}}
+			endpointB = &model.Endpoint{Name: "ep.b", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gy"}}
+			endpointC = &model.Endpoint{Name: "ep.c", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gz"}}
+
+			groupA = newGroup("gx", map[string]string{"group": "gx"})
+			groupB = newGroup("gy", map[string]string{"group": "gy"})
+			groupC = newGroup("gz", map[string]string{"group": "gz"})
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
+			Expect(e2eEnv.SetupObjects(ctx, groupA, groupB, groupC)).Should(Succeed())
+		})
+
+		When("limits tcp packets between components", func() {
+			var groupPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				// allow traffic from groupA to groupB
+				groupPolicy = newPolicy("group-policy", tier1, 50, []string{groupA.Name}, nil)
+				addEngressRule(groupPolicy, "TCP", tcpPort, groupB.Name)
+				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
+			})
+
+			It("should allow normal packets and limits illegal packets", func() {
+				securityModel := &SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{groupPolicy},
+					Groups:    []*groupv1alpha1.EndpointGroup{groupA, groupB},
+					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+				}
+
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+				expectedTruthTable.SetAllFrom(endpointA.Name, false)
+				expectedTruthTable.SetAllTo(endpointA.Name, false)
+				expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+			})
+		})
+	})
 })
 
 func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGroup {

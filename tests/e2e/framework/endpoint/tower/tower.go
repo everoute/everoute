@@ -164,6 +164,29 @@ func mutationDeleteLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label
 }
 
 /*
+   createVlan(data: VlanCreateInput!): Vlan!
+*/
+func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) {
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), true)
+
+	request := client.Request{
+		Query: fmt.Sprintf("mutation createVlan($data: VlanCreateInput!) {createVlan(data: $data) %s}", queryFields),
+		Variables: map[string]interface{}{
+			"data": data,
+		},
+	}
+
+	resp, err := c.Query(&request)
+	if err != nil || len(resp.Errors) != 0 {
+		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
+	}
+
+	var vlan Vlan
+	err = json.Unmarshal(utils.LookupJSONRaw(resp.Data, "createVlan"), &vlan)
+	return &vlan, err
+}
+
+/*
    vm(where: VmWhereUniqueInput!): Vm
    vms: [Vm!]!
 */
@@ -255,6 +278,53 @@ func queryLabels(c *client.Client) ([]Label, error) {
 	var labels []Label
 	err = json.Unmarshal(utils.LookupJSONRaw(resp.Data, "labels"), &labels)
 	return labels, err
+}
+
+/*
+   vlan(where: VlanWhereUniqueInput!): Vlan
+   vlans: [Vlan!]
+*/
+func queryVlan(c *client.Client, where *VlanWhereUniqueInput) (*Vlan, error) {
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), true)
+
+	request := client.Request{
+		Query: fmt.Sprintf("query vlan($where: VlanWhereUniqueInput!) {vlan(where: $where) %s}", queryFields),
+		Variables: map[string]interface{}{
+			"where": where,
+		},
+	}
+
+	resp, err := c.Query(&request)
+	if err != nil || len(resp.Errors) != 0 {
+		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
+	}
+
+	data := utils.LookupJSONRaw(resp.Data, "vlan")
+	if string(data) == "null" {
+		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "vlan"}, *where.ID)
+	}
+
+	var vlan Vlan
+	err = json.Unmarshal(data, &vlan)
+	return &vlan, err
+}
+
+func queryVlans(c *client.Client) ([]Vlan, error) {
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Vlan{}), true)
+
+	request := client.Request{
+		Query:     fmt.Sprintf("query vlans {vlans %s}", queryFields),
+		Variables: map[string]interface{}{},
+	}
+
+	resp, err := c.Query(&request)
+	if err != nil || len(resp.Errors) != 0 {
+		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
+	}
+
+	var vlans []Vlan
+	err = json.Unmarshal(utils.LookupJSONRaw(resp.Data, "vlans"), &vlans)
+	return vlans, err
 }
 
 /*

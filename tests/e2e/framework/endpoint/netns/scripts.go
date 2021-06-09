@@ -37,6 +37,7 @@ const (
 		ipAddr=${3}
 		tcpPorts=${4:-}
 		udpPorts=${5:-}
+		vlanTag=${6:-[]}
 
 		vethName="veth-${netns}"
 		portName=${vethName}
@@ -54,7 +55,7 @@ const (
 		ip netns exec ${netns} ip a add ${ipAddr} dev ${vethPeerName}
 
 		attached_mac=$(ip netns exec ${netns} cat /sys/class/net/${vethPeerName}/address)
-		ovs-vsctl add-port ${bridgeName} ${portName} \
+		ovs-vsctl add-port ${bridgeName} ${portName} tag=${vlanTag} \
 			-- set interface ${portName} external_ids=${portExternalIDName}=${portExternalIDValue} \
 			-- set interface ${portName} external_ids:attached-mac="${attached_mac}"
 
@@ -124,8 +125,8 @@ const (
 	`
 )
 
-func runStartNewEndpoint(client *ssh.Client, netns, bridgeName string, ipAddr string, tcpPort, udpPort int) error {
-	rc, out, err := runScriptRemote(client, startNewEndpoint, netns, bridgeName, ipAddr, strconv.Itoa(tcpPort), strconv.Itoa(udpPort))
+func runStartNewEndpoint(client *ssh.Client, netns, bridgeName string, ipAddr string, tcpPort, udpPort int, vlanTag int) error {
+	rc, out, err := runScriptRemote(client, startNewEndpoint, netns, bridgeName, ipAddr, strconv.Itoa(tcpPort), strconv.Itoa(udpPort), strconv.Itoa(vlanTag))
 	if err != nil {
 		return err
 	}

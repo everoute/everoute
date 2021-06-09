@@ -65,6 +65,8 @@ type EndpointConfig struct {
 	Provider *string `yaml:"provider,omitempty"`
 	// template for create vm, only valid when provider is tower
 	VMTemplateID *string `yaml:"vm-template-id,omitempty"`
+	// create vm in the specify vds, only valid when provider is tower
+	VdsID *string `yaml:"vds-id,omitempty"`
 }
 
 type IPAMConfig struct {
@@ -121,6 +123,9 @@ func verifyAndComplete(config *Config) (*Config, error) {
 		}
 		if config.Endpoint.VMTemplateID == nil {
 			return nil, fmt.Errorf("vmTemplateID must set when provider is tower")
+		}
+		if config.Endpoint.VdsID == nil {
+			return nil, fmt.Errorf("vdsID must set when provider is tower")
 		}
 	}
 
