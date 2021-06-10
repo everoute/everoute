@@ -51,6 +51,9 @@ var _ = BeforeSuite(func() {
 	e2eEnv, err = framework.NewFromKube(filepath.Join(os.Getenv("HOME"), ".kube", "config"))
 	Expect(err).ToNot(HaveOccurred())
 
+	// reset resource before start e2e
+	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())
+
 	err = e2eEnv.SetupObjects(ctx, defaultTier(tier0), defaultTier(tier1), defaultTier(tier2))
 	Expect(err).ToNot(HaveOccurred())
 
