@@ -14,6 +14,7 @@ require (
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/gorilla/websocket v1.4.2
+	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.1
 	github.com/spf13/cobra v1.1.1

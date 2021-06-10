@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	rthttp "github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/crypto/ssh"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -65,6 +66,10 @@ type provider struct {
 }
 
 func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID, vdsID string) model.EndpointProvider {
+	retryClient := rthttp.NewClient()
+	retryClient.RetryMax = 10
+	towerClient.HTTPClient = retryClient.StandardClient()
+
 	return &provider{
 		ipPool:       pool,
 		nodeManager:  nodeManager,
