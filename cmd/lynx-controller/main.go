@@ -32,6 +32,7 @@ import (
 	groupctrl "github.com/smartxworks/lynx/pkg/controller/group"
 	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/webhook"
+	towerplugin "github.com/smartxworks/lynx/plugin/tower/pkg/register"
 )
 
 var (
@@ -52,6 +53,7 @@ func main() {
 	var tlsCertDir string
 	var serverPort int
 	var leaderElectionNamespace string
+	var towerPluginOptions towerplugin.Options
 
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
@@ -61,6 +63,7 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
 	flag.IntVar(&serverPort, "port", 9443, "The port for the Lynx controller to serve on.")
 	klog.InitFlags(nil)
+	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -105,6 +108,12 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create crd validate webhook %s", err.Error())
+	}
+
+	// register tower plugin
+	err = towerplugin.AddToManager(&towerPluginOptions, mgr)
+	if err != nil {
+		klog.Fatalf("unable register tower plugin: %s", err.Error())
 	}
 
 	klog.Info("starting manager")
