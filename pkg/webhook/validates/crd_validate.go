@@ -266,7 +266,7 @@ func (v endpointValidator) updateValidate(oldObj, curObj runtime.Object, userInf
 	curEndpoint := curObj.(*securityv1alpha1.Endpoint)
 	oldEndpoint := oldObj.(*securityv1alpha1.Endpoint)
 
-	if curEndpoint.Spec != oldEndpoint.Spec {
+	if curEndpoint.Spec.Reference != oldEndpoint.Spec.Reference {
 		return "update endpoint externalID not allowed", false
 	}
 	return "", true
