@@ -19,9 +19,11 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -44,7 +46,15 @@ import (
 type EndpointReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	ifaceCacheLock sync.RWMutex
+	ifaceCache     cache.Indexer
 }
+
+const (
+	externalIDIndex = "externalIDIndex"
+	agentIndex      = "agentIndex"
+)
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
 // from agentinfo.
@@ -97,6 +107,13 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	if r.ifaceCache == nil {
+		r.ifaceCache = cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
+			agentIndex:      agentIndexFunc,
+			externalIDIndex: externalIDIndexFunc,
+		})
+	}
+
 	err = c.Watch(&source.Kind{Type: &agentv1alpha1.AgentInfo{}}, &handler.Funcs{
 		CreateFunc: r.addAgentInfo,
 		UpdateFunc: r.updateAgentInfo,
@@ -135,58 +152,60 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 		return
 	}
 
-	ifaces := []agentv1alpha1.OVSInterface{}
-	for _, bridge := range agentInfo.OVSInfo.Bridges {
-		for _, port := range bridge.Ports {
-			ifaces = append(ifaces, port.Interfaces...)
-		}
-	}
-
-	epList := securityv1alpha1.EndpointList{}
+	var epList = securityv1alpha1.EndpointList{}
 	_ = r.List(context.Background(), &epList)
 
-	// Enqueue all endpoints for update status in the agentinfo.
-	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
-			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-				Name: ep.Name,
-			}})
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+
+	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, ovsIface := range port.Interfaces {
+				iface := &iface{
+					agentName:   agentInfo.Name,
+					name:        ovsIface.Name,
+					externalIDs: ovsIface.ExternalIDs,
+					mac:         ovsIface.Mac,
+					ips:         ovsIface.IPs,
+				}
+				_ = r.ifaceCache.Add(iface)
+			}
 		}
 	}
+
+	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
 func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	ifaces := []agentv1alpha1.OVSInterface{}
+	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
+	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
 
-	newAgentInfo, ok := e.ObjectNew.(*agentv1alpha1.AgentInfo)
-	if ok {
-		for _, bridge := range newAgentInfo.OVSInfo.Bridges {
-			for _, port := range bridge.Ports {
-				ifaces = append(ifaces, port.Interfaces...)
-			}
-		}
-	}
-
-	oldAgentInfo, ok := e.ObjectOld.(*agentv1alpha1.AgentInfo)
-	if ok {
-		for _, bridge := range oldAgentInfo.OVSInfo.Bridges {
-			for _, port := range bridge.Ports {
-				ifaces = append(ifaces, port.Interfaces...)
-			}
-		}
-	}
-
-	epList := securityv1alpha1.EndpointList{}
+	var epList securityv1alpha1.EndpointList
 	_ = r.List(context.Background(), &epList)
 
-	// Enqueue all endpoints for update status in the agentinfo.
-	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
-			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-				Name: ep.Name,
-			}})
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+
+	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
+	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, oldAgentInfo.GetName())
+	for _, iface := range ifaces {
+		_ = r.ifaceCache.Delete(iface)
+	}
+	for _, bridge := range newAgentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, ovsIface := range port.Interfaces {
+				iface := &iface{
+					agentName:   newAgentInfo.Name,
+					name:        ovsIface.Name,
+					externalIDs: ovsIface.ExternalIDs,
+					mac:         ovsIface.Mac,
+					ips:         ovsIface.IPs,
+				}
+				_ = r.ifaceCache.Add(iface)
+			}
 		}
 	}
+	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
 }
 
 func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
@@ -196,55 +215,60 @@ func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.Ra
 		return
 	}
 
-	ifaces := []agentv1alpha1.OVSInterface{}
-	for _, bridge := range agentInfo.OVSInfo.Bridges {
-		for _, port := range bridge.Ports {
-			ifaces = append(ifaces, port.Interfaces...)
-		}
-	}
-
-	epList := securityv1alpha1.EndpointList{}
+	var epList securityv1alpha1.EndpointList
 	_ = r.List(context.Background(), &epList)
 
-	// Enqueue all endpoints for update status in the agentinfo.
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+
+	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
+	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, agentInfo.GetName())
+	for _, iface := range ifaces {
+		_ = r.ifaceCache.Delete(iface)
+	}
+}
+
+// If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
+func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alpha1.EndpointList, agentName string, queue workqueue.Interface) {
 	for _, ep := range epList.Items {
-		if _, matches := GetEndpointID(ep).MatchIface(ifaces); matches {
-			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-				Name: ep.Name,
-			}})
+		ifaces, _ := r.ifaceCache.ByIndex(externalIDIndex, GetEndpointID(ep).String())
+		for _, cacheIface := range ifaces {
+			if cacheIface.(*iface).agentName == agentName {
+				queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+					Name:      ep.GetName(),
+					Namespace: ep.GetNamespace(),
+				}})
+			}
 		}
 	}
 }
 
 func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
-	agentInfoList := agentv1alpha1.AgentInfoList{}
-	err := r.List(context.Background(), &agentInfoList)
-	if err != nil {
-		return nil, err
-	}
+	r.ifaceCacheLock.RLock()
+	defer r.ifaceCacheLock.RUnlock()
 
-	toEndpointStatus := func(iface agentv1alpha1.OVSInterface) *securityv1alpha1.EndpointStatus {
+	toEndpointStatus := func(iface *iface) *securityv1alpha1.EndpointStatus {
 		status := new(securityv1alpha1.EndpointStatus)
 
-		status.IPs = make([]types.IPAddress, len(iface.IPs))
-		copy(status.IPs, iface.IPs)
-		status.MacAddress = iface.Mac
+		status.IPs = make([]types.IPAddress, len(iface.ips))
+		copy(status.IPs, iface.ips)
+		status.MacAddress = iface.mac
 
 		return status
 	}
 
-	for _, agentInfo := range agentInfoList.Items {
-		for _, bridge := range agentInfo.OVSInfo.Bridges {
-			for _, port := range bridge.Ports {
-				index, matches := id.MatchIface(port.Interfaces)
-				if matches {
-					return toEndpointStatus(port.Interfaces[index]), nil
-				}
-			}
-		}
+	ifaces, err := r.ifaceCache.ByIndex(externalIDIndex, id.String())
+	if err != nil {
+		return nil, err
 	}
-
-	return &securityv1alpha1.EndpointStatus{}, nil
+	switch len(ifaces) {
+	case 0:
+		// if no match iface found, return empty status
+		return &securityv1alpha1.EndpointStatus{}, nil
+	default:
+		// use the first iface status as endpoint status
+		return toEndpointStatus(ifaces[0].(*iface)), nil
+	}
 }
 
 // EqualEndpointStatus return true if and only if the two endpoint has the same
@@ -262,4 +286,40 @@ func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 		Name:  ep.Spec.Reference.ExternalIDName,
 		Value: ep.Spec.Reference.ExternalIDValue,
 	}
+}
+
+type iface struct {
+	agentName string
+	name      string
+
+	externalIDs map[string]string
+	mac         string
+	ips         []types.IPAddress
+}
+
+func (i *iface) String() string {
+	if i != nil {
+		return fmt.Sprintf("%+v", *i)
+	}
+	return "<nil>"
+}
+
+func ifaceKeyFunc(obj interface{}) (string, error) {
+	ifaceObj := obj.(*iface)
+	return fmt.Sprintf("%s/%s", ifaceObj.agentName, ifaceObj.name), nil
+}
+
+func agentIndexFunc(obj interface{}) ([]string, error) {
+	return []string{obj.(*iface).agentName}, nil
+}
+
+func externalIDIndexFunc(obj interface{}) ([]string, error) {
+	var externalIDs []string
+	for name, value := range obj.(*iface).externalIDs {
+		externalIDs = append(externalIDs, ctrltypes.ExternalID{
+			Name:  name,
+			Value: value,
+		}.String())
+	}
+	return externalIDs, nil
 }
