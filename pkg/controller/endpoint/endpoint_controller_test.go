@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,12 +41,12 @@ import (
 
 var (
 	ovsPortStatusA = securityv1alpha1.EndpointStatus{
-		MacAddress: "fe80::488e:b1ff:fe37:5414",
-		IPs:        []types.IPAddress{"1.1.1.1", "fe80::488e:b1ff:fe37:5414"},
+		MacAddress: rand.String(10),
+		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
 	}
 	ovsPortStatusB = securityv1alpha1.EndpointStatus{
-		MacAddress: "fe80::488e:b1ff:fe37:5414",
-		IPs:        []types.IPAddress{"1.1.1.1", "fe80::488e:b1ff:fe37:5414"},
+		MacAddress: rand.String(10),
+		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
 	}
 	fakeAgentInfoA = &agentv1alpha1.AgentInfo{
 		TypeMeta: v1.TypeMeta{
@@ -196,6 +197,10 @@ func TestProcessAgentInfo(t *testing.T) {
 		if !EqualEndpointStatus(ovsPortStatusA, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
 		}
+		ifaces := r.ifaceCache.ListKeys()
+		if len(ifaces) != 1 {
+			t.Errorf("expect cache should have one iface after add agentinfo %s", fakeAgentInfoA.Name)
+		}
 	})
 
 	t.Run("agentinfo-updated", func(t *testing.T) {
@@ -216,6 +221,10 @@ func TestProcessAgentInfo(t *testing.T) {
 		if !EqualEndpointStatus(ovsPortStatusB, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusB)
 		}
+		ifaces := r.ifaceCache.ListKeys()
+		if len(ifaces) != 1 {
+			t.Errorf("expect cache should have one iface after update agentinfo %s", fakeAgentInfoA.Name)
+		}
 	})
 
 	t.Run("agentinfo-deleted", func(t *testing.T) {
@@ -231,8 +240,12 @@ func TestProcessAgentInfo(t *testing.T) {
 		}
 
 		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
-		if !!EqualEndpointStatus(securityv1alpha1.EndpointStatus{}, endpointStatus) {
-			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
+		if !EqualEndpointStatus(securityv1alpha1.EndpointStatus{}, endpointStatus) {
+			t.Errorf("unmatch endpoint status, get %v, expect empty status", endpointStatus)
+		}
+		ifaces := r.ifaceCache.ListKeys()
+		if len(ifaces) != 0 {
+			t.Errorf("expect cache should be empty after delete agentinfo %s", fakeAgentInfoA.Name)
 		}
 	})
 }
