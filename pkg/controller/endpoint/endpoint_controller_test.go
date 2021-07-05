@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -144,6 +145,10 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 	return &EndpointReconciler{
 		Client: fakeclient.NewFakeClientWithScheme(scheme.Scheme, initObjs...),
 		Scheme: scheme.Scheme,
+		ifaceCache: cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
+			agentIndex:      agentIndexFunc,
+			externalIDIndex: externalIDIndexFunc,
+		}),
 	}
 }
 
