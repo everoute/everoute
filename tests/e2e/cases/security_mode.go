@@ -209,9 +209,9 @@ func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]cache.RulePort
 			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
 		}
 
-		for portNumber := begin; portNumber <= end; portNumber++ {
+		for portNumber := int(begin); portNumber <= int(end); portNumber++ {
 			portItem := cache.RulePort{
-				DstPort:  portNumber,
+				DstPort:  uint16(portNumber),
 				Protocol: port.Protocol,
 			}
 			rulePortMap[portItem] = struct{}{}

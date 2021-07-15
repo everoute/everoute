@@ -628,9 +628,12 @@ func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
 		}
 
-		for portNumber := begin; portNumber <= end; portNumber++ {
+		// If defined portNumber as type uint16 here, an infinite loop will occur when end is
+		// 65535 (uint16 value will never bigger than 65535, for condition would always true).
+		// So we defined portNumber as type int here.
+		for portNumber := int(begin); portNumber <= int(end); portNumber++ {
 			portItem := policycache.RulePort{
-				DstPort:  portNumber,
+				DstPort:  uint16(portNumber),
 				Protocol: port.Protocol,
 			}
 			rulePortMap[portItem] = struct{}{}
