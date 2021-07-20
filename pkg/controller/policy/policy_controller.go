@@ -231,7 +231,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	patchController, err = controller.New("GroupPatch-controller", mgr, controller.Options{
+	patchController, err = controller.New("groupPatch-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcilePatch),
 	})

@@ -106,7 +106,7 @@ func (r *PolicyRuleReconciler) addPolicyRule(e event.CreateEvent, q workqueue.Ra
 	}
 
 	if e.Meta == nil {
-		klog.Errorf("AddPolicRule received with no metadata event: %v", e)
+		klog.Errorf("AddPolicyRule received with no metadata event: %v", e)
 		return
 	}
 
@@ -124,7 +124,7 @@ func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue
 	}
 
 	if e.Meta == nil {
-		klog.Errorf("AddPolicRule received with no metadata event: %v", e)
+		klog.Errorf("AddPolicyRule received with no metadata event: %v", e)
 		return
 	}
 
