@@ -247,16 +247,6 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
 
-	toEndpointStatus := func(iface *iface) *securityv1alpha1.EndpointStatus {
-		status := new(securityv1alpha1.EndpointStatus)
-
-		status.IPs = make([]types.IPAddress, len(iface.ips))
-		copy(status.IPs, iface.ips)
-		status.MacAddress = iface.mac
-
-		return status
-	}
-
 	ifaces, err := r.ifaceCache.ByIndex(externalIDIndex, id.String())
 	if err != nil {
 		return nil, err
@@ -267,7 +257,10 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		return &securityv1alpha1.EndpointStatus{}, nil
 	default:
 		// use the first iface status as endpoint status
-		return toEndpointStatus(ifaces[0].(*iface)), nil
+		return &securityv1alpha1.EndpointStatus{
+			IPs:        append([]types.IPAddress{}, ifaces[0].(*iface).ips...),
+			MacAddress: ifaces[0].(*iface).mac,
+		}, nil
 	}
 }
 
