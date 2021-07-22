@@ -444,7 +444,7 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 			// empty Ports matches all ports
 			ingressRule.Ports = []policycache.RulePort{{}}
 		} else {
-			ingressRule.Ports, err = flattenPorts(rule.Ports)
+			ingressRule.Ports, err = FlattenPorts(rule.Ports)
 			if err != nil {
 				return nil, err
 			}
@@ -479,7 +479,7 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 			// Empty ports matches all ports
 			egressRule.Ports = []policycache.RulePort{{}}
 		} else {
-			egressRule.Ports, err = flattenPorts(rule.Ports)
+			egressRule.Ports, err = FlattenPorts(rule.Ports)
 			if err != nil {
 				return nil, err
 			}
@@ -609,17 +609,91 @@ func ruleIsSame(r1, r2 *policyv1alpha1.PolicyRule) bool {
 		r1.Name == r2.Name && r1.Spec == r2.Spec
 }
 
-func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.RulePort, error) {
+func posToMask(pos int) uint16 {
+	var ret uint16 = 0xffff
+	for i := 16; i > pos; i-- {
+		ret <<= 1
+	}
+
+	return ret
+}
+
+func calPortRangeMask(begin uint16, end uint16, protocol securityv1alpha1.Protocol) []policycache.RulePort {
 	var rulePortList []policycache.RulePort
-	var rulePortMap = make(map[policycache.RulePort]struct{})
+
+	if begin == 0 && end == 0 {
+		return append(rulePortList, policycache.RulePort{
+			Protocol: protocol,
+			DstPort:  0,
+		})
+	}
+
+	var pos int
+	for begin <= end && begin != 0 {
+		// find "1" pos from right
+		var temp = begin
+		pos = 16
+		for {
+			if temp%2 == 1 {
+				break
+			}
+			temp >>= 1
+			pos--
+		}
+		// check from pos to end
+		for i := pos; i <= 16; i++ {
+			if end >= begin+(1<<(16-i))-1 {
+				rulePortList = append(rulePortList, policycache.RulePort{
+					Protocol:    protocol,
+					DstPort:     begin,
+					DstPortMask: posToMask(i),
+				})
+				begin += 1 << (16 - i)
+				break
+			}
+		}
+	}
+	return rulePortList
+}
+
+func processFlattenPorts(portMap [65536]bool, protocol securityv1alpha1.Protocol) []policycache.RulePort {
+	var rulePortList []policycache.RulePort
+	// generate port with mask
+	begin := -1
+	end := -1
+	for index, port := range portMap {
+		// mark begin pos
+		if port && begin == -1 {
+			begin = index
+		}
+		// mask end pos at the last element
+		if port && begin != -1 && index == len(portMap)-1 {
+			end = index
+		}
+		// mask end pos at the end of each port range
+		if !port && begin != -1 {
+			end = index - 1
+		}
+		// calculate rule
+		if begin != -1 && end != -1 {
+			rulePortList = append(rulePortList, calPortRangeMask(uint16(begin), uint16(end), protocol)...)
+			begin = -1
+			end = -1
+		}
+	}
+	return rulePortList
+}
+
+func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.RulePort, error) {
+	var rulePortList []policycache.RulePort
+	var portMapTCP [65536]bool
+	var portMapUDP [65536]bool
+	var hasICMP = false
 
 	for _, port := range ports {
 		if port.Protocol == securityv1alpha1.ProtocolICMP {
-			// ignore portrange when Protocol is ICMP
-			portItem := policycache.RulePort{
-				Protocol: port.Protocol,
-			}
-			rulePortMap[portItem] = struct{}{}
+			// ignore port when Protocol is ICMP
+			hasICMP = true
 			continue
 		}
 
@@ -628,21 +702,28 @@ func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
 		}
 
-		// If defined portNumber as type uint16 here, an infinite loop will occur when end is
-		// 65535 (uint16 value will never bigger than 65535, for condition would always true).
-		// So we defined portNumber as type int here.
-		for portNumber := int(begin); portNumber <= int(end); portNumber++ {
-			portItem := policycache.RulePort{
-				DstPort:  uint16(portNumber),
-				Protocol: port.Protocol,
+		if port.Protocol == securityv1alpha1.ProtocolTCP {
+			// If defined portNumber as type uint16 here, an infinite loop will occur when end is
+			// 65535 (uint16 value will never bigger than 65535, for condition would always true).
+			// So we defined portNumber as type int here.
+			for portNumber := int(begin); portNumber <= int(end); portNumber++ {
+				portMapTCP[portNumber] = true
 			}
-			rulePortMap[portItem] = struct{}{}
+		}
+
+		if port.Protocol == securityv1alpha1.ProtocolUDP {
+			for portNumber := int(begin); portNumber <= int(end); portNumber++ {
+				portMapUDP[portNumber] = true
+			}
 		}
 	}
-
-	// use map remove duplicate port
-	for port := range rulePortMap {
-		rulePortList = append(rulePortList, port)
+	rulePortList = append(rulePortList, processFlattenPorts(portMapTCP, securityv1alpha1.ProtocolTCP)...)
+	rulePortList = append(rulePortList, processFlattenPorts(portMapUDP, securityv1alpha1.ProtocolUDP)...)
+	// add ICMP Rule to rulePortList
+	if hasICMP {
+		rulePortList = append(rulePortList, policycache.RulePort{
+			Protocol: securityv1alpha1.ProtocolICMP,
+		})
 	}
 
 	return rulePortList, nil

@@ -27,6 +27,7 @@ import (
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
 	"github.com/smartxworks/lynx/tests/e2e/framework/model"
 )
@@ -68,7 +69,7 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 			ingressIPs = append(ingressIPs, m.getGroupIPs(groupName)...)
 		}
 
-		rulePorts, err := flattenPorts(rule.Ports)
+		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
 		if err != nil {
 			klog.Fatalf("failed to flatten ports: %s", err)
 		}
@@ -80,7 +81,7 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 			egressIPs = append(egressIPs, m.getGroupIPs(groupName)...)
 		}
 
-		rulePorts, err := flattenPorts(rule.Ports)
+		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
 		if err != nil {
 			klog.Fatalf("failed to flatten ports: %s", err)
 		}
@@ -154,6 +155,11 @@ func computePolicyFlow(policy *securityv1alpha1.SecurityPolicy, appliedToIPs, in
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
 						ingressNextTableID)
+					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
+							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask,
+							ingressNextTableID)
+					}
 				}
 				flows = append(flows, flow)
 			}
@@ -176,6 +182,11 @@ func computePolicyFlow(policy *securityv1alpha1.SecurityPolicy, appliedToIPs, in
 				} else if egressGroupPort.DstPort != 0 {
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
 						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, egressNextTableID)
+					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
+							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask,
+							ingressNextTableID)
+					}
 				}
 				flows = append(flows, flow)
 			}
@@ -189,40 +200,6 @@ func computePolicyFlow(policy *securityv1alpha1.SecurityPolicy, appliedToIPs, in
 	}
 
 	return flows
-}
-
-func flattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]cache.RulePort, error) {
-	var rulePortList []cache.RulePort
-	var rulePortMap = make(map[cache.RulePort]struct{})
-
-	for _, port := range ports {
-		if port.Protocol == securityv1alpha1.ProtocolICMP {
-			portItem := cache.RulePort{
-				Protocol: port.Protocol,
-			}
-			rulePortMap[portItem] = struct{}{}
-			continue
-		}
-
-		begin, end, err := cache.UnmarshalPortRange(port.PortRange)
-		if err != nil {
-			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
-		}
-
-		for portNumber := int(begin); portNumber <= int(end); portNumber++ {
-			portItem := cache.RulePort{
-				DstPort:  uint16(portNumber),
-				Protocol: port.Protocol,
-			}
-			rulePortMap[portItem] = struct{}{}
-		}
-	}
-
-	for port := range rulePortMap {
-		rulePortList = append(rulePortList, port)
-	}
-
-	return rulePortList, nil
 }
 
 func getTableIds(tier string) (*int, *int) {

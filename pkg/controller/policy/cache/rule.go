@@ -71,6 +71,10 @@ type RulePort struct {
 	SrcPort uint16
 	// DstPort is destination port, 0 matches all ports.
 	DstPort uint16
+	// SrcPortMask is source port mask, 0x0000 & 0xffff have no effect.
+	SrcPortMask uint16
+	// DstPortMask is destination port mask, 0x0000 & 0xffff have no effect.
+	DstPortMask uint16
 
 	// Protocol should set "" if want match all protocol.
 	Protocol securityv1alpha1.Protocol
@@ -119,6 +123,8 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 			IpProtocol:        string(port.Protocol),
 			SrcPort:           port.SrcPort,
 			DstPort:           port.DstPort,
+			SrcPortMask:       port.SrcPortMask,
+			DstPortMask:       port.DstPortMask,
 			Action:            rule.Action,
 		},
 	}

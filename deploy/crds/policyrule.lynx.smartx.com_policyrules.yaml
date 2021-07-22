@@ -46,6 +46,8 @@ spec:
               type: string
             dstPort:
               type: integer
+            dstPortMask:
+              type: integer
             ipProtocol:
               type: string
             priority:
@@ -54,6 +56,8 @@ spec:
             srcIpAddr:
               type: string
             srcPort:
+              type: integer
+            srcPortMask:
               type: integer
             tcpFlags:
               type: string
