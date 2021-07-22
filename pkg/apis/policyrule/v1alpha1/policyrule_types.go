@@ -56,6 +56,8 @@ type PolicyRuleSpec struct {
 	IpProtocol        string        `json:"ipProtocol"`
 	SrcPort           uint16        `json:"srcPort,omitempty"`
 	DstPort           uint16        `json:"dstPort,omitempty"`
+	SrcPortMask       uint16        `json:"srcPortMask,omitempty"`
+	DstPortMask       uint16        `json:"dstPortMask,omitempty"`
 	TcpFlags          string        `json:"tcpFlags"`
 	Action            RuleAction    `json:"action"`
 }

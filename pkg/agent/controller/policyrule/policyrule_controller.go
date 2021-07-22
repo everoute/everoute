@@ -211,15 +211,17 @@ func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec
 	}
 
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId:     ruleId,
-		Priority:   rulePriority,
-		SrcIpAddr:  rule.SrcIpAddr,
-		DstIpAddr:  rule.DstIpAddr,
-		IpProtocol: ipProtoNo,
-		SrcPort:    rule.SrcPort,
-		DstPort:    rule.DstPort,
-		TcpFlags:   rule.TcpFlags,
-		Action:     ruleAction,
+		RuleId:      ruleId,
+		Priority:    rulePriority,
+		SrcIpAddr:   rule.SrcIpAddr,
+		DstIpAddr:   rule.DstIpAddr,
+		IpProtocol:  ipProtoNo,
+		SrcPort:     rule.SrcPort,
+		SrcPortMask: rule.SrcPortMask,
+		DstPort:     rule.DstPort,
+		DstPortMask: rule.DstPortMask,
+		TcpFlags:    rule.TcpFlags,
+		Action:      ruleAction,
 	}
 
 	return ofnetPolicyRule
