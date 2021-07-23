@@ -93,8 +93,9 @@ type UserInfo struct {
 
 // MutationEvent is the event subscribed from tower
 type MutationEvent struct {
-	Mutation MutationType    `json:"mutation"`
-	Node     json.RawMessage `json:"node"`
+	Mutation       MutationType    `json:"mutation"`
+	PreviousValues json.RawMessage `json:"previousValues"`
+	Node           json.RawMessage `json:"node"`
 }
 
 type MutationType string
