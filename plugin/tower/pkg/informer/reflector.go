@@ -163,10 +163,13 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	var obj = newObj.Elem().Interface()
 	klog.V(4).Infof("get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
 
-	// todo: this is a bug of tower, delete object may got nil object
+	// delete object may got nil object, read object from previous values
 	if reflect.ValueOf(obj).IsNil() && event.Mutation == client.DeleteEvent {
-		klog.Errorf("receieve delete event of type %s but nil object", r.expectType.TypeName())
-		return nil
+		err = json.Unmarshal(event.PreviousValues, newObj.Interface())
+		if err != nil {
+			return fmt.Errorf("unable marshal %s into object %T", string(event.PreviousValues), r.expectType.TypeName())
+		}
+		obj = newObj.Elem().Interface()
 	}
 
 	switch event.Mutation {
@@ -274,7 +277,7 @@ func (r *reflector) queryRequest() *client.Request {
 
 func (r *reflector) subscriptionRequest() *client.Request {
 	request := &client.Request{
-		Query: fmt.Sprintf("subscription {%s {mutation node %s}}", r.expectType.TypeName(), r.expectType.QueryFields()),
+		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields()),
 	}
 	return request
 }
