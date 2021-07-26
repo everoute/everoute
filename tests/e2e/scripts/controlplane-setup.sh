@@ -20,9 +20,10 @@ set -o nounset
 
 function install_etcd() {
   local version=${1}
+  local platform=${2}
   local download_url=https://github.com/etcd-io/etcd/releases/download
 
-  local -r tmp_file_name="etcd-${version}-linux-amd64"
+  local -r tmp_file_name="etcd-${version}-linux-${platform}"
   local -r download_path="$(mktemp -d)/${tmp_file_name}.tar"
 
   if [[ $(command -v etcd) ]]; then
@@ -36,17 +37,22 @@ function install_etcd() {
 function install_kube_plugin() {
   local version=${1}
   local plugin=${2}
+  local platform=${3}
   local download_url=https://storage.googleapis.com/kubernetes-release/release
 
   if [[ $(command -v ${plugin}) ]]; then
     return 0
   fi
 
-  curl -L ${download_url}/${version}/bin/linux/amd64/${plugin} -o /usr/local/bin/${plugin}
+  curl -L ${download_url}/${version}/bin/linux/${platform}/${plugin} -o /usr/local/bin/${plugin}
   chmod +x /usr/local/bin/${plugin}
 }
 
 function start_etcd() {
+  if [[ ${1}=="arm64" ]]; then
+    export ETCD_UNSUPPORTED_ARCH=arm64
+  fi
+
   if [[ $(pidof etcd) ]]; then
     printf "etcd has already run on pid %s, please run e2e-reset.sh first\n" "$(pidof etcd)"
     return 1
@@ -190,17 +196,18 @@ ETCD_VERSION="v3.4.15"
 KUBE_VERSION="v1.18.17"
 CERT_PATH=/etc/lynx/pki
 APISERVER_ADDR="${1:-127.0.0.1}"
+PLATFORM="${2:-amd64}"
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
 ## lynx project basedir
 BASEDIR=${LOCAL_PATH}/../../..
 
 echo "install etcd and kube-apiserver on localhost"
-install_etcd ${ETCD_VERSION}
-install_kube_plugin ${KUBE_VERSION} kube-apiserver
-install_kube_plugin ${KUBE_VERSION} kubectl
+install_etcd ${ETCD_VERSION} ${PLATFORM}
+install_kube_plugin ${KUBE_VERSION} kube-apiserver ${PLATFORM}
+install_kube_plugin ${KUBE_VERSION} kubectl ${PLATFORM}
 
 echo "start controlplane (etcd and apiserver)"
-start_etcd
+start_etcd ${PLATFORM}
 start_apiserver ${CERT_PATH} ${APISERVER_ADDR}
 
 echo "generate kubeconfig for lynx-controller lynx-agent and kubectl"

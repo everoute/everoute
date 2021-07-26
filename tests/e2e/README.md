@@ -17,8 +17,10 @@ APISERVER_EXPOSE_IP=""
 LYNX_AGENT_HOSTLIST=""
 # UPLINK_IFACE is the interface name for lynx-agent uplink port, default ens11.
 UPLINK_IFACE=""
+# PLATFORM is the system platform, default amd64
+PLATFORM=""
 
-bash -x tests/e2e/scripts/e2e-setup.sh ${APISERVER_EXPOSE_IP} ${LYNX_AGENT_HOSTLIST} ${UPLINK_IFACE}
+bash -x tests/e2e/scripts/e2e-setup.sh ${APISERVER_EXPOSE_IP} ${LYNX_AGENT_HOSTLIST} ${UPLINK_IFACE} ${PLATFORM}
 ```
 
 ## reset environment

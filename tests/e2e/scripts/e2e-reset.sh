@@ -20,7 +20,7 @@ set -o nounset
 LYNX_AGENT_HOSTLIST=${1:-}
 
 echo "clean lynx controlplane on localhost"
-eval kill -9 "$(pidof lynx-controller) $(pidof lynx-agent) $(pidof kube-apiserver) $(pidof etcd)"
+eval kill -9 "$(pidof lynx-controller) $(pidof lynx-agent) $(pidof kube-apiserver) $(pidof etcd) $(pidof net-utils)"
 rm -rf /etc/lynx/
 
 for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do

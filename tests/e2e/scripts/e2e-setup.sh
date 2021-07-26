@@ -27,12 +27,13 @@ echo "========================================================="
 APISERVER_EXPOSE_IP=${1:-127.0.0.1}
 LYNX_AGENT_HOSTLIST=${2:-127.0.0.1}
 UPLINK_IFACE=${3:-ens11}
+PLATFORM=${4:-amd64}
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
 
 echo "setup lynx controlplane on localhost"
 make controller
 cp bin/lynx-controller /usr/local/bin/lynx-controller
-bash ${LOCAL_PATH}/controlplane-setup.sh ${APISERVER_EXPOSE_IP}
+bash ${LOCAL_PATH}/controlplane-setup.sh ${APISERVER_EXPOSE_IP} ${PLATFORM}
 
 make agent
 make e2e-tools
