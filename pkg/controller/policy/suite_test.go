@@ -17,8 +17,10 @@ limitations under the License.
 package policy_test
 
 import (
+	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -72,6 +74,15 @@ var _ = BeforeSuite(func() {
 		},
 	}
 
+	/*
+		Set extra env for etcd in arm
+	*/
+	if runtime.GOARCH == "arm64" {
+		err := os.Setenv("ETCD_UNSUPPORTED_ARCH", "arm64")
+		if err != nil {
+			log.Fatalf("Error When setting env for etcd, err:%s", err)
+		}
+	}
 	/*
 		Then, we start the envtest cluster.
 	*/
