@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/j-keck/arping"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 )
@@ -98,10 +99,14 @@ func arpDiscover() {
 			}
 
 			fmt.Println("send arp packets on interface", ifi.Name)
-			// todo: replace arping with go library
-			out, err := exec.Command("arping", "-A", "0.0.0.0", "-I", ifi.Name, "-c", "1").CombinedOutput()
-			if err != nil {
-				fmt.Printf("get error while arping, output: %s, err: %s\n", string(out), err)
+			ips, err := ifi.Addrs()
+			for _, ip := range ips {
+				fmt.Printf("send arp packets on: %s\n", ip)
+				ipAddr, _, _ := net.ParseCIDR(ip.String())
+				err = arping.GratuitousArpOverIfaceByName(ipAddr, ifi.Name)
+				if err != nil {
+					fmt.Printf("get error while arping, err: %s\n", err)
+				}
 			}
 		}
 
