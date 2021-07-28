@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agiledragon/gomonkey"
 	ovsdb "github.com/contiv/libovsdb"
 	"github.com/contiv/ofnet"
 	. "github.com/onsi/gomega"
@@ -66,11 +65,6 @@ var (
 
 func TestMain(m *testing.M) {
 	k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
-
-	// return new fake agentname instead of read/write from file
-	gomonkey.ApplyFunc(readOrGenerateAgentName, func() (string, error) {
-		return `unit.test.agent.name`, nil
-	})
 
 	var err error
 
