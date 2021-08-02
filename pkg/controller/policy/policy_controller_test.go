@@ -100,6 +100,77 @@ var _ = Describe("PolicyController", func() {
 			Expect(k8sClient.Create(ctx, group2)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group3)).Should(Succeed())
 		})
+		When("create a sample policy with port range", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "1000-1999"), newTestPort("UDP", "80"))
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 10)
+
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x03e8, 0xfff8, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x03f0, 0xfff0, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x0400, 0xfe00, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x0600, 0xff00, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x0700, 0xff80, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x0780, 0xffc0, "TCP")
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0x07c0, 0xfff0, "TCP")
+
+				// default ingress/egress rule (drop all to/from source)
+				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+		})
+
+		When("create a sample policy with port range 2", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "65532-65535"), newTestPort("UDP", "80"))
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 4)
+
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0xfffc, 0xfffc, "TCP")
+
+			})
+		})
+
+		When("create a sample policy no port limit", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "0"), newTestPort("UDP", "80"))
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 4)
+
+				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
+					0, 0, "192.168.1.1/32", 0, 0, "TCP")
+
+			})
+		})
 
 		When("create a sample policy with ingress and egress", func() {
 			var policy *securityv1alpha1.SecurityPolicy
@@ -356,9 +427,11 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should sync egress policy rules", func() {
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8080, "UDP")
-					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8081, "UDP")
-					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 8082, "UDP")
+					assertHasPolicyRuleWithPortRange(ctx, policy, "Egress", "Allow", "192.168.1.1/32",
+						0, 0, "192.168.3.1/32", 8080, 0xfffe, "UDP")
+					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32",
+						0, "192.168.3.1/32", 8082, "UDP")
+
 				})
 			})
 
@@ -741,6 +814,34 @@ func assertHasPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityP
 				srcPort == rule.Spec.SrcPort &&
 				dstCidr == rule.Spec.DstIpAddr &&
 				dstPort == rule.Spec.DstPort &&
+				protocol == rule.Spec.IpProtocol {
+				return true
+			}
+		}
+		return false
+	}, timeout, interval).Should(BeTrue())
+}
+
+func assertHasPolicyRuleWithPortRange(ctx context.Context, policy *securityv1alpha1.SecurityPolicy,
+	direction, action, srcCidr string, srcPort uint16, srcPortMask uint16, dstCidr string, dstPort uint16, dstPortMask uint16, protocol string) {
+	Eventually(func() bool {
+		var policyRuleList = policyv1alpha1.PolicyRuleList{}
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
+
+		var tier = policy.Spec.Tier
+		var priority = policy.Spec.Priority
+
+		for _, rule := range policyRuleList.Items {
+			if tier == rule.Spec.Tier &&
+				direction == string(rule.Spec.Direction) &&
+				action == string(rule.Spec.Action) &&
+				priority == rule.Spec.Priority &&
+				srcCidr == rule.Spec.SrcIpAddr &&
+				srcPort == rule.Spec.SrcPort &&
+				srcPortMask == rule.Spec.SrcPortMask &&
+				dstCidr == rule.Spec.DstIpAddr &&
+				dstPort == rule.Spec.DstPort &&
+				dstPortMask == rule.Spec.DstPortMask &&
 				protocol == rule.Spec.IpProtocol {
 				return true
 			}
