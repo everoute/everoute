@@ -30,7 +30,7 @@ function install_etcd() {
     return 0
   fi
 
-  curl -L ${download_url}/${version}/${tmp_file_name}.tar -o ${download_path}
+  curl -L ${download_url}/${version}/${tmp_file_name}.tar.gz -o ${download_path}
   tar xf ${download_path} -C /usr/local/bin --strip-components=1 --extract ${tmp_file_name}/etcd ${tmp_file_name}/etcdctl
 }
 
@@ -49,10 +49,6 @@ function install_kube_plugin() {
 }
 
 function start_etcd() {
-  if [[ ${1}=="arm64" ]]; then
-    export ETCD_UNSUPPORTED_ARCH=arm64
-  fi
-
   if [[ $(pidof etcd) ]]; then
     printf "etcd has already run on pid %s, please run e2e-reset.sh first\n" "$(pidof etcd)"
     return 1
@@ -191,7 +187,7 @@ users:
 EOF
 }
 
-ETCD_VERSION="v3.4.15"
+ETCD_VERSION="v3.5.0"
 # kube-apiserver 1.19 or high has a issue with webhook: https://github.com/kubernetes/kubernetes/issues/100454
 KUBE_VERSION="v1.18.17"
 CERT_PATH=/etc/lynx/pki
