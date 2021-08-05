@@ -40,6 +40,7 @@ type ResponseError struct {
 type ErrorCode string
 
 const (
+	PermissionDenied      ErrorCode = "PERMISSION_DENIED"
 	LoginFailed           ErrorCode = "LOGIN_FAILED"
 	UserNotFound          ErrorCode = "USER_NOT_FOUND"
 	UserPasswordIncorrect ErrorCode = "USER_PASSWORD_INCORRECT"
@@ -55,7 +56,7 @@ func (e ResponseError) Error() string {
 func HasAuthError(errors []ResponseError) bool {
 	for _, err := range errors {
 		switch err.Code {
-		case LoginFailed, UserNotFound, UserPasswordIncorrect, NotMatchUser, LoadTokenFailed:
+		case PermissionDenied, LoginFailed, UserNotFound, UserPasswordIncorrect, NotMatchUser, LoadTokenFailed:
 			return true
 		}
 	}
