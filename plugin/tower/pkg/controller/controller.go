@@ -191,7 +191,7 @@ func (c *Controller) updateVM(old interface{}, new interface{}) {
 }
 
 func (c *Controller) deleteVM(old interface{}) {
-	unknown, ok := old.(*cache.DeletedFinalStateUnknown)
+	unknown, ok := old.(cache.DeletedFinalStateUnknown)
 	if ok {
 		old = unknown.Obj
 	}
@@ -212,7 +212,7 @@ func (c *Controller) updateLabel(old interface{}, new interface{}) {
 }
 
 func (c *Controller) deleteLabel(old interface{}) {
-	if d, ok := old.(*cache.DeletedFinalStateUnknown); ok {
+	if d, ok := old.(cache.DeletedFinalStateUnknown); ok {
 		old = d.Obj
 	}
 	label := old.(*schema.Label)
@@ -252,7 +252,7 @@ func (c *Controller) updateEndpoint(old interface{}, new interface{}) {
 }
 
 func (c *Controller) deleteEndpoint(old interface{}) {
-	if d, ok := old.(*cache.DeletedFinalStateUnknown); ok {
+	if d, ok := old.(cache.DeletedFinalStateUnknown); ok {
 		old = d.Obj
 	}
 	obj := old.(*v1alpha1.Endpoint)
