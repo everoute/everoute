@@ -25,6 +25,7 @@ import (
 	kubeerror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -363,15 +364,19 @@ func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
 		return nil, fmt.Errorf("list labels for vm %s: %s", vmID, err)
 	}
 
-	if len(labels) == 0 {
+	labelsMap := make(map[string]string, len(labels))
+	for _, label := range labels {
+		if !validKubernetesLabel(label.(*schema.Label)) {
+			klog.Infof("ignore vm %s valid kubernetes labels %+v", vmID, label)
+			continue
+		}
+		labelsMap[label.(*schema.Label).Key] = label.(*schema.Label).Value
+	}
+
+	if len(labelsMap) == 0 {
 		// If labels length is zero, would return nil instead of an empty map.
 		// Consistent with the empty labels returned by the apiserver.
 		return nil, nil
-	}
-
-	labelsMap := make(map[string]string, len(labels))
-	for _, label := range labels {
-		labelsMap[label.(*schema.Label).Key] = label.(*schema.Label).Value
 	}
 
 	return labelsMap, nil
@@ -398,4 +403,10 @@ func fetchVnic(vm *schema.VM, vnicKey string) (*schema.VMNic, bool) {
 		}
 	}
 	return nil, false
+}
+
+func validKubernetesLabel(label *schema.Label) bool {
+	validKey := len(validation.IsQualifiedName(label.Key)) == 0
+	validValue := len(validation.IsValidLabelValue(label.Value)) == 0
+	return validKey && validValue
 }

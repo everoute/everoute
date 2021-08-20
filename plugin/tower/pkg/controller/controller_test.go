@@ -94,3 +94,49 @@ func randVM() *schema.VM {
 		},
 	}
 }
+
+func TestValidKubernetesLabel(t *testing.T) {
+	testCases := []struct {
+		labelKey    string
+		labelValue  string
+		expectValid bool
+	}{
+		{
+			labelKey:    "中文标签",
+			labelValue:  "value",
+			expectValid: false,
+		},
+		{
+			labelKey:    "key",
+			labelValue:  "中文值",
+			expectValid: false,
+		},
+		{
+			labelKey:    "@invalid-char",
+			labelValue:  "value",
+			expectValid: false,
+		},
+		{
+			labelKey:    "Key",
+			labelValue:  "Value",
+			expectValid: true,
+		},
+		{
+			labelKey:    "key",
+			labelValue:  "value",
+			expectValid: true,
+		},
+	}
+
+	for index, tc := range testCases {
+		t.Run(fmt.Sprintf("case[%d]: key = %s, value = %s", index, tc.labelKey, tc.labelValue), func(t *testing.T) {
+			isValidLabel := validKubernetesLabel(&schema.Label{
+				Key:   tc.labelKey,
+				Value: tc.labelValue,
+			})
+			if tc.expectValid != isValidLabel {
+				t.Fatalf("key = %s, value = %s, expect valid %t but not", tc.labelKey, tc.labelValue, tc.expectValid)
+			}
+		})
+	}
+}
