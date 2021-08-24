@@ -1,10 +1,10 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.5
+    controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
   name: groupmemberspatches.group.lynx.smartx.com
 spec:
@@ -15,121 +15,120 @@ spec:
     plural: groupmemberspatches
     singular: groupmemberspatch
   scope: Cluster
-  validation:
-    openAPIV3Schema:
-      properties:
-        addedGroupMembers:
-          items:
-            description: GroupMember represents resource member to be populated in
-              Groups.
-            properties:
-              endpointReference:
-                description: EndpointReference maintains the reference to the Endpoint.
-                properties:
-                  externalIDName:
-                    type: string
-                  externalIDValue:
-                    type: string
-                required:
-                - externalIDName
-                - externalIDValue
-                type: object
-              ips:
-                items:
-                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
-                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
-                  type: string
-                type: array
-            required:
-            - endpointReference
-            type: object
-          type: array
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        appliedToGroupMembers:
-          description: AppliedToGroupMembers means specific revision of GroupMembers
-            Patch applied to.
-          properties:
-            name:
-              type: string
-            revision:
-              format: int32
-              type: integer
-          required:
-          - name
-          - revision
-          type: object
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        removedGroupMembers:
-          items:
-            description: GroupMember represents resource member to be populated in
-              Groups.
-            properties:
-              endpointReference:
-                description: EndpointReference maintains the reference to the Endpoint.
-                properties:
-                  externalIDName:
-                    type: string
-                  externalIDValue:
-                    type: string
-                required:
-                - externalIDName
-                - externalIDValue
-                type: object
-              ips:
-                items:
-                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
-                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
-                  type: string
-                type: array
-            required:
-            - endpointReference
-            type: object
-          type: array
-        updatedGroupMembers:
-          items:
-            description: GroupMember represents resource member to be populated in
-              Groups.
-            properties:
-              endpointReference:
-                description: EndpointReference maintains the reference to the Endpoint.
-                properties:
-                  externalIDName:
-                    type: string
-                  externalIDValue:
-                    type: string
-                required:
-                - externalIDName
-                - externalIDValue
-                type: object
-              ips:
-                items:
-                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
-                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
-                  type: string
-                type: array
-            required:
-            - endpointReference
-            type: object
-          type: array
-      required:
-      - appliedToGroupMembers
-      type: object
-  version: v1alpha1
   versions:
   - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          addedGroupMembers:
+            items:
+              description: GroupMember represents resource member to be populated
+                in Groups.
+              properties:
+                endpointReference:
+                  description: EndpointReference maintains the reference to the Endpoint.
+                  properties:
+                    externalIDName:
+                      type: string
+                    externalIDValue:
+                      type: string
+                  required:
+                  - externalIDName
+                  - externalIDValue
+                  type: object
+                ips:
+                  items:
+                    description: IPAddress is net ip address, can be ipv4 or ipv6.
+                      Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                    pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                    type: string
+                  type: array
+              required:
+              - endpointReference
+              type: object
+            type: array
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          appliedToGroupMembers:
+            description: AppliedToGroupMembers means specific revision of GroupMembers
+              Patch applied to.
+            properties:
+              name:
+                type: string
+              revision:
+                format: int32
+                type: integer
+            required:
+            - name
+            - revision
+            type: object
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          removedGroupMembers:
+            items:
+              description: GroupMember represents resource member to be populated
+                in Groups.
+              properties:
+                endpointReference:
+                  description: EndpointReference maintains the reference to the Endpoint.
+                  properties:
+                    externalIDName:
+                      type: string
+                    externalIDValue:
+                      type: string
+                  required:
+                  - externalIDName
+                  - externalIDValue
+                  type: object
+                ips:
+                  items:
+                    description: IPAddress is net ip address, can be ipv4 or ipv6.
+                      Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                    pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                    type: string
+                  type: array
+              required:
+              - endpointReference
+              type: object
+            type: array
+          updatedGroupMembers:
+            items:
+              description: GroupMember represents resource member to be populated
+                in Groups.
+              properties:
+                endpointReference:
+                  description: EndpointReference maintains the reference to the Endpoint.
+                  properties:
+                    externalIDName:
+                      type: string
+                    externalIDValue:
+                      type: string
+                  required:
+                  - externalIDName
+                  - externalIDValue
+                  type: object
+                ips:
+                  items:
+                    description: IPAddress is net ip address, can be ipv4 or ipv6.
+                      Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                    pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                    type: string
+                  type: array
+              required:
+              - endpointReference
+              type: object
+            type: array
+        required:
+        - appliedToGroupMembers
+        type: object
     served: true
     storage: true
 status:
