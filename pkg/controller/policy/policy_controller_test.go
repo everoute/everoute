@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -34,6 +36,7 @@ import (
 	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
 	"github.com/smartxworks/lynx/pkg/types"
 )
@@ -621,6 +624,48 @@ var _ = Describe("CompleteRuleCache", func() {
 		})
 	})
 })
+
+func TestFlattenPorts(t *testing.T) {
+	testCases := map[string]struct {
+		portRange      *securityv1alpha1.SecurityPolicyPort
+		expectRulePort []cache.RulePort
+		expectError    bool
+	}{
+		"should unmarshal single port": {
+			portRange: newTestPort("TCP", "80"),
+			expectRulePort: []cache.RulePort{
+				{DstPort: 80, DstPortMask: 0xffff, Protocol: "TCP"},
+			},
+		},
+		"should unmarshal portRange": {
+			portRange: newTestPort("TCP", "20-25"),
+			expectRulePort: []cache.RulePort{
+				{DstPort: 20, DstPortMask: 0xfffc, Protocol: "TCP"},
+				{DstPort: 24, DstPortMask: 0xfffe, Protocol: "TCP"},
+			},
+		},
+		"should unmarshal multiple portRange": {
+			portRange: newTestPort("TCP", "20-25,80"),
+			expectRulePort: []cache.RulePort{
+				{DstPort: 20, DstPortMask: 0xfffc, Protocol: "TCP"},
+				{DstPort: 24, DstPortMask: 0xfffe, Protocol: "TCP"},
+				{DstPort: 80, DstPortMask: 0xffff, Protocol: "TCP"},
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ports, err := policy.FlattenPorts([]securityv1alpha1.SecurityPolicyPort{*tc.portRange})
+			if tc.expectError && err == nil || !tc.expectError && err != nil {
+				t.Fatalf("expect error: %t, but get error: %s", tc.expectError, err)
+			}
+			if !reflect.DeepEqual(ports, tc.expectRulePort) {
+				t.Fatalf("expect rule ports: %+v, get rule ports: %+v", tc.expectRulePort, ports)
+			}
+		})
+	}
+}
 
 func newTestPort(protocol, portRange string) *securityv1alpha1.SecurityPolicyPort {
 	return &securityv1alpha1.SecurityPolicyPort{

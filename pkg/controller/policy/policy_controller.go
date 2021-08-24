@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -697,23 +698,28 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 			continue
 		}
 
-		begin, end, err := policycache.UnmarshalPortRange(port.PortRange)
-		if err != nil {
-			return nil, fmt.Errorf("portrange %s unavailable: %s", port.PortRange, err)
-		}
+		// Split port range to multiple port range, e.g. "22,80-82" to ["22","80-82"]
+		portRange := strings.Split(port.PortRange, ",")
 
-		if port.Protocol == securityv1alpha1.ProtocolTCP {
-			// If defined portNumber as type uint16 here, an infinite loop will occur when end is
-			// 65535 (uint16 value will never bigger than 65535, for condition would always true).
-			// So we defined portNumber as type int here.
-			for portNumber := int(begin); portNumber <= int(end); portNumber++ {
-				portMapTCP[portNumber] = true
+		for _, subPortRange := range portRange {
+			begin, end, err := policycache.UnmarshalPortRange(subPortRange)
+			if err != nil {
+				return nil, fmt.Errorf("portrange %s unavailable: %s", subPortRange, err)
 			}
-		}
 
-		if port.Protocol == securityv1alpha1.ProtocolUDP {
-			for portNumber := int(begin); portNumber <= int(end); portNumber++ {
-				portMapUDP[portNumber] = true
+			if port.Protocol == securityv1alpha1.ProtocolTCP {
+				// If defined portNumber as type uint16 here, an infinite loop will occur when end is
+				// 65535 (uint16 value will never bigger than 65535, for condition would always true).
+				// So we defined portNumber as type int here.
+				for portNumber := int(begin); portNumber <= int(end); portNumber++ {
+					portMapTCP[portNumber] = true
+				}
+			}
+
+			if port.Protocol == securityv1alpha1.ProtocolUDP {
+				for portNumber := int(begin); portNumber <= int(end); portNumber++ {
+					portMapUDP[portNumber] = true
+				}
 			}
 		}
 	}

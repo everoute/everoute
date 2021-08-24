@@ -129,8 +129,9 @@ type SecurityPolicyPort struct {
 	Protocol Protocol `json:"protocol"`
 	// PortRange is a range of port. If you want match all ports, you should set empty. If you
 	// want match single port, you should write like 22. If you want match a range of port, you
-	// should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches.
-	// +kubebuilder:validation:Pattern="^(\\d{1,5}-\\d{1,5})|(\\d{1,5})|()$"
+	// should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
+	// want match multiple ports, you should write like 20,22-24,90.
+	// +kubebuilder:validation:Pattern="^(((\\d{1,5}-\\d{1,5})|(\\d{1,5})),)*((\\d{1,5}-\\d{1,5})|(\\d{1,5}))$|^$"
 	PortRange string `json:"portRange,omitempty"` // only valid when Protocol is not ICMP
 
 	// ICMP type and code is not support in alpha1.

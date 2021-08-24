@@ -111,7 +111,9 @@ spec:
                               single port, you should write like 22. If you want match
                               a range of port, you should write like 20-80, ports
                               between 20 and 80 (include 20 and 80) will matches.
-                            pattern: ^(\d{1,5}-\d{1,5})|(\d{1,5})|()$
+                              If you want match multiple ports, you should write like
+                              20,22-24,90.
+                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic
@@ -225,7 +227,9 @@ spec:
                               single port, you should write like 22. If you want match
                               a range of port, you should write like 20-80, ports
                               between 20 and 80 (include 20 and 80) will matches.
-                            pattern: ^(\d{1,5}-\d{1,5})|(\d{1,5})|()$
+                              If you want match multiple ports, you should write like
+                              20,22-24,90.
+                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic

@@ -423,5 +423,15 @@ var _ = Describe("CRD Validate", func() {
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyEgress, "")).Allowed).Should(BeTrue())
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyIngress, "")).Allowed).Should(BeTrue())
 		})
+		It("Create policy with validate portRange should allowed", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Spec.IngressRules[0].Ports[0].PortRange = "20,22-24,80,82-84"
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+		})
+		It("Create policy with error format of portRange should not allowed", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Spec.IngressRules[0].Ports[0].PortRange = "22,80,"
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+		})
 	})
 })

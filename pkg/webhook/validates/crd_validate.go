@@ -433,9 +433,12 @@ func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error
 }
 
 func (v *securityPolicyValidator) validatePortRange(portRange string) error {
-	const emptyPort = `^$`
-	const singlePort = `^(\d{1,5})$`
-	const multiplePort = `^(\d{1,5}-\d{1,5})$`
+	const (
+		emptyPort    = `^$`
+		singlePort   = `^(\d{1,5})$`
+		rangePort    = `^(\d{1,5}-\d{1,5})$`
+		multiplePort = `^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$`
+	)
 
 	switch {
 	case regexp.MustCompile(emptyPort).Match([]byte(portRange)):
@@ -445,7 +448,7 @@ func (v *securityPolicyValidator) validatePortRange(portRange string) error {
 		if port < 0 || port > 65535 {
 			return fmt.Errorf("port supported must between 0 and 65535")
 		}
-	case regexp.MustCompile(multiplePort).Match([]byte(portRange)):
+	case regexp.MustCompile(rangePort).Match([]byte(portRange)):
 		portBegin, _ := strconv.Atoi(strings.Split(portRange, "-")[0])
 		portEnd, _ := strconv.Atoi(strings.Split(portRange, "-")[1])
 
@@ -455,6 +458,12 @@ func (v *securityPolicyValidator) validatePortRange(portRange string) error {
 
 		if portBegin > portEnd {
 			return fmt.Errorf("port begin %d is bigger than end %d", portBegin, portEnd)
+		}
+	case regexp.MustCompile(multiplePort).Match([]byte(portRange)):
+		for _, subPortRange := range strings.Split(portRange, ",") {
+			if err := v.validatePortRange(subPortRange); err != nil {
+				return err
+			}
 		}
 	default:
 		return fmt.Errorf("unsupport format of portrange")
