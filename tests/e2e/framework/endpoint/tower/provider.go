@@ -68,6 +68,7 @@ type provider struct {
 func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID, vdsID string) model.EndpointProvider {
 	retryClient := rthttp.NewClient()
 	retryClient.RetryMax = 10
+	retryClient.Logger = nil
 	towerClient.HTTPClient = retryClient.StandardClient()
 
 	return &provider{
