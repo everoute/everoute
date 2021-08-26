@@ -47,6 +47,10 @@ type CreateVMEffect struct {
 	IsFullCopy            *bool   `json:"is_full_copy"`
 }
 
+type ClusterWhereInput struct {
+	ID *string `json:"id,omitempty"`
+}
+
 type DeleteVMEffect struct {
 	IncludeSnapshots *bool `json:"include_snapshots"`
 }
@@ -228,6 +232,12 @@ type VMVolumeCreateWithoutVMDisksInput struct {
 	Path             string                       `json:"path"`
 	Sharing          bool                         `json:"sharing"`
 	Size             float64                      `json:"size"`
+}
+
+type VMWhereInput struct {
+	Cluster      *ClusterWhereInput `json:"cluster,omitempty"`
+	Name         *string            `json:"name,omitempty"`
+	InRecycleBin *bool              `json:"in_recycle_bin,omitempty"`
 }
 
 type VMWhereUniqueInput struct {

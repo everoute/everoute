@@ -19,7 +19,6 @@ package tower
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -29,6 +28,7 @@ import (
 	rthttp "github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/crypto/ssh"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
 
@@ -57,9 +57,6 @@ type provider struct {
 	vdsID           string
 	mutationVdsLock sync.Mutex
 
-	// vmKeyFunc get vm's tower id from endpoint name
-	vmKeyFunc func(name string) string
-
 	// concurrent mutation labels cause mistakes
 	mutationLabelLock sync.Mutex
 }
@@ -76,7 +73,6 @@ func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.
 		towerClient:  towerClient,
 		vmTemplateID: vmTemplateID,
 		vdsID:        vdsID,
-		vmKeyFunc:    vmKeyFuncDefault,
 	}
 }
 
@@ -85,32 +81,39 @@ func (m *provider) Name() string {
 }
 
 func (m *provider) Get(ctx context.Context, name string) (*model.Endpoint, error) {
-	var vmID = m.vmKeyFunc(name)
+	clusterID, err := m.getClusterID()
+	if err != nil {
+		return nil, fmt.Errorf("read cluster id: %s", err)
+	}
 
-	vm, err := queryVM(m.towerClient, &VMWhereUniqueInput{ID: &vmID})
+	vms, err := queryVMs(m.towerClient, &VMWhereInput{Cluster: &ClusterWhereInput{ID: &clusterID}, Name: &name})
+	if err != nil {
+		return nil, fmt.Errorf("query vms: %s", err)
+	}
+
+	switch len(vms) {
+	case 0:
+		return nil, apierrors.NewNotFound(schema.GroupResource{Group: "tower", Resource: "vm"}, name)
+	case 1:
+		return m.toEndpoint(&vms[0])
+	default:
+		return nil, fmt.Errorf("multiple vms with name %s in cluster %s: %+v", name, clusterID, vms)
+	}
+}
+
+func (m *provider) List(ctx context.Context) ([]*model.Endpoint, error) {
+	var epList []*model.Endpoint
+	var boolFalse = false
+
+	vmList, err := queryVMs(m.towerClient, &VMWhereInput{InRecycleBin: &boolFalse})
 	if err != nil {
 		return nil, err
 	}
 
-	return m.endpointFromDescription(vm.Description)
-}
-
-func (m *provider) List(ctx context.Context) ([]*model.Endpoint, error) {
-	var vmList []VM
-	var epList []*model.Endpoint
-	var err error
-
-	if vmList, err = queryVMs(m.towerClient); err != nil {
-		return nil, err
-	}
-
 	for _, vm := range vmList {
-		endpoint, err := m.endpointFromDescription(vm.Description)
-		if err != nil {
-			// not all vm are created for lynx testing
-			continue
+		if endpoint, err := m.toEndpoint(&vm); err == nil {
+			epList = append(epList, endpoint)
 		}
-		epList = append(epList, endpoint)
 	}
 
 	return epList, nil
@@ -128,12 +131,13 @@ func (m *provider) Create(ctx context.Context, endpoint *model.Endpoint) (*model
 		return nil, err
 	}
 
-	_, err = m.newFromTemplate(endpoint.Name, endpoint.Status.Host, endpoint.VID, description)
+	vm, err := m.newFromTemplate(endpoint.Name, endpoint.Status.Host, endpoint.VID, description)
 	if err != nil {
 		return nil, fmt.Errorf("create %s from template %s: %s", endpoint.Name, m.vmTemplateID, err)
 	}
+	endpoint.Status.LocalID = vm.ID
 
-	err = m.mutationEndpointLabels(endpoint.Name, endpoint.Labels)
+	err = m.mutationVMLabels(vm.ID, endpoint.Labels)
 	if err != nil {
 		return nil, fmt.Errorf("unable update %s labels: %s", endpoint.Name, err)
 	}
@@ -150,7 +154,7 @@ func (m *provider) Update(ctx context.Context, endpoint *model.Endpoint) (*model
 	}
 	endpoint.Status = old.Status
 
-	if err = m.mutationEndpointLabels(endpoint.Name, endpoint.Labels); err != nil {
+	if err = m.mutationVMLabels(endpoint.Status.LocalID, endpoint.Labels); err != nil {
 		return nil, err
 	}
 
@@ -168,12 +172,27 @@ func (m *provider) Update(ctx context.Context, endpoint *model.Endpoint) (*model
 }
 
 func (m *provider) Delete(ctx context.Context, name string) error {
-	vmID := m.vmKeyFunc(name)
-	_, err := mutationDeleteVM(m.towerClient, &VMWhereUniqueInput{ID: &vmID})
+	epList, err := m.List(ctx)
 	if err != nil {
 		return err
 	}
-	return m.waitForVMReady(ctx, name)
+
+	for _, ep := range epList {
+		// find endpoint by name
+		if ep.Name != name || ep.Status.LocalID == "" {
+			continue
+		}
+		_, err = mutationDeleteVM(m.towerClient, &VMWhereUniqueInput{ID: &ep.Status.LocalID})
+		if err != nil {
+			return err
+		}
+		err = m.waitForVMReady(ctx, ep.Status.LocalID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *provider) RenewIP(ctx context.Context, name string) (*model.Endpoint, error) {
@@ -221,12 +240,12 @@ func (m *provider) Migrate(ctx context.Context, name string) (*model.Endpoint, e
 }
 
 func (m *provider) RunScript(ctx context.Context, name string, script []byte, arg ...string) (int, []byte, error) {
-	err := m.waitForVMReady(ctx, name)
+	ep, err := m.Get(ctx, name)
 	if err != nil {
-		return 0, nil, fmt.Errorf("wait for operation: %s", err)
+		return 0, nil, err
 	}
 
-	client, domain, err := m.getGuestExecPath(ctx, name)
+	client, domain, err := m.getGuestExecPath(ctx, ep.Status.LocalID)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get client: %s", err)
 	}
@@ -236,12 +255,12 @@ func (m *provider) RunScript(ctx context.Context, name string, script []byte, ar
 }
 
 func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg ...string) (int, []byte, error) {
-	err := m.waitForVMReady(ctx, name)
+	ep, err := m.Get(ctx, name)
 	if err != nil {
-		return 0, nil, fmt.Errorf("wait for operation: %s", err)
+		return 0, nil, err
 	}
 
-	client, domain, err := m.getGuestExecPath(ctx, name)
+	client, domain, err := m.getGuestExecPath(ctx, ep.Status.LocalID)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get client: %s", err)
 	}
@@ -252,7 +271,6 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 func (m *provider) newFromTemplate(name string, agent string, vlanID int, describe string) (*VM, error) {
 	var err error
 	var vlanUUID string
-	var vmID = m.vmKeyFunc(name)
 
 	if err = m.cacheVMTemplate(); err != nil {
 		return nil, err
@@ -270,7 +288,6 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 		Firmware:             m.vmTemplateCached.Firmware,
 		Ha:                   m.vmTemplateCached.Ha,
 		Host:                 &ConnectInput{Connect: &UniqueInput{ID: &agent}},
-		ID:                   &vmID,
 		InRecycleBin:         false,
 		Internal:             false,
 		Ips:                  "",
@@ -324,15 +341,18 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 		},
 	}
 
-	return mutationCreateVM(m.towerClient, &vmCreateInput, &vmCreateEffect)
+	vm, err := mutationCreateVM(m.towerClient, &vmCreateInput, &vmCreateEffect)
+	if err != nil {
+		return nil, err
+	}
+	return vm, m.waitForVMReady(context.Background(), vm.ID)
 }
 
-func (m *provider) mutationEndpointLabels(name string, labels map[string]string) error {
+func (m *provider) mutationVMLabels(vmID string, labels map[string]string) error {
+	var errList []error
+
 	m.mutationLabelLock.Lock()
 	defer m.mutationLabelLock.Unlock()
-
-	var errList []error
-	var vmID = m.vmKeyFunc(name)
 
 	allTowerLabels, err := queryLabels(m.towerClient)
 	if err != nil {
@@ -407,8 +427,7 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 	return vlanUUID, nil
 }
 
-func (m *provider) waitForVMReady(ctx context.Context, name string) error {
-	var vmID = m.vmKeyFunc(name)
+func (m *provider) waitForVMReady(ctx context.Context, vmID string) error {
 	var interval = 100 * time.Millisecond
 
 	for {
@@ -425,7 +444,7 @@ func (m *provider) waitForVMReady(ctx context.Context, name string) error {
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("timeout wait for %s ready", name)
+			return fmt.Errorf("wait for vm %s ready: %s", vmID, ctx.Err())
 		case <-time.After(interval):
 		}
 	}
@@ -467,9 +486,7 @@ func (m *provider) cacheVMTemplate() error {
 	return err
 }
 
-func (m *provider) getGuestExecPath(ctx context.Context, name string) (*ssh.Client, string, error) {
-	var vmID = m.vmKeyFunc(name)
-
+func (m *provider) getGuestExecPath(ctx context.Context, vmID string) (*ssh.Client, string, error) {
 	vm, err := queryVM(m.towerClient, &VMWhereUniqueInput{ID: &vmID})
 	if err != nil {
 		return nil, "", err
@@ -477,12 +494,12 @@ func (m *provider) getGuestExecPath(ctx context.Context, name string) (*ssh.Clie
 
 	agent, err := m.nodeManager.GetAgent(vm.Host.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("get guest %s client: %s", name, err)
+		return nil, "", fmt.Errorf("get guest %s client: %s", vmID, err)
 	}
 
 	client, err := agent.GetClient()
 	if err != nil {
-		return nil, "", fmt.Errorf("get guest %s client: %s", name, err)
+		return nil, "", fmt.Errorf("get guest %s client: %s", vmID, err)
 	}
 
 	return client, vm.LocalID, nil
@@ -492,8 +509,6 @@ func (m *provider) completeRandomStatus(endpoint *model.Endpoint) error {
 	if endpoint.Status == nil {
 		endpoint.Status = &model.EndpointStatus{}
 	}
-
-	endpoint.Status.LocalID = m.vmKeyFunc(endpoint.Name)
 
 	if endpoint.Status.IPAddr == "" {
 		ipAddr, err := m.ipPool.AssignFromSubnet(endpoint.ExpectSubnet)
@@ -577,20 +592,28 @@ func (m *provider) migrateToHost(ctx context.Context, endpoint *model.Endpoint, 
 		return nil, err
 	}
 
-	return endpoint, m.waitForVMReady(ctx, endpoint.Name)
+	return endpoint, m.waitForVMReady(ctx, endpoint.Status.LocalID)
+}
+
+func (m *provider) getClusterID() (string, error) {
+	// read cluster id from vm template
+	if err := m.cacheVMTemplate(); err != nil {
+		return "", err
+	}
+	return m.vmTemplateCached.Cluster.ID, nil
 }
 
 /*
 	endpointProvider is designed as a stateless application, so we store endpoint info into vm.description
 */
-func (m *provider) endpointFromDescription(describe string) (*model.Endpoint, error) {
+func (m *provider) toEndpoint(vm *VM) (*model.Endpoint, error) {
 	var endpoint *model.Endpoint
-	err := json.NewDecoder(bytes.NewBufferString(describe)).Decode(&endpoint)
+	err := json.NewDecoder(bytes.NewBufferString(vm.Description)).Decode(&endpoint)
 	if err != nil {
 		return nil, err
 	}
-	if endpoint.Name == "" {
-		return nil, fmt.Errorf("unexpected endpoint %+v from %s", endpoint, describe)
+	if endpoint.Status.LocalID == "" {
+		endpoint.Status.LocalID = vm.ID
 	}
 	return endpoint, nil
 }
@@ -599,10 +622,6 @@ func (m *provider) endpointIntoDescription(vm *model.Endpoint) (string, error) {
 	var description bytes.Buffer
 	err := json.NewEncoder(&description).Encode(vm)
 	return description.String(), err
-}
-
-func vmKeyFuncDefault(name string) string {
-	return fmt.Sprintf("lynx%x", sha1.Sum([]byte(name)))[:25]
 }
 
 func findLabelByKeyValue(labels []Label, key, value string) *Label {

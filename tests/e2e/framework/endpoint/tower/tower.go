@@ -215,12 +215,14 @@ func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
 	return &vm, err
 }
 
-func queryVMs(c *client.Client) ([]VM, error) {
+func queryVMs(c *client.Client, where *VMWhereInput) ([]VM, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]VM{}), true)
 
 	request := client.Request{
-		Query:     fmt.Sprintf("query vms {vms %s}", queryFields),
-		Variables: map[string]interface{}{},
+		Query: fmt.Sprintf("query vms($where: VmWhereInput) {vms(where: $where) %s}", queryFields),
+		Variables: map[string]interface{}{
+			"where": where,
+		},
 	}
 
 	resp, err := c.Query(&request)
