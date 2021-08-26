@@ -17,6 +17,7 @@ limitations under the License.
 package cases
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -625,6 +626,9 @@ func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, 
 
 func assertMatchReachTable(protocol string, port int, expectedTruthTable *model.TruthTable) {
 	Eventually(func() *model.TruthTable {
+		ctx, cancel := context.WithTimeout(ctx, e2eEnv.Timeout())
+		defer cancel()
+
 		tt, err := e2eEnv.EndpointManager().ReachTruthTable(ctx, protocol, port)
 		Expect(err).Should(Succeed())
 		return tt
