@@ -18,6 +18,8 @@ package tower
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,6 +55,51 @@ type guestExec struct {
 	Env           []string `json:"env,omitempty"`
 	InputData     *string  `json:"input-data,omitempty"`
 	CaptureOutput bool     `json:"capture-output,omitempty"`
+}
+
+func execContext(ctx context.Context, client *ssh.Client, domain string, command string, stdin []byte, arg ...string) (int, []byte, error) {
+	var timeout time.Duration
+	var output []byte
+
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = time.Until(deadline)
+	}
+
+	// wait for vm-tools ready and virsh command succeeded
+	err := waitForGuestAgentReady(client, domain, timeout)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	input := base64.StdEncoding.EncodeToString(stdin)
+	request := &guestExec{
+		Path:          command,
+		Arg:           arg,
+		InputData:     &input,
+		CaptureOutput: true,
+	}
+	result, err := guestExecWait(client, domain, timeout, request)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	if result.OutData != nil {
+		stdout, err := base64.StdEncoding.DecodeString(*result.OutData)
+		if err != nil {
+			return 0, nil, err
+		}
+		output = append(output, stdout...)
+	}
+	if result.ErrData != nil {
+		stderr, err := base64.StdEncoding.DecodeString(*result.ErrData)
+		if err != nil {
+			return 0, nil, err
+		}
+		output = append(output, stderr...)
+	}
+
+	return *result.Exitcode, output, nil
 }
 
 // waitForGuestAgentReady will run true in the guest until successed or timeout

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -233,7 +232,7 @@ func (m *provider) RunScript(ctx context.Context, name string, script []byte, ar
 	}
 
 	// $ bash -s [arg ...] <<< 'script'
-	return m.guestExec(ctx, client, domain, "bash", script, append([]string{"-s"}, arg...)...)
+	return execContext(ctx, client, domain, "bash", script, append([]string{"-s"}, arg...)...)
 }
 
 func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg ...string) (int, []byte, error) {
@@ -247,7 +246,7 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 		return 0, nil, fmt.Errorf("failed to get client: %s", err)
 	}
 
-	return m.guestExec(ctx, client, domain, cmd, nil, arg...)
+	return execContext(ctx, client, domain, cmd, nil, arg...)
 }
 
 func (m *provider) newFromTemplate(name string, agent string, vlanID int, describe string) (*VM, error) {
@@ -487,51 +486,6 @@ func (m *provider) getGuestExecPath(ctx context.Context, name string) (*ssh.Clie
 	}
 
 	return client, vm.LocalID, nil
-}
-
-func (m *provider) guestExec(ctx context.Context, client *ssh.Client, domain string, path string, stdin []byte, arg ...string) (int, []byte, error) {
-	var timeout time.Duration
-	var output []byte
-
-	deadline, ok := ctx.Deadline()
-	if ok {
-		timeout = time.Until(deadline)
-	}
-
-	// wait for vm-tools ready and virsh command succeeded
-	err := waitForGuestAgentReady(client, domain, timeout)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	input := base64.StdEncoding.EncodeToString(stdin)
-	request := &guestExec{
-		Path:          path,
-		Arg:           arg,
-		InputData:     &input,
-		CaptureOutput: true,
-	}
-	result, err := guestExecWait(client, domain, timeout, request)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	if result.OutData != nil {
-		stdout, err := base64.StdEncoding.DecodeString(*result.OutData)
-		if err != nil {
-			return 0, nil, err
-		}
-		output = append(output, stdout...)
-	}
-	if result.ErrData != nil {
-		stderr, err := base64.StdEncoding.DecodeString(*result.ErrData)
-		if err != nil {
-			return 0, nil, err
-		}
-		output = append(output, stderr...)
-	}
-
-	return *result.Exitcode, output, nil
 }
 
 func (m *provider) completeRandomStatus(endpoint *model.Endpoint) error {
