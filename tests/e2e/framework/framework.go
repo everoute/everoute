@@ -113,7 +113,7 @@ func (f *Framework) CleanObjects(ctx context.Context, objects ...metav1.Object) 
 		}
 
 		err = wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
-			var objKey = types.NamespacedName{Name: object.GetName()}
+			var objKey = types.NamespacedName{Name: object.GetName(), Namespace: object.GetNamespace()}
 			var obj = object.(runtime.Object)
 			var getErr = f.kubeClient.Get(ctx, objKey, obj.DeepCopyObject())
 			return errors.IsNotFound(getErr), nil
