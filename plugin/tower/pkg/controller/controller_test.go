@@ -38,6 +38,7 @@ import (
 var (
 	crdClient clientset.Interface
 	server    *fakeserver.Server
+	namespace = metav1.NamespaceDefault
 )
 
 func TestMain(m *testing.M) {
@@ -50,7 +51,7 @@ func TestMain(m *testing.M) {
 	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0)
 	crdFactory := externalversions.NewSharedInformerFactory(crdClient, 0)
 
-	ctroller := New(towerFactory, crdFactory, crdClient, 0)
+	ctroller := New(towerFactory, crdFactory, crdClient, 0, namespace)
 	go ctroller.Run(10, stopCh)
 
 	towerFactory.Start(stopCh)
@@ -74,7 +75,7 @@ func TestHandlerEndpoint(t *testing.T) {
 	}
 
 	Eventually(func() bool {
-		epList, err := crdClient.SecurityV1alpha1().Endpoints().List(context.Background(), metav1.ListOptions{})
+		epList, err := crdClient.SecurityV1alpha1().Endpoints(namespace).List(context.Background(), metav1.ListOptions{})
 		return len(epList.Items) == numOfRandVM && err == nil
 	}, time.Minute, 100*time.Millisecond).Should(BeTrue())
 }

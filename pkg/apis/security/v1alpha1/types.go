@@ -230,11 +230,8 @@ type Endpoint struct {
 }
 
 type EndpointSpec struct {
-	// Lynx allows endpoints from different sources, we distinguish the source
-	// of endpoint by field ManagePlaneID.
-	ManagePlaneID string            `json:"managePlaneID,omitempty"`
-	VID           uint32            `json:"vid"`
-	Reference     EndpointReference `json:"reference"`
+	VID       uint32            `json:"vid"`
+	Reference EndpointReference `json:"reference"`
 }
 
 type EndpointReference struct {
