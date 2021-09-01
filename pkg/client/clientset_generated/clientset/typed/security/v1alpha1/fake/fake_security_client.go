@@ -28,12 +28,12 @@ type FakeSecurityV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeSecurityV1alpha1) Endpoints() v1alpha1.EndpointInterface {
-	return &FakeEndpoints{c}
+func (c *FakeSecurityV1alpha1) Endpoints(namespace string) v1alpha1.EndpointInterface {
+	return &FakeEndpoints{c, namespace}
 }
 
-func (c *FakeSecurityV1alpha1) SecurityPolicies() v1alpha1.SecurityPolicyInterface {
-	return &FakeSecurityPolicies{c}
+func (c *FakeSecurityV1alpha1) SecurityPolicies(namespace string) v1alpha1.SecurityPolicyInterface {
+	return &FakeSecurityPolicies{c, namespace}
 }
 
 func (c *FakeSecurityV1alpha1) Tiers() v1alpha1.TierInterface {

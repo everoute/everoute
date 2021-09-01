@@ -36,12 +36,12 @@ type SecurityV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *SecurityV1alpha1Client) Endpoints() EndpointInterface {
-	return newEndpoints(c)
+func (c *SecurityV1alpha1Client) Endpoints(namespace string) EndpointInterface {
+	return newEndpoints(c, namespace)
 }
 
-func (c *SecurityV1alpha1Client) SecurityPolicies() SecurityPolicyInterface {
-	return newSecurityPolicies(c)
+func (c *SecurityV1alpha1Client) SecurityPolicies(namespace string) SecurityPolicyInterface {
+	return newSecurityPolicies(c, namespace)
 }
 
 func (c *SecurityV1alpha1Client) Tiers() TierInterface {

@@ -33,6 +33,7 @@ import (
 // FakeSecurityPolicies implements SecurityPolicyInterface
 type FakeSecurityPolicies struct {
 	Fake *FakeSecurityV1alpha1
+	ns   string
 }
 
 var securitypoliciesResource = schema.GroupVersionResource{Group: "security.lynx.smartx.com", Version: "v1alpha1", Resource: "securitypolicies"}
@@ -42,7 +43,8 @@ var securitypoliciesKind = schema.GroupVersionKind{Group: "security.lynx.smartx.
 // Get takes name of the securityPolicy, and returns the corresponding securityPolicy object, and an error if there is any.
 func (c *FakeSecurityPolicies) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(securitypoliciesResource, name), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewGetAction(securitypoliciesResource, c.ns, name), &v1alpha1.SecurityPolicy{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -52,7 +54,8 @@ func (c *FakeSecurityPolicies) Get(ctx context.Context, name string, options v1.
 // List takes label and field selectors, and returns the list of SecurityPolicies that match those selectors.
 func (c *FakeSecurityPolicies) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.SecurityPolicyList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(securitypoliciesResource, securitypoliciesKind, opts), &v1alpha1.SecurityPolicyList{})
+		Invokes(testing.NewListAction(securitypoliciesResource, securitypoliciesKind, c.ns, opts), &v1alpha1.SecurityPolicyList{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -73,13 +76,15 @@ func (c *FakeSecurityPolicies) List(ctx context.Context, opts v1.ListOptions) (r
 // Watch returns a watch.Interface that watches the requested securityPolicies.
 func (c *FakeSecurityPolicies) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(securitypoliciesResource, opts))
+		InvokesWatch(testing.NewWatchAction(securitypoliciesResource, c.ns, opts))
+
 }
 
 // Create takes the representation of a securityPolicy and creates it.  Returns the server's representation of the securityPolicy, and an error, if there is any.
 func (c *FakeSecurityPolicies) Create(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.CreateOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(securitypoliciesResource, securityPolicy), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewCreateAction(securitypoliciesResource, c.ns, securityPolicy), &v1alpha1.SecurityPolicy{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -89,7 +94,8 @@ func (c *FakeSecurityPolicies) Create(ctx context.Context, securityPolicy *v1alp
 // Update takes the representation of a securityPolicy and updates it. Returns the server's representation of the securityPolicy, and an error, if there is any.
 func (c *FakeSecurityPolicies) Update(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(securitypoliciesResource, securityPolicy), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewUpdateAction(securitypoliciesResource, c.ns, securityPolicy), &v1alpha1.SecurityPolicy{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -100,7 +106,8 @@ func (c *FakeSecurityPolicies) Update(ctx context.Context, securityPolicy *v1alp
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeSecurityPolicies) UpdateStatus(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (*v1alpha1.SecurityPolicy, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(securitypoliciesResource, "status", securityPolicy), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewUpdateSubresourceAction(securitypoliciesResource, "status", c.ns, securityPolicy), &v1alpha1.SecurityPolicy{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -110,13 +117,14 @@ func (c *FakeSecurityPolicies) UpdateStatus(ctx context.Context, securityPolicy 
 // Delete takes name of the securityPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeSecurityPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(securitypoliciesResource, name), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewDeleteAction(securitypoliciesResource, c.ns, name), &v1alpha1.SecurityPolicy{})
+
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeSecurityPolicies) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(securitypoliciesResource, listOpts)
+	action := testing.NewDeleteCollectionAction(securitypoliciesResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.SecurityPolicyList{})
 	return err
@@ -125,7 +133,8 @@ func (c *FakeSecurityPolicies) DeleteCollection(ctx context.Context, opts v1.Del
 // Patch applies the patch and returns the patched securityPolicy.
 func (c *FakeSecurityPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.SecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(securitypoliciesResource, name, pt, data, subresources...), &v1alpha1.SecurityPolicy{})
+		Invokes(testing.NewPatchSubresourceAction(securitypoliciesResource, c.ns, name, pt, data, subresources...), &v1alpha1.SecurityPolicy{})
+
 	if obj == nil {
 		return nil, err
 	}

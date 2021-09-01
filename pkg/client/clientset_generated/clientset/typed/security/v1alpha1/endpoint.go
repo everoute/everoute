@@ -33,7 +33,7 @@ import (
 // EndpointsGetter has a method to return a EndpointInterface.
 // A group's client should implement this interface.
 type EndpointsGetter interface {
-	Endpoints() EndpointInterface
+	Endpoints(namespace string) EndpointInterface
 }
 
 // EndpointInterface has methods to work with Endpoint resources.
@@ -53,12 +53,14 @@ type EndpointInterface interface {
 // endpoints implements EndpointInterface
 type endpoints struct {
 	client rest.Interface
+	ns     string
 }
 
 // newEndpoints returns a Endpoints
-func newEndpoints(c *SecurityV1alpha1Client) *endpoints {
+func newEndpoints(c *SecurityV1alpha1Client, namespace string) *endpoints {
 	return &endpoints{
 		client: c.RESTClient(),
+		ns:     namespace,
 	}
 }
 
@@ -66,6 +68,7 @@ func newEndpoints(c *SecurityV1alpha1Client) *endpoints {
 func (c *endpoints) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Endpoint, err error) {
 	result = &v1alpha1.Endpoint{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("endpoints").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -82,6 +85,7 @@ func (c *endpoints) List(ctx context.Context, opts v1.ListOptions) (result *v1al
 	}
 	result = &v1alpha1.EndpointList{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("endpoints").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -98,6 +102,7 @@ func (c *endpoints) Watch(ctx context.Context, opts v1.ListOptions) (watch.Inter
 	}
 	opts.Watch = true
 	return c.client.Get().
+		Namespace(c.ns).
 		Resource("endpoints").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -108,6 +113,7 @@ func (c *endpoints) Watch(ctx context.Context, opts v1.ListOptions) (watch.Inter
 func (c *endpoints) Create(ctx context.Context, endpoint *v1alpha1.Endpoint, opts v1.CreateOptions) (result *v1alpha1.Endpoint, err error) {
 	result = &v1alpha1.Endpoint{}
 	err = c.client.Post().
+		Namespace(c.ns).
 		Resource("endpoints").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(endpoint).
@@ -120,6 +126,7 @@ func (c *endpoints) Create(ctx context.Context, endpoint *v1alpha1.Endpoint, opt
 func (c *endpoints) Update(ctx context.Context, endpoint *v1alpha1.Endpoint, opts v1.UpdateOptions) (result *v1alpha1.Endpoint, err error) {
 	result = &v1alpha1.Endpoint{}
 	err = c.client.Put().
+		Namespace(c.ns).
 		Resource("endpoints").
 		Name(endpoint.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -134,6 +141,7 @@ func (c *endpoints) Update(ctx context.Context, endpoint *v1alpha1.Endpoint, opt
 func (c *endpoints) UpdateStatus(ctx context.Context, endpoint *v1alpha1.Endpoint, opts v1.UpdateOptions) (result *v1alpha1.Endpoint, err error) {
 	result = &v1alpha1.Endpoint{}
 	err = c.client.Put().
+		Namespace(c.ns).
 		Resource("endpoints").
 		Name(endpoint.Name).
 		SubResource("status").
@@ -147,6 +155,7 @@ func (c *endpoints) UpdateStatus(ctx context.Context, endpoint *v1alpha1.Endpoin
 // Delete takes name of the endpoint and deletes it. Returns an error if one occurs.
 func (c *endpoints) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("endpoints").
 		Name(name).
 		Body(&opts).
@@ -161,6 +170,7 @@ func (c *endpoints) DeleteCollection(ctx context.Context, opts v1.DeleteOptions,
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("endpoints").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -173,6 +183,7 @@ func (c *endpoints) DeleteCollection(ctx context.Context, opts v1.DeleteOptions,
 func (c *endpoints) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Endpoint, err error) {
 	result = &v1alpha1.Endpoint{}
 	err = c.client.Patch(pt).
+		Namespace(c.ns).
 		Resource("endpoints").
 		Name(name).
 		SubResource(subresources...).
