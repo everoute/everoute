@@ -76,7 +76,8 @@ var initObject = func() {
 			APIVersion: "security.lynx.smartx.com/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "security-policy-ingress",
+			Name:      "security-policy-ingress",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				"app": "validate-test",
 			},
@@ -119,7 +120,8 @@ var initObject = func() {
 			APIVersion: "security.lynx.smartx.com/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "security-policy-egress",
+			Name:      "security-policy-egress",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				"app": "validate-test",
 			},
@@ -165,7 +167,8 @@ var initObject = func() {
 			APIVersion: "security.lynx.smartx.com/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "endpoint01",
+			Name:      "endpoint01",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				"key1": "value1",
 				"app":  "validate-test",
@@ -230,10 +233,13 @@ var initObject = func() {
 
 // remove all object after each
 var removeObject = func() {
-	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Tier{}, client.MatchingLabels{"app": "validate-test"})).Should(Succeed())
-	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Endpoint{}, client.MatchingLabels{"app": "validate-test"})).Should(Succeed())
-	Expect(k8sClient.DeleteAllOf(context.Background(), &groupv1alpha1.EndpointGroup{}, client.MatchingLabels{"app": "validate-test"})).Should(Succeed())
-	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.SecurityPolicy{}, client.MatchingLabels{"app": "validate-test"})).Should(Succeed())
+	namespaceDefault := client.InNamespace(metav1.NamespaceDefault)
+	matchTestLabel := client.MatchingLabels{"app": "validate-test"}
+
+	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Tier{}, matchTestLabel)).Should(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Endpoint{}, namespaceDefault, matchTestLabel)).Should(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.Background(), &groupv1alpha1.EndpointGroup{}, matchTestLabel)).Should(Succeed())
+	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.SecurityPolicy{}, namespaceDefault, matchTestLabel)).Should(Succeed())
 }
 
 // createAndWait will create an object and wait until the object could be get.
@@ -241,7 +247,7 @@ func createAndWait(cli client.Client, obj metav1.Object, options ...client.Creat
 	ctx := context.Background()
 	Expect(cli.Create(ctx, obj.(runtime.Object).DeepCopyObject(), options...)).Should(Succeed())
 	Eventually(func() error {
-		return cli.Get(ctx, client.ObjectKey{Name: obj.GetName()}, obj.(runtime.Object).DeepCopyObject())
+		return cli.Get(ctx, client.ObjectKey{Namespace: obj.GetNamespace(), Name: obj.GetName()}, obj.(runtime.Object).DeepCopyObject())
 	}, timeout, interval).Should(Succeed())
 }
 

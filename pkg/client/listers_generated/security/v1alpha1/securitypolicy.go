@@ -29,8 +29,8 @@ import (
 type SecurityPolicyLister interface {
 	// List lists all SecurityPolicies in the indexer.
 	List(selector labels.Selector) (ret []*v1alpha1.SecurityPolicy, err error)
-	// Get retrieves the SecurityPolicy from the index for a given name.
-	Get(name string) (*v1alpha1.SecurityPolicy, error)
+	// SecurityPolicies returns an object that can list and get SecurityPolicies.
+	SecurityPolicies(namespace string) SecurityPolicyNamespaceLister
 	SecurityPolicyListerExpansion
 }
 
@@ -52,9 +52,38 @@ func (s *securityPolicyLister) List(selector labels.Selector) (ret []*v1alpha1.S
 	return ret, err
 }
 
-// Get retrieves the SecurityPolicy from the index for a given name.
-func (s *securityPolicyLister) Get(name string) (*v1alpha1.SecurityPolicy, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
+// SecurityPolicies returns an object that can list and get SecurityPolicies.
+func (s *securityPolicyLister) SecurityPolicies(namespace string) SecurityPolicyNamespaceLister {
+	return securityPolicyNamespaceLister{indexer: s.indexer, namespace: namespace}
+}
+
+// SecurityPolicyNamespaceLister helps list and get SecurityPolicies.
+type SecurityPolicyNamespaceLister interface {
+	// List lists all SecurityPolicies in the indexer for a given namespace.
+	List(selector labels.Selector) (ret []*v1alpha1.SecurityPolicy, err error)
+	// Get retrieves the SecurityPolicy from the indexer for a given namespace and name.
+	Get(name string) (*v1alpha1.SecurityPolicy, error)
+	SecurityPolicyNamespaceListerExpansion
+}
+
+// securityPolicyNamespaceLister implements the SecurityPolicyNamespaceLister
+// interface.
+type securityPolicyNamespaceLister struct {
+	indexer   cache.Indexer
+	namespace string
+}
+
+// List lists all SecurityPolicies in the indexer for a given namespace.
+func (s securityPolicyNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.SecurityPolicy, err error) {
+	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
+		ret = append(ret, m.(*v1alpha1.SecurityPolicy))
+	})
+	return ret, err
+}
+
+// Get retrieves the SecurityPolicy from the indexer for a given namespace and name.
+func (s securityPolicyNamespaceLister) Get(name string) (*v1alpha1.SecurityPolicy, error) {
+	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err
 	}

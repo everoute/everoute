@@ -42,32 +42,33 @@ type SecurityPolicyInformer interface {
 type securityPolicyInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
+	namespace        string
 }
 
 // NewSecurityPolicyInformer constructs a new informer for SecurityPolicy type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewSecurityPolicyInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredSecurityPolicyInformer(client, resyncPeriod, indexers, nil)
+func NewSecurityPolicyInformer(client clientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredSecurityPolicyInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
 // NewFilteredSecurityPolicyInformer constructs a new informer for SecurityPolicy type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredSecurityPolicyInformer(client clientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredSecurityPolicyInformer(client clientset.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().SecurityPolicies().List(context.TODO(), options)
+				return client.SecurityV1alpha1().SecurityPolicies(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SecurityV1alpha1().SecurityPolicies().Watch(context.TODO(), options)
+				return client.SecurityV1alpha1().SecurityPolicies(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&securityv1alpha1.SecurityPolicy{},
@@ -77,7 +78,7 @@ func NewFilteredSecurityPolicyInformer(client clientset.Interface, resyncPeriod 
 }
 
 func (f *securityPolicyInformer) defaultInformer(client clientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredSecurityPolicyInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewFilteredSecurityPolicyInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *securityPolicyInformer) Informer() cache.SharedIndexInformer {

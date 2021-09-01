@@ -61,8 +61,10 @@ var _ = Describe("PolicyController", func() {
 	})
 
 	AfterEach(func() {
+		namespaceDefault := client.InNamespace(metav1.NamespaceDefault)
+
 		By("delete all test policies")
-		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, namespaceDefault, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
 		Eventually(func() int {
 			policyList := securityv1alpha1.SecurityPolicyList{}
 			Expect(k8sClient.List(ctx, &policyList)).Should(Succeed())
@@ -705,7 +707,7 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 	return &securityv1alpha1.SecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: metav1.NamespaceNone,
+			Namespace: metav1.NamespaceDefault,
 			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
@@ -745,7 +747,7 @@ func newTestEndpoint(ip types.IPAddress) *securityv1alpha1.Endpoint {
 	return &securityv1alpha1.Endpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: metav1.NamespaceNone,
+			Namespace: metav1.NamespaceDefault,
 			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.EndpointSpec{
@@ -831,7 +833,7 @@ func mustUpdatePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPoli
 	var oldPolicy = &securityv1alpha1.SecurityPolicy{}
 
 	Eventually(func() error {
-		err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: policy.Name}, oldPolicy)
+		err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: policy.GetName(), Namespace: policy.GetNamespace()}, oldPolicy)
 		if err != nil {
 			return err
 		}

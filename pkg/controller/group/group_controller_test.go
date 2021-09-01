@@ -55,8 +55,10 @@ var _ = Describe("GroupController", func() {
 	})
 
 	AfterEach(func() {
+		namespaceDefault := client.InNamespace(metav1.NamespaceDefault)
+
 		By("delete all test endpoints")
-		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.Endpoint{}, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.Endpoint{}, namespaceDefault, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
 		Eventually(func() int {
 			epList := securityv1alpha1.EndpointList{}
 			Expect(k8sClient.List(ctx, &epList)).Should(Succeed())
@@ -286,8 +288,9 @@ func newTestEndpoint(labels map[string]string, ip types.IPAddress) *securityv1al
 
 	return &securityv1alpha1.Endpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: labels,
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			Labels:    labels,
 		},
 		Spec: securityv1alpha1.EndpointSpec{
 			Reference: securityv1alpha1.EndpointReference{

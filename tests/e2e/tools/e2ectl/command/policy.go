@@ -24,8 +24,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
+	kubeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/types"
@@ -217,6 +219,7 @@ func newPolicyAddEgressCommand(f *framework.Framework) *cobra.Command {
 func addPolicy(f *framework.Framework, name string, tier string, priority int32, appliedGroups string) error {
 	var policy = &v1alpha1.SecurityPolicy{}
 	policy.Name = name
+	policy.Namespace = metav1.NamespaceDefault
 
 	policy.Spec = v1alpha1.SecurityPolicySpec{
 		Tier:     tier,
@@ -233,7 +236,7 @@ func delPolicy(f *framework.Framework, name string) error {
 	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
-	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name}, policy)
+	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: metav1.NamespaceDefault}, policy)
 	if err != nil {
 		return err
 	}
@@ -245,7 +248,7 @@ func listPolicy(f *framework.Framework, output io.Writer) error {
 	var client = f.KubeClient()
 	var policyList = &v1alpha1.SecurityPolicyList{}
 
-	err := client.List(context.TODO(), policyList)
+	err := client.List(context.TODO(), policyList, kubeclient.InNamespace(metav1.NamespaceDefault))
 	if err != nil {
 		return err
 	}
@@ -257,7 +260,7 @@ func showPolicy(f *framework.Framework, output io.Writer, name string) error {
 	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
-	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name}, policy)
+	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: name, Namespace: metav1.NamespaceDefault}, policy)
 	if err != nil {
 		return err
 	}
@@ -282,7 +285,7 @@ func addPolicyRule(f *framework.Framework, policyName, ruleName, ruleDirection, 
 	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
-	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName}, policy)
+	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName, Namespace: metav1.NamespaceDefault}, policy)
 	if err != nil {
 		return err
 	}
@@ -311,7 +314,7 @@ func setPolicyRule(f *framework.Framework, policyName, ruleName, protocol, ports
 	var policy = &v1alpha1.SecurityPolicy{}
 	var rule *v1alpha1.Rule
 
-	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName}, policy)
+	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName, Namespace: metav1.NamespaceDefault}, policy)
 	if err != nil {
 		return err
 	}
@@ -340,7 +343,7 @@ func delPolicyRule(f *framework.Framework, policyName, ruleName string) error {
 	var client = f.KubeClient()
 	var policy = &v1alpha1.SecurityPolicy{}
 
-	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName}, policy)
+	err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: policyName, Namespace: metav1.NamespaceDefault}, policy)
 	if err != nil {
 		return err
 	}
