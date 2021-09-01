@@ -41,8 +41,8 @@ import (
 type Controller struct {
 	// name of this controller
 	name string
-	// managePlaneID mark the endpoint source to be processed by the controller
-	managePlaneID string
+	// namespace which endpoint and security policy should create in
+	namespace string
 
 	crdClient clientset.Interface
 
@@ -58,6 +58,8 @@ type Controller struct {
 	endpointLister         informer.Lister
 	endpointInformerSynced cache.InformerSynced
 
+	// endpointQueue contains endpoint to process. The element in queue
+	// is endpoint name. And we use vnic ID as endpoint name.
 	endpointQueue workqueue.RateLimitingInterface
 }
 
@@ -69,14 +71,20 @@ const (
 )
 
 // New creates a new instance of controller.
-func New(towerFactory informer.SharedInformerFactory, crdFactory crd.SharedInformerFactory, crdClient clientset.Interface, resyncPeriod time.Duration) *Controller {
+func New(
+	towerFactory informer.SharedInformerFactory,
+	crdFactory crd.SharedInformerFactory,
+	crdClient clientset.Interface,
+	resyncPeriod time.Duration,
+	namespace string,
+) *Controller {
 	vmInformer := towerFactory.VM()
 	labelInformer := towerFactory.Label()
 	endpointInforer := crdFactory.Security().V1alpha1().Endpoints().Informer()
 
 	c := &Controller{
 		name:                   "EndpointController",
-		managePlaneID:          "lynx.plugin.tower",
+		namespace:              namespace,
 		crdClient:              crdClient,
 		vmInformer:             vmInformer,
 		vmLister:               vmInformer.GetIndexer(),
@@ -118,8 +126,8 @@ func New(towerFactory informer.SharedInformerFactory, crdFactory crd.SharedInfor
 	)
 
 	// Why we handle endpoint events ?
-	// 1. When controller restart, vm delete event may lost. The handler would enqueue all endpoints for synchronization.
-	// 2. If endpoints unexpectedly modified by other applications, the controller would found and resync them.
+	// 1. When controller restart, vm delete event may lose. The handler would enqueue all endpoints for synchronization.
+	// 2. If endpoints unexpectedly modified by other applications, the controller would find and resync them.
 	endpointInforer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addEndpoint,
@@ -237,19 +245,12 @@ func (c *Controller) enqueueVMNics(vm *schema.VM) {
 
 func (c *Controller) addEndpoint(new interface{}) {
 	obj := new.(*v1alpha1.Endpoint)
-
-	if obj.Spec.ManagePlaneID == c.managePlaneID {
-		c.endpointQueue.Add(obj.Name)
-	}
+	c.endpointQueue.Add(obj.GetName())
 }
 
 func (c *Controller) updateEndpoint(old interface{}, new interface{}) {
-	oldEp := old.(*v1alpha1.Endpoint)
 	newEp := new.(*v1alpha1.Endpoint)
-
-	if oldEp.Spec.ManagePlaneID == c.managePlaneID || newEp.Spec.ManagePlaneID == c.managePlaneID {
-		c.endpointQueue.Add(newEp.Name)
-	}
+	c.endpointQueue.Add(newEp.GetName())
 }
 
 func (c *Controller) deleteEndpoint(old interface{}) {
@@ -257,10 +258,7 @@ func (c *Controller) deleteEndpoint(old interface{}) {
 		old = d.Obj
 	}
 	obj := old.(*v1alpha1.Endpoint)
-
-	if obj.Spec.ManagePlaneID == c.managePlaneID {
-		c.endpointQueue.Add(obj.Name)
-	}
+	c.endpointQueue.Add(obj.GetName())
 }
 
 func (c *Controller) syncEndpointWorker() {
@@ -284,6 +282,8 @@ func (c *Controller) syncEndpointWorker() {
 	}
 }
 
+// syncEndpoint finds vnic and endpoint by the key, and create/update/delete
+// endpoint according to the state of vnic.
 func (c *Controller) syncEndpoint(key string) error {
 	vms, err := c.vmLister.ByIndex(vnicIndex, key)
 	if err != nil {
@@ -303,13 +303,13 @@ func (c *Controller) syncEndpoint(key string) error {
 }
 
 func (c *Controller) processEndpointDelete(key string) error {
-	_, exists, err := c.endpointLister.GetByKey(key)
+	_, exists, err := c.endpointLister.GetByKey(fmt.Sprintf("%s/%s", c.namespace, key))
 	if err == nil && !exists {
 		// object has been delete already
 		return nil
 	}
 
-	err = c.crdClient.SecurityV1alpha1().Endpoints().Delete(context.Background(), key, metav1.DeleteOptions{})
+	err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Delete(context.Background(), key, metav1.DeleteOptions{})
 	if err == nil || kubeerror.IsNotFound(err) {
 		klog.Infof("endpoint %s has been delete by %s", key, c.name)
 		return nil
@@ -333,7 +333,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 		return fmt.Errorf("list labels for vm %s: %s", vm.ID, err)
 	}
 
-	obj, exists, err := c.endpointLister.GetByKey(vnicKey)
+	obj, exists, err := c.endpointLister.GetByKey(fmt.Sprintf("%s/%s", c.namespace, vnicKey))
 	if err != nil {
 		return fmt.Errorf("get endpoint receive error: %s", err)
 	}
@@ -343,7 +343,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 		c.setEndpoint(ep, vnic, vmLabels)
 
 		klog.Infof("will add endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
-		_, err = c.crdClient.SecurityV1alpha1().Endpoints().Create(context.Background(), ep, metav1.CreateOptions{})
+		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Create(context.Background(), ep, metav1.CreateOptions{})
 		return err
 	}
 
@@ -351,7 +351,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 	if c.setEndpoint(ep, vnic, vmLabels) {
 		klog.Infof("will update endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
 
-		_, err = c.crdClient.SecurityV1alpha1().Endpoints().Update(context.Background(), ep, metav1.UpdateOptions{})
+		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Update(context.Background(), ep, metav1.UpdateOptions{})
 		return err
 	}
 
@@ -388,7 +388,7 @@ func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labe
 
 	ep.Name = vnic.ID
 	ep.Labels = labels
-	ep.Spec.ManagePlaneID = c.managePlaneID
+	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
 	ep.Spec.Reference.ExternalIDName = externalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID

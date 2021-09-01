@@ -35,6 +35,7 @@ type Options struct {
 	Client       *client.Client
 	ResyncPeriod time.Duration
 	WorkerNumber uint
+	Namespace    string
 }
 
 // InitFlags set and load options from flagset.
@@ -57,6 +58,7 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	flagset.StringVar(&opts.Client.UserInfo.Username, withPrefix("username"), "", "Tower user name for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), "", "Tower user source for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), "", "Tower user password for authenticate")
+	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
 	flagset.UintVar(&opts.WorkerNumber, withPrefix("worker-number"), 10, "Controller worker number")
 	flagset.DurationVar(&opts.ResyncPeriod, withPrefix("resync-period"), 10*time.Hour, "Controller resync period")
 }
@@ -73,8 +75,9 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	}
 
 	towerFactory := informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
-	crdFactory := externalversions.NewSharedInformerFactory(crdClient, opts.ResyncPeriod)
-	endpointController := controller.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod)
+	// cache endpoints and security policies in the namespace
+	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
+	endpointController := controller.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
 		towerFactory.Start(stopChan)
