@@ -49,8 +49,9 @@ type LeaderElectionConfig struct {
 }
 
 type ControllerConfig struct {
-	Resync  time.Duration `yaml:"resync"`
-	Workers uint          `yaml:"workers"`
+	Resync    time.Duration `yaml:"resync"`
+	Workers   uint          `yaml:"workers"`
+	Namespace string        `yaml:"namespace"`
 }
 
 func (o *Options) LoadFromFile(kubeconfig string, configfile string) error {
@@ -93,8 +94,9 @@ func (o *Options) setDefault() {
 
 	if o.Config.Controller == nil {
 		o.Config.Controller = &ControllerConfig{
-			Resync:  0,
-			Workers: 10,
+			Resync:    0,
+			Workers:   10,
+			Namespace: "tower-space",
 		}
 	}
 }

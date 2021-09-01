@@ -61,7 +61,7 @@ func run(options *Options) error {
 	towerFactory := informer.NewSharedInformerFactory(options.Config.Client, resyncPeriod)
 	crdFactory := externalversions.NewSharedInformerFactory(crdClient, resyncPeriod)
 
-	endpointController := controller.New(towerFactory, crdFactory, crdClient, resyncPeriod)
+	endpointController := controller.New(towerFactory, crdFactory, crdClient, resyncPeriod, options.Config.Controller.Namespace)
 
 	towerFactory.Start(stopCh)
 	crdFactory.Start(stopCh)
