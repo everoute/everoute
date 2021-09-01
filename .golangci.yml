@@ -5,6 +5,9 @@ linters-settings:
     ignore: fmt:.*,io/ioutil:^Read.*,io:Close
   lll:
     line-length: 170
+  funlen:
+    lines: 80
+    statements: 60
 
 run:
   timeout: 10m
