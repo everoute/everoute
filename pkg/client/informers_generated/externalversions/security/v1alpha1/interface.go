@@ -45,12 +45,12 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // Endpoints returns a EndpointInformer.
 func (v *version) Endpoints() EndpointInformer {
-	return &endpointInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+	return &endpointInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // SecurityPolicies returns a SecurityPolicyInformer.
 func (v *version) SecurityPolicies() SecurityPolicyInformer {
-	return &securityPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+	return &securityPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Tiers returns a TierInformer.

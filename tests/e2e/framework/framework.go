@@ -134,7 +134,7 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 		return fmt.Errorf("clean endpoints: %s", err)
 	}
 
-	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{})
+	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.InNamespace(metav1.NamespaceDefault))
 	if err != nil {
 		return fmt.Errorf("clean policies: %s", err)
 	}

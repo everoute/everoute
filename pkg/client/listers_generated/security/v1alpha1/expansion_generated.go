@@ -22,9 +22,17 @@ package v1alpha1
 // EndpointLister.
 type EndpointListerExpansion interface{}
 
+// EndpointNamespaceListerExpansion allows custom methods to be added to
+// EndpointNamespaceLister.
+type EndpointNamespaceListerExpansion interface{}
+
 // SecurityPolicyListerExpansion allows custom methods to be added to
 // SecurityPolicyLister.
 type SecurityPolicyListerExpansion interface{}
+
+// SecurityPolicyNamespaceListerExpansion allows custom methods to be added to
+// SecurityPolicyNamespaceLister.
+type SecurityPolicyNamespaceListerExpansion interface{}
 
 // TierListerExpansion allows custom methods to be added to
 // TierLister.

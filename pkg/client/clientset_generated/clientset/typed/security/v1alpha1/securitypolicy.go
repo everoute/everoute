@@ -33,7 +33,7 @@ import (
 // SecurityPoliciesGetter has a method to return a SecurityPolicyInterface.
 // A group's client should implement this interface.
 type SecurityPoliciesGetter interface {
-	SecurityPolicies() SecurityPolicyInterface
+	SecurityPolicies(namespace string) SecurityPolicyInterface
 }
 
 // SecurityPolicyInterface has methods to work with SecurityPolicy resources.
@@ -53,12 +53,14 @@ type SecurityPolicyInterface interface {
 // securityPolicies implements SecurityPolicyInterface
 type securityPolicies struct {
 	client rest.Interface
+	ns     string
 }
 
 // newSecurityPolicies returns a SecurityPolicies
-func newSecurityPolicies(c *SecurityV1alpha1Client) *securityPolicies {
+func newSecurityPolicies(c *SecurityV1alpha1Client, namespace string) *securityPolicies {
 	return &securityPolicies{
 		client: c.RESTClient(),
+		ns:     namespace,
 	}
 }
 
@@ -66,6 +68,7 @@ func newSecurityPolicies(c *SecurityV1alpha1Client) *securityPolicies {
 func (c *securityPolicies) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	result = &v1alpha1.SecurityPolicy{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -82,6 +85,7 @@ func (c *securityPolicies) List(ctx context.Context, opts v1.ListOptions) (resul
 	}
 	result = &v1alpha1.SecurityPolicyList{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -98,6 +102,7 @@ func (c *securityPolicies) Watch(ctx context.Context, opts v1.ListOptions) (watc
 	}
 	opts.Watch = true
 	return c.client.Get().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -108,6 +113,7 @@ func (c *securityPolicies) Watch(ctx context.Context, opts v1.ListOptions) (watc
 func (c *securityPolicies) Create(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.CreateOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	result = &v1alpha1.SecurityPolicy{}
 	err = c.client.Post().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(securityPolicy).
@@ -120,6 +126,7 @@ func (c *securityPolicies) Create(ctx context.Context, securityPolicy *v1alpha1.
 func (c *securityPolicies) Update(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	result = &v1alpha1.SecurityPolicy{}
 	err = c.client.Put().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(securityPolicy.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -134,6 +141,7 @@ func (c *securityPolicies) Update(ctx context.Context, securityPolicy *v1alpha1.
 func (c *securityPolicies) UpdateStatus(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (result *v1alpha1.SecurityPolicy, err error) {
 	result = &v1alpha1.SecurityPolicy{}
 	err = c.client.Put().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(securityPolicy.Name).
 		SubResource("status").
@@ -147,6 +155,7 @@ func (c *securityPolicies) UpdateStatus(ctx context.Context, securityPolicy *v1a
 // Delete takes name of the securityPolicy and deletes it. Returns an error if one occurs.
 func (c *securityPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(name).
 		Body(&opts).
@@ -161,6 +170,7 @@ func (c *securityPolicies) DeleteCollection(ctx context.Context, opts v1.DeleteO
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -173,6 +183,7 @@ func (c *securityPolicies) DeleteCollection(ctx context.Context, opts v1.DeleteO
 func (c *securityPolicies) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.SecurityPolicy, err error) {
 	result = &v1alpha1.SecurityPolicy{}
 	err = c.client.Patch(pt).
+		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(name).
 		SubResource(subresources...).

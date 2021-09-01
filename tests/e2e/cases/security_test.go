@@ -523,6 +523,7 @@ func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGr
 func newPolicy(name, tier string, priority int32, appliedGroup []string, endpoints []string) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
+	policy.Namespace = metav1.NamespaceDefault
 
 	policy.Spec = securityv1alpha1.SecurityPolicySpec{
 		Tier:     tier,
