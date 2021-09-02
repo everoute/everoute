@@ -17,8 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/smartxworks/lynx/pkg/types"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/smartxworks/lynx/pkg/types"
 )
 
 // +genclient
@@ -108,17 +110,9 @@ type Rule struct {
 
 // SecurityPolicyPeer describes the grouping selector of workloads.
 type SecurityPolicyPeer struct {
-	IPBlocks       []IPBlock `json:"ipBlocks,omitempty"`
-	EndpointGroups []string  `json:"endpointGroups,omitempty"`
-	Endpoints      []string  `json:"endpoints,omitempty"`
-}
-
-// IPBlock describes a particular CIDR.
-type IPBlock struct {
-	IP types.IPAddress `json:"ip"`
-	// PrefixLength defines prefix length of ip address. If ipv4, prefixLength must be
-	// any value between 0 and 32. If ipv6 prefixLength must be any value between 0 and 128.
-	PrefixLength int32 `json:"prefixLength"`
+	IPBlocks       []networkingv1.IPBlock `json:"ipBlocks,omitempty"`
+	EndpointGroups []string               `json:"endpointGroups,omitempty"`
+	Endpoints      []string               `json:"endpoints,omitempty"`
 }
 
 // SecurityPolicyPort describes the port and protocol to match in a rule.

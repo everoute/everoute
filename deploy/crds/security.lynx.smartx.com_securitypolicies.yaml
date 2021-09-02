@@ -72,23 +72,26 @@ spec:
                           type: array
                         ipBlocks:
                           items:
-                            description: IPBlock describes a particular CIDR.
+                            description: IPBlock describes a particular CIDR (Ex.
+                              "192.168.1.1/24","2001:db9::/64") that is allowed to
+                              the pods matched by a NetworkPolicySpec's podSelector.
+                              The except entry describes CIDRs that should not be
+                              included within this rule.
                             properties:
-                              ip:
-                                description: IPAddress is net ip address, can be ipv4
-                                  or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                                pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                              cidr:
+                                description: CIDR is a string representing the IP
+                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
                                 type: string
-                              prefixLength:
-                                description: PrefixLength defines prefix length of
-                                  ip address. If ipv4, prefixLength must be any value
-                                  between 0 and 32. If ipv6 prefixLength must be any
-                                  value between 0 and 128.
-                                format: int32
-                                type: integer
+                              except:
+                                description: Except is a slice of CIDRs that should
+                                  not be included within an IP Block Valid examples
+                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
+                                  will be rejected if they are outside the CIDR range
+                                items:
+                                  type: string
+                                type: array
                             required:
-                            - ip
-                            - prefixLength
+                            - cidr
                             type: object
                           type: array
                       type: object
@@ -143,23 +146,26 @@ spec:
                           type: array
                         ipBlocks:
                           items:
-                            description: IPBlock describes a particular CIDR.
+                            description: IPBlock describes a particular CIDR (Ex.
+                              "192.168.1.1/24","2001:db9::/64") that is allowed to
+                              the pods matched by a NetworkPolicySpec's podSelector.
+                              The except entry describes CIDRs that should not be
+                              included within this rule.
                             properties:
-                              ip:
-                                description: IPAddress is net ip address, can be ipv4
-                                  or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                                pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                              cidr:
+                                description: CIDR is a string representing the IP
+                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
                                 type: string
-                              prefixLength:
-                                description: PrefixLength defines prefix length of
-                                  ip address. If ipv4, prefixLength must be any value
-                                  between 0 and 32. If ipv6 prefixLength must be any
-                                  value between 0 and 128.
-                                format: int32
-                                type: integer
+                              except:
+                                description: Except is a slice of CIDRs that should
+                                  not be included within an IP Block Valid examples
+                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
+                                  will be rejected if they are outside the CIDR range
+                                items:
+                                  type: string
+                                type: array
                             required:
-                            - ip
-                            - prefixLength
+                            - cidr
                             type: object
                           type: array
                       type: object
@@ -188,23 +194,26 @@ spec:
                           type: array
                         ipBlocks:
                           items:
-                            description: IPBlock describes a particular CIDR.
+                            description: IPBlock describes a particular CIDR (Ex.
+                              "192.168.1.1/24","2001:db9::/64") that is allowed to
+                              the pods matched by a NetworkPolicySpec's podSelector.
+                              The except entry describes CIDRs that should not be
+                              included within this rule.
                             properties:
-                              ip:
-                                description: IPAddress is net ip address, can be ipv4
-                                  or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                                pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                              cidr:
+                                description: CIDR is a string representing the IP
+                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
                                 type: string
-                              prefixLength:
-                                description: PrefixLength defines prefix length of
-                                  ip address. If ipv4, prefixLength must be any value
-                                  between 0 and 32. If ipv6 prefixLength must be any
-                                  value between 0 and 128.
-                                format: int32
-                                type: integer
+                              except:
+                                description: Except is a slice of CIDRs that should
+                                  not be included within an IP Block Valid examples
+                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
+                                  will be rejected if they are outside the CIDR range
+                                items:
+                                  type: string
+                                type: array
                             required:
-                            - ip
-                            - prefixLength
+                            - cidr
                             type: object
                           type: array
                       type: object
@@ -259,23 +268,26 @@ spec:
                           type: array
                         ipBlocks:
                           items:
-                            description: IPBlock describes a particular CIDR.
+                            description: IPBlock describes a particular CIDR (Ex.
+                              "192.168.1.1/24","2001:db9::/64") that is allowed to
+                              the pods matched by a NetworkPolicySpec's podSelector.
+                              The except entry describes CIDRs that should not be
+                              included within this rule.
                             properties:
-                              ip:
-                                description: IPAddress is net ip address, can be ipv4
-                                  or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                                pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                              cidr:
+                                description: CIDR is a string representing the IP
+                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
                                 type: string
-                              prefixLength:
-                                description: PrefixLength defines prefix length of
-                                  ip address. If ipv4, prefixLength must be any value
-                                  between 0 and 32. If ipv6 prefixLength must be any
-                                  value between 0 and 128.
-                                format: int32
-                                type: integer
+                              except:
+                                description: Except is a slice of CIDRs that should
+                                  not be included within an IP Block Valid examples
+                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
+                                  will be rejected if they are outside the CIDR range
+                                items:
+                                  type: string
+                                type: array
                             required:
-                            - ip
-                            - prefixLength
+                            - cidr
                             type: object
                           type: array
                       type: object

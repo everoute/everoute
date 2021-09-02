@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
 
 	admv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authentication/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -405,20 +407,10 @@ func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo 
 
 // validateRule validates if the rule with validate value
 func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error {
-	// match ip address
 	for _, ipBlock := range append(rule.From.IPBlocks, rule.To.IPBlocks...) {
-		ipv4 := false
-		if regexp.MustCompile(matchIPV4).Match([]byte(ipBlock.IP)) {
-			ipv4 = true
-		}
-		if ipv4 {
-			if !(ipBlock.PrefixLength <= 32 && ipBlock.PrefixLength >= 0) {
-				return fmt.Errorf("PrefixLength for ipv4 must between 0-32")
-			}
-		} else {
-			if !(ipBlock.PrefixLength <= 128 && ipBlock.PrefixLength >= 0) {
-				return fmt.Errorf("PrefixLength for ipv6 must between 0-128")
-			}
+		err := v.validateIPBlock(ipBlock)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -426,6 +418,29 @@ func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error
 		err := v.validatePortRange(port.PortRange)
 		if err != nil {
 			return fmt.Errorf("PortRange %s with error format: %s", port.PortRange, err)
+		}
+	}
+
+	return nil
+}
+
+func (v *securityPolicyValidator) validateIPBlock(ipBlock networkingv1.IPBlock) error {
+	_, cidrIPNet, err := net.ParseCIDR(ipBlock.CIDR)
+	if err != nil {
+		return fmt.Errorf("unvalid cidr %s: %s", ipBlock.CIDR, err)
+	}
+
+	for _, exceptCIDR := range ipBlock.Except {
+		_, exceptIPNet, err := net.ParseCIDR(exceptCIDR)
+		if err != nil {
+			return fmt.Errorf("unvalid except cidr %s: %s", exceptCIDR, err)
+		}
+
+		cidrMaskLen, _ := cidrIPNet.Mask.Size()
+		exceptMaskLen, _ := exceptIPNet.Mask.Size()
+
+		if !cidrIPNet.Contains(exceptIPNet.IP) || cidrMaskLen >= exceptMaskLen {
+			return fmt.Errorf("cidr %s not contains except %s", ipBlock.CIDR, exceptCIDR)
 		}
 	}
 
