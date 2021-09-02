@@ -125,7 +125,7 @@ func printPolicyRule(output io.Writer, policy *securityv1alpha1.SecurityPolicy) 
 			if str != "" {
 				str = fmt.Sprintf("%s,", str)
 			}
-			str += fmt.Sprintf("%s/%d", ipblock.IP, ipblock.PrefixLength)
+			str += fmt.Sprintf("%s", ipblock.CIDR)
 		}
 
 		return str

@@ -17,8 +17,13 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/smartxworks/lynx/pkg/types"
+	"net"
+
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/smartxworks/lynx/pkg/types"
+	"github.com/smartxworks/lynx/third_party/netutil"
 )
 
 // EqualIPs return true when two IP set have same IPaddresses.
@@ -32,4 +37,29 @@ func EqualIPs(ips1, ips2 []types.IPAddress) bool {
 	}
 
 	return len(ips1) == len(ips2) && toset(ips1).Equal(toset(ips2))
+}
+
+// ParseIPBlock parse ipBlock to list of IPNets.
+func ParseIPBlock(ipBlock *networkingv1.IPBlock) ([]*net.IPNet, error) {
+	var (
+		cidrIPNet    *net.IPNet
+		exceptIPNets []*net.IPNet
+		err          error
+	)
+
+	_, cidrIPNet, err = net.ParseCIDR(ipBlock.CIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse all except into exceptIPNets
+	for _, exceptCIDR := range ipBlock.Except {
+		_, exceptIPNet, err := net.ParseCIDR(exceptCIDR)
+		if err != nil {
+			return nil, err
+		}
+		exceptIPNets = append(exceptIPNets, exceptIPNet)
+	}
+
+	return netutil.DiffFromCIDRs(cidrIPNet, exceptIPNets)
 }

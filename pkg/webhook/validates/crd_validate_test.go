@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	admv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authentication/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -100,12 +101,9 @@ var initObject = func() {
 						},
 					},
 					From: securityv1alpha1.SecurityPolicyPeer{
-						IPBlocks: []securityv1alpha1.IPBlock{
-							{
-								IP:           "192.168.1.1",
-								PrefixLength: 10,
-							},
-						},
+						IPBlocks: []networkingv1.IPBlock{{
+							CIDR: "192.168.1.1/10",
+						}},
 						EndpointGroups: []string{
 							"group02",
 						},
@@ -141,12 +139,9 @@ var initObject = func() {
 						Protocol: securityv1alpha1.ProtocolUDP,
 					}},
 					To: securityv1alpha1.SecurityPolicyPeer{
-						IPBlocks: []securityv1alpha1.IPBlock{
-							{
-								IP:           "192.168.1.1",
-								PrefixLength: 10,
-							},
-						},
+						IPBlocks: []networkingv1.IPBlock{{
+							CIDR: "192.168.1.1/10",
+						}},
 						EndpointGroups: []string{
 							"group02",
 						},
@@ -407,10 +402,34 @@ var _ = Describe("CRD Validate", func() {
 			Expect(validate.Validate(fakeAdmissionReview(securityPolicyIngress, securityPolicyEgress, "")).Allowed).Should(BeTrue())
 			Expect(validate.Validate(fakeAdmissionReview(securityPolicyEgress, securityPolicyIngress, "")).Allowed).Should(BeTrue())
 		})
-		It("Create priority with error format of PrefixLength should not allowed", func() {
+		// Validate on IPBlock
+		It("Create policy with error format of IPBlock.CIDR should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()
 			policy.Name = "newPolicy"
-			policy.Spec.IngressRules[0].From.IPBlocks[0].PrefixLength = 231
+			policy.Spec.IngressRules[0].From.IPBlocks[0].CIDR = "0.0.0.0/231"
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create policy with error format of IPBlock.Except should not allowed", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Name = "newPolicy"
+			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"0.0.0.0/231"}
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create policy with IPBlock.CIDR not contains IPBlock.Except should not allowed", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Name = "newPolicy"
+			policy.Spec.IngressRules[0].From.IPBlocks[0].CIDR = "192.168.0.0/16"
+
+			// cidr mask length > except mask length
+			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.168.0.0/14"}
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+			// cidr mask length == except mask length
+			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.168.0.0/16"}
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+			// cidr not contains the except cidr range
+			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.170.0.0/24"}
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Create priority with same rule name should not allowed", func() {

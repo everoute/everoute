@@ -45,6 +45,7 @@ import (
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
 	policycache "github.com/smartxworks/lynx/pkg/controller/policy/cache"
+	"github.com/smartxworks/lynx/pkg/utils"
 )
 
 type PolicyReconciler struct {
@@ -542,8 +543,15 @@ func (r *PolicyReconciler) getPeerGroupsAndIPBlocks(namespace string, peer *secu
 		}
 	}
 
-	for _, ipBlock := range peer.IPBlocks {
-		ipBlocks[fmt.Sprintf("%s/%d", ipBlock.IP, ipBlock.PrefixLength)]++
+	for index := range peer.IPBlocks {
+		ipNets, err := utils.ParseIPBlock(&peer.IPBlocks[index])
+		if err != nil {
+			klog.Infof("unable parse IPBlocks %+v: %s", peer.IPBlocks, err)
+			return nil, nil, err
+		}
+		for _, ipNet := range ipNets {
+			ipBlocks[ipNet.String()]++
+		}
 	}
 
 	for _, ep := range peer.Endpoints {

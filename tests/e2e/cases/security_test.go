@@ -19,6 +19,7 @@ package cases
 import (
 	"context"
 	"fmt"
+	networkingv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
 
@@ -30,7 +31,6 @@ import (
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/types"
 	"github.com/smartxworks/lynx/tests/e2e/framework/matcher"
 	"github.com/smartxworks/lynx/tests/e2e/framework/model"
 )
@@ -573,10 +573,8 @@ func getPeer(peers ...string) securityv1alpha1.SecurityPolicyPeer {
 
 	for _, peer := range peers {
 		if strings.Count(peer, "/") == 1 {
-			prefixLen, _ := strconv.Atoi(strings.Split(peer, "/")[1])
-			policyPeer.IPBlocks = append(policyPeer.IPBlocks, securityv1alpha1.IPBlock{
-				IP:           types.IPAddress(strings.Split(peer, "/")[0]),
-				PrefixLength: int32(prefixLen),
+			policyPeer.IPBlocks = append(policyPeer.IPBlocks, networkingv1.IPBlock{
+				CIDR: peer,
 			})
 		} else if peer != "" {
 			policyPeer.EndpointGroups = append(policyPeer.EndpointGroups, peer)
