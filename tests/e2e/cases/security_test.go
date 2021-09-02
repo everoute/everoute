@@ -19,12 +19,12 @@ package cases
 import (
 	"context"
 	"fmt"
-	networkingv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -530,6 +530,11 @@ func newPolicy(name, tier string, appliedGroup []string, endpoints []string) *se
 		AppliedTo: securityv1alpha1.AppliedTo{
 			EndpointGroups: appliedGroup,
 			Endpoints:      endpoints,
+		},
+		// Default enable both ingress and egress rules
+		PolicyTypes: []networkingv1.PolicyType{
+			networkingv1.PolicyTypeIngress,
+			networkingv1.PolicyTypeEgress,
 		},
 	}
 
