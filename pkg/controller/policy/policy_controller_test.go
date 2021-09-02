@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -447,6 +448,41 @@ var _ = Describe("PolicyController", func() {
 					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 				})
 			})
+
+			When("change enable ingress only", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+
+					By(fmt.Sprintf("update policy %s enable ingress rule only", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should delete egress policy rules", func() {
+					assertPolicyRulesNum(ctx, policy, 2)
+
+					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
+					assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+				})
+			})
+			When("change enable egress only", func() {
+				var updPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					updPolicy = policy.DeepCopy()
+					updPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+
+					By(fmt.Sprintf("update policy %s enable egress rule only", policy.Name))
+					mustUpdatePolicy(ctx, updPolicy)
+				})
+				It("should delete ingress policy rules", func() {
+					assertPolicyRulesNum(ctx, policy, 2)
+
+					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
+					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				})
+			})
 		})
 
 		When("create a sample policy with SymmetricMode enable", func() {
@@ -492,6 +528,77 @@ var _ = Describe("PolicyController", func() {
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
 				})
+			})
+		})
+
+		When("create a sample policy with enable ingress only", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+
+				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 2)
+
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+
+				// Only ingress specified, egress rule should not generate
+				assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+		})
+
+		When("create a sample policy with enable egress only", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+
+				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(ctx, policy, 2)
+
+				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+
+				// Only egress specified, ingress rule should not generate
+				assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+
+			})
+		})
+
+		When("create a sample policy with no PolicyTypes specified", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy.Spec.PolicyTypes = []networkingv1.PolicyType{}
+
+				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				// Ingress and Egress exists on SecurityPolicy, should generate both ingress rule and egress rule
+				assertPolicyRulesNum(ctx, policy, 4)
+
+				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+
+				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+
 			})
 		})
 	})
@@ -711,6 +818,10 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 						EndpointGroups: []string{egressGroup},
 					},
 				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
 			},
 		},
 	}

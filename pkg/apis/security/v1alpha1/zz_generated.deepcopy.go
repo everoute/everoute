@@ -318,6 +318,11 @@ func (in *SecurityPolicySpec) DeepCopyInto(out *SecurityPolicySpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.PolicyTypes != nil {
+		in, out := &in.PolicyTypes, &out.PolicyTypes
+		*out = make([]v1.PolicyType, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

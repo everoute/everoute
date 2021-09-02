@@ -54,6 +54,18 @@ type SecurityPolicySpec struct {
 	// List of egress rules to be applied to giving groups. If this field is empty
 	// then this SecurityPolicy limits all outgoing traffic.
 	EgressRules []Rule `json:"egressRules,omitempty"`
+
+	// List of rule types that the Security relates to.
+	// Valid options are "Ingress", "Egress", or "Ingress,Egress".
+	// If this field is not specified, it will default based on the existence of Ingress or Egress rules;
+	// policies that contain an Egress section are assumed to affect Egress, and all policies
+	// (whether or not they contain an Ingress section) are assumed to affect Ingress.
+	// If you want to write an egress-only policy, you must explicitly specify policyTypes [ "Egress" ].
+	// Likewise, if you want to write a policy that specifies that no egress is allowed,
+	// you must specify a policyTypes value that include "Egress" (since such a policy would not include
+	// an Egress section and would otherwise default to just [ "Ingress" ]).
+	// +optional
+	PolicyTypes []networkingv1.PolicyType `json:"policyTypes,omitempty"`
 }
 
 type AppliedTo struct {

@@ -223,6 +223,10 @@ func addPolicy(f *framework.Framework, name string, tier string, appliedGroups s
 		AppliedTo: v1alpha1.AppliedTo{
 			EndpointGroups: strings.Split(appliedGroups, ","),
 		},
+		PolicyTypes: []networkingv1.PolicyType{
+			networkingv1.PolicyTypeIngress,
+			networkingv1.PolicyTypeEgress,
+		},
 	}
 
 	return f.SetupObjects(context.TODO(), policy)
