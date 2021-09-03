@@ -19,4 +19,10 @@ package constants
 const (
 	NormalPolicyRulePriority  = 100
 	DefaultPolicyRulePriority = 10
+
+	DefaultMaxConcurrentReconciles   = 4
+	NumOfRetainedGroupMembersPatches = 3
+	DependentsCleanFinalizer         = "finalizer.lynx.smartx.com/dependentsclean"
+	OwnerGroupLabelKey               = "label.lynx.smartx.com/ownergroup"
+	OwnerPolicyLabelKey              = "label.lynx.smartx.com/ownerpolicy"
 )

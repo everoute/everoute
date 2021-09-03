@@ -37,7 +37,7 @@ import (
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 	ctrltypes "github.com/smartxworks/lynx/pkg/controller/types"
 	"github.com/smartxworks/lynx/pkg/utils"
 )
@@ -84,7 +84,7 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	c, err := controller.New("group-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              r,
 	})
 	if err != nil {
@@ -261,7 +261,7 @@ func (r *GroupReconciler) isDeletingEndpointGroup(group *groupv1alpha1.EndpointG
 func (r *GroupReconciler) processEndpointGroupCreate(ctx context.Context, group *groupv1alpha1.EndpointGroup) (ctrl.Result, error) {
 	klog.V(2).Infof("add finalizers for new endpointgroup %s", group.Name)
 
-	group.ObjectMeta.Finalizers = []string{lynxctrl.DependentsCleanFinalizer}
+	group.ObjectMeta.Finalizers = []string{constants.DependentsCleanFinalizer}
 
 	err := r.Update(ctx, group)
 	if err != nil {
@@ -277,13 +277,13 @@ func (r *GroupReconciler) processEndpointGroupDelete(ctx context.Context, group 
 	klog.V(2).Infof("clean group dependents for deleting endpointgroup %s", group.Name)
 
 	// clean all group dependents groupmembers & groupmemberslist
-	err := r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
+	err := r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{constants.OwnerGroupLabelKey: group.Name})
 	if err != nil {
 		klog.Errorf("failed to delete endpointgroup %s dependents: %s", group.Name, err.Error())
 		return ctrl.Result{}, err
 	}
 
-	err = r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{}, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
+	err = r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{}, client.MatchingLabels{constants.OwnerGroupLabelKey: group.Name})
 	if err != nil {
 		klog.Errorf("failed to delete endpointgroup %s dependents: %s", group.Name, err.Error())
 		return ctrl.Result{}, err
@@ -393,7 +393,7 @@ func (r *GroupReconciler) fetchPrevGroupMembers(ctx context.Context, group *grou
 	}
 
 	patchList := groupv1alpha1.GroupMembersPatchList{}
-	err = r.List(ctx, &patchList, client.MatchingLabels{lynxctrl.OwnerGroupLabel: group.Name})
+	err = r.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: group.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func (r *GroupReconciler) syncGroupMembers(ctx context.Context, groupName string
 		groupMembers.ObjectMeta = metav1.ObjectMeta{
 			Name:      groupName,
 			Namespace: metav1.NamespaceNone,
-			Labels:    map[string]string{lynxctrl.OwnerGroupLabel: groupName},
+			Labels:    map[string]string{constants.OwnerGroupLabelKey: groupName},
 		}
 		if err = r.Create(ctx, &groupMembers); err != nil {
 			return fmt.Errorf("create groupmembers %s: %s", groupName, err)
@@ -444,7 +444,7 @@ func (r *GroupReconciler) syncGroupMembersPatch(ctx context.Context, groupName s
 	patch.ObjectMeta = metav1.ObjectMeta{
 		Name:      fmt.Sprintf("patch-%s-revision%d", groupName, patch.AppliedToGroupMembers.Revision),
 		Namespace: metav1.NamespaceNone,
-		Labels:    map[string]string{lynxctrl.OwnerGroupLabel: groupName},
+		Labels:    map[string]string{constants.OwnerGroupLabelKey: groupName},
 	}
 	if err := r.Create(ctx, &patch); err != nil {
 		return fmt.Errorf("create patch %s: %s", patch.Name, err)
@@ -458,7 +458,7 @@ func (r *GroupReconciler) syncGroupMembersPatch(ctx context.Context, groupName s
 // retained the nearest three groupMembersPatches for debug.
 func (r *GroupReconciler) cleanupOldPatches(ctx context.Context, groupName string, revision int32) error {
 	patchList := groupv1alpha1.GroupMembersPatchList{}
-	if err := r.List(ctx, &patchList, client.MatchingLabels{lynxctrl.OwnerGroupLabel: groupName}); err != nil {
+	if err := r.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: groupName}); err != nil {
 		return err
 	}
 
@@ -467,7 +467,7 @@ func (r *GroupReconciler) cleanupOldPatches(ctx context.Context, groupName strin
 			continue
 		}
 		// Retained the nearest three groupMembersPatches for debug.
-		if (revision - patch.AppliedToGroupMembers.Revision) <= lynxctrl.NumOfRetainedGroupMembersPatches {
+		if (revision - patch.AppliedToGroupMembers.Revision) <= constants.NumOfRetainedGroupMembersPatches {
 			continue
 		}
 

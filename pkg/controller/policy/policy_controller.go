@@ -43,7 +43,7 @@ import (
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 	policycache "github.com/smartxworks/lynx/pkg/controller/policy/cache"
 	"github.com/smartxworks/lynx/pkg/utils"
 )
@@ -222,7 +222,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	policyController, err = controller.New("policy-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcilePolicy),
 	})
 	if err != nil {
@@ -235,7 +235,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	patchController, err = controller.New("groupPatch-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcilePatch),
 	})
 	if err != nil {
@@ -267,7 +267,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	endpointController, err = controller.New("endpoint-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcileEndpoint),
 	})
 	if err != nil {
@@ -309,7 +309,7 @@ func (r *PolicyReconciler) isDeletingPolicy(policy *securityv1alpha1.SecurityPol
 func (r *PolicyReconciler) processPolicyCreate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
 	klog.V(2).Infof("add finalizers for securityPolicy %s", policy.Name)
 
-	policy.ObjectMeta.Finalizers = []string{lynxctrl.DependentsCleanFinalizer}
+	policy.ObjectMeta.Finalizers = []string{constants.DependentsCleanFinalizer}
 
 	err := r.Update(ctx, policy)
 	if err != nil {
@@ -349,7 +349,7 @@ func (r *PolicyReconciler) cleanPolicyDependents(ctx context.Context, policyName
 	}
 
 	// remove depents rules from apiserver
-	err := r.DeleteAllOf(ctx, &policyv1alpha1.PolicyRule{}, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policyName})
+	err := r.DeleteAllOf(ctx, &policyv1alpha1.PolicyRule{}, client.MatchingLabels{constants.OwnerPolicyLabelKey: policyName})
 	if err != nil {
 		klog.Errorf("failed to delete policy %s dependents: %s", policyName, err.Error())
 		return err
@@ -374,7 +374,7 @@ func (r *PolicyReconciler) processPolicyUpdate(ctx context.Context, policy *secu
 	}
 
 	// todo: replace with fetch from cache PolicyRules
-	err = r.ReadClient.List(ctx, &oldRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})
+	err = r.ReadClient.List(ctx, &oldRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})
 	if err != nil {
 		klog.Errorf("failed fetch old policy %s rules: %s", policy.Name, err)
 		return ctrl.Result{}, err

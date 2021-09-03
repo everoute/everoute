@@ -34,7 +34,7 @@ import (
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 	"github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
 	"github.com/smartxworks/lynx/pkg/types"
@@ -823,7 +823,7 @@ func assertHasPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityP
 
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -847,7 +847,7 @@ func assertHasPolicyRuleWithPortRange(ctx context.Context, policy *securityv1alp
 	direction, action, srcCidr string, srcPort uint16, srcPortMask uint16, dstCidr string, dstPort uint16, dstPortMask uint16, protocol string) {
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -874,7 +874,7 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -897,7 +897,7 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 func assertPolicyRulesNum(ctx context.Context, policy *securityv1alpha1.SecurityPolicy, numOfPolicyRules int) {
 	Eventually(func() int {
 		policyRuleList := policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
 		return len(policyRuleList.Items)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }

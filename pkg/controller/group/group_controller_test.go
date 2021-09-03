@@ -31,7 +31,7 @@ import (
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 	"github.com/smartxworks/lynx/pkg/types"
 )
 
@@ -221,9 +221,9 @@ var _ = Describe("GroupController", func() {
 			It("should clean up old patches", func() {
 				Eventually(func() int {
 					patches := groupv1alpha1.GroupMembersPatchList{}
-					Expect(k8sClient.List(ctx, &patches, client.MatchingLabels{lynxctrl.OwnerGroupLabel: epGroup.Name})).Should(Succeed())
+					Expect(k8sClient.List(ctx, &patches, client.MatchingLabels{constants.OwnerGroupLabelKey: epGroup.Name})).Should(Succeed())
 					return len(patches.Items)
-				}, timeout, interval).Should(Equal(lynxctrl.NumOfRetainedGroupMembersPatches))
+				}, timeout, interval).Should(Equal(constants.NumOfRetainedGroupMembersPatches))
 			})
 		})
 	})
@@ -244,7 +244,7 @@ var _ = Describe("GroupController", func() {
 					err := k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup)
 					Expect(client.IgnoreNotFound(err)).Should(Succeed())
 					return epGroup.Finalizers
-				}, timeout, interval).Should(Equal([]string{lynxctrl.DependentsCleanFinalizer}))
+				}, timeout, interval).Should(Equal([]string{constants.DependentsCleanFinalizer}))
 			})
 
 			It("should create groupmembers with empty members", func() {
@@ -326,7 +326,7 @@ func newTestPatch(groupName string, revision int32) *groupv1alpha1.GroupMembersP
 	return &groupv1alpha1.GroupMembersPatch{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: map[string]string{lynxctrl.OwnerGroupLabel: groupName},
+			Labels: map[string]string{constants.OwnerGroupLabelKey: groupName},
 		},
 		AppliedToGroupMembers: groupv1alpha1.GroupMembersReference{
 			Name:     groupName,
@@ -343,7 +343,7 @@ func equal(a interface{}, b interface{}) bool {
 func assertHasPatch(epGroup *groupv1alpha1.EndpointGroup, patch groupv1alpha1.GroupMembersPatch) {
 	Eventually(func() bool {
 		patches := groupv1alpha1.GroupMembersPatchList{}
-		Expect(k8sClient.List(context.Background(), &patches, client.MatchingLabels{lynxctrl.OwnerGroupLabel: epGroup.Name})).Should(Succeed())
+		Expect(k8sClient.List(context.Background(), &patches, client.MatchingLabels{constants.OwnerGroupLabelKey: epGroup.Name})).Should(Succeed())
 		latestPatch := getLatestPatch(patches)
 		return latestPatch != nil &&
 			equal(latestPatch.UpdatedGroupMembers, patch.UpdatedGroupMembers) &&
@@ -372,7 +372,7 @@ func assertHasGroupMembers(epGroup *groupv1alpha1.EndpointGroup, members groupv1
 func assertPatchLen(ctx context.Context, groupName string, length int) {
 	Eventually(func() int {
 		patchList := groupv1alpha1.GroupMembersPatchList{}
-		Expect(k8sClient.List(ctx, &patchList, client.MatchingLabels{lynxctrl.OwnerGroupLabel: groupName})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: groupName})).Should(Succeed())
 		return len(patchList.Items)
 	}, timeout, interval).Should(Equal(length))
 }

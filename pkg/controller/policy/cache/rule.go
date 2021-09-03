@@ -27,7 +27,7 @@ import (
 
 	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 )
 
 type CompleteRule struct {
@@ -135,7 +135,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 
 	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
 	policyRule.Labels = map[string]string{
-		lynxctrl.OwnerPolicyLabel: policyName,
+		constants.OwnerPolicyLabelKey: policyName,
 	}
 
 	return policyRule
