@@ -121,7 +121,7 @@ func (m *SecurityModel) getGroupIPs(groupName string) []string {
 }
 
 func matchEndpoint(group *groupv1alpha1.EndpointGroup, endpoints []*model.Endpoint) []*model.Endpoint {
-	var selector, _ = metav1.LabelSelectorAsSelector(group.Spec.Selector)
+	var selector, _ = metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
 	var matchEp []*model.Endpoint
 
 	for _, ep := range endpoints {

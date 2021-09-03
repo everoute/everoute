@@ -113,7 +113,7 @@ func newGroupListCommand(f *framework.Framework) *cobra.Command {
 func addGroup(f *framework.Framework, name string, selector string) error {
 	group := &groupv1alpha1.EndpointGroup{}
 	group.Name = name
-	group.Spec.Selector = selectorFromString(selector)
+	group.Spec.EndpointSelector = selectorFromString(selector)
 
 	return f.SetupObjects(context.TODO(), group)
 }
@@ -157,6 +157,6 @@ func setGroupSelector(f *framework.Framework, name string, selector string) erro
 		return err
 	}
 
-	group.Spec.Selector = selectorFromString(selector)
+	group.Spec.EndpointSelector = selectorFromString(selector)
 	return client.Update(context.TODO(), group)
 }

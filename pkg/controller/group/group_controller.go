@@ -19,7 +19,9 @@ package group
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -109,6 +111,15 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	err = c.Watch(&source.Kind{Type: &corev1.Namespace{}}, &handler.Funcs{
+		CreateFunc: r.addNamespace,
+		UpdateFunc: r.updateNamespace,
+		DeleteFunc: r.deleteNamespace,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -124,7 +135,7 @@ func (r *GroupReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimit
 	}
 
 	// Find all endpointgroup keys which match the endpoint's labels.
-	groupNameSet := r.filterEndpointGroups(context.Background(), endpoint)
+	groupNameSet := r.filterEndpointGroupsByEndpoint(context.Background(), endpoint)
 
 	// Enqueue groups to queue for reconciler process.
 	for groupName := range groupNameSet {
@@ -149,8 +160,8 @@ func (r *GroupReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLi
 	}
 
 	ctx := context.Background()
-	oldGroupSet := r.filterEndpointGroups(ctx, oldEndpoint)
-	newGroupSet := r.filterEndpointGroups(ctx, newEndpoint)
+	oldGroupSet := r.filterEndpointGroupsByEndpoint(ctx, oldEndpoint)
+	newGroupSet := r.filterEndpointGroupsByEndpoint(ctx, newEndpoint)
 
 	for groupName := range oldGroupSet.Union(newGroupSet) {
 		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
@@ -167,7 +178,7 @@ func (r *GroupReconciler) deleteEndpoint(e event.DeleteEvent, q workqueue.RateLi
 	}
 
 	// Find all endpointgroup keys which match the endpoint's labels.
-	groupNameSet := r.filterEndpointGroups(context.Background(), endpoint)
+	groupNameSet := r.filterEndpointGroupsByEndpoint(context.Background(), endpoint)
 
 	// Enqueue groups to queue for reconciler process.
 	for groupName := range groupNameSet {
@@ -209,7 +220,7 @@ func (r *GroupReconciler) updateEndpointGroup(e event.UpdateEvent, q workqueue.R
 		return
 	}
 
-	if newGroup.Spec.Selector.String() != oldGroup.Spec.Selector.String() {
+	if !reflect.DeepEqual(newGroup.Spec, oldGroup.Spec) {
 		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 			Namespace: newGroup.Namespace,
 			Name:      newGroup.Name,
@@ -229,20 +240,145 @@ func (r *GroupReconciler) deleteEndpointGroup(e event.DeleteEvent, q workqueue.R
 	}})
 }
 
-// filterEndpointGroups filter endpointgroups which match endpoint labels.
-func (r *GroupReconciler) filterEndpointGroups(ctx context.Context, endpoint *securityv1alpha1.Endpoint) sets.String {
-	groupNameSet := sets.String{}
-	groupList := groupv1alpha1.EndpointGroupList{}
-	_ = r.List(ctx, &groupList)
+func (r *GroupReconciler) addNamespace(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	newNamespace := e.Object.(*corev1.Namespace)
+	groupNameSet := r.filterEndpointGroupsByNamespace(context.Background(), newNamespace)
+
+	// Enqueue groups to queue for reconciler process.
+	for groupName := range groupNameSet {
+		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+			Namespace: metav1.NamespaceNone,
+			Name:      groupName,
+		}})
+	}
+}
+
+func (r *GroupReconciler) updateNamespace(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	oldNamespace := e.ObjectOld.(*corev1.Namespace)
+	newNamespace := e.ObjectNew.(*corev1.Namespace)
+
+	// ignore namespace no labels changes
+	if reflect.DeepEqual(newNamespace.Labels, oldNamespace.Labels) {
+		return
+	}
+
+	ctx := context.Background()
+	oldGroupSet := r.filterEndpointGroupsByNamespace(ctx, oldNamespace)
+	newGroupSet := r.filterEndpointGroupsByNamespace(ctx, newNamespace)
+
+	for groupName := range newGroupSet.Union(oldGroupSet) {
+		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+			Namespace: metav1.NamespaceNone,
+			Name:      groupName,
+		}})
+	}
+}
+
+func (r *GroupReconciler) deleteNamespace(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	oldNamespace := e.Object.(*corev1.Namespace)
+	groupNameSet := r.filterEndpointGroupsByNamespace(context.Background(), oldNamespace)
+
+	// Enqueue groups to queue for reconciler process.
+	for groupName := range groupNameSet {
+		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+			Namespace: metav1.NamespaceNone,
+			Name:      groupName,
+		}})
+	}
+}
+
+// filterEndpointGroupsByEndpoint filter endpointgroups which match endpoint labels.
+func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, endpoint *securityv1alpha1.Endpoint) sets.String {
+	var (
+		groupNameSet            = sets.String{}
+		groupList               groupv1alpha1.EndpointGroupList
+		endpointNamespaceLabels labels.Set
+	)
+
+	err := r.List(ctx, &groupList)
+	if err != nil {
+		klog.Errorf("list endpoint group: %s", err)
+		return nil
+	}
+
+	// fetch endpoint namespace labels
+	endpointNamespace := &corev1.Namespace{}
+	err = r.Get(ctx, client.ObjectKey{Name: endpoint.Namespace}, endpointNamespace)
+	if err != nil {
+		klog.Errorf("get namespace %+v: %s", endpoint.Namespace, err)
+		return nil
+	}
+	endpointNamespaceLabels = endpointNamespace.Labels
 
 	for _, group := range groupList.Items {
-		selector, err := metav1.LabelSelectorAsSelector(group.Spec.Selector)
-		if err != nil {
+		// if namespace set, matched endpoint must in the namespace
+		if group.Spec.Namespace != nil && endpoint.GetNamespace() != *group.Spec.Namespace {
 			continue
 		}
 
-		if selector.Matches(labels.Set(endpoint.Labels)) {
-			groupNameSet.Insert(group.Name)
+		// if namespaceSelector set, matched endpoint must in the selected namespaces
+		if group.Spec.NamespaceSelector != nil {
+			namespaceSelector, err := metav1.LabelSelectorAsSelector(group.Spec.NamespaceSelector)
+			if err != nil {
+				klog.Errorf("invalid namespace selector %+v: %s", group.Spec.NamespaceSelector, err)
+				continue
+			}
+			// continue if namespace not match
+			if !namespaceSelector.Matches(endpointNamespaceLabels) {
+				continue
+			}
+		}
+
+		endpointSelector, err := metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
+		if err != nil {
+			klog.Errorf("invalid enpoint selector %+v: %s", group.Spec.EndpointSelector, err)
+			continue
+		}
+
+		if !endpointSelector.Matches(labels.Set(endpoint.Labels)) {
+			continue
+		}
+
+		groupNameSet.Insert(group.Name)
+	}
+
+	return groupNameSet
+}
+
+// filterEndpointGroupsByNamespace filter endpointgroups which match Namespace labels.
+func (r *GroupReconciler) filterEndpointGroupsByNamespace(ctx context.Context, namespace *corev1.Namespace) sets.String {
+	var (
+		groupNameSet    = sets.String{}
+		namespaceLabels = labels.Set(namespace.Labels)
+		groupList       groupv1alpha1.EndpointGroupList
+	)
+
+	err := r.List(ctx, &groupList)
+	if err != nil {
+		klog.Errorf("list endpoint group: %s", err)
+		return nil
+	}
+
+	for _, group := range groupList.Items {
+		// if group has select this namespace, pick it out
+		if group.Spec.Namespace != nil && namespace.Name == *group.Spec.Namespace {
+			groupNameSet.Insert(group.GetName())
+			continue
+		}
+
+		// if namespaceSelector set, matched endpoint must in the selected namespaces
+		if group.Spec.NamespaceSelector != nil {
+			namespaceSelector, err := metav1.LabelSelectorAsSelector(group.Spec.NamespaceSelector)
+			if err != nil {
+				klog.Errorf("invalid namespace selector %+v: %s", group.Spec.NamespaceSelector, err)
+				continue
+			}
+
+			// if namespace selector match the namespace, pick it out
+			if namespaceSelector.Matches(namespaceLabels) {
+				groupNameSet.Insert(group.GetName())
+				continue
+			}
 		}
 	}
 
@@ -350,20 +486,59 @@ func (r *GroupReconciler) processEndpointGroupUpdate(ctx context.Context, group 
 
 // fetchCurrGroupMembers get endpoints by selector, and return as GroupMembers
 func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *groupv1alpha1.EndpointGroup) (*groupv1alpha1.GroupMembers, error) {
-	selector, err := metav1.LabelSelectorAsSelector(group.Spec.Selector)
-	if err != nil {
-		return nil, err
+	var (
+		matchedNamespaces []string
+		matchedEndpoints  []securityv1alpha1.Endpoint
+	)
+
+	// filter matched namespace
+	if group.Spec.Namespace == nil && group.Spec.NamespaceSelector == nil {
+		// If neither of NamespaceSelector or Namespace set, then the EndpointGroup
+		// would select the endpoints in all namespaces.
+		matchedNamespaces = []string{metav1.NamespaceAll}
+	} else {
+		if group.Spec.Namespace != nil {
+			// If Namespace is set, then the EndpointGroup would select the endpoints
+			// matching EndpointSelector in the specific Namespace.
+			matchedNamespaces = append(matchedNamespaces, *group.Spec.Namespace)
+		} else {
+			// If NamespaceSelector is set, then the EndpointGroup would select the endpoints
+			// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+			namespaceSelector, err := metav1.LabelSelectorAsSelector(group.Spec.NamespaceSelector)
+			if err != nil {
+				return nil, fmt.Errorf("invalid namespace selector %+v: %s", group.Spec.NamespaceSelector, err)
+			}
+
+			namespaceList := corev1.NamespaceList{}
+			err = r.List(ctx, &namespaceList, client.MatchingLabelsSelector{Selector: namespaceSelector})
+			if err != nil {
+				return nil, fmt.Errorf("list namespaces: %s", err)
+			}
+
+			for _, namespace := range namespaceList.Items {
+				matchedNamespaces = append(matchedNamespaces, namespace.GetName())
+			}
+		}
 	}
 
-	epList := securityv1alpha1.EndpointList{}
-	err = r.List(ctx, &epList, client.MatchingLabelsSelector{Selector: selector})
-	if err != nil {
-		return nil, err
+	for _, namespace := range matchedNamespaces {
+		// filter endpoints in specify namespace
+		endpointSelector, err := metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
+		if err != nil {
+			return nil, err
+		}
+
+		endpointList := securityv1alpha1.EndpointList{}
+		err = r.List(ctx, &endpointList, client.MatchingLabelsSelector{Selector: endpointSelector}, client.InNamespace(namespace))
+		if err != nil {
+			return nil, err
+		}
+		matchedEndpoints = append(matchedEndpoints, endpointList.Items...)
 	}
 
 	// conversion endpoint list to member list
-	memberList := make([]groupv1alpha1.GroupMember, 0, len(epList.Items))
-	for _, ep := range epList.Items {
+	memberList := make([]groupv1alpha1.GroupMember, 0, len(matchedEndpoints))
+	for _, ep := range matchedEndpoints {
 		if len(ep.Status.IPs) == 0 {
 			// skip ep with empty ip addresses
 			continue

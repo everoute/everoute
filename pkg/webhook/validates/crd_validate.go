@@ -281,31 +281,43 @@ func (v endpointValidator) deleteValidate(oldObj runtime.Object, userInfo authv1
 type endpointGroupValidator resourceValidator
 
 func (v endpointGroupValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	var allErrs field.ErrorList
+	var message string
 
-	// validate label selector
-	allErrs = v.validateSelector(curObj.(*groupv1alpha1.EndpointGroup).Spec.Selector)
-
-	if err := allErrs.ToAggregate(); err != nil {
-		return err.Error(), false
+	err := v.validateGroupSpec(&curObj.(*groupv1alpha1.EndpointGroup).Spec)
+	if err != nil {
+		message = err.Error()
+		return message, false
 	}
+
 	return "", true
 }
 
 func (v endpointGroupValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	var allErrs field.ErrorList
+	var message string
 
-	// validate label selector
-	allErrs = v.validateSelector(curObj.(*groupv1alpha1.EndpointGroup).Spec.Selector)
-
-	if err := allErrs.ToAggregate(); err != nil {
-		return err.Error(), false
+	err := v.validateGroupSpec(&curObj.(*groupv1alpha1.EndpointGroup).Spec)
+	if err != nil {
+		message = err.Error()
+		return message, false
 	}
+
 	return "", true
 }
 
-func (v endpointGroupValidator) validateSelector(selector *metav1.LabelSelector) field.ErrorList {
-	return metav1validation.ValidateLabelSelector(selector, field.NewPath("selector"))
+func (v endpointGroupValidator) validateGroupSpec(spec *groupv1alpha1.EndpointGroupSpec) error {
+	var allErrs field.ErrorList
+
+	if spec.NamespaceSelector != nil && spec.Namespace != nil {
+		return fmt.Errorf("NamespaceSelector and Namespace cannot be set at the same time")
+	}
+
+	errs := metav1validation.ValidateLabelSelector(spec.EndpointSelector, field.NewPath("EndpointSelector"))
+	allErrs = append(allErrs, errs...)
+
+	errs = metav1validation.ValidateLabelSelector(spec.NamespaceSelector, field.NewPath("NamespaceSelector"))
+	allErrs = append(allErrs, errs...)
+
+	return allErrs.ToAggregate()
 }
 
 func (v endpointGroupValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {

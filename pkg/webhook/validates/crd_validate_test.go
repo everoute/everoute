@@ -186,7 +186,7 @@ var initObject = func() {
 			},
 		},
 		Spec: groupv1alpha1.EndpointGroupSpec{
-			Selector: &metav1.LabelSelector{
+			EndpointSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"key1": "value1",
 				},
@@ -205,7 +205,7 @@ var initObject = func() {
 			},
 		},
 		Spec: groupv1alpha1.EndpointGroupSpec{
-			Selector: &metav1.LabelSelector{
+			EndpointSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
 						Key:      "key2",
@@ -324,13 +324,19 @@ var _ = Describe("CRD Validate", func() {
 		It("Create EndpointGroup with wrong selector should not allowed", func() {
 			endpointGroup := endpointGroupA.DeepCopy()
 			endpointGroup.Name = "endpointgroup"
-			endpointGroup.Spec.Selector.MatchLabels["&$XXXX"] = "^*xxxxx"
+			endpointGroup.Spec.EndpointSelector.MatchLabels["&$XXXX"] = "^*xxxxx"
 			Expect(validate.Validate(fakeAdmissionReview(endpointGroup, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create EndpointGroup with both Namespace and NamespaceSelector set should not allowed", func() {
+			namespaceDefault := metav1.NamespaceDefault
+			endpointGroupA.Spec.Namespace = &namespaceDefault
+			endpointGroupA.Spec.NamespaceSelector = &metav1.LabelSelector{}
+			Expect(validate.Validate(fakeAdmissionReview(endpointGroupA, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Update EndpointGroup with wrong selector should not allowed", func() {
 			endpointGroup := endpointGroupA.DeepCopy()
 			endpointGroup.Name = "endpointgroup"
-			endpointGroup.Spec.Selector.MatchExpressions = []metav1.LabelSelectorRequirement{{
+			endpointGroup.Spec.EndpointSelector.MatchExpressions = []metav1.LabelSelectorRequirement{{
 				Key:      "xxx",
 				Operator: "UNKNOW-OPERATOR",
 			}}

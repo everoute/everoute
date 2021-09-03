@@ -89,8 +89,8 @@ func printGroup(output io.Writer, groups []groupv1alpha1.EndpointGroup, eps []se
 		var row = []interface{}{}
 
 		row = append(row, group.Name)
-		row = append(row, selectorToString(group.Spec.Selector))
-		row = append(row, selectEndpointNames(group.Spec.Selector, eps))
+		row = append(row, selectorToString(group.Spec.EndpointSelector))
+		row = append(row, selectEndpointNames(group.Spec.EndpointSelector, eps))
 
 		addRow(table, row)
 	}

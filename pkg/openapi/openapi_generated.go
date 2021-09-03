@@ -820,7 +820,7 @@ func schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref common.ReferenceCallba
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector specifies a selector for Endpoint. An empty label selector matches all endpoints. A null label selector matches no endpoints.",
+							Description: "EndpointSelector specifies a selector for Endpoint. An empty label selector matches all endpoints. A null label selector matches no endpoints.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
@@ -2670,7 +2670,7 @@ func schema_k8sio_api_apps_v1_ReplicaSetSpec(ref common.ReferenceCallback) commo
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is a label query over pods that should match the replica count. Label keys and values that must match in order to be controlled by this replica set. It must match the pod template's labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
+							Description: "EndpointSelector is a label query over pods that should match the replica count. Label keys and values that must match in order to be controlled by this replica set. It must match the pod template's labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
@@ -10224,7 +10224,7 @@ func schema_k8sio_api_core_v1_PodSpec(ref common.ReferenceCallback) common.OpenA
 					},
 					"nodeSelector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/",
+							Description: "NodeSelector is a selector which must be true for the pod to fit on a node. EndpointSelector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
@@ -11424,7 +11424,7 @@ func schema_k8sio_api_core_v1_ReplicationControllerSpec(ref common.ReferenceCall
 					},
 					"selector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selector is a label query over pods that should match the Replicas count. If Selector is empty, it is defaulted to the labels present on the Pod template. Label keys and values that must match in order to be controlled by this replication controller, if empty defaulted to labels on Pod template. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
+							Description: "EndpointSelector is a label query over pods that should match the Replicas count. If EndpointSelector is empty, it is defaulted to the labels present on the Pod template. Label keys and values that must match in order to be controlled by this replication controller, if empty defaulted to labels on Pod template. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
 							Type:        []string{"object"},
 							AdditionalProperties: &spec.SchemaOrBool{
 								Allows: true,
