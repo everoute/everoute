@@ -20,6 +20,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - agent.lynx.smartx.com
   resources:
   - agentinfos

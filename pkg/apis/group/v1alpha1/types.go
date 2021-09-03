@@ -110,12 +110,34 @@ type EndpointGroup struct {
 
 // EndpointGroupSpec defines the desired state for EndpointGroup.
 type EndpointGroupSpec struct {
-	// Description is an optional field to add more information regarding
-	// the purpose of this Group.
-	Description string `json:"description,omitempty"`
-	// Selector specifies a selector for Endpoint. An empty label selector
-	// matches all endpoints. A null label selector matches no endpoints.
-	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// EndpointSelector selects endpoints. This field follows standard label
+	// selector semantics; if present but empty, it selects all endpoints.
+	//
+	// If NamespaceSelector is set, then the EndpointGroup would select the endpoints
+	// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+	// If Namespace is set, then the EndpointGroup would select the endpoints
+	// matching EndpointSelector in the specific Namespace.
+	// If neither of NamespaceSelector or Namespace set, then the EndpointGroup
+	// would select the endpoints in all namespaces.
+	// +optional
+	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
+
+	// NamespaceSelector selects namespaces. This field follows standard label
+	// selector semantics; if present but empty, it selects all namespaces.
+	//
+	// If NamespaceSelector is set, then the EndpointGroup would select the endpoints
+	// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+	// If this field is set then the Namespace field cannot be set.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// This is a namespace for select endpoints in.
+	//
+	// If Namespace is set, then the EndpointGroup would select the endpoints
+	// matching EndpointSelector in the specific Namespace.
+	// If this field is set then the NamespaceSelector field cannot be set.
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

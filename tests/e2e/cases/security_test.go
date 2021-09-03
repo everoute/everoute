@@ -513,7 +513,7 @@ func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGr
 	group := &groupv1alpha1.EndpointGroup{}
 	group.Name = name
 
-	group.Spec.Selector = &metav1.LabelSelector{
+	group.Spec.EndpointSelector = &metav1.LabelSelector{
 		MatchLabels: selector,
 	}
 

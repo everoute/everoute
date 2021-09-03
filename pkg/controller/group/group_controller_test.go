@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/matchers"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -77,16 +78,18 @@ var _ = Describe("GroupController", func() {
 	Context("an endpointgroup has been created", func() {
 		var epGroup *groupv1alpha1.EndpointGroup
 		BeforeEach(func() {
-			epGroup = newTestEndpointGroup(map[string]string{"label.key": "label.value"})
+			epGroup = newTestEndpointGroup(map[string]string{"label.key": "label.value"}, nil, "")
 
-			By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.Selector))
+			By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.EndpointSelector))
 			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
 		})
 		Context("none endpoint in the group", func() {
 			When("create a endpoint in the group", func() {
 				var ep *securityv1alpha1.Endpoint
+				var namespace = metav1.NamespaceDefault
+
 				BeforeEach(func() {
-					ep = newTestEndpoint(map[string]string{"label.key": "label.value"}, "192.168.1.1")
+					ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1")
 
 					By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 					Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -102,8 +105,10 @@ var _ = Describe("GroupController", func() {
 		})
 		Context("an endpoint in the group", func() {
 			var ep *securityv1alpha1.Endpoint
+			var namespace = metav1.NamespaceDefault
+
 			BeforeEach(func() {
-				ep = newTestEndpoint(map[string]string{"label.key": "label.value"}, "192.168.1.1")
+				ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1")
 
 				By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -157,12 +162,11 @@ var _ = Describe("GroupController", func() {
 
 			When("update the endpointgroup selector to empty", func() {
 				BeforeEach(func() {
-					// the group has been modify by controller, retrieve it.
-					Expect(k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup))
-					epGroup.Spec.Selector = nil
+					updateGroup := epGroup.DeepCopy()
+					updateGroup.Spec.EndpointSelector = nil
 
-					By(fmt.Sprintf("change endpointgroup %s selector to %v", epGroup.Name, epGroup.Spec.Selector))
-					Expect(k8sClient.Update(ctx, epGroup)).Should(Succeed())
+					By(fmt.Sprintf("change endpointgroup %s selector to %v", epGroup.Name, epGroup.Spec.EndpointSelector))
+					Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
 				})
 				It("should create patch remove the endpoint", func() {
 					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{RemovedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
@@ -209,14 +213,9 @@ var _ = Describe("GroupController", func() {
 				assertPatchLen(ctx, epGroup.Name, 10)
 
 				By("update the group label to drive reconcile group")
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, client.ObjectKey{Name: epGroup.Name}, epGroup)
-					if err != nil {
-						return err
-					}
-					epGroup.Spec.Selector = nil
-					return k8sClient.Update(ctx, epGroup)
-				}, timeout, interval).Should(Succeed())
+				updateGroup := epGroup.DeepCopy()
+				updateGroup.Spec.EndpointSelector = nil
+				Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
 			})
 			It("should clean up old patches", func() {
 				Eventually(func() int {
@@ -233,9 +232,9 @@ var _ = Describe("GroupController", func() {
 			var epGroup *groupv1alpha1.EndpointGroup
 
 			BeforeEach(func() {
-				epGroup = newTestEndpointGroup(map[string]string{})
+				epGroup = newTestEndpointGroup(map[string]string{}, nil, "")
 
-				By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.Selector))
+				By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.EndpointSelector))
 				Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
 			})
 
@@ -249,6 +248,145 @@ var _ = Describe("GroupController", func() {
 
 			It("should create groupmembers with empty members", func() {
 				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+			})
+		})
+	})
+
+	When("create EndpointGroup with namespace selector", func() {
+		var epGroup *groupv1alpha1.EndpointGroup
+		var namespaceLabel, endpointLabel map[string]string
+
+		BeforeEach(func() {
+			endpointLabel = map[string]string{"label.key": "label.value"}
+			namespaceLabel = map[string]string{"label.key": "label.value"}
+			epGroup = newTestEndpointGroup(endpointLabel, namespaceLabel, "")
+
+			By(fmt.Sprintf("create endpointgroup %s with spec %v", epGroup.Name, epGroup.Spec))
+			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
+		})
+
+		When("create namespace and endpoint match group.spec", func() {
+			var ep *securityv1alpha1.Endpoint
+			var namespace *corev1.Namespace
+
+			BeforeEach(func() {
+				namespace = newTestNamespace(namespaceLabel)
+				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1")
+
+				By(fmt.Sprintf("create namespace %s", namespace))
+				Expect(k8sClient.Create(ctx, namespace)).Should(Succeed())
+
+				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
+				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+			})
+			AfterEach(func() {
+				By(fmt.Sprintf("remove test namespace %s and endpoint %s", namespace.GetName(), ep.GetName()))
+				Expect(k8sClient.Delete(ctx, namespace)).Should(Succeed())
+				Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
+			})
+
+			It("should create patch add the endpoint", func() {
+				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+			It("should update groupmembers contains the endpoint", func() {
+				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+
+			When("update namespace labels unmatch group.spec", func() {
+				BeforeEach(func() {
+					updateNamespace := namespace.DeepCopy()
+					updateNamespace.Labels = nil
+
+					By(fmt.Sprintf("update namespace %s labels to nil", namespace.GetName()))
+					Expect(k8sClient.Patch(ctx, updateNamespace, client.MergeFrom(namespace))).Should(Succeed())
+				})
+
+				It("should update groupmembers contains no endpoints", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+				})
+			})
+		})
+	})
+
+	When("create EndpointGroup with specific namespace", func() {
+		var epGroup *groupv1alpha1.EndpointGroup
+		var namespace *corev1.Namespace
+		var endpointLabel map[string]string
+
+		BeforeEach(func() {
+			endpointLabel = map[string]string{"label.key": "label.value"}
+			namespace = newTestNamespace(nil)
+			epGroup = newTestEndpointGroup(endpointLabel, nil, namespace.GetName())
+
+			By(fmt.Sprintf("create endpointgroup %s with spec %v", epGroup.Name, epGroup.Spec))
+			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
+
+			By(fmt.Sprintf("create namespace %s", namespace))
+			Expect(k8sClient.Create(ctx, namespace)).Should(Succeed())
+		})
+		AfterEach(func() {
+			By(fmt.Sprintf("remove test namespace %s", namespace.GetName()))
+			Expect(k8sClient.Delete(ctx, namespace)).Should(Succeed())
+		})
+
+		When("create endpoint in the specific namespace", func() {
+			var ep *securityv1alpha1.Endpoint
+
+			BeforeEach(func() {
+				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1")
+
+				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
+				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+			})
+			AfterEach(func() {
+				Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
+			})
+			It("should create patch add the endpoint", func() {
+				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+			It("should update groupmembers contains the endpoint", func() {
+				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+		})
+
+		When("create endpoint in the default namespace", func() {
+			var ep *securityv1alpha1.Endpoint
+
+			BeforeEach(func() {
+				ep = newTestEndpoint(metav1.NamespaceDefault, endpointLabel, "192.168.1.1")
+
+				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
+				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+			})
+			AfterEach(func() {
+				Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
+			})
+
+			It("endpointgroup should not contains the endpoint", func() {
+				// wait for controller handle endpoint event
+				time.Sleep(5 * time.Second)
+				By(fmt.Sprintf("endpointgroup %s should has no members", epGroup.Name))
+				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+			})
+
+			When("remove namespace in the EndpointGroup spec", func() {
+				BeforeEach(func() {
+					updateGroup := epGroup.DeepCopy()
+					updateGroup.Spec.Namespace = nil
+
+					By(fmt.Sprintf("update endpointgroup %s spec.namespace to nil", epGroup.GetName()))
+					Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
+				})
+
+				It("should create patch add the endpoint", func() {
+					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+				It("should update groupmembers contains the endpoint", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
 			})
 		})
 	})
@@ -281,7 +419,7 @@ func getLatestPatch(patchList groupv1alpha1.GroupMembersPatchList) *groupv1alpha
 	return patch
 }
 
-func newTestEndpoint(labels map[string]string, ip types.IPAddress) *securityv1alpha1.Endpoint {
+func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddress) *securityv1alpha1.Endpoint {
 	name := "endpoint-test-" + string(uuid.NewUUID())
 	id := name
 	labels[TestLabelKey] = TestLabelValue
@@ -289,7 +427,7 @@ func newTestEndpoint(labels map[string]string, ip types.IPAddress) *securityv1al
 	return &securityv1alpha1.Endpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: metav1.NamespaceDefault,
+			Namespace: namespace,
 			Labels:    labels,
 		},
 		Spec: securityv1alpha1.EndpointSpec{
@@ -304,20 +442,43 @@ func newTestEndpoint(labels map[string]string, ip types.IPAddress) *securityv1al
 	}
 }
 
-func newTestEndpointGroup(matchLabels map[string]string) *groupv1alpha1.EndpointGroup {
-	name := "endpointgroup-test-" + string(uuid.NewUUID())
+func newTestNamespace(labels map[string]string) *corev1.Namespace {
+	name := "namespace-test-" + string(uuid.NewUUID())
 
-	return &groupv1alpha1.EndpointGroup{
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+	}
+}
+
+func newTestEndpointGroup(epSelector map[string]string, nsSelector map[string]string, namespace string) *groupv1alpha1.EndpointGroup {
+	name := "endpointgroup-test-" + string(uuid.NewUUID())
+	epGroup := &groupv1alpha1.EndpointGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: map[string]string{TestLabelKey: TestLabelValue},
 		},
-		Spec: groupv1alpha1.EndpointGroupSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-		},
 	}
+
+	if epSelector != nil {
+		epGroup.Spec.EndpointSelector = &metav1.LabelSelector{
+			MatchLabels: epSelector,
+		}
+	}
+
+	if nsSelector != nil {
+		epGroup.Spec.NamespaceSelector = &metav1.LabelSelector{
+			MatchLabels: nsSelector,
+		}
+	}
+
+	if namespace != "" {
+		epGroup.Spec.Namespace = &namespace
+	}
+
+	return epGroup
 }
 
 func newTestPatch(groupName string, revision int32) *groupv1alpha1.GroupMembersPatch {
