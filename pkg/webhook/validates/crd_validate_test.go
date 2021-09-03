@@ -84,8 +84,7 @@ var initObject = func() {
 			},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			Tier:     "tier-pri50",
-			Priority: 60,
+			Tier: "tier-pri50",
 			AppliedTo: securityv1alpha1.AppliedTo{
 				EndpointGroups: []string{
 					"group01",
@@ -125,8 +124,7 @@ var initObject = func() {
 			},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			Tier:     "tier-pri50",
-			Priority: 70,
+			Tier: "tier-pri50",
 			AppliedTo: securityv1alpha1.AppliedTo{
 				EndpointGroups: []string{
 					"group01",

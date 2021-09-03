@@ -75,15 +75,15 @@ var _ = Describe("SecurityPolicy", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier1, 50, []string{nginxGroup.Name}, nil)
+				nginxPolicy = newPolicy("nginx-policy", tier1, []string{nginxGroup.Name}, nil)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
 				addEngressRule(nginxPolicy, "TCP", serverPort, serverGroup.Name)
 
-				serverPolicy = newPolicy("server-policy", tier1, 50, []string{serverGroup.Name}, nil)
+				serverPolicy = newPolicy("server-policy", tier1, []string{serverGroup.Name}, nil)
 				addIngressRule(serverPolicy, "TCP", serverPort, nginxGroup.Name)
 				addEngressRule(serverPolicy, "TCP", dbPort, dbGroup.Name)
 
-				dbPolicy = newPolicy("db-policy", tier1, 50, []string{dbGroup.Name}, nil)
+				dbPolicy = newPolicy("db-policy", tier1, []string{dbGroup.Name}, nil)
 				addIngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name, serverGroup.Name)
 				addEngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name)
 
@@ -187,10 +187,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, 50, []string{serverGroup.Name, dbGroup.Name}, nil)
+				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, []string{serverGroup.Name, dbGroup.Name}, nil)
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, 50, []string{nginxGroup.Name}, nil)
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, []string{nginxGroup.Name}, nil)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
 				Expect(e2eEnv.SetupObjects(ctx, icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
@@ -236,7 +236,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var isolationPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				isolationPolicy = newPolicy("isolation-policy", tier0, 50, nil, []string{ep01.Name})
+				isolationPolicy = newPolicy("isolation-policy", tier0, nil, []string{ep01.Name})
 
 				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
 			})
@@ -263,7 +263,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var forensicPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				forensicPolicy = newPolicy("forensic-policy", tier0, 100, nil, []string{ep01.Name})
+				forensicPolicy = newPolicy("forensic-policy", tier0, nil, []string{ep01.Name})
 				addIngressRule(forensicPolicy, "TCP", tcpPort, forensicGroup.Name)
 
 				// set ep02 as forensic endpoint
@@ -352,10 +352,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var ntpProductionPolicy, ntpDevelopmentPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, 50, []string{ntpProductionGroup.Name}, nil)
+				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, []string{ntpProductionGroup.Name}, nil)
 				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, productionCidr)
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, 50, []string{ntpDevelopmentGroup.Name}, nil)
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, []string{ntpDevelopmentGroup.Name}, nil)
 				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, developmentCidr)
 
 				Expect(e2eEnv.SetupObjects(ctx, ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
@@ -425,7 +425,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var securityPolicy1, securityPolicy2 *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				securityPolicy1 = newPolicy("group1-policy", tier0, 50, []string{"group1"}, nil)
+				securityPolicy1 = newPolicy("group1-policy", tier0, []string{"group1"}, nil)
 				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2.Name)
 				securityPolicy1.Spec.SymmetricMode = true
 
@@ -442,7 +442,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			When("Define a securityPolicy which semanticly conflict with existing securityPolicy", func() {
 				BeforeEach(func() {
-					securityPolicy2 = newPolicy("group2-policy", tier0, 50, []string{"group2"}, nil)
+					securityPolicy2 = newPolicy("group2-policy", tier0, []string{"group2"}, nil)
 					addEngressRule(securityPolicy2, "TCP", epTCPPort, group3.Name)
 
 					Expect(e2eEnv.SetupObjects(ctx, securityPolicy2)).Should(Succeed())
@@ -486,7 +486,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			BeforeEach(func() {
 				// allow traffic from groupA to groupB
-				groupPolicy = newPolicy("group-policy", tier1, 50, []string{groupA.Name}, nil)
+				groupPolicy = newPolicy("group-policy", tier1, []string{groupA.Name}, nil)
 				addEngressRule(groupPolicy, "TCP", tcpPort, groupB.Name)
 				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
 			})
@@ -520,14 +520,13 @@ func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGr
 	return group
 }
 
-func newPolicy(name, tier string, priority int32, appliedGroup []string, endpoints []string) *securityv1alpha1.SecurityPolicy {
+func newPolicy(name, tier string, appliedGroup []string, endpoints []string) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
 	policy.Namespace = metav1.NamespaceDefault
 
 	policy.Spec = securityv1alpha1.SecurityPolicySpec{
-		Tier:     tier,
-		Priority: priority,
+		Tier: tier,
 		AppliedTo: securityv1alpha1.AppliedTo{
 			EndpointGroups: appliedGroup,
 			Endpoints:      endpoints,

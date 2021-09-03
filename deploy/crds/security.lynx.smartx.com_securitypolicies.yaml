@@ -295,9 +295,6 @@ spec:
                   - name
                   type: object
                 type: array
-              priority:
-                format: int32
-                type: integer
               symmetricMode:
                 description: SymmetricMode will generated symmetry rules for the policy.
                   Defaults to false.
@@ -306,7 +303,6 @@ spec:
                 type: string
             required:
             - appliedTo
-            - priority
             - tier
             type: object
           status:

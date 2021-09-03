@@ -19,7 +19,6 @@ package policy_test
 import (
 	"context"
 	"fmt"
-	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -352,29 +351,6 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should replace policy rules tier", func() {
-					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-					assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-
-					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-					assertHasPolicyRule(ctx, updPolicy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-					assertHasPolicyRule(ctx, updPolicy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
-					assertHasPolicyRule(ctx, updPolicy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-				})
-			})
-			When("update policy priority", func() {
-				var updPolicy *securityv1alpha1.SecurityPolicy
-
-				BeforeEach(func() {
-					priority := int32(rand.Intn(math.MaxInt32))
-					updPolicy = policy.DeepCopy()
-					updPolicy.Spec.Priority = priority
-
-					By(fmt.Sprintf("update policy %s with new priority %d", policy.Name, priority))
-					mustUpdatePolicy(ctx, updPolicy)
-				})
-				It("should replace policy rules priority", func() {
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
@@ -850,13 +826,11 @@ func assertHasPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityP
 		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
-		var priority = policy.Spec.Priority
 
 		for _, rule := range policyRuleList.Items {
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				priority == rule.Spec.Priority &&
 				srcCidr == rule.Spec.SrcIpAddr &&
 				srcPort == rule.Spec.SrcPort &&
 				dstCidr == rule.Spec.DstIpAddr &&
@@ -876,13 +850,11 @@ func assertHasPolicyRuleWithPortRange(ctx context.Context, policy *securityv1alp
 		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
-		var priority = policy.Spec.Priority
 
 		for _, rule := range policyRuleList.Items {
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				priority == rule.Spec.Priority &&
 				srcCidr == rule.Spec.SrcIpAddr &&
 				srcPort == rule.Spec.SrcPort &&
 				srcPortMask == rule.Spec.SrcPortMask &&
@@ -905,13 +877,11 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{lynxctrl.OwnerPolicyLabel: policy.Name})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
-		var priority = policy.Spec.Priority
 
 		for _, rule := range policyRuleList.Items {
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				priority == rule.Spec.Priority &&
 				srcCidr == rule.Spec.SrcIpAddr &&
 				srcPort == rule.Spec.SrcPort &&
 				dstCidr == rule.Spec.DstIpAddr &&

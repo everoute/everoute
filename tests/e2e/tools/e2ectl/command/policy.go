@@ -60,7 +60,6 @@ func NewPolicyCommand(f *framework.Framework) *cobra.Command {
 
 func newPolicyAddCommand(f *framework.Framework) *cobra.Command {
 	var tier, groups string
-	var priority int32
 
 	cmd := &cobra.Command{
 		Use:   "add <policy name> [options]",
@@ -69,13 +68,12 @@ func newPolicyAddCommand(f *framework.Framework) *cobra.Command {
 			if len(args) != 1 {
 				return fmt.Errorf("policy add command requires policy name as its argument")
 			}
-			return addPolicy(f, args[0], tier, priority, groups)
+			return addPolicy(f, args[0], tier, groups)
 		},
 	}
 
 	cmd.PersistentFlags().StringVarP(&tier, "tier", "t", tier1, "policy tier, tier must create first")
 	cmd.PersistentFlags().StringVarP(&groups, "applied-groups", "g", "", "policy applied groups, example: group01,group02,group03")
-	cmd.PersistentFlags().Int32VarP(&priority, "priority", "p", 10, "policy priority")
 
 	return cmd
 }
@@ -215,14 +213,13 @@ func newPolicyAddEgressCommand(f *framework.Framework) *cobra.Command {
 	return cmd
 }
 
-func addPolicy(f *framework.Framework, name string, tier string, priority int32, appliedGroups string) error {
+func addPolicy(f *framework.Framework, name string, tier string, appliedGroups string) error {
 	var policy = &v1alpha1.SecurityPolicy{}
 	policy.Name = name
 	policy.Namespace = metav1.NamespaceDefault
 
 	policy.Spec = v1alpha1.SecurityPolicySpec{
-		Tier:     tier,
-		Priority: priority,
+		Tier: tier,
 		AppliedTo: v1alpha1.AppliedTo{
 			EndpointGroups: strings.Split(appliedGroups, ","),
 		},

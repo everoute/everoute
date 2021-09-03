@@ -99,14 +99,13 @@ func printGroup(output io.Writer, groups []groupv1alpha1.EndpointGroup, eps []se
 }
 
 func printPolicy(output io.Writer, policies []securityv1alpha1.SecurityPolicy) error {
-	var table = newTable("name", "tier", "priority", "applied-groups")
+	var table = newTable("name", "tier", "applied-groups")
 
 	for _, policy := range policies {
 		var row = []interface{}{}
 
 		row = append(row, policy.Name)
 		row = append(row, policy.Spec.Tier)
-		row = append(row, policy.Spec.Priority)
 		row = append(row, strings.Join(policy.Spec.AppliedTo.EndpointGroups, ","))
 
 		addRow(table, row)

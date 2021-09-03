@@ -425,7 +425,6 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 	for _, rule := range policy.Spec.IngressRules {
 		ingressRule := &policycache.CompleteRule{
 			RuleID:        fmt.Sprintf("%s/%s.%s", policy.Name, "ingress", rule.Name),
-			Priority:      policy.Spec.Priority,
 			Tier:          policy.Spec.Tier,
 			Action:        policyv1alpha1.RuleActionAllow,
 			Direction:     policyv1alpha1.RuleDirectionIn,
@@ -461,7 +460,6 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 	for _, rule := range policy.Spec.EgressRules {
 		egressRule := &policycache.CompleteRule{
 			RuleID:        fmt.Sprintf("%s/%s.%s", policy.Name, "egress", rule.Name),
-			Priority:      policy.Spec.Priority,
 			Tier:          policy.Spec.Tier,
 			Action:        policyv1alpha1.RuleActionAllow,
 			Direction:     policyv1alpha1.RuleDirectionOut,
@@ -496,7 +494,6 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 
 	defaultIngressRule := &policycache.CompleteRule{
 		RuleID:            fmt.Sprintf("%s/%s.%s", policy.Name, "default", "ingress"),
-		Priority:          policy.Spec.Priority,
 		Tier:              policy.Spec.Tier,
 		Action:            policyv1alpha1.RuleActionDrop,
 		Direction:         policyv1alpha1.RuleDirectionIn,
@@ -510,7 +507,6 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 
 	defaultEgressRule := &policycache.CompleteRule{
 		RuleID:            fmt.Sprintf("%s/%s.%s", policy.Name, "default", "egress"),
-		Priority:          policy.Spec.Priority,
 		Tier:              policy.Spec.Tier,
 		Action:            policyv1alpha1.RuleActionDrop,
 		Direction:         policyv1alpha1.RuleDirectionOut,
