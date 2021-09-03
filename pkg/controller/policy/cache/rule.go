@@ -117,7 +117,6 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 			Direction:         direction,
 			DefaultPolicyRule: rule.DefaultPolicyRule,
 			Tier:              rule.Tier,
-			Priority:          rule.Priority,
 			SrcIpAddr:         srcIPBlock,
 			DstIpAddr:         dstIPBlock,
 			IpProtocol:        string(port.Protocol),

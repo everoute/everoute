@@ -38,8 +38,7 @@ type SecurityPolicy struct {
 }
 
 type SecurityPolicySpec struct {
-	Tier     string `json:"tier"`
-	Priority int32  `json:"priority"`
+	Tier string `json:"tier"`
 
 	// SymmetricMode will generated symmetry rules for the policy.
 	// Defaults to false.

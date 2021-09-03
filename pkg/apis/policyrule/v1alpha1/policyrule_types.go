@@ -50,7 +50,6 @@ type PolicyRuleSpec struct {
 	Direction         RuleDirection `json:"direction"`
 	DefaultPolicyRule bool          `json:"defaultPolicyRule,omitempty"`
 	Tier              string        `json:"tier,omitempty"`
-	Priority          int32         `json:"priority"`
 	SrcIpAddr         string        `json:"srcIpAddr,omitempty"`
 	DstIpAddr         string        `json:"dstIpAddr,omitempty"`
 	IpProtocol        string        `json:"ipProtocol"`

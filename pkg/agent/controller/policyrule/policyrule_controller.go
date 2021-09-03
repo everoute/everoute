@@ -37,10 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-)
-
-var (
-	defaultRulePriority = 0
+	"github.com/smartxworks/lynx/pkg/constants"
 )
 
 // PolicyRuleReconciler reconciles a PolicyRule object
@@ -205,9 +202,9 @@ func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec
 
 	var rulePriority int
 	if rule.DefaultPolicyRule {
-		rulePriority = defaultRulePriority
+		rulePriority = constants.DefaultPolicyRulePriority
 	} else {
-		rulePriority = int(rule.Priority)
+		rulePriority = constants.NormalPolicyRulePriority
 	}
 
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{

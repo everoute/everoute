@@ -21,12 +21,14 @@ import (
 	"net"
 	"strings"
 
+	"github.com/contiv/ofnet"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	"github.com/smartxworks/lynx/pkg/constants"
 	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
 	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
 	"github.com/smartxworks/lynx/tests/e2e/framework/model"
@@ -133,7 +135,7 @@ func matchEndpoint(group *groupv1alpha1.EndpointGroup, endpoints []*model.Endpoi
 
 func computePolicyFlow(policy *securityv1alpha1.SecurityPolicy, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
 	var flows []string
-	priority := policy.Spec.Priority + 10
+	priority := constants.NormalPolicyRulePriority + ofnet.FLOW_POLICY_PRIORITY_OFFSET
 	ingressTableID, egressTableID := getTableIds(policy.Spec.Tier)
 
 	if ingressTableID == nil || egressTableID == nil {
