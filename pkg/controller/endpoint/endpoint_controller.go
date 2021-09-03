@@ -35,7 +35,7 @@ import (
 
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	lynxctrl "github.com/smartxworks/lynx/pkg/controller"
+	"github.com/smartxworks/lynx/pkg/constants"
 	ctrltypes "github.com/smartxworks/lynx/pkg/controller/types"
 	"github.com/smartxworks/lynx/pkg/types"
 	"github.com/smartxworks/lynx/pkg/utils"
@@ -100,7 +100,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	c, err := controller.New("endpoint-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: lynxctrl.DefaultMaxConcurrentReconciles,
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              r,
 	})
 	if err != nil {
