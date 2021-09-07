@@ -1,0 +1,46 @@
+syntax = "proto3";
+package github_com.smartxworks.lynx.pkg.apis.agent.v1alpha1;
+option go_package = "pkg/apis/cni/v1alpha1";
+
+message CniRequest {
+  string container_id = 1;
+  string netns        = 2;
+  string ifname       = 3;
+  string args         = 4;
+  string path         = 5;
+  bytes  stdin        = 6;
+}
+
+enum ErrorCode {
+  UNKNOWN                       = 0;
+  INCOMPATIBLE_CNI_VERSION      = 1;
+  UNSUPPORTED_FIELD             = 2;
+  UNKNOWN_CONTAINER             = 3;
+  INVALID_ENVIRONMENT_VARIABLES = 4;
+  IO_FAILURE                    = 5;
+  DECODING_FAILURE              = 6;
+  INVALID_NETWORK_CONFIG        = 7;
+  TRY_AGAIN_LATER               = 11;
+}
+
+message Error {
+  ErrorCode code    = 1;
+  string    message = 2;
+  string    details = 3;
+}
+
+message CniResponse {
+  bytes  result  = 1;
+  Error  error   = 2;
+}
+
+service Cni {
+  rpc CmdAdd (CniRequest) returns (CniResponse) {
+  }
+
+  rpc CmdCheck (CniRequest) returns (CniResponse) {
+  }
+
+  rpc CmdDel (CniRequest) returns (CniResponse) {
+  }
+}

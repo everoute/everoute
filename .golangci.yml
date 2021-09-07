@@ -6,8 +6,8 @@ linters-settings:
   lll:
     line-length: 170
   funlen:
-    lines: 80
-    statements: 60
+    lines: 100
+    statements: 80
 
 run:
   timeout: 10m
