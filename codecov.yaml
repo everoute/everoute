@@ -16,3 +16,4 @@ comment:
 ignore:
   - "**/*generate*.go"
   - "pkg/client"
+  - "pkg/apis/cni"
