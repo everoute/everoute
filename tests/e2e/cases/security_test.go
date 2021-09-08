@@ -21,17 +21,16 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/tests/e2e/framework/matcher"
 	"github.com/smartxworks/lynx/tests/e2e/framework/model"
@@ -52,7 +51,7 @@ var _ = Describe("SecurityPolicy", func() {
 	//
 	Context("environment with endpoints provide public http service [Feature:TCP] [Feature:ICMP]", func() {
 		var nginx, server01, server02, db01, db02, client *model.Endpoint
-		var nginxGroup, serverGroup, dbGroup *groupv1alpha1.EndpointGroup
+		var nginxSelector, serverSelector, dbSelector *metav1.LabelSelector
 		var nginxPort, serverPort, dbPort int
 
 		BeforeEach(func() {
@@ -65,29 +64,28 @@ var _ = Describe("SecurityPolicy", func() {
 			db02 = &model.Endpoint{Name: "db02", TCPPort: dbPort, Labels: map[string]string{"component": "database"}}
 			client = &model.Endpoint{Name: "client"}
 
-			nginxGroup = newGroup("nginx", map[string]string{"component": "nginx"})
-			serverGroup = newGroup("webserver", map[string]string{"component": "webserver"})
-			dbGroup = newGroup("database", map[string]string{"component": "database"})
+			nginxSelector = newSelector(map[string]string{"component": "nginx"})
+			serverSelector = newSelector(map[string]string{"component": "webserver"})
+			dbSelector = newSelector(map[string]string{"component": "database"})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, nginx, server01, server02, db01, db02, client)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(ctx, nginxGroup, serverGroup, dbGroup)).Should(Succeed())
 		})
 
 		When("limits tcp packets between components", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier1, []string{nginxGroup.Name}, nil)
+				nginxPolicy = newPolicy("nginx-policy", tier1, nginxSelector)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
-				addEngressRule(nginxPolicy, "TCP", serverPort, serverGroup.Name)
+				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
 
-				serverPolicy = newPolicy("server-policy", tier1, []string{serverGroup.Name}, nil)
-				addIngressRule(serverPolicy, "TCP", serverPort, nginxGroup.Name)
-				addEngressRule(serverPolicy, "TCP", dbPort, dbGroup.Name)
+				serverPolicy = newPolicy("server-policy", tier1, serverSelector)
+				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
+				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
 
-				dbPolicy = newPolicy("db-policy", tier1, []string{dbGroup.Name}, nil)
-				addIngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name, serverGroup.Name)
-				addEngressRule(dbPolicy, "TCP", dbPort, dbGroup.Name)
+				dbPolicy = newPolicy("db-policy", tier1, dbSelector)
+				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
+				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
 
 				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
 			})
@@ -95,7 +93,6 @@ var _ = Describe("SecurityPolicy", func() {
 			It("should allow normal packets and limits illegal packets", func() {
 				assertFlowMatches(&SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 					Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 				})
 
@@ -118,7 +115,6 @@ var _ = Describe("SecurityPolicy", func() {
 				It("should allow normal packets and limits illegal packets for new member", func() {
 					assertFlowMatches(&SecurityModel{
 						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
-						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 					})
 
@@ -136,7 +132,6 @@ var _ = Describe("SecurityPolicy", func() {
 				It("should allow normal packets and limits illegal packets for update member", func() {
 					assertFlowMatches(&SecurityModel{
 						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
-						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 					})
 
@@ -154,7 +149,6 @@ var _ = Describe("SecurityPolicy", func() {
 				It("should limits illegal packets for remove member", func() {
 					assertFlowMatches(&SecurityModel{
 						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
-						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 					})
 
@@ -173,7 +167,6 @@ var _ = Describe("SecurityPolicy", func() {
 				It("Should limit connections between webserver group and other groups", func() {
 					assertFlowMatches(&SecurityModel{
 						Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
-						Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 						Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 					})
 
@@ -189,10 +182,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, []string{serverGroup.Name, dbGroup.Name}, nil)
+				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, serverSelector, dbSelector)
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, []string{nginxGroup.Name}, nil)
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, nginxSelector)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
 				Expect(e2eEnv.SetupObjects(ctx, icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
@@ -201,7 +194,6 @@ var _ = Describe("SecurityPolicy", func() {
 			It("should allow normal packets and limits illegal packets", func() {
 				assertFlowMatches(&SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{icmpAllowPolicy, icmpDropPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{nginxGroup, serverGroup, dbGroup},
 					Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
 				})
 
@@ -214,7 +206,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 	Context("endpoint isolation [Feature:ISOLATION]", func() {
 		var ep01, ep02, ep03, ep04 *model.Endpoint
-		var forensicGroup *groupv1alpha1.EndpointGroup
+		var forensicGroup *metav1.LabelSelector
 		var tcpPort int
 
 		BeforeEach(func() {
@@ -228,9 +220,8 @@ var _ = Describe("SecurityPolicy", func() {
 			ep03 = &model.Endpoint{Name: "ep03", TCPPort: tcpPort}
 			ep04 = &model.Endpoint{Name: "ep04", TCPPort: tcpPort}
 
-			forensicGroup = newGroup("forensic", map[string]string{"component": "forensic"})
+			forensicGroup = newSelector(map[string]string{"component": "forensic"})
 
-			Expect(e2eEnv.SetupObjects(ctx, forensicGroup)).Should(Succeed())
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ep01, ep02, ep03, ep04)).Should(Succeed())
 		})
 
@@ -238,7 +229,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var isolationPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				isolationPolicy = newPolicy("isolation-policy", tier0, nil, []string{ep01.Name})
+				isolationPolicy = newPolicy("isolation-policy", tier0, ep01.Name)
 
 				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
 			})
@@ -246,7 +237,6 @@ var _ = Describe("SecurityPolicy", func() {
 			It("Isolated endpoint should not allow to communicate with all of endpoint", func() {
 				securityModel := &SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{isolationPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
 					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
 				}
 
@@ -265,8 +255,8 @@ var _ = Describe("SecurityPolicy", func() {
 			var forensicPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				forensicPolicy = newPolicy("forensic-policy", tier0, nil, []string{ep01.Name})
-				addIngressRule(forensicPolicy, "TCP", tcpPort, forensicGroup.Name)
+				forensicPolicy = newPolicy("forensic-policy", tier0, ep01.Name)
+				addIngressRule(forensicPolicy, "TCP", tcpPort, forensicGroup)
 
 				// set ep02 as forensic endpoint
 				ep02.Labels = map[string]string{"component": "forensic"}
@@ -278,7 +268,6 @@ var _ = Describe("SecurityPolicy", func() {
 			It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
 				securityModel := &SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
 					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
 				}
 
@@ -301,7 +290,6 @@ var _ = Describe("SecurityPolicy", func() {
 				It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
 					securityModel := &SecurityModel{
 						Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
-						Groups:    []*groupv1alpha1.EndpointGroup{forensicGroup},
 						Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
 					}
 
@@ -328,7 +316,7 @@ var _ = Describe("SecurityPolicy", func() {
 	//
 	Context("environment with endpoints provide internal udp service [Feature:UDP] [Feature:IPBlocks]", func() {
 		var ntp01, ntp02, client01, client02 *model.Endpoint
-		var ntpProductionGroup, ntpDevelopmentGroup *groupv1alpha1.EndpointGroup
+		var ntpProductionSelector, ntpDevelopmentSelector *metav1.LabelSelector
 
 		var ntpPort int
 		var productionCidr, developmentCidr string
@@ -343,22 +331,21 @@ var _ = Describe("SecurityPolicy", func() {
 			ntp01 = &model.Endpoint{Name: "ntp01-server", ExpectSubnet: productionCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "production"}}
 			ntp02 = &model.Endpoint{Name: "ntp02-server", ExpectSubnet: developmentCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "development"}}
 
-			ntpProductionGroup = newGroup("ntp-production", map[string]string{"component": "ntp", "env": "production"})
-			ntpDevelopmentGroup = newGroup("ntp-development", map[string]string{"component": "ntp", "env": "development"})
+			ntpProductionSelector = newSelector(map[string]string{"component": "ntp", "env": "production"})
+			ntpDevelopmentSelector = newSelector(map[string]string{"component": "ntp", "env": "development"})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ntp01, ntp02, client01, client02)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(ctx, ntpProductionGroup, ntpDevelopmentGroup)).Should(Succeed())
 		})
 
 		When("limits udp packets by ipBlocks between server and client", func() {
 			var ntpProductionPolicy, ntpDevelopmentPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, []string{ntpProductionGroup.Name}, nil)
-				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, productionCidr)
+				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, ntpProductionSelector)
+				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: productionCidr})
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, []string{ntpDevelopmentGroup.Name}, nil)
-				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, developmentCidr)
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, ntpDevelopmentSelector)
+				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: developmentCidr})
 
 				Expect(e2eEnv.SetupObjects(ctx, ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
 			})
@@ -367,7 +354,6 @@ var _ = Describe("SecurityPolicy", func() {
 				By("verify agent has correct open flows")
 				assertFlowMatches(&SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{ntpProductionPolicy, ntpDevelopmentPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{ntpProductionGroup, ntpDevelopmentGroup},
 					Endpoints: []*model.Endpoint{ntp01, ntp02, client01, client02},
 				})
 
@@ -388,7 +374,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 	Context("Complicated securityPolicy definition that contains semanticly conflict policyrules", func() {
 		var group1Endpoint1, group2Endpoint01, group3Endpoint01 *model.Endpoint
-		var group1, group2, group3 *groupv1alpha1.EndpointGroup
+		var group1, group2, group3 *metav1.LabelSelector
 		var epTCPPort int
 
 		BeforeEach(func() {
@@ -410,25 +396,19 @@ var _ = Describe("SecurityPolicy", func() {
 				Labels:  map[string]string{"group": "group3"},
 			}
 
-			group1 = newGroup("group1", map[string]string{"group": "group1"})
-			group2 = newGroup("group2", map[string]string{"group": "group2"})
-			group3 = newGroup("group3", map[string]string{"group": "group3"})
+			group1 = newSelector(map[string]string{"group": "group1"})
+			group2 = newSelector(map[string]string{"group": "group2"})
+			group3 = newSelector(map[string]string{"group": "group3"})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, group1Endpoint1, group2Endpoint01, group3Endpoint01)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(ctx, group1, group2, group3)).Should(Succeed())
-		})
-
-		AfterEach(func() {
-			Expect(e2eEnv.EndpointManager().CleanMany(ctx, group1Endpoint1, group2Endpoint01, group3Endpoint01)).Should(Succeed())
-			Expect(e2eEnv.CleanObjects(ctx, group1, group2, group3)).Should(Succeed())
 		})
 
 		When("Define securityPolicy without semanticly conflicts with any of securityPolicy already exists", func() {
 			var securityPolicy1, securityPolicy2 *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				securityPolicy1 = newPolicy("group1-policy", tier0, []string{"group1"}, nil)
-				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2.Name)
+				securityPolicy1 = newPolicy("group1-policy", tier0, group1)
+				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2)
 				securityPolicy1.Spec.SymmetricMode = true
 
 				Expect(e2eEnv.SetupObjects(ctx, securityPolicy1)).Should(Succeed())
@@ -444,8 +424,8 @@ var _ = Describe("SecurityPolicy", func() {
 
 			When("Define a securityPolicy which semanticly conflict with existing securityPolicy", func() {
 				BeforeEach(func() {
-					securityPolicy2 = newPolicy("group2-policy", tier0, []string{"group2"}, nil)
-					addEngressRule(securityPolicy2, "TCP", epTCPPort, group3.Name)
+					securityPolicy2 = newPolicy("group2-policy", tier0, group2)
+					addEngressRule(securityPolicy2, "TCP", epTCPPort, group3)
 
 					Expect(e2eEnv.SetupObjects(ctx, securityPolicy2)).Should(Succeed())
 				})
@@ -463,7 +443,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 	// This case would setup endpoints in random vlan, and check reachable between them.
 	Context("environment with endpoints from specify vlan [Feature:VLAN]", func() {
-		var groupA, groupB, groupC *groupv1alpha1.EndpointGroup
+		var groupA, groupB *metav1.LabelSelector
 		var endpointA, endpointB, endpointC *model.Endpoint
 		var tcpPort, vlanID int
 
@@ -475,12 +455,10 @@ var _ = Describe("SecurityPolicy", func() {
 			endpointB = &model.Endpoint{Name: "ep.b", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gy"}}
 			endpointC = &model.Endpoint{Name: "ep.c", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gz"}}
 
-			groupA = newGroup("gx", map[string]string{"group": "gx"})
-			groupB = newGroup("gy", map[string]string{"group": "gy"})
-			groupC = newGroup("gz", map[string]string{"group": "gz"})
+			groupA = newSelector(map[string]string{"group": "gx"})
+			groupB = newSelector(map[string]string{"group": "gy"})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
-			Expect(e2eEnv.SetupObjects(ctx, groupA, groupB, groupC)).Should(Succeed())
 		})
 
 		When("limits tcp packets between components", func() {
@@ -488,15 +466,14 @@ var _ = Describe("SecurityPolicy", func() {
 
 			BeforeEach(func() {
 				// allow traffic from groupA to groupB
-				groupPolicy = newPolicy("group-policy", tier1, []string{groupA.Name}, nil)
-				addEngressRule(groupPolicy, "TCP", tcpPort, groupB.Name)
+				groupPolicy = newPolicy("group-policy", tier1, groupA)
+				addEngressRule(groupPolicy, "TCP", tcpPort, groupB)
 				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
 			})
 
 			It("should allow normal packets and limits illegal packets", func() {
 				securityModel := &SecurityModel{
 					Policies:  []*securityv1alpha1.SecurityPolicy{groupPolicy},
-					Groups:    []*groupv1alpha1.EndpointGroup{groupA, groupB},
 					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
 				}
 
@@ -586,33 +563,38 @@ var _ = Describe("GlobalPolicy", func() {
 	})
 })
 
-func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGroup {
-	group := &groupv1alpha1.EndpointGroup{}
-	group.Name = name
-
-	group.Spec.EndpointSelector = &metav1.LabelSelector{
+func newSelector(selector map[string]string) *metav1.LabelSelector {
+	return &metav1.LabelSelector{
 		MatchLabels: selector,
 	}
-
-	return group
 }
 
-func newPolicy(name, tier string, appliedGroup []string, endpoints []string) *securityv1alpha1.SecurityPolicy {
+func newPolicy(name, tier string, appliedPeers ...interface{}) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
 	policy.Namespace = metav1.NamespaceDefault
+	policy.Spec.Tier = tier
+	policy.Spec.PolicyTypes = []networkingv1.PolicyType{
+		networkingv1.PolicyTypeIngress,
+		networkingv1.PolicyTypeEgress,
+	}
 
-	policy.Spec = securityv1alpha1.SecurityPolicySpec{
-		Tier: tier,
-		AppliedTo: securityv1alpha1.AppliedTo{
-			EndpointGroups: appliedGroup,
-			Endpoints:      endpoints,
-		},
-		// Default enable both ingress and egress rules
-		PolicyTypes: []networkingv1.PolicyType{
-			networkingv1.PolicyTypeIngress,
-			networkingv1.PolicyTypeEgress,
-		},
+	for _, appliedPeer := range appliedPeers {
+		switch peer := appliedPeer.(type) {
+
+		case *metav1.LabelSelector:
+			policy.Spec.AppliedTo = append(policy.Spec.AppliedTo, securityv1alpha1.ApplyToPeer{
+				EndpointSelector: peer,
+			})
+
+		case string:
+			policy.Spec.AppliedTo = append(policy.Spec.AppliedTo, securityv1alpha1.ApplyToPeer{
+				Endpoint: &peer,
+			})
+
+		default:
+			panic(fmt.Sprintf("unsupport peer type %T", appliedPeer))
+		}
 	}
 
 	return policy
@@ -633,7 +615,7 @@ func newGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whiteli
 	return &policy
 }
 
-func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, peers ...string) {
+func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, policyPeers ...interface{}) {
 	ingressRule := &securityv1alpha1.Rule{
 		Name: rand.String(20),
 		Ports: []securityv1alpha1.SecurityPolicyPort{
@@ -642,13 +624,13 @@ func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, po
 				PortRange: strconv.Itoa(port),
 			},
 		},
-		From: getPeer(peers...),
+		From: getPolicyPeer(policyPeers...),
 	}
 
 	policy.Spec.IngressRules = append(policy.Spec.IngressRules, *ingressRule)
 }
 
-func addEngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, peers ...string) {
+func addEngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, policyPeers ...interface{}) {
 	egressRule := &securityv1alpha1.Rule{
 		Name: rand.String(20),
 		Ports: []securityv1alpha1.SecurityPolicyPort{
@@ -657,27 +639,45 @@ func addEngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, po
 				PortRange: strconv.Itoa(port),
 			},
 		},
-		To: getPeer(peers...),
+		To: getPolicyPeer(policyPeers...),
 	}
 
 	policy.Spec.EgressRules = append(policy.Spec.EgressRules, *egressRule)
 }
 
-// peer is group peer or cidr peer, format like: group01 or 10.0.0.0/24.
-func getPeer(peers ...string) securityv1alpha1.SecurityPolicyPeer {
-	var policyPeer securityv1alpha1.SecurityPolicyPeer
+func getPolicyPeer(policyPeers ...interface{}) []securityv1alpha1.SecurityPolicyPeer {
+	var peerList []securityv1alpha1.SecurityPolicyPeer
 
-	for _, peer := range peers {
-		if strings.Count(peer, "/") == 1 {
-			policyPeer.IPBlocks = append(policyPeer.IPBlocks, networkingv1.IPBlock{
-				CIDR: peer,
+	for _, policyPeer := range policyPeers {
+		switch peer := policyPeer.(type) {
+
+		case *metav1.LabelSelector:
+			peerList = append(peerList, securityv1alpha1.SecurityPolicyPeer{
+				EndpointSelector: peer,
 			})
-		} else if peer != "" {
-			policyPeer.EndpointGroups = append(policyPeer.EndpointGroups, peer)
+
+		case *types.NamespacedName:
+			peerList = append(peerList, securityv1alpha1.SecurityPolicyPeer{
+				Endpoint: &securityv1alpha1.NamespacedName{
+					Name:      peer.Name,
+					Namespace: peer.Namespace,
+				},
+			})
+
+		case *networkingv1.IPBlock:
+			peerList = append(peerList, securityv1alpha1.SecurityPolicyPeer{
+				IPBlock: peer,
+			})
+
+		case *securityv1alpha1.SecurityPolicyPeer:
+			peerList = append(peerList, *peer)
+
+		default:
+			panic(fmt.Sprintf("unsupport peer type %T", policyPeer))
 		}
 	}
 
-	return policyPeer
+	return peerList
 }
 
 func assertFlowMatches(securityModel *SecurityModel) {

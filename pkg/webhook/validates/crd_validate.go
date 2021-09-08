@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -99,11 +100,8 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 }
 
 const (
-	tierPriorityIndex        = "TierPriorityIndex"
-	policyTierIndex          = "PolicyTierIndex"
-	policyEndpointGroupIndex = "PolicyEndpointGroupIndex"
-
-	matchIPV4 = `^((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5])$`
+	tierPriorityIndex = "TierPriorityIndex"
+	policyTierIndex   = "PolicyTierIndex"
 )
 
 // RegisterIndexFields register custom fields for FieldIndexer, this field
@@ -119,18 +117,6 @@ func RegisterIndexFields(f client.FieldIndexer) error {
 	// index tier in SecurityPolicy object
 	f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyTierIndex, func(object runtime.Object) []string {
 		return []string{object.(*securityv1alpha1.SecurityPolicy).Spec.Tier}
-	})
-
-	// index endpointGroup in SecurityPolicy object
-	f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyEndpointGroupIndex, func(object runtime.Object) []string {
-		policy := object.(*securityv1alpha1.SecurityPolicy)
-		groups := sets.NewString(policy.Spec.AppliedTo.EndpointGroups...)
-
-		for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-			groups.Insert(rule.From.EndpointGroups...)
-			groups.Insert(rule.To.EndpointGroups...)
-		}
-		return groups.List()
 	})
 
 	return nil
@@ -157,6 +143,7 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 	var msg string
 	var curObj, oldObj runtime.Object
 	var err error
+	var namenamespace *types.NamespacedName
 
 	// default allowed all validate admission, unless one of the validators return
 	// false or some error when process.
@@ -167,7 +154,7 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 	gvk := ar.Request.Kind
 
 	// unmarshal object
-	if len(curRaw) != 0 {
+	if len(curRaw) != 0 && string(curRaw) != "null" {
 		if curObj, err = v.unmarshal(curRaw, gvk); err != nil {
 			klog.Errorf("failed to unmarshal object %s, raw: %s", gvk, curRaw)
 			return &admv1.AdmissionResponse{
@@ -176,14 +163,26 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 				},
 			}
 		}
+		if obj, ok := curObj.(metav1.Object); ok {
+			namenamespace = &types.NamespacedName{
+				Namespace: obj.GetNamespace(),
+				Name:      obj.GetName(),
+			}
+		}
 	}
-	if len(oldRaw) != 0 {
+	if len(oldRaw) != 0 && string(oldRaw) != "null" {
 		if oldObj, err = v.unmarshal(oldRaw, gvk); err != nil {
 			klog.Errorf("failed to unmarshal object %s, raw: %s", gvk, oldRaw)
 			return &admv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
+			}
+		}
+		if obj, ok := oldObj.(metav1.Object); ok {
+			namenamespace = &types.NamespacedName{
+				Namespace: obj.GetNamespace(),
+				Name:      obj.GetName(),
 			}
 		}
 	}
@@ -214,7 +213,7 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 	}
 
 	if !allowed && msg != "" {
-		klog.Errorf("unallow to %s objects %s: %s", operation, gvk, msg)
+		klog.Errorf("Disallow to %s objects %s %+v: %s", operation, gvk, namenamespace, msg)
 	}
 
 	if msg != "" {
@@ -329,17 +328,6 @@ func (v endpointGroupValidator) validateGroupSpec(spec *groupv1alpha1.EndpointGr
 }
 
 func (v endpointGroupValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	policyList := securityv1alpha1.SecurityPolicyList{}
-
-	if err := v.List(context.Background(), &policyList, client.MatchingFields{
-		policyEndpointGroupIndex: oldObj.(*groupv1alpha1.EndpointGroup).Name,
-	}); err != nil {
-		return err.Error(), false
-	}
-
-	if len(policyList.Items) != 0 {
-		return "delete EndpointGroup used by security policy not allowed", false
-	}
 	return "", true
 }
 
@@ -385,86 +373,166 @@ func (t tierValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.Use
 type securityPolicyValidator resourceValidator
 
 func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	policy := curObj.(*securityv1alpha1.SecurityPolicy)
-	groups := sets.NewString(policy.Spec.AppliedTo.EndpointGroups...)
-
-	if len(groups) == 0 && len(policy.Spec.AppliedTo.Endpoints) == 0 {
-		return "at least one group or endpoint should specified for policy applied to", false
+	err := v.validatePolicy(curObj.(*securityv1alpha1.SecurityPolicy))
+	if err != nil {
+		return err.Error(), false
 	}
-
-	// all groups must exists before security policy create
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		groups.Insert(rule.From.EndpointGroups...)
-		groups.Insert(rule.To.EndpointGroups...)
-	}
-	for groupName := range groups {
-		endpointGroup := groupv1alpha1.EndpointGroup{}
-		if err := v.Get(context.Background(), types.NamespacedName{Name: groupName}, &endpointGroup); err != nil {
-			return fmt.Sprintf("endpointGroup must create first: %s", err.Error()), false
-		}
-	}
-
-	// tier must exists before security policy create
-	tier := securityv1alpha1.Tier{}
-	if err := v.Get(context.Background(), types.NamespacedName{Name: policy.Spec.Tier}, &tier); err != nil {
-		return fmt.Sprintf("tier must create first: %s", err.Error()), false
-	}
-
-	// should has difference rule name in egress and ingress, rule name must conforms RFC 1123
-	if err := v.validateRuleName(policy.Spec.IngressRules, policy.Spec.EgressRules); err != nil {
-		return fmt.Sprintf("policy %s, format error with rule.Name: %s", policy.Name, err), false
-	}
-
-	// rule must complies validate values
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		if err := v.validateRule(rule); err != nil {
-			return fmt.Sprintf("rule %s: %s", rule.Name, err.Error()), false
-		}
-	}
-
 	return "", true
 }
 
-// validateRule validates if the rule with validate value
-func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error {
-	for _, ipBlock := range append(rule.From.IPBlocks, rule.To.IPBlocks...) {
-		err := validateIPBlock(ipBlock)
-		if err != nil {
-			return err
-		}
+func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+	err := v.validatePolicy(curObj.(*securityv1alpha1.SecurityPolicy))
+	if err != nil {
+		return err.Error(), false
+	}
+	return "", true
+}
+
+func (v securityPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+	return "", true
+}
+
+func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.SecurityPolicy) error {
+	// check attached tier exist
+	err := v.Get(context.Background(), types.NamespacedName{Name: policy.Spec.Tier}, &securityv1alpha1.Tier{})
+	if err != nil {
+		return fmt.Errorf("tier must create first: %s", err.Error())
 	}
 
-	for _, port := range rule.Ports {
-		err := v.validatePortRange(port.PortRange)
-		if err != nil {
-			return fmt.Errorf("PortRange %s with error format: %s", port.PortRange, err)
+	// check validate of spec.appliedTo
+	err = v.validateAppliedTo(policy.Spec.AppliedTo)
+	if err != nil {
+		return fmt.Errorf("error format of spec.appliedTo: %s", err)
+	}
+
+	// checkout validate of Ingress and Egress
+	err = v.validateRules(policy.Spec.IngressRules, policy.Spec.EgressRules)
+	if err != nil {
+		return fmt.Errorf("error format of policy rules: %s", err)
+	}
+
+	return nil
+}
+
+func (v *securityPolicyValidator) validateAppliedTo(appliedTo []securityv1alpha1.ApplyToPeer) error {
+	if len(appliedTo) == 0 {
+		return fmt.Errorf("appliedTo must not empty")
+	}
+
+	for _, peer := range appliedTo {
+		if peer.Endpoint == nil && peer.EndpointSelector == nil {
+			return fmt.Errorf("must specific one of Endpoint or EndpointSelector")
+		}
+		if peer.Endpoint != nil && peer.EndpointSelector != nil {
+			return fmt.Errorf("cannot both set Endpoint and EndpointSelector")
+		}
+		if peer.Endpoint != nil {
+			errs := validation.IsDNS1123Subdomain(*peer.Endpoint)
+			if len(errs) != 0 {
+				return fmt.Errorf("%s not a available endpoint name", *peer.Endpoint)
+			}
+		}
+		if peer.EndpointSelector != nil {
+			errs := metav1validation.ValidateLabelSelector(peer.EndpointSelector, field.NewPath("EndpointSelector"))
+			if len(errs) != 0 {
+				return fmt.Errorf("%+v not a available selector: %+v", peer.EndpointSelector, errs)
+			}
 		}
 	}
 
 	return nil
 }
 
-func validateIPBlock(ipBlock networkingv1.IPBlock) error {
-	_, cidrIPNet, err := net.ParseCIDR(ipBlock.CIDR)
+func (v *securityPolicyValidator) validateRules(ingress, egress []securityv1alpha1.Rule) error {
+	err := v.validateRuleName(ingress, egress)
 	if err != nil {
-		return fmt.Errorf("unvalid cidr %s: %s", ipBlock.CIDR, err)
+		return fmt.Errorf("validate rules name: %s", err)
 	}
 
-	for _, exceptCIDR := range ipBlock.Except {
-		_, exceptIPNet, err := net.ParseCIDR(exceptCIDR)
-		if err != nil {
-			return fmt.Errorf("unvalid except cidr %s: %s", exceptCIDR, err)
+	ruleList := append(ingress, egress...)
+	errList := make([]error, 0, len(ruleList))
+
+	for item := range ruleList {
+		if err = v.validateRule(&ruleList[item]); err != nil {
+			errList = append(errList, fmt.Errorf("validate rule %s: %s", ruleList[item].Name, err))
 		}
+	}
+	return errors.NewAggregate(errList)
+}
 
-		cidrMaskLen, _ := cidrIPNet.Mask.Size()
-		exceptMaskLen, _ := exceptIPNet.Mask.Size()
+// validateRule validates if the rule with validate value
+func (v *securityPolicyValidator) validateRule(rule *securityv1alpha1.Rule) error {
+	rulePeerList := append(rule.From, rule.To...)
+	errList := make([]error, 0, len(rulePeerList)+len(rule.Ports))
 
-		if !cidrIPNet.Contains(exceptIPNet.IP) || cidrMaskLen >= exceptMaskLen {
-			return fmt.Errorf("cidr %s not contains except %s", ipBlock.CIDR, exceptCIDR)
+	for item := range rulePeerList {
+		err := v.validateRulePeer(&rulePeerList[item])
+		if err != nil {
+			errList = append(errList,
+				fmt.Errorf("error format of peer %+v: %s", rulePeerList[item], err),
+			)
+		}
+	}
+
+	for item := range rule.Ports {
+		err := v.validatePort(&rule.Ports[item])
+		if err != nil {
+			errList = append(errList,
+				fmt.Errorf("error format of port %+v: %s", rule.Ports[item], err),
+			)
+		}
+	}
+
+	return errors.NewAggregate(errList)
+}
+
+func (v *securityPolicyValidator) validateRulePeer(peer *securityv1alpha1.SecurityPolicyPeer) error {
+	if peer.IPBlock != nil {
+		if peer.Endpoint != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil {
+			return fmt.Errorf("ipBlock is set then neither of the other fields can be")
+		}
+		if err := validateIPBlock(*peer.IPBlock); err != nil {
+			return fmt.Errorf("error format of ipBlock %+v: %s", peer.IPBlock, err)
+		}
+		return nil
+	}
+
+	if peer.Endpoint != nil {
+		if peer.IPBlock != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil {
+			return fmt.Errorf("endpoint is set then neither of the other fields can be")
+		}
+		es1 := validation.IsDNS1123Subdomain(peer.Endpoint.Name)
+		es2 := validation.IsDNS1123Subdomain(peer.Endpoint.Namespace)
+		if len(es1)+len(es2) != 0 {
+			return fmt.Errorf("%+v not a available endpoint", peer.Endpoint)
+		}
+		return nil
+	}
+
+	if peer.EndpointSelector == nil && peer.NamespaceSelector == nil {
+		return fmt.Errorf("at least one field should be set in SecurityPolicyPeer")
+	}
+
+	if peer.EndpointSelector != nil {
+		errs := metav1validation.ValidateLabelSelector(peer.EndpointSelector, field.NewPath("EndpointSelector"))
+		if len(errs) != 0 {
+			return fmt.Errorf("%+v not a available selector: %+v", peer.EndpointSelector, errs)
+		}
+	}
+
+	if peer.NamespaceSelector != nil {
+		errs := metav1validation.ValidateLabelSelector(peer.NamespaceSelector, field.NewPath("NamespaceSelector"))
+		if len(errs) != 0 {
+			return fmt.Errorf("%+v not a available selector: %+v", peer.NamespaceSelector, errs)
 		}
 	}
 
 	return nil
+}
+
+func (v *securityPolicyValidator) validatePort(port *securityv1alpha1.SecurityPolicyPort) error {
+	// Only validate PortRange, port.Protocol validate by crd
+	return v.validatePortRange(port.PortRange)
 }
 
 func (v *securityPolicyValidator) validatePortRange(portRange string) error {
@@ -528,15 +596,6 @@ func (v *securityPolicyValidator) validateRuleName(ingress, egress []securityv1a
 	return nil
 }
 
-func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	// update security policy should limit as create security policy
-	return v.createValidate(curObj, userInfo)
-}
-
-func (v securityPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	return "", true
-}
-
 type globalPolicyValidator resourceValidator
 
 func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
@@ -591,4 +650,27 @@ func (v globalPolicyValidator) updateValidate(oldObj, curObj runtime.Object, use
 
 func (v globalPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	return "", true
+}
+
+func validateIPBlock(ipBlock networkingv1.IPBlock) error {
+	_, cidrIPNet, err := net.ParseCIDR(ipBlock.CIDR)
+	if err != nil {
+		return fmt.Errorf("unvalid cidr %s: %s", ipBlock.CIDR, err)
+	}
+
+	for _, exceptCIDR := range ipBlock.Except {
+		_, exceptIPNet, err := net.ParseCIDR(exceptCIDR)
+		if err != nil {
+			return fmt.Errorf("unvalid except cidr %s: %s", exceptCIDR, err)
+		}
+
+		cidrMaskLen, _ := cidrIPNet.Mask.Size()
+		exceptMaskLen, _ := exceptIPNet.Mask.Size()
+
+		if !cidrIPNet.Contains(exceptIPNet.IP) || cidrMaskLen >= exceptMaskLen {
+			return fmt.Errorf("cidr %s not contains except %s", ipBlock.CIDR, exceptCIDR)
+		}
+	}
+
+	return nil
 }

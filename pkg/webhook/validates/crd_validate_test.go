@@ -86,28 +86,21 @@ var initObject = func() {
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier: "tier-pri50",
-			AppliedTo: securityv1alpha1.AppliedTo{
-				EndpointGroups: []string{
-					"group01",
-				},
-			},
+			AppliedTo: []securityv1alpha1.ApplyToPeer{{
+				EndpointSelector: &metav1.LabelSelector{},
+			}},
 			IngressRules: []securityv1alpha1.Rule{
 				{
 					Name: "rule1",
-					Ports: []securityv1alpha1.SecurityPolicyPort{
-						{
-							Protocol:  securityv1alpha1.ProtocolTCP,
-							PortRange: "3-10",
-						},
-					},
-					From: securityv1alpha1.SecurityPolicyPeer{
-						IPBlocks: []networkingv1.IPBlock{{
+					Ports: []securityv1alpha1.SecurityPolicyPort{{
+						Protocol:  securityv1alpha1.ProtocolTCP,
+						PortRange: "3-10",
+					}},
+					From: []securityv1alpha1.SecurityPolicyPeer{{
+						IPBlock: &networkingv1.IPBlock{
 							CIDR: "192.168.1.1/10",
-						}},
-						EndpointGroups: []string{
-							"group02",
 						},
-					},
+					}},
 				},
 			},
 		},
@@ -126,25 +119,20 @@ var initObject = func() {
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier: "tier-pri50",
-			AppliedTo: securityv1alpha1.AppliedTo{
-				EndpointGroups: []string{
-					"group01",
-				},
-			},
+			AppliedTo: []securityv1alpha1.ApplyToPeer{{
+				EndpointSelector: &metav1.LabelSelector{},
+			}},
 			EgressRules: []securityv1alpha1.Rule{
 				{
 					Name: "rule1",
 					Ports: []securityv1alpha1.SecurityPolicyPort{{
 						Protocol: securityv1alpha1.ProtocolUDP,
 					}},
-					To: securityv1alpha1.SecurityPolicyPeer{
-						IPBlocks: []networkingv1.IPBlock{{
+					To: []securityv1alpha1.SecurityPolicyPeer{{
+						IPBlock: &networkingv1.IPBlock{
 							CIDR: "192.168.1.1/10",
-						}},
-						EndpointGroups: []string{
-							"group02",
 						},
-					},
+					}},
 				},
 				{
 					Name: "rule2",
@@ -359,12 +347,8 @@ var _ = Describe("CRD Validate", func() {
 			}}
 			Expect(validate.Validate(fakeAdmissionReview(endpointGroup, endpointGroupA, "")).Allowed).Should(BeFalse())
 		})
-		It("Delete EndpointGroup used by SecurityPolicy should not allowed", func() {
-			Expect(validate.Validate(fakeAdmissionReview(nil, endpointGroupA, "")).Allowed).Should(BeFalse())
-		})
-		It("Delete unused EndpointGroup should allowed", func() {
+		It("Delete EndpointGroup should always allowed", func() {
 			endpointGroupC := endpointGroupA.DeepCopy()
-			endpointGroupC.Name = "endpoint03"
 			Expect(validate.Validate(fakeAdmissionReview(nil, endpointGroupC, "")).Allowed).Should(BeTrue())
 		})
 	})
@@ -393,91 +377,185 @@ var _ = Describe("CRD Validate", func() {
 	})
 
 	Context("Validate On SecurityPolicy", func() {
-		It("Create priority with unexists tier should not allowed", func() {
+		It("Create policy with unexists tier should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()
 			policy.Name = "new-policy"
 			policy.Spec.Tier = "UNExist-Tier-endpointName"
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 		})
-		It("Create priority with unexists EndpointGroup should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.AppliedTo.EndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Create validate priority should allowed", func() {
-			Expect(validate.Validate(fakeAdmissionReview(securityPolicyIngress, nil, "")).Allowed).Should(BeTrue())
-			Expect(validate.Validate(fakeAdmissionReview(securityPolicyEgress, nil, "")).Allowed).Should(BeTrue())
-		})
-		It("Update priority with unexists tier should not allowed", func() {
+		It("Update policy with unexists tier should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()
 			policy.Spec.Tier = "UNExist-Tier-endpointName"
 			Expect(validate.Validate(fakeAdmissionReview(policy, securityPolicyIngress, "")).Allowed).Should(BeFalse())
 		})
-		It("Update priority with unexists EndpointGroup should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Spec.AppliedTo.EndpointGroups = []string{"UNExist-EndpointGroup-endpointName"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, securityPolicyIngress, "")).Allowed).Should(BeFalse())
-		})
-		It("Update validate priority should allowed", func() {
-			Expect(validate.Validate(fakeAdmissionReview(securityPolicyIngress, securityPolicyEgress, "")).Allowed).Should(BeTrue())
-			Expect(validate.Validate(fakeAdmissionReview(securityPolicyEgress, securityPolicyIngress, "")).Allowed).Should(BeTrue())
-		})
-		// Validate on IPBlock
-		It("Create policy with error format of IPBlock.CIDR should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.IngressRules[0].From.IPBlocks[0].CIDR = "0.0.0.0/231"
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Create policy with error format of IPBlock.Except should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"0.0.0.0/231"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Create policy with IPBlock.CIDR not contains IPBlock.Except should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.IngressRules[0].From.IPBlocks[0].CIDR = "192.168.0.0/16"
-
-			// cidr mask length > except mask length
-			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.168.0.0/14"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-
-			// cidr mask length == except mask length
-			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.168.0.0/16"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-
-			// cidr not contains the except cidr range
-			policy.Spec.IngressRules[0].From.IPBlocks[0].Except = []string{"192.170.0.0/24"}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Create priority with same rule name should not allowed", func() {
-			policy := securityPolicyEgress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.EgressRules[1].Name = policy.Spec.EgressRules[0].Name
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Create priority with wrong format rule name should not allowed", func() {
-			policy := securityPolicyEgress.DeepCopy()
-			policy.Name = "newPolicy"
-			policy.Spec.EgressRules[0].Name = "rule@name#"
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Delete priority should allows allowed", func() {
+		It("Delete policy should always allowed", func() {
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyEgress, "")).Allowed).Should(BeTrue())
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyIngress, "")).Allowed).Should(BeTrue())
 		})
-		It("Create policy with validate portRange should allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Spec.IngressRules[0].Ports[0].PortRange = "20,22-24,80,82-84"
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+		Context("Validate On AppliedTo", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				policy = securityPolicyIngress.DeepCopy()
+			})
+
+			It("Create policy with nil applied to should not allowed", func() {
+				policy.Spec.AppliedTo = nil
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with empty applied to peers should not allowed", func() {
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with error format of applied to peer EndpointSelector should not allowed", func() {
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
+					EndpointSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"label.key": "@error$format%label",
+						},
+					},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with available applied to peers should allowed", func() {
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
+					Endpoint: &endpointA.Name,
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
+					EndpointSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
 		})
-		It("Create policy with error format of portRange should not allowed", func() {
-			policy := securityPolicyIngress.DeepCopy()
-			policy.Spec.IngressRules[0].Ports[0].PortRange = "22,80,"
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+		Context("Validate On Rules", func() {
+			It("Create policy with same rule name should not allowed", func() {
+				policy := securityPolicyEgress.DeepCopy()
+				policy.Spec.EgressRules[1].Name = policy.Spec.EgressRules[0].Name
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with wrong format rule name should not allowed", func() {
+				policy := securityPolicyEgress.DeepCopy()
+				policy.Spec.EgressRules[0].Name = "rule@name#"
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with validate portRange should allowed", func() {
+				policy := securityPolicyIngress.DeepCopy()
+				policy.Spec.IngressRules[0].Ports[0].PortRange = "20,22-24,80,82-84"
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
+			It("Create policy with error format of portRange should not allowed", func() {
+				policy := securityPolicyIngress.DeepCopy()
+				policy.Spec.IngressRules[0].Ports[0].PortRange = "22,80,"
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+		})
+
+		Context("Validate On SecurityPolicyPeer", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				policy = securityPolicyIngress.DeepCopy()
+			})
+
+			It("Create policy with empty SecurityPolicyPeer should not allowed", func() {
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with error fields set in SecurityPolicyPeer should not allowed", func() {
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					IPBlock:          &networkingv1.IPBlock{CIDR: "0.0.0.0/0"},
+					EndpointSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					Endpoint: &securityv1alpha1.NamespacedName{
+						Name:      endpointA.GetName(),
+						Namespace: endpointA.GetNamespace(),
+					},
+					EndpointSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with nil SecurityPolicyPeer should allowed", func() {
+				policy.Spec.IngressRules[0].From = nil
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
+			It("Create policy with available SecurityPolicyPeer should allowed", func() {
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					IPBlock: &networkingv1.IPBlock{CIDR: "0.0.0.0/0"},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					Endpoint: &securityv1alpha1.NamespacedName{
+						Name:      endpointA.GetName(),
+						Namespace: endpointA.GetNamespace(),
+					},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					EndpointSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					NamespaceSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					EndpointSelector:  &metav1.LabelSelector{},
+					NamespaceSelector: &metav1.LabelSelector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
+		})
+
+		Context("Validate On IPBlock", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				policy = securityPolicyIngress.DeepCopy()
+				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
+					IPBlock: &networkingv1.IPBlock{},
+				}
+			})
+
+			It("Create policy with error format of IPBlock.CIDR should not allowed", func() {
+				policy.Spec.IngressRules[0].From[0].IPBlock.CIDR = "0.0.0.0/231"
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with error format of IPBlock.Except should not allowed", func() {
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"0.0.0.0/231"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with IPBlock.CIDR not contains IPBlock.Except should not allowed", func() {
+				policy.Spec.IngressRules[0].From[0].IPBlock.CIDR = "192.168.0.0/16"
+
+				// cidr mask length > except mask length
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.168.0.0/14"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+				// cidr mask length == except mask length
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.168.0.0/16"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+
+				// cidr not contains the except cidr range
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.170.0.0/24"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
+			It("Create policy with available IPBlock should allowed", func() {
+				policy.Spec.IngressRules[0].From[0].IPBlock.CIDR = "192.168.0.0/16"
+
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.168.0.0/24"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.168.1.0/24"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
 		})
 	})
 

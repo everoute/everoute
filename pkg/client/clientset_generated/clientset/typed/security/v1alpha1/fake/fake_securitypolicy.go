@@ -102,18 +102,6 @@ func (c *FakeSecurityPolicies) Update(ctx context.Context, securityPolicy *v1alp
 	return obj.(*v1alpha1.SecurityPolicy), err
 }
 
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSecurityPolicies) UpdateStatus(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (*v1alpha1.SecurityPolicy, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(securitypoliciesResource, "status", c.ns, securityPolicy), &v1alpha1.SecurityPolicy{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1alpha1.SecurityPolicy), err
-}
-
 // Delete takes name of the securityPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeSecurityPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
