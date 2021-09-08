@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/constants"
 	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
@@ -36,7 +35,6 @@ import (
 
 type SecurityModel struct {
 	Policies  []*securityv1alpha1.SecurityPolicy
-	Groups    []*groupv1alpha1.EndpointGroup
 	Endpoints []*model.Endpoint
 }
 
@@ -67,8 +65,8 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 	var ingressPorts, egressPorts []cache.RulePort
 
 	for _, rule := range policy.Spec.IngressRules {
-		for _, groupName := range rule.From.EndpointGroups {
-			ingressIPs = append(ingressIPs, m.getGroupIPs(groupName)...)
+		for index := range rule.From {
+			ingressIPs = append(ingressIPs, m.getPeerIPs(&rule.From[index])...)
 		}
 
 		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
@@ -79,8 +77,8 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 	}
 
 	for _, rule := range policy.Spec.EgressRules {
-		for _, groupName := range rule.To.EndpointGroups {
-			egressIPs = append(egressIPs, m.getGroupIPs(groupName)...)
+		for index := range rule.To {
+			egressIPs = append(egressIPs, m.getPeerIPs(&rule.To[index])...)
 		}
 
 		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
@@ -90,27 +88,27 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 		egressPorts = append(egressPorts, rulePorts...)
 	}
 
-	for _, groupName := range policy.Spec.AppliedTo.EndpointGroups {
-		appliedIPs = append(appliedIPs, m.getGroupIPs(groupName)...)
+	for _, appliedPeer := range policy.Spec.AppliedTo {
+		var appliedEndpoint *securityv1alpha1.NamespacedName
+		if appliedPeer.Endpoint != nil {
+			appliedEndpoint = &securityv1alpha1.NamespacedName{
+				Name:      *appliedPeer.Endpoint,
+				Namespace: policy.GetNamespace(),
+			}
+		}
+		appliedIPs = append(appliedIPs, m.getPeerIPs(&securityv1alpha1.SecurityPolicyPeer{
+			Endpoint:         appliedEndpoint,
+			EndpointSelector: appliedPeer.EndpointSelector,
+		})...)
 	}
 
-	return computePolicyFlow(policy, appliedIPs, ingressIPs, egressIPs, ingressPorts, egressPorts)
+	return computePolicyFlow(policy.Spec.Tier, appliedIPs, ingressIPs, egressIPs, ingressPorts, egressPorts)
 }
 
-func (m *SecurityModel) getGroupIPs(groupName string) []string {
-	var expectGroup *groupv1alpha1.EndpointGroup
+func (m *SecurityModel) getPeerIPs(peer *securityv1alpha1.SecurityPolicyPeer) []string {
 	var matchIPs []string
 
-	for _, group := range m.Groups {
-		if group.Name == groupName {
-			expectGroup = group
-		}
-	}
-	if expectGroup == nil {
-		klog.Fatalf("unexpect group %s not found", groupName)
-	}
-
-	matchEp := matchEndpoint(expectGroup, m.Endpoints)
+	matchEp := matchEndpoint(peer, m.Endpoints)
 	for _, ep := range matchEp {
 		// remove ip mask, e.g. 127.0.0.1/8 => 127.0.0.1
 		ip, _, _ := net.ParseCIDR(ep.Status.IPAddr)
@@ -120,12 +118,15 @@ func (m *SecurityModel) getGroupIPs(groupName string) []string {
 	return matchIPs
 }
 
-func matchEndpoint(group *groupv1alpha1.EndpointGroup, endpoints []*model.Endpoint) []*model.Endpoint {
-	var selector, _ = metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
+func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model.Endpoint) []*model.Endpoint {
+	var selector, _ = metav1.LabelSelectorAsSelector(peer.EndpointSelector)
 	var matchEp []*model.Endpoint
 
 	for _, ep := range endpoints {
 		if selector.Matches(labels.Set(ep.Labels)) {
+			matchEp = append(matchEp, ep)
+		}
+		if peer.Endpoint != nil && peer.Endpoint.Name == ep.Name {
 			matchEp = append(matchEp, ep)
 		}
 	}
@@ -133,15 +134,15 @@ func matchEndpoint(group *groupv1alpha1.EndpointGroup, endpoints []*model.Endpoi
 	return matchEp
 }
 
-func computePolicyFlow(policy *securityv1alpha1.SecurityPolicy, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
+func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
 	var flows []string
 	priority := constants.NormalPolicyRulePriority + ofnet.FLOW_POLICY_PRIORITY_OFFSET
-	ingressTableID, egressTableID := getTableIds(policy.Spec.Tier)
+	ingressTableID, egressTableID := getTableIds(tier)
 
 	if ingressTableID == nil || egressTableID == nil {
 		return nil
 	}
-	ingressNextTableID, egressNextTableID := 20, 45
+	ingressNextTableID, egressNextTableID := 45, 20
 
 	for _, appliedToIP := range appliedToIPs {
 		for _, srcIP := range ingressIPs {
@@ -208,14 +209,14 @@ func getTableIds(tier string) (*int, *int) {
 	var ingressTableID, egressTableID int
 	switch tier {
 	case "tier0":
-		ingressTableID = 10
-		egressTableID = 30
+		egressTableID = 10
+		ingressTableID = 30
 	case "tier1":
-		ingressTableID = 11
-		egressTableID = 31
+		egressTableID = 11
+		ingressTableID = 31
 	case "tier2":
-		ingressTableID = 12
-		egressTableID = 32
+		egressTableID = 12
+		ingressTableID = 32
 	}
 
 	return &ingressTableID, &egressTableID

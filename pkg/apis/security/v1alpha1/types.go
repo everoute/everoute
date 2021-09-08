@@ -29,30 +29,37 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
+// SecurityPolicy describes what network traffic is allowed for a set of Endpoint.
+// Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
 type SecurityPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SecurityPolicySpec   `json:"spec"`
-	Status SecurityPolicyStatus `json:"status,omitempty"`
+	// Specification of the desired behavior for this SecurityPolicy.
+	Spec SecurityPolicySpec `json:"spec"`
 }
 
 type SecurityPolicySpec struct {
+	// Tier specifies the tier to which this SecurityPolicy belongs to.
+	// In v1alpha1, Tier only support tier0, tier1, tier2.
 	Tier string `json:"tier"`
 
-	// SymmetricMode will generated symmetry rules for the policy.
+	// SymmetricMode will generate symmetry rules for the policy.
 	// Defaults to false.
 	SymmetricMode bool `json:"symmetricMode,omitempty"`
 
-	// Object to be applied to list of ingress rule and egress rule
-	AppliedTo AppliedTo `json:"appliedTo"`
+	// Selects the endpoints to which this SecurityPolicy object applies. This field
+	// must not empty.
+	AppliedTo []ApplyToPeer `json:"appliedTo"`
 
-	// List of ingress rules to be applied to giving groups. If this field is empty
-	// then this SecurityPolicy does not allow any traffic.
+	// List of ingress rules to be applied to the selected endpoints. If this field
+	// is empty then this SecurityPolicy does not allow any traffic.
+	// +optional
 	IngressRules []Rule `json:"ingressRules,omitempty"`
 
-	// List of egress rules to be applied to giving groups. If this field is empty
-	// then this SecurityPolicy limits all outgoing traffic.
+	// List of egress rules to be applied to the selected endpoints. If this field
+	// is empty then this SecurityPolicy limits all outgoing traffic.
+	// +optional
 	EgressRules []Rule `json:"egressRules,omitempty"`
 
 	// List of rule types that the Security relates to.
@@ -68,78 +75,111 @@ type SecurityPolicySpec struct {
 	PolicyTypes []networkingv1.PolicyType `json:"policyTypes,omitempty"`
 }
 
-type AppliedTo struct {
-	// List of groups which SecurityPolicy applied to. Each item in this list is
-	// combined using a logical OR. This field must not empty.
-	EndpointGroups []string `json:"endpointGroups,omitempty"`
-	// Endpoint which SecurityPolicy applied to
-	Endpoints []string `json:"endpoints,omitempty"`
+// ApplyToPeer describes sets of endpoints which this SecurityPolicy object applies
+// At least one field (Endpoint or EndpointSelector) should be set.
+type ApplyToPeer struct {
+	// Endpoint defines policy on a specific Endpoint.
+	//
+	// If Endpoint is set, then the SecurityPolicy would apply to the endpoint
+	// in the SecurityPolicy Namespace. If Endpoint doesnot exist OR has empty
+	// IPAddr, the ApplyToPeer would be ignored.
+	// If this field is set then neither of the other fields can be.
+	// +optional
+	Endpoint *string `json:"endpoint,omitempty"`
+
+	// EndpointSelector selects endpoints. This field follows standard label
+	// selector semantics; if present but empty, it selects all endpoints.
+	//
+	// If EndpointSelector is set, then the SecurityPolicy would apply to the
+	// endpoints matching EndpointSelector in the SecurityPolicy Namespace.
+	// If this field is set then neither of the other fields can be.
+	// +optional
+	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
 }
 
-// SecurityPolicyPhase defines the phase in which a SecurityPolicy is.
-type SecurityPolicyPhase string
-
-const (
-	// SecurityPolicyPending means the SecurityPolicy has been accepted by the system, but it has not been processed by Lynx.
-	SecurityPolicyPending SecurityPolicyPhase = "Pending"
-	// SecurityPolicyRealizing means the SecurityPolicy has been observed by Lynx and is being realized.
-	SecurityPolicyRealizing SecurityPolicyPhase = "Realizing"
-	// SecurityPolicyRealized means the SecurityPolicy has been enforced to all Endpoints it applies to.
-	SecurityPolicyRealized SecurityPolicyPhase = "Realized"
-)
-
-type SecurityPolicyStatus struct {
-	// The phase of a SecurityPolicy is a simple, high-level summary of the SecurityPolicy's status.
-	Phase SecurityPolicyPhase `json:"phase"`
-	// The generation observed by Lynx.
-	ObservedGeneration int64 `json:"observedGeneration"`
-	// The number of agents that have realized the SecurityPolicy.
-	CurrentAgentsRealized int32 `json:"currentAgentsRealized"`
-	// The total number of agents that should realize the SecurityPolicy.
-	DesiredAgentsRealized int32 `json:"desiredAgentsRealized"`
-}
-
+// Rule describes a particular set of traffic that is allowed from/to the endpoints
+// matched by a SecurityPolicySpec's AppliedTo.
 type Rule struct {
 	// Name must be unique within the policy and conforms RFC 1123.
 	Name string `json:"name"`
 
-	// List of destination ports for outgoing traffic. If this field is empty or
-	// missing, this rule matches all ports and protocols. Each item in this list
-	// is combined using a logical OR.
+	// List of ports which should be made accessible on the endpoints selected for this
+	// rule. Each item in this list is combined using a logical OR. If this field is
+	// empty or missing, this rule matches all ports (traffic not restricted by port).
+	// If this field is present and contains at least one item, then this rule allows
+	// traffic only if the traffic matches at least one port in the list.
+	// +optional
 	Ports []SecurityPolicyPort `json:"ports,omitempty"`
 
-	// Giving sources which can access applied groups for this rule. If this field
-	// is empty or missing, this rule matches all sources. This field only works
-	// when rule is ingress.
-	From SecurityPolicyPeer `json:"from,omitempty"`
+	// List of sources which should be able to access the endpoints selected for this rule.
+	// Items in this list are combined using a logical OR operation. If this field is
+	// empty or missing, this rule matches all sources (traffic not restricted by
+	// source). If this field is present and contains at least one item, this rule
+	// allows traffic only if the traffic matches at least one item in the from list.
+	// This field only works when rule is ingress.
+	// +optional
+	From []SecurityPolicyPeer `json:"from,omitempty"`
 
-	// Giving destinations which can outgoing traffic of applied groups for this rule.
-	// If this field is empty or missing, this rule matches all destinations. This field
-	// only works when rule is egress.
-	To SecurityPolicyPeer `json:"to,omitempty"`
+	// List of destinations for outgoing traffic of endpoints selected for this rule.
+	// Items in this list are combined using a logical OR operation. If this field is
+	// empty or missing, this rule matches all destinations (traffic not restricted by
+	// destination). If this field is present and contains at least one item, this rule
+	// allows traffic only if the traffic matches at least one item in the to list.
+	// This field only works when rule is egress.
+	// +optional
+	To []SecurityPolicyPeer `json:"to,omitempty"`
 }
 
-// SecurityPolicyPeer describes the grouping selector of workloads.
+// SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+// of fields are allowed
 type SecurityPolicyPeer struct {
-	IPBlocks       []networkingv1.IPBlock `json:"ipBlocks,omitempty"`
-	EndpointGroups []string               `json:"endpointGroups,omitempty"`
-	Endpoints      []string               `json:"endpoints,omitempty"`
+	// IPBlock defines policy on a particular IPBlock. If this field is set then
+	// neither of the other fields can be.
+	// +optional
+	IPBlock *networkingv1.IPBlock `json:"ipBlock,omitempty"`
+
+	// Endpoint defines policy on a specific Endpoint. If this field is set then
+	// neither of the other fields can be.
+	// +optional
+	Endpoint *NamespacedName `json:"endpoint,omitempty"`
+
+	// EndpointSelector selects endpoints. This field follows standard label
+	// selector semantics; if present but empty, it selects all endpoints.
+	//
+	// If NamespaceSelector is also set, then the Rule would select the endpoints
+	// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+	// Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
+	// +optional
+	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
+
+	// NamespaceSelector selects namespaces. This field follows standard label
+	// selector semantics; if present but empty, it selects all namespaces.
+	//
+	// If EndpointSelector is also set, then the Rule would select the endpoints
+	// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+	// Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
 // SecurityPolicyPort describes the port and protocol to match in a rule.
 type SecurityPolicyPort struct {
 	// The protocol (TCP, UDP or ICMP) which traffic must match.
 	Protocol Protocol `json:"protocol"`
+
 	// PortRange is a range of port. If you want match all ports, you should set empty. If you
 	// want match single port, you should write like 22. If you want match a range of port, you
 	// should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
 	// want match multiple ports, you should write like 20,22-24,90.
 	// +kubebuilder:validation:Pattern="^(((\\d{1,5}-\\d{1,5})|(\\d{1,5})),)*((\\d{1,5}-\\d{1,5})|(\\d{1,5}))$|^$"
 	PortRange string `json:"portRange,omitempty"` // only valid when Protocol is not ICMP
+}
 
-	// ICMP type and code is not support in alpha1.
-	// ICMPType  *int32 `json:"icmpType,omitempty"`  // only valid when Protocol is ICMP
-	// ICMPCode  *int32 `json:"icmpCode,omitempty"`  // only valid when Protocol is ICMP
+type NamespacedName struct {
+	// Name is unique within a namespace to reference a resource.
+	Name string `json:"name"`
+	// Namespace defines the space within which the resource name must be unique.
+	Namespace string `json:"namespace"`
 }
 
 // +kubebuilder:validation:Enum=TCP;UDP;ICMP
@@ -152,22 +192,6 @@ const (
 	ProtocolUDP Protocol = "UDP"
 	// ProtocolICMP is the ICMP protocol.
 	ProtocolICMP Protocol = "ICMP"
-
-	// ProtocolSCTP is not support in alpha1.
-	// ProtocolSCTP is the SCTP protocol.
-	// ProtocolSCTP Protocol = "SCTP"
-)
-
-// +kubebuilder:validation:Enum=Allow;Drop
-// RuleAction describes the action to be applied on traffic matching a rule.
-// Default action is allow
-type RuleAction string
-
-const (
-	// RuleActionAllow describes that rule matching traffic must be allowed.
-	RuleActionAllow RuleAction = "Allow"
-	// RuleActionDrop describes that rule matching traffic must be dropped.
-	RuleActionDrop RuleAction = "Drop"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

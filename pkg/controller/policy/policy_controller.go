@@ -177,8 +177,7 @@ func (r *PolicyReconciler) endpointReferencePolicy(ctx context.Context,
 	for _, policy := range policyList.Items {
 		policyReferenceEndpoints := getPolicyReferenceEndpoints(policy)
 		for _, ep := range policyReferenceEndpoints {
-			// endpoint in security policy has the same namespace with the security policy
-			if ep == endpoint.Name && policy.Namespace == endpoint.Namespace {
+			if ep.Name == endpoint.GetName() && ep.Namespace == endpoint.GetNamespace() {
 				referencePolicyList = append(referencePolicyList, policy)
 				break
 			}
@@ -188,16 +187,27 @@ func (r *PolicyReconciler) endpointReferencePolicy(ctx context.Context,
 	return referencePolicyList, err
 }
 
-func getPolicyReferenceEndpoints(policy securityv1alpha1.SecurityPolicy) []string {
-	var referencedEndpoints []string
+func getPolicyReferenceEndpoints(policy securityv1alpha1.SecurityPolicy) []k8stypes.NamespacedName {
+	var referencedEndpoints []k8stypes.NamespacedName
 
-	referencedEndpoints = append(referencedEndpoints, policy.Spec.AppliedTo.Endpoints...)
-
-	for _, rule := range policy.Spec.IngressRules {
-		referencedEndpoints = append(referencedEndpoints, rule.From.Endpoints...)
+	for _, appliedTo := range policy.Spec.AppliedTo {
+		if appliedTo.Endpoint != nil {
+			referencedEndpoints = append(referencedEndpoints, k8stypes.NamespacedName{
+				Namespace: policy.GetNamespace(),
+				Name:      *appliedTo.Endpoint,
+			})
+		}
 	}
-	for _, rule := range policy.Spec.EgressRules {
-		referencedEndpoints = append(referencedEndpoints, rule.To.Endpoints...)
+
+	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
+		for _, peer := range append(rule.From, rule.To...) {
+			if peer.Endpoint != nil {
+				referencedEndpoints = append(referencedEndpoints, k8stypes.NamespacedName{
+					Namespace: peer.Endpoint.Namespace,
+					Name:      peer.Endpoint.Name,
+				})
+			}
+		}
 	}
 
 	return referencedEndpoints
@@ -209,7 +219,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	var err error
-	var policyController, patchController, endpointController controller.Controller
+	var policyController, patchController, endpointController, groupGenerator, globalPolicyController controller.Controller
 
 	// ignore not empty ruleCache for future cache inject
 	if r.ruleCache == nil {
@@ -279,7 +289,7 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	globalPolicyController, err := controller.New("global-policy-controller", mgr, controller.Options{
+	globalPolicyController, err = controller.New("global-policy-controller", mgr, controller.Options{
 		// Serial handle GlobalPolicy event
 		MaxConcurrentReconciles: 1,
 		Reconciler:              reconcile.Func(r.ReconcileGlobalPolicy),
@@ -292,6 +302,33 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
+
+	groupGenerator, err = controller.New("group-generator", mgr, controller.Options{
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
+		Reconciler:              reconcile.Func(r.GroupGenerateReconcile),
+	})
+	if err != nil {
+		return err
+	}
+
+	err = groupGenerator.Watch(&source.Kind{Type: &securityv1alpha1.SecurityPolicy{}}, &handler.Funcs{
+		CreateFunc: r.addSecurityPolicy,
+		UpdateFunc: r.updateSecurityPolicy,
+		DeleteFunc: r.deleteSecurityPolicy,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = groupGenerator.Watch(&source.Kind{Type: &groupv1alpha1.EndpointGroup{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	_ = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
+		constants.SecurityPolicyByEndpointGroupIndex,
+		EndpointGroupIndexSecurityPolicyFunc,
+	)
 
 	return nil
 }
@@ -427,13 +464,11 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 	var completeRules []*policycache.CompleteRule
 	var ingressEnabled, egressEnabled = policy.IsEnable()
 
-	appliedToPeer := securityv1alpha1.SecurityPolicyPeer{
-		IPBlocks:       nil,
-		EndpointGroups: policy.Spec.AppliedTo.EndpointGroups,
-		Endpoints:      policy.Spec.AppliedTo.Endpoints,
+	appliedToPeer := make([]securityv1alpha1.SecurityPolicyPeer, 0, len(policy.Spec.AppliedTo))
+	for _, appliedTo := range policy.Spec.AppliedTo {
+		appliedToPeer = append(appliedToPeer, appliedAsSecurityPeer(policy.GetNamespace(), appliedTo))
 	}
-	// use policy namespace as applied to endpoint namespace
-	appliedGroups, appliedIPBlocks, err := r.getPeerGroupsAndIPBlocks(policy.Namespace, &appliedToPeer)
+	appliedGroups, appliedIPBlocks, err := r.getPeersGroupsAndIPBlocks(policy.GetNamespace(), appliedToPeer)
 	if err != nil {
 		return nil, err
 	}
@@ -450,12 +485,12 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 				DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 			}
 
-			if len(rule.From.IPBlocks)+len(rule.From.EndpointGroups) == 0 {
-				// empty From matches all sources
+			if len(rule.From) == 0 {
+				// If "rule.From" is empty or missing, this rule matches all sources
 				ingressRule.SrcIPBlocks = map[string]int{"": 1}
 			} else {
 				// use policy namespace as ingress endpoint namespace
-				ingressRule.SrcGroups, ingressRule.SrcIPBlocks, err = r.getPeerGroupsAndIPBlocks(policy.Namespace, &rule.From)
+				ingressRule.SrcGroups, ingressRule.SrcIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.From)
 				if err != nil {
 					return nil, err
 				}
@@ -502,12 +537,12 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 			}
 
-			if len(rule.To.IPBlocks)+len(rule.To.EndpointGroups) == 0 {
-				// empty From matches all sources
+			if len(rule.To) == 0 {
+				// If "rule.To" is empty or missing, this rule matches all destinations
 				egressRule.DstIPBlocks = map[string]int{"": 1}
 			} else {
 				// use policy namespace as egress endpoint namespace
-				egressRule.DstGroups, egressRule.DstIPBlocks, err = r.getPeerGroupsAndIPBlocks(policy.Namespace, &rule.To)
+				egressRule.DstGroups, egressRule.DstIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.To)
 				if err != nil {
 					return nil, err
 				}
@@ -545,45 +580,46 @@ func (r *PolicyReconciler) completePolicy(policy *securityv1alpha1.SecurityPolic
 	return completeRules, nil
 }
 
-// getPeerGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
-func (r *PolicyReconciler) getPeerGroupsAndIPBlocks(namespace string, peer *securityv1alpha1.SecurityPolicyPeer) (map[string]int32, map[string]int, error) {
+// getPeersGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
+func (r *PolicyReconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securityv1alpha1.SecurityPolicyPeer) (map[string]int32, map[string]int, error) {
 	var groups = make(map[string]int32)
 	var ipBlocks = make(map[string]int)
 
-	for group := range sets.NewString(peer.EndpointGroups...) {
-		revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
-		if !exist {
-			return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
-		}
-		groups[group] = revision
+	for _, peer := range peers {
+		switch {
+		case peer.Endpoint != nil:
+			var endpoint securityv1alpha1.Endpoint
+			err := r.Get(context.Background(), k8stypes.NamespacedName{Name: peer.Endpoint.Name, Namespace: peer.Endpoint.Namespace}, &endpoint)
+			if client.IgnoreNotFound(err) != nil {
+				klog.Errorf("Failed to get endpoint: %v, error: %v", peer.Endpoint, err)
+				return nil, nil, err
+			}
 
-		for _, ipBlock := range ipAddrs {
-			ipBlocks[ipBlock]++
-		}
-	}
+			for _, ip := range endpoint.Status.IPs {
+				ipBlocks[policycache.GetIPCidr(ip)]++
+			}
+		case peer.IPBlock != nil:
+			ipNets, err := utils.ParseIPBlock(peer.IPBlock)
+			if err != nil {
+				klog.Infof("unable parse IPBlock %+v: %s", peer.IPBlock, err)
+				return nil, nil, err
+			}
+			for _, ipNet := range ipNets {
+				ipBlocks[ipNet.String()]++
+			}
+		case peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
+			group := peerAsEndpointGroup(namespace, peer).GetName()
+			revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
+			if !exist {
+				return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
+			}
+			groups[group] = revision
 
-	for index := range peer.IPBlocks {
-		ipNets, err := utils.ParseIPBlock(&peer.IPBlocks[index])
-		if err != nil {
-			klog.Infof("unable parse IPBlocks %+v: %s", peer.IPBlocks, err)
-			return nil, nil, err
-		}
-		for _, ipNet := range ipNets {
-			ipBlocks[ipNet.String()]++
-		}
-	}
-
-	for _, ep := range peer.Endpoints {
-		var endpoint securityv1alpha1.Endpoint
-		ctx := context.Background()
-		err := r.Get(ctx, k8stypes.NamespacedName{Name: ep, Namespace: namespace}, &endpoint)
-		if client.IgnoreNotFound(err) != nil {
-			klog.Errorf("Failed to get endpoint: %v, error: %v", ep, err)
-			return nil, nil, err
-		}
-
-		for _, ip := range endpoint.Status.IPs {
-			ipBlocks[policycache.GetIPCidr(ip)]++
+			for _, ipBlock := range ipAddrs {
+				ipBlocks[ipBlock]++
+			}
+		default:
+			klog.Errorf("Empty SecurityPolicyPeer, check your SecurityPolicy definition!")
 		}
 	}
 

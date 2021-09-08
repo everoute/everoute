@@ -40,7 +40,6 @@ type SecurityPoliciesGetter interface {
 type SecurityPolicyInterface interface {
 	Create(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.CreateOptions) (*v1alpha1.SecurityPolicy, error)
 	Update(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (*v1alpha1.SecurityPolicy, error)
-	UpdateStatus(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (*v1alpha1.SecurityPolicy, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.SecurityPolicy, error)
@@ -129,22 +128,6 @@ func (c *securityPolicies) Update(ctx context.Context, securityPolicy *v1alpha1.
 		Namespace(c.ns).
 		Resource("securitypolicies").
 		Name(securityPolicy.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(securityPolicy).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *securityPolicies) UpdateStatus(ctx context.Context, securityPolicy *v1alpha1.SecurityPolicy, opts v1.UpdateOptions) (result *v1alpha1.SecurityPolicy, err error) {
-	result = &v1alpha1.SecurityPolicy{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("securitypolicies").
-		Name(securityPolicy.Name).
-		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(securityPolicy).
 		Do(ctx).

@@ -50,9 +50,6 @@ func rootCommand() *cobra.Command {
 	rootCmd.ResetFlags()
 
 	rootCmd.AddCommand(command.NewEndpointCommand(f))
-	rootCmd.AddCommand(command.NewTierCommand(f))
-	rootCmd.AddCommand(command.NewGroupCommand(f))
-	rootCmd.AddCommand(command.NewPolicyCommand(f))
 	rootCmd.AddCommand(command.NewReachCommand(f))
 
 	return rootCmd

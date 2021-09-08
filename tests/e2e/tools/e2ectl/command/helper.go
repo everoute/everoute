@@ -19,25 +19,7 @@ package command
 import (
 	"fmt"
 	"strings"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 )
-
-func selectEndpoint(ls *metav1.LabelSelector, epList *securityv1alpha1.EndpointList) *securityv1alpha1.EndpointList {
-	var selector, _ = metav1.LabelSelectorAsSelector(ls)
-	var selected = &securityv1alpha1.EndpointList{}
-
-	for _, ep := range epList.Items {
-		if selector.Matches(labels.Set(ep.GetLabels())) {
-			selected.Items = append(selected.Items, *ep.DeepCopy())
-		}
-	}
-
-	return selected
-}
 
 func mapJoin(m map[string]string, connector string, separator string) string {
 	var str string
@@ -50,26 +32,6 @@ func mapJoin(m map[string]string, connector string, separator string) string {
 	}
 
 	return str
-}
-
-func selectorFromString(sl string) *metav1.LabelSelector {
-	if sl == "all" {
-		// nil for select all endpoint
-		return nil
-	}
-
-	var list = strings.Split(sl, ",")
-	var matchLabels = make(map[string]string, len(list))
-
-	for _, label := range list {
-		if len(label) != 0 {
-			matchLabels[strings.Split(label, "=")[0]] = strings.Split(label, "=")[1]
-		}
-	}
-
-	return &metav1.LabelSelector{
-		MatchLabels: matchLabels,
-	}
 }
 
 func labelsFromString(labels string) map[string]string {

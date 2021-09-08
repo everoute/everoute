@@ -33,4 +33,6 @@ const (
 	// Tier1 used for security policy and global policy
 	Tier1 = "tier1"
 	Tier2 = "tier2"
+
+	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
 )

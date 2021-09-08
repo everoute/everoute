@@ -17,33 +17,13 @@ limitations under the License.
 package command
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/printers"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/tests/e2e/framework/model"
 )
-
-func printTier(output io.Writer, tiers []securityv1alpha1.Tier) error {
-	var table = newTable("name", "priority", "tiermode")
-
-	for _, tier := range tiers {
-		var row = []interface{}{}
-
-		row = append(row, tier.Name)
-		row = append(row, tier.Spec.Priority)
-		row = append(row, tier.Spec.TierMode)
-
-		addRow(table, row)
-	}
-
-	return printTable(output, table)
-}
 
 func printEndpoint(output io.Writer, eps []*model.Endpoint) error {
 	var table = newTable("name", "host", "local-id", "labels", "tcp-port", "udp-port", "ip-addr")
@@ -58,105 +38,6 @@ func printEndpoint(output io.Writer, eps []*model.Endpoint) error {
 		row = append(row, ep.TCPPort)
 		row = append(row, ep.UDPPort)
 		row = append(row, ep.Status.IPAddr)
-
-		addRow(table, row)
-	}
-
-	return printTable(output, table)
-}
-
-func printGroup(output io.Writer, groups []groupv1alpha1.EndpointGroup, eps []securityv1alpha1.Endpoint) error {
-	var table = newTable("name", "selector", "members")
-
-	var selectorToString = func(selector *metav1.LabelSelector) string {
-		if selector == nil {
-			return "<empty>"
-		}
-		return mapJoin(selector.MatchLabels, "=", ",")
-	}
-
-	var selectEndpointNames = func(ls *metav1.LabelSelector, eps []securityv1alpha1.Endpoint) string {
-		var epList []string
-
-		for _, ep := range selectEndpoint(ls, &securityv1alpha1.EndpointList{Items: eps}).Items {
-			epList = append(epList, ep.Name)
-		}
-
-		return strings.Join(epList, ",")
-	}
-
-	for _, group := range groups {
-		var row = []interface{}{}
-
-		row = append(row, group.Name)
-		row = append(row, selectorToString(group.Spec.EndpointSelector))
-		row = append(row, selectEndpointNames(group.Spec.EndpointSelector, eps))
-
-		addRow(table, row)
-	}
-
-	return printTable(output, table)
-}
-
-func printPolicy(output io.Writer, policies []securityv1alpha1.SecurityPolicy) error {
-	var table = newTable("name", "tier", "applied-groups")
-
-	for _, policy := range policies {
-		var row = []interface{}{}
-
-		row = append(row, policy.Name)
-		row = append(row, policy.Spec.Tier)
-		row = append(row, strings.Join(policy.Spec.AppliedTo.EndpointGroups, ","))
-
-		addRow(table, row)
-	}
-
-	return printTable(output, table)
-}
-
-func printPolicyRule(output io.Writer, policy *securityv1alpha1.SecurityPolicy) error {
-	var table = newTable("name", "peers", "direction", "protocol", "ports")
-
-	var peerToString = func(peer *securityv1alpha1.SecurityPolicyPeer) string {
-		var str = strings.Join(peer.EndpointGroups, ",")
-
-		for _, ipblock := range peer.IPBlocks {
-			if str != "" {
-				str = fmt.Sprintf("%s,", str)
-			}
-			str += fmt.Sprintf("%s", ipblock.CIDR)
-		}
-
-		return str
-	}
-
-	for _, rule := range policy.Spec.IngressRules {
-		var row = []interface{}{}
-
-		row = append(row, rule.Name)
-		row = append(row, peerToString(&rule.From))
-		row = append(row, Ingress)
-
-		// todo: support multiple ports in e2e
-		if len(rule.Ports) != 0 {
-			row = append(row, rule.Ports[0].Protocol)
-			row = append(row, rule.Ports[0].PortRange)
-		}
-
-		addRow(table, row)
-	}
-
-	for _, rule := range policy.Spec.EgressRules {
-		var row = []interface{}{}
-
-		row = append(row, rule.Name)
-		row = append(row, peerToString(&rule.To))
-		row = append(row, Egress)
-
-		if len(rule.Ports) != 0 {
-			row = append(row, rule.Ports[0].Protocol)
-			row = append(row, rule.Ports[0].PortRange)
-		}
 
 		addRow(table, row)
 	}

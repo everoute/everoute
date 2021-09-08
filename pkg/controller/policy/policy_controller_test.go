@@ -89,7 +89,7 @@ var _ = Describe("PolicyController", func() {
 	})
 
 	Context("policy needed endpoints and groups has been create", func() {
-		var group1, group2, group3 *groupv1alpha1.GroupMembers
+		var group1, group2, group3 *testGroup
 		var ep1, ep2, ep3 *securityv1alpha1.Endpoint
 
 		BeforeEach(func() {
@@ -101,15 +101,15 @@ var _ = Describe("PolicyController", func() {
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
 
 			By(fmt.Sprintf("create endpoints %s and groups %v", []string{ep1.Name, ep2.Name, ep3.Name}, []string{group1.Name, group2.Name, group3.Name}))
-			Expect(k8sClient.Create(ctx, group1)).Should(Succeed())
-			Expect(k8sClient.Create(ctx, group2)).Should(Succeed())
-			Expect(k8sClient.Create(ctx, group3)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group2.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
 		})
 		When("create a sample policy with port range", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "1000-1999"), newTestPort("UDP", "80"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "1000-1999"), newTestPort("UDP", "80"))
 
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
@@ -143,7 +143,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "65532-65535"), newTestPort("UDP", "80"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "65532-65535"), newTestPort("UDP", "80"))
 
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
@@ -162,7 +162,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "0"), newTestPort("UDP", "80"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "0"), newTestPort("UDP", "80"))
 
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
@@ -181,7 +181,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "22"), newTestPort("UDP", "80"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "22"), newTestPort("UDP", "80"))
 
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
@@ -248,17 +248,19 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			When("add a group into applied groups", func() {
-				var newGroup *groupv1alpha1.GroupMembers
+				var newGroup *testGroup
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
 				BeforeEach(func() {
 					newEp := newTestEndpoint("192.168.1.2")
 					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
 					updPolicy = policy.DeepCopy()
-					updPolicy.Spec.AppliedTo.EndpointGroups = append(updPolicy.Spec.AppliedTo.EndpointGroups, newGroup.Name)
+					updPolicy.Spec.AppliedTo = append(updPolicy.Spec.AppliedTo, securityv1alpha1.ApplyToPeer{
+						EndpointSelector: newGroup.endpointSelector,
+					})
 
 					By(fmt.Sprintf("update policy %s with new applied group %s", policy.Name, newGroup.Name))
-					Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
+					Expect(k8sClient.Create(ctx, newGroup.GroupMembers)).Should(Succeed())
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should add ingress egress and default policy rule", func() {
@@ -271,17 +273,19 @@ var _ = Describe("PolicyController", func() {
 				})
 			})
 			When("add a group into ingress groups", func() {
-				var newGroup *groupv1alpha1.GroupMembers
+				var newGroup *testGroup
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
 				BeforeEach(func() {
 					newEp := newTestEndpoint("192.168.2.2")
 					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
 					updPolicy = policy.DeepCopy()
-					updPolicy.Spec.IngressRules[0].From.EndpointGroups = append(updPolicy.Spec.IngressRules[0].From.EndpointGroups, newGroup.Name)
+					updPolicy.Spec.IngressRules[0].From = append(updPolicy.Spec.IngressRules[0].From, securityv1alpha1.SecurityPolicyPeer{
+						EndpointSelector: newGroup.endpointSelector,
+					})
 
 					By(fmt.Sprintf("update policy %s with new ingress group %s", policy.Name, newGroup.Name))
-					Expect(k8sClient.Create(ctx, newGroup)).Should(Succeed())
+					Expect(k8sClient.Create(ctx, newGroup.GroupMembers)).Should(Succeed())
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should add an ingress policy rule", func() {
@@ -293,7 +297,7 @@ var _ = Describe("PolicyController", func() {
 
 				BeforeEach(func() {
 					updPolicy = policy.DeepCopy()
-					updPolicy.Spec.EgressRules[0].To.EndpointGroups = nil
+					updPolicy.Spec.EgressRules[0].To = nil
 
 					By(fmt.Sprintf("update policy %s with empty egress groups", policy.Name))
 					mustUpdatePolicy(ctx, updPolicy)
@@ -312,7 +316,10 @@ var _ = Describe("PolicyController", func() {
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
 				BeforeEach(func() {
-					newRule = newTestRule(newTestPort("ICMP", ""), "", "")
+					newRule = &securityv1alpha1.Rule{
+						Name:  rand.String(6),
+						Ports: []securityv1alpha1.SecurityPolicyPort{*newTestPort("ICMP", "")},
+					}
 					updPolicy = policy.DeepCopy()
 					updPolicy.Spec.IngressRules = append(updPolicy.Spec.IngressRules, *newRule)
 
@@ -489,7 +496,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
 				policy.Spec.SymmetricMode = true
 
 				By(fmt.Sprintf("create policy %s with SymmetricMode enable", policy.Name))
@@ -535,7 +542,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
 				policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
 
 				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
@@ -558,7 +565,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
 				policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
@@ -582,7 +589,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = newTestPolicy(group1.Name, group2.Name, group3.Name, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
 				policy.Spec.PolicyTypes = []networkingv1.PolicyType{}
 
 				By(fmt.Sprintf("create policy %s with enable ingress only", policy.Name))
@@ -617,7 +624,7 @@ var _ = Describe("GroupCache", func() {
 
 		BeforeEach(func() {
 			endpoint = newTestEndpoint("192.168.1.1")
-			members = newTestGroupMembers(0, endpointToMember(endpoint))
+			members = newTestGroupMembers(0, endpointToMember(endpoint)).GroupMembers
 			groupCache.AddGroupMembership(members)
 		})
 		AfterEach(func() {
@@ -759,32 +766,7 @@ func newTestPort(protocol, portRange string) *securityv1alpha1.SecurityPolicyPor
 	}
 }
 
-func newTestRule(port *securityv1alpha1.SecurityPolicyPort, fromGroup, toGroup string) *securityv1alpha1.Rule {
-	var name = "rule-test-" + rand.String(6)
-	var fromGroups, toGroups []string
-
-	if fromGroup != "" {
-		fromGroups = append(fromGroups, fromGroup)
-	}
-	if toGroup != "" {
-		toGroups = append(toGroups, fromGroup)
-	}
-
-	return &securityv1alpha1.Rule{
-		Name: name,
-		Ports: []securityv1alpha1.SecurityPolicyPort{
-			*port,
-		},
-		From: securityv1alpha1.SecurityPolicyPeer{
-			EndpointGroups: fromGroups,
-		},
-		To: securityv1alpha1.SecurityPolicyPeer{
-			EndpointGroups: toGroups,
-		},
-	}
-}
-
-func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort, egressPort *securityv1alpha1.SecurityPolicyPort) *securityv1alpha1.SecurityPolicy {
+func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPort *securityv1alpha1.SecurityPolicyPort) *securityv1alpha1.SecurityPolicy {
 	var name = "policy-test-" + rand.String(6)
 
 	return &securityv1alpha1.SecurityPolicy{
@@ -794,8 +776,10 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			AppliedTo: securityv1alpha1.AppliedTo{
-				EndpointGroups: []string{appliedToGroup},
+			AppliedTo: []securityv1alpha1.ApplyToPeer{
+				{
+					EndpointSelector: appliedTo.endpointSelector,
+				},
 			},
 			IngressRules: []securityv1alpha1.Rule{
 				{
@@ -803,8 +787,10 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 					Ports: []securityv1alpha1.SecurityPolicyPort{
 						*ingressPort,
 					},
-					From: securityv1alpha1.SecurityPolicyPeer{
-						EndpointGroups: []string{ingressGroup},
+					From: []securityv1alpha1.SecurityPolicyPeer{
+						{
+							EndpointSelector: ingress.endpointSelector,
+						},
 					},
 				},
 			},
@@ -814,8 +800,10 @@ func newTestPolicy(appliedToGroup, ingressGroup, egressGroup string, ingressPort
 					Ports: []securityv1alpha1.SecurityPolicyPort{
 						*egressPort,
 					},
-					To: securityv1alpha1.SecurityPolicyPeer{
-						EndpointGroups: []string{egressGroup},
+					To: []securityv1alpha1.SecurityPolicyPeer{
+						{
+							EndpointSelector: egress.endpointSelector,
+						},
 					},
 				},
 			},
@@ -849,23 +837,40 @@ func newTestEndpoint(ip types.IPAddress) *securityv1alpha1.Endpoint {
 	}
 }
 
-func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) *groupv1alpha1.GroupMembers {
-	name := "members-test-" + rand.String(6)
+type testGroup struct {
+	*groupv1alpha1.GroupMembers
+	endpointSelector *metav1.LabelSelector
+}
 
+func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) *testGroup {
+	var testGroup = new(testGroup)
 	var groupMembers []groupv1alpha1.GroupMember
+	var namespaceDefault = metav1.NamespaceDefault
+
 	for _, member := range members {
 		groupMembers = append(groupMembers, *member)
 	}
 
-	return &groupv1alpha1.GroupMembers{
+	testGroup.endpointSelector = &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			rand.String(10): rand.String(10),
+		},
+	}
+
+	testGroup.GroupMembers = &groupv1alpha1.GroupMembers{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name: policy.GenerateGroupName(&groupv1alpha1.EndpointGroupSpec{
+				EndpointSelector: testGroup.endpointSelector,
+				Namespace:        &namespaceDefault,
+			}),
 			Namespace: metav1.NamespaceNone,
 			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Revision:     revision,
 		GroupMembers: groupMembers,
 	}
+
+	return testGroup
 }
 
 func newTestGroupMembersPatch(groupName string, revision int32, addMember, updMember, delMember *groupv1alpha1.GroupMember) *groupv1alpha1.GroupMembersPatch {
