@@ -16,7 +16,10 @@ limitations under the License.
 
 package model
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Endpoint is a network communication entity. It's provided by the endpoint provider,
 // it could be a virtual machine, a pod, an ovs port or other entities.
@@ -47,6 +50,13 @@ type EndpointStatus struct {
 	Host string
 	// LocalID is the endpoint unique identity on host
 	LocalID string
+}
+
+func (es *EndpointStatus) String() string {
+	if es != nil {
+		return fmt.Sprintf("%+v", *es)
+	}
+	return ""
 }
 
 // EndpointProvider provides an interface to manage the lifecycle of the endpoint.
