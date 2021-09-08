@@ -18,6 +18,8 @@ package cases
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,6 +29,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/klog"
 
+	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
+	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/tests/e2e/framework"
 )
 
@@ -38,7 +42,7 @@ var (
 )
 
 func TestE2e(t *testing.T) {
-	RegisterFailHandlerWithT(t, Fail)
+	RegisterFailHandlerWithT(t, E2eFail)
 	RunSpecsWithDefaultAndCustomReporters(t, "Lynx e2e Suite", []Reporter{})
 }
 
@@ -70,3 +74,41 @@ const (
 	tier1 = "tier1"
 	tier2 = "tier2"
 )
+
+func E2eFail(message string, callerSkip ...int) {
+	const splitLine = "------------------------\n"
+
+	// Dump and print flows
+	flows, err := e2eEnv.NodeManager().DumpFlowAll()
+	if err == nil {
+		raw, _ := json.Marshal(flows)
+		fmt.Printf("%sDump Flows:\n%s\n\n", splitLine, string(raw))
+	}
+
+	// Dump and print SecurityPolicies
+	policyList := securityv1alpha1.SecurityPolicyList{}
+	err = e2eEnv.KubeClient().List(ctx, &policyList)
+	if err == nil {
+		raw, _ := json.Marshal(policyList)
+		fmt.Printf("%sDump Policies:\n%s\n\n", splitLine, string(raw))
+	}
+
+	// Dump and print Endpoints
+	endpointList := securityv1alpha1.EndpointList{}
+	err = e2eEnv.KubeClient().List(ctx, &endpointList)
+	if err == nil {
+		raw, _ := json.Marshal(endpointList)
+		fmt.Printf("%sDump Endpoints:\n%s\n\n", splitLine, string(raw))
+	}
+
+	// Dump and print PolicyRules
+	policyRuleList := policyrulev1alpha1.PolicyRuleList{}
+	err = e2eEnv.KubeClient().List(ctx, &policyRuleList)
+	if err == nil {
+		raw, _ := json.Marshal(policyRuleList)
+		fmt.Printf("%sDump PolicyRules:\n%s\n\n", splitLine, string(raw))
+	}
+
+	// Final call ginkgo Fail
+	Fail(message, callerSkip...)
+}
