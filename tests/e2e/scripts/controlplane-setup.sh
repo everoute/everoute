@@ -83,6 +83,14 @@ function start_lynxcontroller() {
   nohup /usr/local/bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
 }
 
+function wait_lynxcontroller_ready() {
+  for n in {1..10}; do
+    curl -sk https://127.0.0.1:9443/healthz && return
+    printf "retry %d: failed wait for controller up\n" $n
+    sleep 1
+  done
+}
+
 function generate_certs() {
   local cert_path=${1}
   local apiserver_addr=${2:-127.0.0.1}
@@ -220,5 +228,6 @@ setup_crds
 setup_rbac
 setup_webhook ${CERT_PATH}
 
-echo "build and start lynx controller"
+echo "build start and wait lynx controller"
 start_lynxcontroller
+wait_lynxcontroller_ready
