@@ -7,6 +7,7 @@ require (
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/contiv/libovsdb v0.0.0
 	github.com/contiv/ofnet v0.0.0-00010101000000-000000000000
 	github.com/coreos/go-iptables v0.6.0
@@ -20,6 +21,7 @@ require (
 	github.com/j-keck/arping v1.0.2
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.15.0
+	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.1
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5

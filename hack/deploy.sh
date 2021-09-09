@@ -34,29 +34,9 @@ function wait_for_up() {
   done
 }
 
-temp_dir=$(mktemp -d)
 local_path=$(dirname "$(readlink -f ${0})")
-crds_path=${local_path}/../deploy/crds
-lynxcontroller_deploypath=${local_path}/../deploy/lynx-controller
+kubectl apply -f ${local_path}/../deploy/lynx.yaml
 
-echo "gen lynx controller tls certs"
-(
-  openssl req -x509 -newkey rsa:2048 -keyout ${temp_dir}/ca.key -out ${temp_dir}/ca.crt -days 365 -nodes -subj "/CN=ca"
-  openssl genrsa -out ${temp_dir}/tls.key
-  openssl req -new -key ${temp_dir}/tls.key -out ${temp_dir}/tls.csr -subj "/CN=server"
-  openssl x509 -req -in ${temp_dir}/tls.csr -CA ${temp_dir}/ca.crt -CAkey ${temp_dir}/ca.key -CAcreateserial -out ${temp_dir}/tls.crt -days 36500 -extfile <(printf "subjectAltName=DNS:lynx-validator-webhook.kube-system.svc")
-) 1>/dev/null 2>/dev/null
-
-### create crds
-kubectl apply -f ${crds_path}
-
-### create secret for validate-webhook
-kubectl create secret tls -n kube-system lynx-controller-tls --cert ${temp_dir}/tls.crt --key ${temp_dir}/tls.key
-
-### create lynx-controller
-cp -r ${lynxcontroller_deploypath} ${temp_dir}
-sed -i "s/caBundle: Cg==/caBundle: $(base64 -w0 < ${temp_dir}/ca.crt)/g" ${temp_dir}/lynx-controller/webhook.yaml
-kubectl apply -f ${temp_dir}/lynx-controller
 
 ### wait for pods setup
 wait_for_up lynx-controller

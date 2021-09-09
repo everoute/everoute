@@ -6,7 +6,7 @@ metadata:
 webhooks:
   - clientConfig:
       # CaBundle must set as the ca for secret lynx-controller-tls.
-      caBundle: Cg==
+      caBundle:
       service:
         name: lynx-validator-webhook
         namespace: kube-system
