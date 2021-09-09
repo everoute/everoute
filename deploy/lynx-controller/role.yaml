@@ -11,6 +11,7 @@ rules:
   resources:
   - configmaps
   - events
+  - secrets
   verbs:
   - patch
   - create
@@ -19,6 +20,13 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - update
+  - get
 - apiGroups:
   - ""
   resources:

@@ -112,21 +112,6 @@ function generate_certs() {
   ) 1>/dev/null 2>/dev/null
 }
 
-function generate_lynx_controller_certs() {
-  local cert_path=${1}
-
-  mkdir -p ${cert_path}
-
-  local cakey_path=${cert_path}/ca.key
-  local cacert_path=${cert_path}/ca.crt
-
-  (
-    openssl genrsa -out ${cert_path}/tls.key
-    openssl req -new -key ${cert_path}/tls.key -out ${cert_path}/tls.csr -subj "/CN=lynx-controller"
-    openssl x509 -req -in ${cert_path}/tls.csr -CA ${cacert_path} -CAkey ${cakey_path} -CAcreateserial -out ${cert_path}/tls.crt -days 36500 -extfile <(printf "subjectAltName=IP:127.0.0.1")
-  ) 1>/dev/null 2>/dev/null
-}
-
 function setup_crds() {
   local crds_path=${BASEDIR}/deploy/crds
   kubectl apply -f ${crds_path}
@@ -141,15 +126,6 @@ function setup_rbac() {
 
   kubectl apply -f ${lynx_agent_rbac_path}/rolebinding.yaml
   kubectl apply -f ${lynx_controller_rbac_path}/rolebinding.yaml
-}
-
-function setup_webhook() {
-  local cert_path=${1:-/etc/lynx/pki}
-
-  local cacert_path=${cert_path}/ca.crt
-  local lynx_webhook_path="${BASEDIR}/tests/e2e/config/webhook.yaml"
-
-  sed "s/caBundle: Cg==/caBundle: $(base64 -w0 < ${cacert_path})/g" < ${lynx_webhook_path} | kubectl apply -f -
 }
 
 function generate_kubeconfig() {
@@ -220,13 +196,10 @@ generate_kubeconfig ${CERT_PATH} lynx-agent      "lynx"           /etc/lynx/kube
 generate_kubeconfig ${CERT_PATH} lynx-controller "lynx"           /etc/lynx/kubeconfig/lynx-controller.yaml ${APISERVER_ADDR}
 generate_kubeconfig ${CERT_PATH} kubectl         "system:masters" ~/.kube/config                            ${APISERVER_ADDR}
 
-echo "generate lynx controller certs used for validate webhook"
-generate_lynx_controller_certs ${CERT_PATH}
-
 echo "crds, rbac, validate webhook resource setup"
 setup_crds
 setup_rbac
-setup_webhook ${CERT_PATH}
+kubectl apply -f ${BASEDIR}/tests/e2e/config/webhook.yaml
 
 echo "build start and wait lynx controller"
 start_lynxcontroller

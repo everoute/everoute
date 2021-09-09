@@ -6,7 +6,7 @@ metadata:
 webhooks:
   - clientConfig:
       # CaBundle must set as the ca for secret lynx-controller-tls.
-      caBundle: Cg==
+      caBundle:
       # use local lynx-controller webhook
       url: https://127.0.0.1:9443/validate/crds
     failurePolicy: Fail
