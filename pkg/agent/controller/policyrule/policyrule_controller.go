@@ -197,7 +197,7 @@ func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(ruleId string, rule *netw
 }
 
 func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec) *ofnet.OfnetPolicyRule {
-	ipProtoNo := protocolToInt(rule.IpProtocol)
+	ipProtoNo := protocolToInt(rule.IPProtocol)
 	ruleAction := getRuleAction(rule.Action)
 
 	var rulePriority int
@@ -213,14 +213,14 @@ func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec
 	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
 		RuleId:      ruleId,
 		Priority:    rulePriority,
-		SrcIpAddr:   rule.SrcIpAddr,
-		DstIpAddr:   rule.DstIpAddr,
+		SrcIpAddr:   rule.SrcIPAddr,
+		DstIpAddr:   rule.DstIPAddr,
 		IpProtocol:  ipProtoNo,
 		SrcPort:     rule.SrcPort,
 		SrcPortMask: rule.SrcPortMask,
 		DstPort:     rule.DstPort,
 		DstPortMask: rule.DstPortMask,
-		TcpFlags:    rule.TcpFlags,
+		TcpFlags:    rule.TCPFlags,
 		Action:      ruleAction,
 	}
 
