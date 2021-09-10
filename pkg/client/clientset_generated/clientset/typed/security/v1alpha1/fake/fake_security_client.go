@@ -32,6 +32,10 @@ func (c *FakeSecurityV1alpha1) Endpoints(namespace string) v1alpha1.EndpointInte
 	return &FakeEndpoints{c, namespace}
 }
 
+func (c *FakeSecurityV1alpha1) GlobalPolicies() v1alpha1.GlobalPolicyInterface {
+	return &FakeGlobalPolicies{c}
+}
+
 func (c *FakeSecurityV1alpha1) SecurityPolicies(namespace string) v1alpha1.SecurityPolicyInterface {
 	return &FakeSecurityPolicies{c, namespace}
 }

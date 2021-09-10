@@ -279,6 +279,20 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	globalPolicyController, err := controller.New("global-policy-controller", mgr, controller.Options{
+		// Serial handle GlobalPolicy event
+		MaxConcurrentReconciles: 1,
+		Reconciler:              reconcile.Func(r.ReconcileGlobalPolicy),
+	})
+	if err != nil {
+		return err
+	}
+
+	err = globalPolicyController.Watch(&source.Kind{Type: &securityv1alpha1.GlobalPolicy{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

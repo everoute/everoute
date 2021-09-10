@@ -93,6 +93,14 @@ func E2eFail(message string, callerSkip ...int) {
 		fmt.Printf("%sDump Policies:\n%s\n\n", splitLine, string(raw))
 	}
 
+	// Dump and print GlobalPolicy
+	globalPolicyList := securityv1alpha1.GlobalPolicyList{}
+	err = e2eEnv.KubeClient().List(ctx, &globalPolicyList)
+	if err == nil {
+		raw, _ := json.Marshal(globalPolicyList)
+		fmt.Printf("%sDump GlobalPolicy:\n%s\n\n", splitLine, string(raw))
+	}
+
 	// Dump and print Endpoints
 	endpointList := securityv1alpha1.EndpointList{}
 	err = e2eEnv.KubeClient().List(ctx, &endpointList)

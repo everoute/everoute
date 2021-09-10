@@ -38,8 +38,6 @@ spec:
             properties:
               action:
                 type: string
-              defaultPolicyRule:
-                type: boolean
               direction:
                 type: string
               dstIpAddr:
@@ -49,6 +47,8 @@ spec:
               dstPortMask:
                 type: integer
               ipProtocol:
+                type: string
+              ruleType:
                 type: string
               srcIpAddr:
                 type: string
@@ -64,6 +64,7 @@ spec:
             - action
             - direction
             - ipProtocol
+            - ruleType
             - tcpFlags
             type: object
           status:

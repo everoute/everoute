@@ -257,3 +257,47 @@ type EndpointList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Endpoint `json:"items"`
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:noStatus
+// +k8s:openapi-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+
+// GlobalPolicy allow defines default action of traffics and global
+// ip whitelist. Only one GlobalPolicy can exist on kubernetes.
+type GlobalPolicy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec GlobalPolicySpec `json:"spec,omitempty"`
+}
+
+type GlobalPolicySpec struct {
+	// DefaultAction defines global traffic action
+	// +optional
+	// +kubebuilder:default="Allow"
+	DefaultAction GlobalDefaultAction `json:"defaultAction,omitempty"`
+
+	// Whitelist defines IPBlocks than always allow traffics.
+	// +optional
+	Whitelist []networkingv1.IPBlock `json:"whitelist,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=Allow;Drop
+type GlobalDefaultAction string
+
+const (
+	GlobalDefaultActionAllow GlobalDefaultAction = "Allow"
+	GlobalDefaultActionDrop  GlobalDefaultAction = "Drop"
+)
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type GlobalPolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []GlobalPolicy `json:"items"`
+}

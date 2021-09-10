@@ -17,12 +17,20 @@ limitations under the License.
 package constants
 
 const (
-	NormalPolicyRulePriority  = 100
-	DefaultPolicyRulePriority = 10
+	NormalPolicyRulePriority        = 100
+	DefaultPolicyRulePriority       = 10
+	GlobalDefaultPolicyRulePriority = 5
 
 	DefaultMaxConcurrentReconciles   = 4
 	NumOfRetainedGroupMembersPatches = 3
 	DependentsCleanFinalizer         = "finalizer.lynx.smartx.com/dependentsclean"
 	OwnerGroupLabelKey               = "label.lynx.smartx.com/ownergroup"
 	OwnerPolicyLabelKey              = "label.lynx.smartx.com/ownerpolicy"
+	IsGlobalPolicyRuleLabel          = "label.lynx.smartx.com/isglobalpolicy"
+
+	// Tier0 used for isolation policy
+	Tier0 = "tier0"
+	// Tier1 used for security policy and global policy
+	Tier1 = "tier1"
+	Tier2 = "tier2"
 )

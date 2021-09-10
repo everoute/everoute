@@ -112,19 +112,24 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, po
 }
 
 func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction policyv1alpha1.RuleDirection, port RulePort) policyv1alpha1.PolicyRule {
+	var ruleType policyv1alpha1.RuleType = policyv1alpha1.RuleTypeNormalRule
+	if rule.DefaultPolicyRule {
+		ruleType = policyv1alpha1.RuleTypeDefaultRule
+	}
+
 	policyRule := policyv1alpha1.PolicyRule{
 		Spec: policyv1alpha1.PolicyRuleSpec{
-			Direction:         direction,
-			DefaultPolicyRule: rule.DefaultPolicyRule,
-			Tier:              rule.Tier,
-			SrcIpAddr:         srcIPBlock,
-			DstIpAddr:         dstIPBlock,
-			IpProtocol:        string(port.Protocol),
-			SrcPort:           port.SrcPort,
-			DstPort:           port.DstPort,
-			SrcPortMask:       port.SrcPortMask,
-			DstPortMask:       port.DstPortMask,
-			Action:            rule.Action,
+			Direction:   direction,
+			RuleType:    ruleType,
+			Tier:        rule.Tier,
+			SrcIpAddr:   srcIPBlock,
+			DstIpAddr:   dstIPBlock,
+			IpProtocol:  string(port.Protocol),
+			SrcPort:     port.SrcPort,
+			DstPort:     port.DstPort,
+			SrcPortMask: port.SrcPortMask,
+			DstPortMask: port.DstPortMask,
+			Action:      rule.Action,
 		},
 	}
 

@@ -19,6 +19,7 @@ package cases
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
@@ -509,6 +511,81 @@ var _ = Describe("SecurityPolicy", func() {
 	})
 })
 
+var _ = Describe("GlobalPolicy", func() {
+	AfterEach(func() {
+		Expect(e2eEnv.ResetResource(ctx)).Should(Succeed())
+	})
+
+	Context("environment with global drop policy [Feature:GlobalPolicy]", func() {
+		var endpointA, endpointB, endpointC *model.Endpoint
+		var tcpPort int
+
+		BeforeEach(func() {
+			tcpPort = rand.IntnRange(1000, 5000)
+
+			endpointA = &model.Endpoint{Name: "ep.a", TCPPort: tcpPort}
+			endpointB = &model.Endpoint{Name: "ep.b", TCPPort: tcpPort}
+			endpointC = &model.Endpoint{Name: "ep.c", TCPPort: tcpPort}
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
+		})
+
+		It("should allow all traffics between endpoints", func() {
+			securityModel := &SecurityModel{
+				Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+			}
+			By("verify reachable between endpoints")
+			expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+			assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+		})
+
+		When("create global drop policy", func() {
+			var globalPolicy *securityv1alpha1.GlobalPolicy
+
+			BeforeEach(func() {
+				// drop all traffics between endpoints
+				globalPolicy = newGlobalPolicy(securityv1alpha1.GlobalDefaultActionDrop)
+				Expect(e2eEnv.SetupObjects(ctx, globalPolicy)).Should(Succeed())
+			})
+
+			It("should limits all traffics between endpoints", func() {
+				securityModel := &SecurityModel{
+					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+				}
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(false)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+			})
+
+			When("add endpointA and endpointB to whitelist", func() {
+				BeforeEach(func() {
+					updatePolicy := globalPolicy.DeepCopy()
+
+					for _, ep := range []*model.Endpoint{endpointA, endpointB} {
+						ip, _, err := net.ParseCIDR(ep.Status.IPAddr)
+						Expect(err).Should(Succeed())
+						ipCidr := fmt.Sprintf("%s/32", ip.String())
+						updatePolicy.Spec.Whitelist = append(updatePolicy.Spec.Whitelist, networkingv1.IPBlock{CIDR: ipCidr})
+					}
+
+					Expect(e2eEnv.KubeClient().Patch(ctx, updatePolicy, client.MergeFrom(globalPolicy))).Should(Succeed())
+				})
+
+				It("should allow all traffics between endpointA and endpointB", func() {
+					securityModel := &SecurityModel{
+						Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+					}
+					By("verify reachable between endpoints")
+					expectedTruthTable := securityModel.NewEmptyTruthTable(false)
+					expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
+					expectedTruthTable.Set(endpointB.Name, endpointA.Name, true)
+					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+				})
+			})
+		})
+	})
+})
+
 func newGroup(name string, selector map[string]string) *groupv1alpha1.EndpointGroup {
 	group := &groupv1alpha1.EndpointGroup{}
 	group.Name = name
@@ -539,6 +616,21 @@ func newPolicy(name, tier string, appliedGroup []string, endpoints []string) *se
 	}
 
 	return policy
+}
+
+func newGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whitelist ...string) *securityv1alpha1.GlobalPolicy {
+	var policy securityv1alpha1.GlobalPolicy
+
+	policy.Name = rand.String(6)
+	policy.Spec.DefaultAction = defaultAction
+
+	for _, cidr := range whitelist {
+		policy.Spec.Whitelist = append(policy.Spec.Whitelist, networkingv1.IPBlock{
+			CIDR: cidr,
+		})
+	}
+
+	return &policy
 }
 
 func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, peers ...string) {

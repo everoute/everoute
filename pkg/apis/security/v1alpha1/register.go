@@ -32,6 +32,8 @@ func init() {
 		&SecurityPolicyList{},
 		&Tier{},
 		&TierList{},
+		&GlobalPolicy{},
+		&GlobalPolicyList{},
 	)
 }
 

@@ -201,9 +201,12 @@ func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec
 	ruleAction := getRuleAction(rule.Action)
 
 	var rulePriority int
-	if rule.DefaultPolicyRule {
+	switch rule.RuleType {
+	case networkpolicyv1alpha1.RuleTypeDefaultRule:
 		rulePriority = constants.DefaultPolicyRulePriority
-	} else {
+	case networkpolicyv1alpha1.RuleTypeGlobalDefaultRule:
+		rulePriority = constants.GlobalDefaultPolicyRulePriority
+	default:
 		rulePriority = constants.NormalPolicyRulePriority
 	}
 
