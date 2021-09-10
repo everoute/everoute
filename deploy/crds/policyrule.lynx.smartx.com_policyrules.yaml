@@ -40,7 +40,7 @@ spec:
                 type: string
               direction:
                 type: string
-              dstIpAddr:
+              dstIPAddr:
                 type: string
               dstPort:
                 type: integer
@@ -50,7 +50,7 @@ spec:
                 type: string
               ruleType:
                 type: string
-              srcIpAddr:
+              srcIPAddr:
                 type: string
               srcPort:
                 type: integer

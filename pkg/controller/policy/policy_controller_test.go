@@ -942,11 +942,11 @@ func assertHasPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityP
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIpAddr &&
+				srcCidr == rule.Spec.SrcIPAddr &&
 				srcPort == rule.Spec.SrcPort &&
-				dstCidr == rule.Spec.DstIpAddr &&
+				dstCidr == rule.Spec.DstIPAddr &&
 				dstPort == rule.Spec.DstPort &&
-				protocol == rule.Spec.IpProtocol {
+				protocol == rule.Spec.IPProtocol {
 				return true
 			}
 		}
@@ -966,13 +966,13 @@ func assertHasPolicyRuleWithPortRange(ctx context.Context, policy *securityv1alp
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIpAddr &&
+				srcCidr == rule.Spec.SrcIPAddr &&
 				srcPort == rule.Spec.SrcPort &&
 				srcPortMask == rule.Spec.SrcPortMask &&
-				dstCidr == rule.Spec.DstIpAddr &&
+				dstCidr == rule.Spec.DstIPAddr &&
 				dstPort == rule.Spec.DstPort &&
 				dstPortMask == rule.Spec.DstPortMask &&
-				protocol == rule.Spec.IpProtocol {
+				protocol == rule.Spec.IPProtocol {
 				return true
 			}
 		}
@@ -993,11 +993,11 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 			if tier == rule.Spec.Tier &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIpAddr &&
+				srcCidr == rule.Spec.SrcIPAddr &&
 				srcPort == rule.Spec.SrcPort &&
-				dstCidr == rule.Spec.DstIpAddr &&
+				dstCidr == rule.Spec.DstIPAddr &&
 				dstPort == rule.Spec.DstPort &&
-				protocol == rule.Spec.IpProtocol {
+				protocol == rule.Spec.IPProtocol {
 				return true
 			}
 		}

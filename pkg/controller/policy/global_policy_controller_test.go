@@ -169,8 +169,8 @@ func assertHasGlobalPolicyRule(ctx context.Context, ruleType, direction, action,
 				ruleType == string(rule.Spec.RuleType) &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIpAddr &&
-				dstCidr == rule.Spec.DstIpAddr {
+				srcCidr == rule.Spec.SrcIPAddr &&
+				dstCidr == rule.Spec.DstIPAddr {
 				return true
 			}
 		}

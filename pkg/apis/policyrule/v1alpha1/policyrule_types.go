@@ -50,14 +50,14 @@ type PolicyRuleSpec struct {
 	Direction   RuleDirection `json:"direction"`
 	RuleType    RuleType      `json:"ruleType"`
 	Tier        string        `json:"tier,omitempty"`
-	SrcIpAddr   string        `json:"srcIpAddr,omitempty"`
-	DstIpAddr   string        `json:"dstIpAddr,omitempty"`
-	IpProtocol  string        `json:"ipProtocol"`
+	SrcIPAddr   string        `json:"srcIPAddr,omitempty"`
+	DstIPAddr   string        `json:"dstIPAddr,omitempty"`
+	IPProtocol  string        `json:"ipProtocol"`
 	SrcPort     uint16        `json:"srcPort,omitempty"`
 	DstPort     uint16        `json:"dstPort,omitempty"`
 	SrcPortMask uint16        `json:"srcPortMask,omitempty"`
 	DstPortMask uint16        `json:"dstPortMask,omitempty"`
-	TcpFlags    string        `json:"tcpFlags"`
+	TCPFlags    string        `json:"tcpFlags"`
 	Action      RuleAction    `json:"action"`
 }
 
