@@ -4,10 +4,13 @@ go 1.15
 
 require (
 	github.com/99designs/gqlgen v0.13.0
+	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
+	github.com/agiledragon/gomonkey v2.0.2+incompatible
 	github.com/cenk/hub v1.0.1 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
-	github.com/cenkalti/backoff v2.2.1+incompatible
+	github.com/contiv/libOpenflow v0.0.0-20200107061746-e3817550c83b
 	github.com/contiv/libovsdb v0.0.0
 	github.com/contiv/ofnet v0.0.0-00010101000000-000000000000
 	github.com/coreos/go-iptables v0.6.0
@@ -23,6 +26,7 @@ require (
 	github.com/onsi/gomega v1.15.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.1
+	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
@@ -43,6 +47,6 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/echkenluo/libOpenflow v0.0.0-20210415080703-4361a8a1982d
 	github.com/contiv/libovsdb => github.com/smartxworks/libovsdb v0.0.0-20210326110222-6c508538aa65
-	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210903030657-a5b8731936a3
+	github.com/contiv/ofnet => github.com/smartxworks/ofnet v0.0.0-20210916105058-744ca2656e54
 	github.com/osrg/gobgp => github.com/zwtop/gobgp v0.0.0-20210127101833-12edfc1f4514
 )
