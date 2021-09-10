@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -86,6 +87,13 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 		Version: "v1alpha1",
 		Kind:    "Tier",
 	}, &tierValidator{v.client})
+
+	// security.lynx.smartx.com/v1alpha1 globalpolicy validator
+	v.register(metav1.GroupVersionKind{
+		Group:   "security.lynx.smartx.com",
+		Version: "v1alpha1",
+		Kind:    "GlobalPolicy",
+	}, &globalPolicyValidator{v.client})
 
 	return v
 }
@@ -420,7 +428,7 @@ func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo 
 // validateRule validates if the rule with validate value
 func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error {
 	for _, ipBlock := range append(rule.From.IPBlocks, rule.To.IPBlocks...) {
-		err := v.validateIPBlock(ipBlock)
+		err := validateIPBlock(ipBlock)
 		if err != nil {
 			return err
 		}
@@ -436,7 +444,7 @@ func (v *securityPolicyValidator) validateRule(rule securityv1alpha1.Rule) error
 	return nil
 }
 
-func (v *securityPolicyValidator) validateIPBlock(ipBlock networkingv1.IPBlock) error {
+func validateIPBlock(ipBlock networkingv1.IPBlock) error {
 	_, cidrIPNet, err := net.ParseCIDR(ipBlock.CIDR)
 	if err != nil {
 		return fmt.Errorf("unvalid cidr %s: %s", ipBlock.CIDR, err)
@@ -526,5 +534,61 @@ func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, u
 }
 
 func (v securityPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+	return "", true
+}
+
+type globalPolicyValidator resourceValidator
+
+func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+	policy := curObj.(*securityv1alpha1.GlobalPolicy)
+	policyList := securityv1alpha1.GlobalPolicyList{}
+
+	if err := v.List(context.Background(), &policyList); err != nil {
+		return err.Error(), false
+	}
+
+	switch len(policyList.Items) {
+	case 1:
+		if policyList.Items[0].Name != policy.Name {
+			return "cannot create multiple global policies", false
+		}
+
+		// Two situations can lead to create GlobalPolicy with name already exist:
+		// 1. GlobalPolicy with this name already delete, but local cache havenot sync yet.
+		// 2. Due to retry create (e.g. kubectl apply always try to create resource first).
+		// In both cases, we should keep quiet. And leave to handle by apiserver.
+		fallthrough
+	case 0:
+		for _, ipBlock := range policy.Spec.Whitelist {
+			err := validateIPBlock(ipBlock)
+			if err != nil {
+				return fmt.Sprintf("validate ipBlock %+v: %s", ipBlock, err), false
+			}
+		}
+		return "", true
+	default:
+		return "cannot create multiple global policies", false
+	}
+}
+
+func (v globalPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+	policyOld := oldObj.(*securityv1alpha1.GlobalPolicy)
+	policyNew := curObj.(*securityv1alpha1.GlobalPolicy)
+
+	if reflect.DeepEqual(policyOld.Spec, policyNew.Spec) {
+		return "", true
+	}
+
+	for _, ipBlock := range policyNew.Spec.Whitelist {
+		err := validateIPBlock(ipBlock)
+		if err != nil {
+			return fmt.Sprintf("validate ipBlock %+v: %s", ipBlock, err), false
+		}
+	}
+
+	return "", true
+}
+
+func (v globalPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	return "", true
 }

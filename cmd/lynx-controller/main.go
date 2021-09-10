@@ -20,14 +20,11 @@ import (
 	"flag"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	policyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	clientsetscheme "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
 	endpointctrl "github.com/smartxworks/lynx/pkg/controller/endpoint"
 	groupctrl "github.com/smartxworks/lynx/pkg/controller/group"
 	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
@@ -35,16 +32,8 @@ import (
 	towerplugin "github.com/smartxworks/lynx/plugin/tower/pkg/register"
 )
 
-var (
-	scheme = runtime.NewScheme()
-)
-
 func init() {
-	_ = agentv1alpha1.AddToScheme(scheme)
-	_ = securityv1alpha1.AddToScheme(scheme)
-	_ = groupv1alpha1.AddToScheme(scheme)
-	_ = policyv1alpha1.AddToScheme(scheme)
-	_ = corev1.AddToScheme(scheme)
+	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
@@ -67,7 +56,7 @@ func main() {
 	flag.Parse()
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
+		Scheme:                  clientsetscheme.Scheme,
 		MetricsBindAddress:      metricsAddr,
 		Port:                    serverPort,
 		LeaderElection:          enableLeaderElection,

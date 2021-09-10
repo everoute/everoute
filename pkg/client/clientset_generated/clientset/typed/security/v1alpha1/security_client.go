@@ -27,6 +27,7 @@ import (
 type SecurityV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	EndpointsGetter
+	GlobalPoliciesGetter
 	SecurityPoliciesGetter
 	TiersGetter
 }
@@ -38,6 +39,10 @@ type SecurityV1alpha1Client struct {
 
 func (c *SecurityV1alpha1Client) Endpoints(namespace string) EndpointInterface {
 	return newEndpoints(c, namespace)
+}
+
+func (c *SecurityV1alpha1Client) GlobalPolicies() GlobalPolicyInterface {
+	return newGlobalPolicies(c)
 }
 
 func (c *SecurityV1alpha1Client) SecurityPolicies(namespace string) SecurityPolicyInterface {

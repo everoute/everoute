@@ -47,19 +47,27 @@ type PolicyRuleList struct {
 
 // PolicyRuleSpec defines the desired state of PolicyRule
 type PolicyRuleSpec struct {
-	Direction         RuleDirection `json:"direction"`
-	DefaultPolicyRule bool          `json:"defaultPolicyRule,omitempty"`
-	Tier              string        `json:"tier,omitempty"`
-	SrcIpAddr         string        `json:"srcIpAddr,omitempty"`
-	DstIpAddr         string        `json:"dstIpAddr,omitempty"`
-	IpProtocol        string        `json:"ipProtocol"`
-	SrcPort           uint16        `json:"srcPort,omitempty"`
-	DstPort           uint16        `json:"dstPort,omitempty"`
-	SrcPortMask       uint16        `json:"srcPortMask,omitempty"`
-	DstPortMask       uint16        `json:"dstPortMask,omitempty"`
-	TcpFlags          string        `json:"tcpFlags"`
-	Action            RuleAction    `json:"action"`
+	Direction   RuleDirection `json:"direction"`
+	RuleType    RuleType      `json:"ruleType"`
+	Tier        string        `json:"tier,omitempty"`
+	SrcIpAddr   string        `json:"srcIpAddr,omitempty"`
+	DstIpAddr   string        `json:"dstIpAddr,omitempty"`
+	IpProtocol  string        `json:"ipProtocol"`
+	SrcPort     uint16        `json:"srcPort,omitempty"`
+	DstPort     uint16        `json:"dstPort,omitempty"`
+	SrcPortMask uint16        `json:"srcPortMask,omitempty"`
+	DstPortMask uint16        `json:"dstPortMask,omitempty"`
+	TcpFlags    string        `json:"tcpFlags"`
+	Action      RuleAction    `json:"action"`
 }
+
+type RuleType string
+
+const (
+	RuleTypeGlobalDefaultRule RuleType = "GlobalDefaultRule"
+	RuleTypeDefaultRule       RuleType = "DefaultRule"
+	RuleTypeNormalRule        RuleType = "NormalRule"
+)
 
 type RuleAction string
 

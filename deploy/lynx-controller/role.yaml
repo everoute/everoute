@@ -58,6 +58,7 @@ rules:
   - securitypolicies/status
   - endpoints
   - endpoints/status
+  - globalpolicies
   verbs:
   - patch
   - update

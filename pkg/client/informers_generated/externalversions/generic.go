@@ -74,6 +74,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=security.lynx.smartx.com, Version=v1alpha1
 	case securityv1alpha1.SchemeGroupVersion.WithResource("endpoints"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().Endpoints().Informer()}, nil
+	case securityv1alpha1.SchemeGroupVersion.WithResource("globalpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().GlobalPolicies().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("securitypolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().SecurityPolicies().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("tiers"):

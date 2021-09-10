@@ -27,6 +27,7 @@ webhooks:
           - securitypolicies
           - tiers
           - endpoints
+          - globalpolicies
       - apiGroups:
           - group.lynx.smartx.com
         apiVersions:

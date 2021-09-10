@@ -161,6 +161,11 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 		return len(groups.Items) == 0, nil
 	})
 
+	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.GlobalPolicy{})
+	if err != nil {
+		return fmt.Errorf("clean GlobalPolicy: %s", err)
+	}
+
 	return nil
 }
 

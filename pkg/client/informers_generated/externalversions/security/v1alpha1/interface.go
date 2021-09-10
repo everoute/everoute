@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// Endpoints returns a EndpointInformer.
 	Endpoints() EndpointInformer
+	// GlobalPolicies returns a GlobalPolicyInformer.
+	GlobalPolicies() GlobalPolicyInformer
 	// SecurityPolicies returns a SecurityPolicyInformer.
 	SecurityPolicies() SecurityPolicyInformer
 	// Tiers returns a TierInformer.
@@ -46,6 +48,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Endpoints returns a EndpointInformer.
 func (v *version) Endpoints() EndpointInformer {
 	return &endpointInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// GlobalPolicies returns a GlobalPolicyInformer.
+func (v *version) GlobalPolicies() GlobalPolicyInformer {
+	return &globalPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // SecurityPolicies returns a SecurityPolicyInformer.
