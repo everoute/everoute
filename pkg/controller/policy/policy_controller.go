@@ -148,69 +148,25 @@ func (r *PolicyReconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, err
 	}
 
-	endpointReferencePolicy, err := r.endpointReferencePolicy(ctx, endpoint)
+	endpointIndexValue := k8stypes.NamespacedName{
+		Namespace: endpoint.GetNamespace(),
+		Name:      endpoint.GetName(),
+	}.String()
+
+	securityPolicyList := securityv1alpha1.SecurityPolicyList{}
+	err = r.List(ctx, &securityPolicyList, client.MatchingFields{constants.SecurityPolicyByEndpointIndex: endpointIndexValue})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	for i := 0; i < len(endpointReferencePolicy); i++ {
-		_, err = r.processPolicyUpdate(ctx, &endpointReferencePolicy[i])
+	for index := range securityPolicyList.Items {
+		_, err = r.processPolicyUpdate(ctx, &securityPolicyList.Items[index])
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *PolicyReconciler) endpointReferencePolicy(ctx context.Context,
-	endpoint securityv1alpha1.Endpoint) ([]securityv1alpha1.SecurityPolicy, error) {
-	var policyList securityv1alpha1.SecurityPolicyList
-	var referencePolicyList []securityv1alpha1.SecurityPolicy
-
-	err := r.List(ctx, &policyList)
-	if client.IgnoreNotFound(err) != nil {
-		klog.Errorf("failed fetch policyList, error: %s", err)
-		return referencePolicyList, err
-	}
-
-	for _, policy := range policyList.Items {
-		policyReferenceEndpoints := getPolicyReferenceEndpoints(policy)
-		for _, ep := range policyReferenceEndpoints {
-			if ep.Name == endpoint.GetName() && ep.Namespace == endpoint.GetNamespace() {
-				referencePolicyList = append(referencePolicyList, policy)
-				break
-			}
-		}
-	}
-
-	return referencePolicyList, err
-}
-
-func getPolicyReferenceEndpoints(policy securityv1alpha1.SecurityPolicy) []k8stypes.NamespacedName {
-	var referencedEndpoints []k8stypes.NamespacedName
-
-	for _, appliedTo := range policy.Spec.AppliedTo {
-		if appliedTo.Endpoint != nil {
-			referencedEndpoints = append(referencedEndpoints, k8stypes.NamespacedName{
-				Namespace: policy.GetNamespace(),
-				Name:      *appliedTo.Endpoint,
-			})
-		}
-	}
-
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		for _, peer := range append(rule.From, rule.To...) {
-			if peer.Endpoint != nil {
-				referencedEndpoints = append(referencedEndpoints, k8stypes.NamespacedName{
-					Namespace: peer.Endpoint.Namespace,
-					Name:      peer.Endpoint.Name,
-				})
-			}
-		}
-	}
-
-	return referencedEndpoints
 }
 
 func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -328,6 +284,12 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	_ = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
 		constants.SecurityPolicyByEndpointGroupIndex,
 		EndpointGroupIndexSecurityPolicyFunc,
+	)
+
+	// register endpoint index for securityPolicy
+	_ = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
+		constants.SecurityPolicyByEndpointIndex,
+		EndpointIndexSecurityPolicyFunc,
 	)
 
 	return nil
@@ -684,6 +646,31 @@ func posToMask(pos int) uint16 {
 	}
 
 	return ret
+}
+
+func EndpointIndexSecurityPolicyFunc(o runtime.Object) []string {
+	policy := o.(*securityv1alpha1.SecurityPolicy)
+	referencedEndpoints := []string{}
+
+	for _, peer := range policy.Spec.AppliedTo {
+		if peer.Endpoint != nil {
+			ep := k8stypes.NamespacedName{
+				Namespace: policy.GetNamespace(),
+				Name:      *peer.Endpoint,
+			}
+			referencedEndpoints = append(referencedEndpoints, ep.String())
+		}
+	}
+
+	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
+		for _, peer := range append(rule.From, rule.To...) {
+			if peer.Endpoint != nil {
+				referencedEndpoints = append(referencedEndpoints, peer.Endpoint.String())
+			}
+		}
+	}
+
+	return referencedEndpoints
 }
 
 func calPortRangeMask(begin uint16, end uint16, protocol securityv1alpha1.Protocol) []policycache.RulePort {
