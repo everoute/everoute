@@ -81,6 +81,7 @@ func (r *subscriptionResolver) Label(ctx context.Context) (<-chan *model.LabelEv
 	go func() {
 		eventCh, stopWatch := r.TrackerFactory().Label().Watch()
 		defer stopWatch()
+		defer close(labelEventCh)
 
 		for {
 			select {

@@ -67,7 +67,7 @@ const (
 	vnicIndex = "vnicIndex"
 	vmIndex   = "vmIndex"
 
-	externalIDName = "iface-id"
+	ExternalIDName = "iface-id"
 )
 
 // New creates a new instance of controller.
@@ -366,7 +366,7 @@ func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
 
 	labelsMap := make(map[string]string, len(labels))
 	for _, label := range labels {
-		if !validKubernetesLabel(label.(*schema.Label)) {
+		if !ValidKubernetesLabel(label.(*schema.Label)) {
 			klog.Infof("ignore vm %s valid kubernetes labels %+v", vmID, label)
 			continue
 		}
@@ -390,7 +390,7 @@ func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labe
 	ep.Labels = labels
 	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
-	ep.Spec.Reference.ExternalIDName = externalIDName
+	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID
 
 	return !reflect.DeepEqual(ep, epCopy)
@@ -405,7 +405,8 @@ func fetchVnic(vm *schema.VM, vnicKey string) (*schema.VMNic, bool) {
 	return nil, false
 }
 
-func validKubernetesLabel(label *schema.Label) bool {
+// ValidKubernetesLabel check if is a valid kubernetes label
+func ValidKubernetesLabel(label *schema.Label) bool {
 	validKey := len(validation.IsQualifiedName(label.Key)) == 0
 	validValue := len(validation.IsValidLabelValue(label.Value)) == 0
 	return validKey && validValue
