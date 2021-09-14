@@ -55,8 +55,9 @@ type ComplexityRoot struct {
 	}
 
 	LabelEvent struct {
-		Mutation func(childComplexity int) int
-		Node     func(childComplexity int) int
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
 	}
 
 	Login struct {
@@ -65,6 +66,10 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		Login func(childComplexity int, data model.LoginInput) int
+	}
+
+	ObjectReference struct {
+		ID func(childComplexity int) int
 	}
 
 	Query struct {
@@ -88,8 +93,9 @@ type ComplexityRoot struct {
 	}
 
 	VMEvent struct {
-		Mutation func(childComplexity int) int
-		Node     func(childComplexity int) int
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
 	}
 
 	VMNic struct {
@@ -181,6 +187,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.LabelEvent.Node(childComplexity), true
 
+	case "LabelEvent.previousValues":
+		if e.complexity.LabelEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.LabelEvent.PreviousValues(childComplexity), true
+
 	case "Login.token":
 		if e.complexity.Login.Token == nil {
 			break
@@ -199,6 +212,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.Login(childComplexity, args["data"].(model.LoginInput)), true
+
+	case "ObjectReference.id":
+		if e.complexity.ObjectReference.ID == nil {
+			break
+		}
+
+		return e.complexity.ObjectReference.ID(childComplexity), true
 
 	case "Query.labels":
 		if e.complexity.Query.Labels == nil {
@@ -290,6 +310,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.VMEvent.Node(childComplexity), true
+
+	case "VMEvent.previousValues":
+		if e.complexity.VMEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.VMEvent.PreviousValues(childComplexity), true
 
 	case "VMNic.enabled":
 		if e.complexity.VMNic.Enabled == nil {
@@ -477,11 +504,17 @@ enum UserSource {
 type VMEvent {
     mutation: MutationType!
     node: VM!
+    previousValues: ObjectReference
 }
 
 type LabelEvent {
     mutation: MutationType!
     node: Label!
+    previousValues: ObjectReference
+}
+
+type ObjectReference {
+    id: ID!
 }
 
 enum MutationType {
@@ -823,6 +856,38 @@ func (ec *executionContext) _LabelEvent_node(ctx context.Context, field graphql.
 	return ec.marshalNLabel2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _LabelEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.LabelEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "LabelEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Login_token(ctx context.Context, field graphql.CollectedField, obj *model.Login) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -898,6 +963,41 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	res := resTmp.(*model.Login)
 	fc.Result = res
 	return ec.marshalNLogin2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ObjectReference_id(ctx context.Context, field graphql.CollectedField, obj *schema.ObjectReference) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ObjectReference",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_vms(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1441,6 +1541,38 @@ func (ec *executionContext) _VMEvent_node(ctx context.Context, field graphql.Col
 	res := resTmp.(*schema.VM)
 	fc.Result = res
 	return ec.marshalNVM2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _VMEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "VMEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMNic_id(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
@@ -2975,6 +3107,8 @@ func (ec *executionContext) _LabelEvent(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "previousValues":
+			out.Values[i] = ec._LabelEvent_previousValues(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3030,6 +3164,33 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = graphql.MarshalString("Mutation")
 		case "login":
 			out.Values[i] = ec._Mutation_login(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var objectReferenceImplementors = []string{"ObjectReference"}
+
+func (ec *executionContext) _ObjectReference(ctx context.Context, sel ast.SelectionSet, obj *schema.ObjectReference) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, objectReferenceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ObjectReference")
+		case "id":
+			out.Values[i] = ec._ObjectReference_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -3199,6 +3360,8 @@ func (ec *executionContext) _VMEvent(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "previousValues":
+			out.Values[i] = ec._VMEvent_previousValues(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4065,6 +4228,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	return graphql.MarshalBoolean(*v)
+}
+
+func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v *schema.ObjectReference) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ObjectReference(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {

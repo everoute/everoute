@@ -33,11 +33,17 @@ enum UserSource {
 type VMEvent {
     mutation: MutationType!
     node: VM!
+    previousValues: ObjectReference
 }
 
 type LabelEvent {
     mutation: MutationType!
     node: Label!
+    previousValues: ObjectReference
+}
+
+type ObjectReference {
+    id: ID!
 }
 
 enum MutationType {

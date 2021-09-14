@@ -11,8 +11,9 @@ import (
 )
 
 type LabelEvent struct {
-	Mutation MutationType  `json:"mutation"`
-	Node     *schema.Label `json:"node"`
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.Label           `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type Login struct {
@@ -26,8 +27,9 @@ type LoginInput struct {
 }
 
 type VMEvent struct {
-	Mutation MutationType `json:"mutation"`
-	Node     *schema.VM   `json:"node"`
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.VM              `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type MutationType string

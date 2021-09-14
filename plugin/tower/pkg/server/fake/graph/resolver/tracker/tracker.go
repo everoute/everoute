@@ -134,16 +134,16 @@ func (w *Tracker) Watch() (eventCh <-chan *Event, stopWatch func()) {
 	return eventChan, w.stopWatchFunc(eventChan)
 }
 
+// Reset delete all resources
 func (w *Tracker) Reset() {
 	w.Lock()
 	defer w.Unlock()
 
-	for watcher := range w.watchers {
-		close(watcher)
+	for _, item := range w.items {
+		w.notifyLocked(&Event{Type: model.MutationTypeDeleted, Object: item})
 	}
 
 	w.items = make(map[string]interface{})
-	w.watchers = make(map[chan<- *Event]struct{})
 }
 
 func (w *Tracker) notifyLocked(event *Event) {
