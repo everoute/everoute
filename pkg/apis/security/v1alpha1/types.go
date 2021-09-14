@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/smartxworks/lynx/pkg/types"
 )
@@ -180,6 +181,11 @@ type NamespacedName struct {
 	Name string `json:"name"`
 	// Namespace defines the space within which the resource name must be unique.
 	Namespace string `json:"namespace"`
+}
+
+// String returns the general purpose string representation
+func (n NamespacedName) String() string {
+	return n.Namespace + string(k8stypes.Separator) + n.Name
 }
 
 // +kubebuilder:validation:Enum=TCP;UDP;ICMP

@@ -36,7 +36,6 @@ type CompleteRule struct {
 	// RuleID is an unique identifier of rule, it's always set to policyName/ruleName.
 	RuleID string
 
-	Priority  int32
 	Tier      string
 	Action    policyv1alpha1.RuleAction
 	Direction policyv1alpha1.RuleDirection

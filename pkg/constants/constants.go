@@ -34,5 +34,6 @@ const (
 	Tier1 = "tier1"
 	Tier2 = "tier2"
 
+	SecurityPolicyByEndpointIndex      = "SecurityPolicyByEndpointIndex"
 	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
 )
