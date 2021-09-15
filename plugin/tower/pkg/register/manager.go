@@ -25,7 +25,7 @@ import (
 	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
 	"github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/controller"
+	"github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
 )
 
@@ -77,7 +77,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	towerFactory := informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
-	endpointController := controller.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
+	endpointController := endpoint.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
 		towerFactory.Start(stopChan)
