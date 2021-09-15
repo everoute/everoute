@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller_test
+package endpoint_test
 
 import (
 	"testing"
@@ -28,7 +28,7 @@ import (
 	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
 	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/fake"
 	"github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/controller"
+	controller "github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
 	fakeserver "github.com/smartxworks/lynx/plugin/tower/pkg/server/fake"
 )
