@@ -60,6 +60,10 @@ var _ = Describe("pod controller", func() {
 				GenerateName: "pod1",
 				Name:         "pod1",
 				Namespace:    "default",
+				Labels: map[string]string{
+					"label1": "value1",
+					"label2": "value2",
+				},
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -100,6 +104,9 @@ var _ = Describe("pod controller", func() {
 			Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
 			Expect(endpoint.Spec.Reference.ExternalIDName).Should(Equal("pod-uuid"))
 			Expect(endpoint.Spec.Reference.ExternalIDValue).Should(Equal(externalIDValue))
+			Expect(len(endpoint.ObjectMeta.Labels)).Should(Equal(2))
+			Expect(endpoint.ObjectMeta.Labels["label1"]).Should(Equal("value1"))
+			Expect(endpoint.ObjectMeta.Labels["label2"]).Should(Equal("value2"))
 
 			podList := corev1.PodList{}
 			Expect(k8sClient.Delete(ctx, pod)).Should(Succeed())
