@@ -63,13 +63,15 @@ rules:
   resources:
   - tiers
   - securitypolicies
-  - securitypolicies/status
   - endpoints
   - endpoints/status
   - globalpolicies
   verbs:
   - patch
+  - create
   - update
+  - delete
+  - deletecollection
   - get
   - list
   - watch

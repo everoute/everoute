@@ -5,7 +5,6 @@ go 1.15
 require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
-	github.com/agiledragon/gomonkey v2.0.2+incompatible
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0

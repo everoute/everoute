@@ -18,6 +18,7 @@ package register
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -26,6 +27,7 @@ import (
 	"github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
+	"github.com/smartxworks/lynx/plugin/tower/pkg/controller/policy"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
 )
 
@@ -36,6 +38,8 @@ type Options struct {
 	ResyncPeriod time.Duration
 	WorkerNumber uint
 	Namespace    string
+	// which EverouteCluster should synchronize SecurityPolicy from
+	EverouteCluster string
 }
 
 // InitFlags set and load options from flagset.
@@ -59,6 +63,7 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), "", "Tower user source for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), "", "Tower user password for authenticate")
 	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
+	flagset.StringVar(&opts.EverouteCluster, withPrefix("everoute-cluster"), "", "Which EverouteCluster should synchronize SecurityPolicy from")
 	flagset.UintVar(&opts.WorkerNumber, withPrefix("worker-number"), 10, "Controller worker number")
 	flagset.DurationVar(&opts.ResyncPeriod, withPrefix("resync-period"), 10*time.Hour, "Controller resync period")
 }
@@ -67,6 +72,10 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 func AddToManager(opts *Options, mgr manager.Manager) error {
 	if opts.Enable != nil && !*opts.Enable {
 		return nil
+	}
+
+	if opts.EverouteCluster == "" {
+		return fmt.Errorf("must specify one EverouteCluster")
 	}
 
 	crdClient, err := clientset.NewForConfig(mgr.GetConfig())
@@ -78,11 +87,16 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
 	endpointController := endpoint.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
+	policyController := policy.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
 		towerFactory.Start(stopChan)
 		crdFactory.Start(stopChan)
-		endpointController.Run(opts.WorkerNumber, stopChan)
+
+		go endpointController.Run(opts.WorkerNumber, stopChan)
+		go policyController.Run(opts.WorkerNumber, stopChan)
+
+		<-stopChan
 		return nil
 	}))
 

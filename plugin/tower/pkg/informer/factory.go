@@ -42,6 +42,10 @@ type SharedInformerFactory interface {
 	VM() cache.SharedIndexInformer
 	// Label return informer for &schema.Label{}
 	Label() cache.SharedIndexInformer
+	// SecurityPolicy return informer for &schema.SecurityPolicy{}
+	SecurityPolicy() cache.SharedIndexInformer
+	// IsolationPolicy return informer for &schema.IsolationPolicy{}
+	IsolationPolicy() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -111,6 +115,16 @@ func (f *sharedInformerFactory) VM() cache.SharedIndexInformer {
 // Label implements SharedInformerFactory.Label
 func (f *sharedInformerFactory) Label() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.Label{})
+}
+
+// SecurityPolicy implements SharedInformerFactory.SecurityPolicy
+func (f *sharedInformerFactory) SecurityPolicy() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.SecurityPolicy{})
+}
+
+// IsolationPolicy implements SharedInformerFactory.IsolationPolicy
+func (f *sharedInformerFactory) IsolationPolicy() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.IsolationPolicy{})
 }
 
 // InformerFor implements SharedInformerFactory.InformerFor

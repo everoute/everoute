@@ -48,6 +48,24 @@ func (r *queryResolver) Labels(ctx context.Context) ([]schema.Label, error) {
 	return labels, nil
 }
 
+func (r *queryResolver) SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error) {
+	policyList := r.TrackerFactory().SecurityPolicy().List()
+	policies := make([]schema.SecurityPolicy, 0, len(policyList))
+	for _, policy := range policyList {
+		policies = append(policies, *policy.(*schema.SecurityPolicy))
+	}
+	return policies, nil
+}
+
+func (r *queryResolver) IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error) {
+	policyList := r.TrackerFactory().IsolationPolicy().List()
+	policies := make([]schema.IsolationPolicy, 0, len(policyList))
+	for _, policy := range policyList {
+		policies = append(policies, *policy.(*schema.IsolationPolicy))
+	}
+	return policies, nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -100,6 +118,60 @@ func (r *subscriptionResolver) Label(ctx context.Context) (<-chan *model.LabelEv
 	}()
 
 	return labelEventCh, nil
+}
+
+func (r *subscriptionResolver) SecurityPolicy(ctx context.Context) (<-chan *model.SecurityPolicyEvent, error) {
+	var policyEventCh = make(chan *model.SecurityPolicyEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().SecurityPolicy().Watch()
+		defer stopWatch()
+		defer close(policyEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				policyEventCh <- &model.SecurityPolicyEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.SecurityPolicy),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return policyEventCh, nil
+}
+
+func (r *subscriptionResolver) IsolationPolicy(ctx context.Context) (<-chan *model.IsolationPolicyEvent, error) {
+	var policyEventCh = make(chan *model.IsolationPolicyEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().IsolationPolicy().Watch()
+		defer stopWatch()
+		defer close(policyEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				policyEventCh <- &model.IsolationPolicyEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.IsolationPolicy),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return policyEventCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

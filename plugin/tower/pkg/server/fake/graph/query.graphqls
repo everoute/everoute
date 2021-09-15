@@ -2,12 +2,16 @@
 type Query {
     vms: [VM!]!
     labels: [Label!]!
+    securityPolicies: [SecurityPolicy!]!
+    isolationPolicies: [IsolationPolicy!]!
 }
 
 # mock tower subscribe vm and label
 type Subscription {
     vm: VMEvent!
     label: LabelEvent!
+    securityPolicy: SecurityPolicyEvent!
+    isolationPolicy: IsolationPolicyEvent!
 }
 
 # mock tower user login
@@ -39,6 +43,18 @@ type VMEvent {
 type LabelEvent {
     mutation: MutationType!
     node: Label!
+    previousValues: ObjectReference
+}
+
+type SecurityPolicyEvent {
+    mutation: MutationType!
+    node: SecurityPolicy!
+    previousValues: ObjectReference
+}
+
+type IsolationPolicyEvent {
+    mutation: MutationType!
+    node: IsolationPolicy!
     previousValues: ObjectReference
 }
 
