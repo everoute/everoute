@@ -1,0 +1,50 @@
+type SecurityPolicy {
+    id: ID!
+    everoute_cluster: ObjectReference!
+    apply_to: [SecurityPolicyApply!]!
+    ingress: [NetworkPolicyRule!]
+    egress: [NetworkPolicyRule!]
+}
+
+type SecurityPolicyApply {
+    communicable: Boolean!
+    selector: [ObjectReference!]!
+}
+
+type IsolationPolicy {
+    id: ID!
+    everoute_cluster: ObjectReference!
+    vm: ObjectReference!
+    mode: IsolationMode!
+    ingress: [NetworkPolicyRule!]
+    egress: [NetworkPolicyRule!]
+}
+
+enum IsolationMode {
+    ALL
+    PARTIAL
+}
+
+type NetworkPolicyRule {
+    ip_block: String
+    ports: [NetworkPolicyRulePort!]
+    selector: [ObjectReference!]
+    type: NetworkPolicyRuleType!
+}
+
+type NetworkPolicyRulePort {
+    port: String
+    protocol: NetworkPolicyRulePortProtocol!
+}
+
+enum NetworkPolicyRulePortProtocol {
+    ICMP
+    TCP
+    UDP
+}
+
+enum NetworkPolicyRuleType {
+    ALL
+    IP_BLOCK
+    SELECTOR
+}

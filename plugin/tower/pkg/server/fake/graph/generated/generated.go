@@ -47,6 +47,21 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	IsolationPolicy struct {
+		Egress          func(childComplexity int) int
+		EverouteCluster func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Ingress         func(childComplexity int) int
+		Mode            func(childComplexity int) int
+		VM              func(childComplexity int) int
+	}
+
+	IsolationPolicyEvent struct {
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
+	}
+
 	Label struct {
 		ID    func(childComplexity int) int
 		Key   func(childComplexity int) int
@@ -68,18 +83,53 @@ type ComplexityRoot struct {
 		Login func(childComplexity int, data model.LoginInput) int
 	}
 
+	NetworkPolicyRule struct {
+		IPBlock  func(childComplexity int) int
+		Ports    func(childComplexity int) int
+		Selector func(childComplexity int) int
+		Type     func(childComplexity int) int
+	}
+
+	NetworkPolicyRulePort struct {
+		Port     func(childComplexity int) int
+		Protocol func(childComplexity int) int
+	}
+
 	ObjectReference struct {
 		ID func(childComplexity int) int
 	}
 
 	Query struct {
-		Labels func(childComplexity int) int
-		Vms    func(childComplexity int) int
+		IsolationPolicies func(childComplexity int) int
+		Labels            func(childComplexity int) int
+		SecurityPolicies  func(childComplexity int) int
+		Vms               func(childComplexity int) int
+	}
+
+	SecurityPolicy struct {
+		ApplyTo         func(childComplexity int) int
+		Egress          func(childComplexity int) int
+		EverouteCluster func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Ingress         func(childComplexity int) int
+	}
+
+	SecurityPolicyApply struct {
+		Communicable func(childComplexity int) int
+		Selector     func(childComplexity int) int
+	}
+
+	SecurityPolicyEvent struct {
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
 	}
 
 	Subscription struct {
-		Label func(childComplexity int) int
-		VM    func(childComplexity int) int
+		IsolationPolicy func(childComplexity int) int
+		Label           func(childComplexity int) int
+		SecurityPolicy  func(childComplexity int) int
+		VM              func(childComplexity int) int
 	}
 
 	VM struct {
@@ -124,10 +174,14 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Vms(ctx context.Context) ([]schema.VM, error)
 	Labels(ctx context.Context) ([]schema.Label, error)
+	SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error)
+	IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error)
 }
 type SubscriptionResolver interface {
 	VM(ctx context.Context) (<-chan *model.VMEvent, error)
 	Label(ctx context.Context) (<-chan *model.LabelEvent, error)
+	SecurityPolicy(ctx context.Context) (<-chan *model.SecurityPolicyEvent, error)
+	IsolationPolicy(ctx context.Context) (<-chan *model.IsolationPolicyEvent, error)
 }
 
 type executableSchema struct {
@@ -144,6 +198,69 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "IsolationPolicy.egress":
+		if e.complexity.IsolationPolicy.Egress == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.Egress(childComplexity), true
+
+	case "IsolationPolicy.everoute_cluster":
+		if e.complexity.IsolationPolicy.EverouteCluster == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.EverouteCluster(childComplexity), true
+
+	case "IsolationPolicy.id":
+		if e.complexity.IsolationPolicy.ID == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.ID(childComplexity), true
+
+	case "IsolationPolicy.ingress":
+		if e.complexity.IsolationPolicy.Ingress == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.Ingress(childComplexity), true
+
+	case "IsolationPolicy.mode":
+		if e.complexity.IsolationPolicy.Mode == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.Mode(childComplexity), true
+
+	case "IsolationPolicy.vm":
+		if e.complexity.IsolationPolicy.VM == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.VM(childComplexity), true
+
+	case "IsolationPolicyEvent.mutation":
+		if e.complexity.IsolationPolicyEvent.Mutation == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicyEvent.Mutation(childComplexity), true
+
+	case "IsolationPolicyEvent.node":
+		if e.complexity.IsolationPolicyEvent.Node == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicyEvent.Node(childComplexity), true
+
+	case "IsolationPolicyEvent.previousValues":
+		if e.complexity.IsolationPolicyEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicyEvent.PreviousValues(childComplexity), true
 
 	case "Label.id":
 		if e.complexity.Label.ID == nil {
@@ -213,12 +330,61 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.Login(childComplexity, args["data"].(model.LoginInput)), true
 
+	case "NetworkPolicyRule.ip_block":
+		if e.complexity.NetworkPolicyRule.IPBlock == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.IPBlock(childComplexity), true
+
+	case "NetworkPolicyRule.ports":
+		if e.complexity.NetworkPolicyRule.Ports == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.Ports(childComplexity), true
+
+	case "NetworkPolicyRule.selector":
+		if e.complexity.NetworkPolicyRule.Selector == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.Selector(childComplexity), true
+
+	case "NetworkPolicyRule.type":
+		if e.complexity.NetworkPolicyRule.Type == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.Type(childComplexity), true
+
+	case "NetworkPolicyRulePort.port":
+		if e.complexity.NetworkPolicyRulePort.Port == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRulePort.Port(childComplexity), true
+
+	case "NetworkPolicyRulePort.protocol":
+		if e.complexity.NetworkPolicyRulePort.Protocol == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRulePort.Protocol(childComplexity), true
+
 	case "ObjectReference.id":
 		if e.complexity.ObjectReference.ID == nil {
 			break
 		}
 
 		return e.complexity.ObjectReference.ID(childComplexity), true
+
+	case "Query.isolationPolicies":
+		if e.complexity.Query.IsolationPolicies == nil {
+			break
+		}
+
+		return e.complexity.Query.IsolationPolicies(childComplexity), true
 
 	case "Query.labels":
 		if e.complexity.Query.Labels == nil {
@@ -227,6 +393,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Labels(childComplexity), true
 
+	case "Query.securityPolicies":
+		if e.complexity.Query.SecurityPolicies == nil {
+			break
+		}
+
+		return e.complexity.Query.SecurityPolicies(childComplexity), true
+
 	case "Query.vms":
 		if e.complexity.Query.Vms == nil {
 			break
@@ -234,12 +407,96 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Vms(childComplexity), true
 
+	case "SecurityPolicy.apply_to":
+		if e.complexity.SecurityPolicy.ApplyTo == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.ApplyTo(childComplexity), true
+
+	case "SecurityPolicy.egress":
+		if e.complexity.SecurityPolicy.Egress == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.Egress(childComplexity), true
+
+	case "SecurityPolicy.everoute_cluster":
+		if e.complexity.SecurityPolicy.EverouteCluster == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.EverouteCluster(childComplexity), true
+
+	case "SecurityPolicy.id":
+		if e.complexity.SecurityPolicy.ID == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.ID(childComplexity), true
+
+	case "SecurityPolicy.ingress":
+		if e.complexity.SecurityPolicy.Ingress == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.Ingress(childComplexity), true
+
+	case "SecurityPolicyApply.communicable":
+		if e.complexity.SecurityPolicyApply.Communicable == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicyApply.Communicable(childComplexity), true
+
+	case "SecurityPolicyApply.selector":
+		if e.complexity.SecurityPolicyApply.Selector == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicyApply.Selector(childComplexity), true
+
+	case "SecurityPolicyEvent.mutation":
+		if e.complexity.SecurityPolicyEvent.Mutation == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicyEvent.Mutation(childComplexity), true
+
+	case "SecurityPolicyEvent.node":
+		if e.complexity.SecurityPolicyEvent.Node == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicyEvent.Node(childComplexity), true
+
+	case "SecurityPolicyEvent.previousValues":
+		if e.complexity.SecurityPolicyEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicyEvent.PreviousValues(childComplexity), true
+
+	case "Subscription.isolationPolicy":
+		if e.complexity.Subscription.IsolationPolicy == nil {
+			break
+		}
+
+		return e.complexity.Subscription.IsolationPolicy(childComplexity), true
+
 	case "Subscription.label":
 		if e.complexity.Subscription.Label == nil {
 			break
 		}
 
 		return e.complexity.Subscription.Label(childComplexity), true
+
+	case "Subscription.securityPolicy":
+		if e.complexity.Subscription.SecurityPolicy == nil {
+			break
+		}
+
+		return e.complexity.Subscription.SecurityPolicy(childComplexity), true
 
 	case "Subscription.vm":
 		if e.complexity.Subscription.VM == nil {
@@ -473,12 +730,16 @@ var sources = []*ast.Source{
 type Query {
     vms: [VM!]!
     labels: [Label!]!
+    securityPolicies: [SecurityPolicy!]!
+    isolationPolicies: [IsolationPolicy!]!
 }
 
 # mock tower subscribe vm and label
 type Subscription {
     vm: VMEvent!
     label: LabelEvent!
+    securityPolicy: SecurityPolicyEvent!
+    isolationPolicy: IsolationPolicyEvent!
 }
 
 # mock tower user login
@@ -513,6 +774,18 @@ type LabelEvent {
     previousValues: ObjectReference
 }
 
+type SecurityPolicyEvent {
+    mutation: MutationType!
+    node: SecurityPolicy!
+    previousValues: ObjectReference
+}
+
+type IsolationPolicyEvent {
+    mutation: MutationType!
+    node: IsolationPolicy!
+    previousValues: ObjectReference
+}
+
 type ObjectReference {
     id: ID!
 }
@@ -521,6 +794,57 @@ enum MutationType {
     CREATED
     DELETED
     UPDATED
+}
+`, BuiltIn: false},
+	{Name: "../../schema/policy_types.graphqls", Input: `type SecurityPolicy {
+    id: ID!
+    everoute_cluster: ObjectReference!
+    apply_to: [SecurityPolicyApply!]!
+    ingress: [NetworkPolicyRule!]
+    egress: [NetworkPolicyRule!]
+}
+
+type SecurityPolicyApply {
+    communicable: Boolean!
+    selector: [ObjectReference!]!
+}
+
+type IsolationPolicy {
+    id: ID!
+    everoute_cluster: ObjectReference!
+    vm: ObjectReference!
+    mode: IsolationMode!
+    ingress: [NetworkPolicyRule!]
+    egress: [NetworkPolicyRule!]
+}
+
+enum IsolationMode {
+    ALL
+    PARTIAL
+}
+
+type NetworkPolicyRule {
+    ip_block: String
+    ports: [NetworkPolicyRulePort!]
+    selector: [ObjectReference!]
+    type: NetworkPolicyRuleType!
+}
+
+type NetworkPolicyRulePort {
+    port: String
+    protocol: NetworkPolicyRulePortProtocol!
+}
+
+enum NetworkPolicyRulePortProtocol {
+    ICMP
+    TCP
+    UDP
+}
+
+enum NetworkPolicyRuleType {
+    ALL
+    IP_BLOCK
+    SELECTOR
 }
 `, BuiltIn: false},
 	{Name: "../../schema/types.graphqls", Input: `type VM {
@@ -651,6 +975,312 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _IsolationPolicy_id(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicy_everoute_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EverouteCluster, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicy_vm(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VM, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicy_mode(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.IsolationMode)
+	fc.Result = res
+	return ec.marshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicy_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Ingress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicy_egress(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Egress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicyEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mutation, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.MutationType)
+	fc.Result = res
+	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*schema.IsolationPolicy)
+	fc.Result = res
+	return ec.marshalNIsolationPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IsolationPolicyEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _Label_id(ctx context.Context, field graphql.CollectedField, obj *schema.Label) (ret graphql.Marshaler) {
 	defer func() {
@@ -965,6 +1595,204 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	return ec.marshalNLogin2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _NetworkPolicyRule_ip_block(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IPBlock, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRule_ports(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Ports, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRulePort)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRule_selector(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Selector, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRule_type(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Type, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.NetworkPolicyRuleType)
+	fc.Result = res
+	return ec.marshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRulePort_port(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRulePort) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRulePort",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Port, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRulePort_protocol(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRulePort) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRulePort",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Protocol, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.NetworkPolicyRulePortProtocol)
+	fc.Result = res
+	return ec.marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _ObjectReference_id(ctx context.Context, field graphql.CollectedField, obj *schema.ObjectReference) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1070,6 +1898,76 @@ func (ec *executionContext) _Query_labels(ctx context.Context, field graphql.Col
 	return ec.marshalNLabel2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabelᚄ(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_securityPolicies(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().SecurityPolicies(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.SecurityPolicy)
+	fc.Result = res
+	return ec.marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_isolationPolicies(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().IsolationPolicies(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.IsolationPolicy)
+	fc.Result = res
+	return ec.marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1139,6 +2037,347 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	res := resTmp.(*introspection.Schema)
 	fc.Result = res
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_id(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_everoute_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EverouteCluster, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_apply_to(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ApplyTo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.SecurityPolicyApply)
+	fc.Result = res
+	return ec.marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Ingress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_egress(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Egress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicyApply_communicable(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicyApply",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Communicable, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicyApply_selector(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicyApply",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Selector, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalNObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicyEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mutation, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.MutationType)
+	fc.Result = res
+	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*schema.SecurityPolicy)
+	fc.Result = res
+	return ec.marshalNSecurityPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicyEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicyEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Subscription_vm(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
@@ -1226,6 +2465,96 @@ func (ec *executionContext) _Subscription_label(ctx context.Context, field graph
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
 			ec.marshalNLabelEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_securityPolicy(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().SecurityPolicy(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.SecurityPolicyEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_isolationPolicy(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().IsolationPolicy(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.IsolationPolicyEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -3041,6 +4370,86 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj in
 
 // region    **************************** object.gotpl ****************************
 
+var isolationPolicyImplementors = []string{"IsolationPolicy"}
+
+func (ec *executionContext) _IsolationPolicy(ctx context.Context, sel ast.SelectionSet, obj *schema.IsolationPolicy) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, isolationPolicyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IsolationPolicy")
+		case "id":
+			out.Values[i] = ec._IsolationPolicy_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "everoute_cluster":
+			out.Values[i] = ec._IsolationPolicy_everoute_cluster(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "vm":
+			out.Values[i] = ec._IsolationPolicy_vm(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "mode":
+			out.Values[i] = ec._IsolationPolicy_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "ingress":
+			out.Values[i] = ec._IsolationPolicy_ingress(ctx, field, obj)
+		case "egress":
+			out.Values[i] = ec._IsolationPolicy_egress(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var isolationPolicyEventImplementors = []string{"IsolationPolicyEvent"}
+
+func (ec *executionContext) _IsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, obj *model.IsolationPolicyEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, isolationPolicyEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IsolationPolicyEvent")
+		case "mutation":
+			out.Values[i] = ec._IsolationPolicyEvent_mutation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "node":
+			out.Values[i] = ec._IsolationPolicyEvent_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "previousValues":
+			out.Values[i] = ec._IsolationPolicyEvent_previousValues(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var labelImplementors = []string{"Label"}
 
 func (ec *executionContext) _Label(ctx context.Context, sel ast.SelectionSet, obj *schema.Label) graphql.Marshaler {
@@ -3178,6 +4587,68 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	return out
 }
 
+var networkPolicyRuleImplementors = []string{"NetworkPolicyRule"}
+
+func (ec *executionContext) _NetworkPolicyRule(ctx context.Context, sel ast.SelectionSet, obj *schema.NetworkPolicyRule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkPolicyRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkPolicyRule")
+		case "ip_block":
+			out.Values[i] = ec._NetworkPolicyRule_ip_block(ctx, field, obj)
+		case "ports":
+			out.Values[i] = ec._NetworkPolicyRule_ports(ctx, field, obj)
+		case "selector":
+			out.Values[i] = ec._NetworkPolicyRule_selector(ctx, field, obj)
+		case "type":
+			out.Values[i] = ec._NetworkPolicyRule_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var networkPolicyRulePortImplementors = []string{"NetworkPolicyRulePort"}
+
+func (ec *executionContext) _NetworkPolicyRulePort(ctx context.Context, sel ast.SelectionSet, obj *schema.NetworkPolicyRulePort) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkPolicyRulePortImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkPolicyRulePort")
+		case "port":
+			out.Values[i] = ec._NetworkPolicyRulePort_port(ctx, field, obj)
+		case "protocol":
+			out.Values[i] = ec._NetworkPolicyRulePort_protocol(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var objectReferenceImplementors = []string{"ObjectReference"}
 
 func (ec *executionContext) _ObjectReference(ctx context.Context, sel ast.SelectionSet, obj *schema.ObjectReference) graphql.Marshaler {
@@ -3248,10 +4719,145 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "securityPolicies":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_securityPolicies(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "isolationPolicies":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_isolationPolicies(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
 			out.Values[i] = ec._Query___schema(ctx, field)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var securityPolicyImplementors = []string{"SecurityPolicy"}
+
+func (ec *executionContext) _SecurityPolicy(ctx context.Context, sel ast.SelectionSet, obj *schema.SecurityPolicy) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, securityPolicyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SecurityPolicy")
+		case "id":
+			out.Values[i] = ec._SecurityPolicy_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "everoute_cluster":
+			out.Values[i] = ec._SecurityPolicy_everoute_cluster(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "apply_to":
+			out.Values[i] = ec._SecurityPolicy_apply_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "ingress":
+			out.Values[i] = ec._SecurityPolicy_ingress(ctx, field, obj)
+		case "egress":
+			out.Values[i] = ec._SecurityPolicy_egress(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var securityPolicyApplyImplementors = []string{"SecurityPolicyApply"}
+
+func (ec *executionContext) _SecurityPolicyApply(ctx context.Context, sel ast.SelectionSet, obj *schema.SecurityPolicyApply) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, securityPolicyApplyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SecurityPolicyApply")
+		case "communicable":
+			out.Values[i] = ec._SecurityPolicyApply_communicable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "selector":
+			out.Values[i] = ec._SecurityPolicyApply_selector(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var securityPolicyEventImplementors = []string{"SecurityPolicyEvent"}
+
+func (ec *executionContext) _SecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, obj *model.SecurityPolicyEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, securityPolicyEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SecurityPolicyEvent")
+		case "mutation":
+			out.Values[i] = ec._SecurityPolicyEvent_mutation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "node":
+			out.Values[i] = ec._SecurityPolicyEvent_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "previousValues":
+			out.Values[i] = ec._SecurityPolicyEvent_previousValues(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3280,6 +4886,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_vm(ctx, fields[0])
 	case "label":
 		return ec._Subscription_label(ctx, fields[0])
+	case "securityPolicy":
+		return ec._Subscription_securityPolicy(ctx, fields[0])
+	case "isolationPolicy":
+		return ec._Subscription_isolationPolicy(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -3757,6 +5367,87 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, v interface{}) (schema.IsolationMode, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.IsolationMode(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, sel ast.SelectionSet, v schema.IsolationMode) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNIsolationPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v schema.IsolationPolicy) graphql.Marshaler {
+	return ec._IsolationPolicy(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IsolationPolicy) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIsolationPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNIsolationPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.IsolationPolicy) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._IsolationPolicy(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIsolationPolicyEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.IsolationPolicyEvent) graphql.Marshaler {
+	return ec._IsolationPolicyEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.IsolationPolicyEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._IsolationPolicyEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNLabel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v schema.Label) graphql.Marshaler {
 	return ec._Label(ctx, sel, &v)
 }
@@ -3851,6 +5542,46 @@ func (ec *executionContext) marshalNMutationType2githubᚗcomᚋsmartxworksᚋly
 	return v
 }
 
+func (ec *executionContext) marshalNNetworkPolicyRule2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRule) graphql.Marshaler {
+	return ec._NetworkPolicyRule(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNNetworkPolicyRulePort2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePort) graphql.Marshaler {
+	return ec._NetworkPolicyRulePort(ctx, sel, &v)
+}
+
+func (ec *executionContext) unmarshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, v interface{}) (schema.NetworkPolicyRulePortProtocol, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.NetworkPolicyRulePortProtocol(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePortProtocol) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, v interface{}) (schema.NetworkPolicyRuleType, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.NetworkPolicyRuleType(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRuleType) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNNetworkType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx context.Context, v interface{}) (schema.NetworkType, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.NetworkType(tmp)
@@ -3865,6 +5596,153 @@ func (ec *executionContext) marshalNNetworkType2githubᚗcomᚋsmartxworksᚋlyn
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v schema.ObjectReference) graphql.Marshaler {
+	return ec._ObjectReference(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNSecurityPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicy) graphql.Marshaler {
+	return ec._SecurityPolicy(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicy) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSecurityPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNSecurityPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.SecurityPolicy) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._SecurityPolicy(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSecurityPolicyApply2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicyApply) graphql.Marshaler {
+	return ec._SecurityPolicyApply(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicyApply) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSecurityPolicyApply2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNSecurityPolicyEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.SecurityPolicyEvent) graphql.Marshaler {
+	return ec._SecurityPolicyEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.SecurityPolicyEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._SecurityPolicyEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -4228,6 +6106,126 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	return graphql.MarshalBoolean(*v)
+}
+
+func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRule) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNNetworkPolicyRule2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRulePort) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNNetworkPolicyRulePort2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalOObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
 }
 
 func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v *schema.ObjectReference) graphql.Marshaler {

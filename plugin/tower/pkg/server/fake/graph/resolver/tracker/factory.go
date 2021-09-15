@@ -63,6 +63,14 @@ func (f *Factory) Label() *Tracker {
 	return f.TrackerFor(&schema.Label{}, nil, 0)
 }
 
+func (f *Factory) SecurityPolicy() *Tracker {
+	return f.TrackerFor(&schema.SecurityPolicy{}, nil, 0)
+}
+
+func (f *Factory) IsolationPolicy() *Tracker {
+	return f.TrackerFor(&schema.IsolationPolicy{}, nil, 0)
+}
+
 func (f *Factory) User() *Tracker {
 	var userNameFunc = func(obj interface{}) string {
 		return obj.(*model.User).Name

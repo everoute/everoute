@@ -10,6 +10,12 @@ import (
 	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
 )
 
+type IsolationPolicyEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.IsolationPolicy `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
+}
+
 type LabelEvent struct {
 	Mutation       MutationType            `json:"mutation"`
 	Node           *schema.Label           `json:"node"`
@@ -24,6 +30,12 @@ type LoginInput struct {
 	Password string     `json:"password"`
 	Source   UserSource `json:"source"`
 	Username string     `json:"username"`
+}
+
+type SecurityPolicyEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.SecurityPolicy  `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type VMEvent struct {

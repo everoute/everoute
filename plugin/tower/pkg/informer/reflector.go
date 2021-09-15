@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gertd/go-pluralize"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -294,7 +294,15 @@ func (t *gqlType) TypeName() string {
 		realType = realType.Elem()
 	}
 
-	return strings.ToLower(realType.Name())
+	runesName := []rune(realType.Name())
+	// convert head Upper to Lower
+	for item, r := range runesName {
+		if unicode.IsLower(r) {
+			break
+		}
+		runesName[item] = unicode.ToLower(r)
+	}
+	return string(runesName)
 }
 
 // ListName return name plural with lower cases of the type.
