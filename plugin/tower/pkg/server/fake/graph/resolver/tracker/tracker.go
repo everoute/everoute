@@ -18,6 +18,7 @@ package tracker
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/model"
@@ -59,8 +60,7 @@ func (w *Tracker) Create(obj interface{}) error {
 		return fmt.Errorf("create object %s already exist", obj)
 	}
 
-	w.notifyLocked(&Event{Type: model.MutationTypeCreated, Object: obj})
-	w.items[w.keyFunc(obj)] = obj
+	w.saveItemLocked(obj)
 	return nil
 }
 
@@ -73,8 +73,7 @@ func (w *Tracker) Update(obj interface{}) error {
 		return fmt.Errorf("update object %s not found", obj)
 	}
 
-	w.notifyLocked(&Event{Type: model.MutationTypeUpdated, Object: obj})
-	w.items[w.keyFunc(obj)] = obj
+	w.saveItemLocked(obj)
 	return nil
 }
 
@@ -82,11 +81,23 @@ func (w *Tracker) CreateOrUpdate(obj interface{}) {
 	w.Lock()
 	defer w.Unlock()
 
+	w.saveItemLocked(obj)
+}
+
+func (w *Tracker) saveItemLocked(obj interface{}) {
 	var eventType = model.MutationTypeCreated
 	_, ok := w.items[w.keyFunc(obj)]
 	if ok {
 		eventType = model.MutationTypeUpdated
 	}
+
+	// To avoid the object from being accidentally modified by caller
+	// after it's been added to the tracker, we always store the deep
+	// copy.
+	elem := reflect.ValueOf(obj).Elem()
+	deepcopyobj := reflect.New(elem.Type())
+	deepcopyobj.Elem().Set(elem)
+	obj = deepcopyobj.Interface()
 
 	w.notifyLocked(&Event{Type: eventType, Object: obj})
 	w.items[w.keyFunc(obj)] = obj
