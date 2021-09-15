@@ -23,7 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -58,7 +58,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil && errors.IsNotFound(err) {
 		klog.Infof("Delete endpoint %s", endpointName)
 		endpoint := v1alpha1.Endpoint{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      endpointName,
 				Namespace: req.Namespace,
 			},
@@ -70,28 +70,49 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	// Add new pod
 	// skip host network
 	if pod.Spec.HostNetwork {
 		return ctrl.Result{}, nil
 	}
 
 	endpoint := v1alpha1.Endpoint{}
-	endpoint.Name = endpointName
-	endpoint.Namespace = req.Namespace
-	endpoint.Spec.VID = 0
-	endpoint.Spec.Reference.ExternalIDName = "pod-uuid"
-	endpoint.Spec.Reference.ExternalIDValue = utils.EncodeNamespacedName(types.NamespacedName{
-		Name:      endpointName,
+	endpointReq := types.NamespacedName{
 		Namespace: req.Namespace,
-	})
-
-	// submit creation
-	if err := r.Create(ctx, &endpoint); err != nil {
-		if errors.IsAlreadyExists(err) {
-			return ctrl.Result{}, nil
+		Name:      endpointName,
+	}
+	err := r.Get(ctx, endpointReq, &endpoint)
+	switch errors.ReasonForError(err) {
+	case metav1.StatusReasonNotFound:
+		// add new pod
+		endpoint.Name = endpointName
+		endpoint.Namespace = req.Namespace
+		endpoint.Spec.VID = 0
+		endpoint.Spec.Reference.ExternalIDName = "pod-uuid"
+		endpoint.Spec.Reference.ExternalIDValue = utils.EncodeNamespacedName(types.NamespacedName{
+			Name:      endpointName,
+			Namespace: req.Namespace,
+		})
+		endpoint.ObjectMeta.Labels = map[string]string{}
+		for key, value := range pod.ObjectMeta.Labels {
+			endpoint.ObjectMeta.Labels[key] = value
 		}
-		klog.Errorf("create endpoint %s err: %s", endpointName, err)
+		// submit creation
+		if err := r.Create(ctx, &endpoint); err != nil {
+			klog.Errorf("create endpoint %s err: %s", endpointName, err)
+			return ctrl.Result{}, err
+		}
+	case metav1.StatusReasonUnknown: // no error
+		// update pod
+		for key, value := range pod.ObjectMeta.Labels {
+			endpoint.ObjectMeta.Labels[key] = value
+		}
+		// submit update
+		if err := r.Update(ctx, &endpoint); err != nil {
+			klog.Errorf("update endpoint %s err: %s", endpointName, err)
+			return ctrl.Result{}, err
+		}
+	default: // other errors
+		klog.Errorf("Get endpoint error, err: %s", err)
 		return ctrl.Result{}, err
 	}
 
@@ -112,10 +133,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.Funcs{
-		CreateFunc: r.addPod,
-		DeleteFunc: r.delPod,
-	}); err != nil {
+	if err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -126,28 +144,6 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return nil
-}
-
-func (r *PodReconciler) addPod(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Object == nil {
-		klog.Errorf("receive create event with no object %v", e)
-		return
-	}
-	q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
-}
-
-func (r *PodReconciler) delPod(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	if e.Object == nil {
-		klog.Errorf("receive delete event with no object %v", e)
-		return
-	}
-	q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
 }
 
 func (r *PodReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
