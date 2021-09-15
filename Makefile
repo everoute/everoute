@@ -25,13 +25,14 @@ plugins:
 	CGO_ENABLED=0 go build -o bin/lynx-plugin-tower plugin/tower/cmd/*.go
 
 test:
-	go test ./pkg/... -v
+	go test ./plugin/tower/pkg/controller/... ./pkg/... -v
 
 cover-test:
-	go test ./pkg/... -coverprofile=coverage.out -coverpkg=./pkg/...
+	go test ./plugin/tower/pkg/controller/... ./pkg/... -coverprofile=coverage.out \
+		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 
 race-test:
-	go test ./pkg/... -race
+	go test ./plugin/tower/pkg/controller/... ./pkg/... -race
 
 e2e-test:
 	go test ./tests/e2e/...
