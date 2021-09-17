@@ -85,3 +85,18 @@ jobs:
 
       - name: run e2e test cases
         run: sudo -H make e2e-test
+
+  generate-check:
+    runs-on: [ubuntu-20.04]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: make docker-generate
+        run: sudo sh -c "make images && make docker-generate"
+
+      - name: check if code changes
+        run: sudo sh -c "git add -A && git diff HEAD --exit-code"
+
+      - name: show message if failed
+        if: ${{ failure() }}
+        run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."

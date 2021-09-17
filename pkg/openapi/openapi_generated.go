@@ -1289,13 +1289,13 @@ func schema_pkg_apis_policyrule_v1alpha1_PolicyRuleSpec(ref common.ReferenceCall
 							Format: "",
 						},
 					},
-					"srcIpAddr": {
+					"srcIPAddr": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
 						},
 					},
-					"dstIpAddr": {
+					"dstIPAddr": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
