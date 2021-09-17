@@ -17,9 +17,12 @@ limitations under the License.
 package tracker
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/model"
 )
@@ -94,13 +97,15 @@ func (w *Tracker) saveItemLocked(obj interface{}) {
 	// To avoid the object from being accidentally modified by caller
 	// after it's been added to the tracker, we always store the deep
 	// copy.
-	elem := reflect.ValueOf(obj).Elem()
-	deepcopyobj := reflect.New(elem.Type())
-	deepcopyobj.Elem().Set(elem)
-	obj = deepcopyobj.Interface()
+	deepcopyobj := reflect.New(reflect.ValueOf(obj).Elem().Type()).Interface()
+	raw, e1 := json.Marshal(obj)
+	e2 := json.Unmarshal(raw, deepcopyobj)
+	if e1 != nil || e2 != nil {
+		panic(errors.NewAggregate([]error{e1, e2}))
+	}
 
-	w.notifyLocked(&Event{Type: eventType, Object: obj})
-	w.items[w.keyFunc(obj)] = obj
+	w.notifyLocked(&Event{Type: eventType, Object: deepcopyobj})
+	w.items[w.keyFunc(obj)] = deepcopyobj
 }
 
 func (w *Tracker) Delete(key string) error {
