@@ -267,7 +267,7 @@ func (r *NodeReconciler) UpdateNetwork() {
 }
 
 // Reconcile receive node from work queue, synchronize network config
-func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("NodeReconciler received node %s reconcile", req.NamespacedName)
 
 	r.UpdateNetwork()

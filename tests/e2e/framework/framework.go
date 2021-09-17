@@ -24,7 +24,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,7 +96,7 @@ func (f *Framework) KubeClient() client.Client {
 func (f *Framework) SetupObjects(ctx context.Context, objects ...metav1.Object) error {
 	for _, object := range objects {
 		err := wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
-			err = f.kubeClient.Create(ctx, object.(runtime.Object).DeepCopyObject())
+			err = f.kubeClient.Create(ctx, object.(client.Object).DeepCopyObject().(client.Object))
 			return err == nil || errors.IsAlreadyExists(err), nil
 		})
 		if err != nil {
@@ -110,15 +109,15 @@ func (f *Framework) SetupObjects(ctx context.Context, objects ...metav1.Object) 
 
 func (f *Framework) CleanObjects(ctx context.Context, objects ...metav1.Object) error {
 	for _, object := range objects {
-		err := f.kubeClient.Delete(ctx, object.(runtime.Object).DeepCopyObject())
+		err := f.kubeClient.Delete(ctx, object.(client.Object).DeepCopyObject().(client.Object))
 		if client.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("unable remove object %s: %s", object.GetName(), err)
 		}
 
 		err = wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
 			var objKey = types.NamespacedName{Name: object.GetName(), Namespace: object.GetNamespace()}
-			var obj = object.(runtime.Object)
-			var getErr = f.kubeClient.Get(ctx, objKey, obj.DeepCopyObject())
+			var obj = object.(client.Object)
+			var getErr = f.kubeClient.Get(ctx, objKey, obj.DeepCopyObject().(client.Object))
 			return errors.IsNotFound(getErr), nil
 		})
 		if err != nil {

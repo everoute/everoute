@@ -243,9 +243,9 @@ var removeObject = func() {
 // createAndWait will create an object and wait until the object could be get.
 func createAndWait(cli client.Client, obj metav1.Object, options ...client.CreateOption) {
 	ctx := context.Background()
-	Expect(cli.Create(ctx, obj.(runtime.Object).DeepCopyObject(), options...)).Should(Succeed())
+	Expect(cli.Create(ctx, obj.(client.Object).DeepCopyObject().(client.Object), options...)).Should(Succeed())
 	Eventually(func() error {
-		return cli.Get(ctx, client.ObjectKey{Namespace: obj.GetNamespace(), Name: obj.GetName()}, obj.(runtime.Object).DeepCopyObject())
+		return cli.Get(ctx, client.ObjectKey{Namespace: obj.GetNamespace(), Name: obj.GetName()}, obj.(client.Object).DeepCopyObject().(client.Object))
 	}, timeout, interval).Should(Succeed())
 }
 

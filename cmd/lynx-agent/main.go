@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"net"
 	"time"
@@ -106,12 +107,12 @@ func main() {
 			}
 		},
 	})
-	go agentmonitor.Run(stopChan)
+	go agentmonitor.Run(stopChan.Done()) //nolint
 
-	<-stopChan
+	<-stopChan.Done()
 }
 
-func startManager(scheme *runtime.Scheme, agent *ofnet.OfnetAgent, stopChan <-chan struct{}) (manager.Manager, error) {
+func startManager(scheme *runtime.Scheme, agent *ofnet.OfnetAgent, stopChan context.Context) (manager.Manager, error) { //nolint
 	var metricsAddr string
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)

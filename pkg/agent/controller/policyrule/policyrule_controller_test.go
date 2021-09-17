@@ -27,12 +27,12 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
@@ -175,7 +175,7 @@ func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *Pol
 func processQueue(r reconcile.Reconciler, q workqueue.RateLimitingInterface) error {
 	for i := 0; i < q.Len(); i++ {
 		request, _ := q.Get()
-		if _, err := r.Reconcile(request.(ctrl.Request)); err != nil {
+		if _, err := r.Reconcile(context.Background(), request.(ctrl.Request)); err != nil {
 			return err
 		}
 		q.Done(request)
@@ -187,10 +187,10 @@ func processQueue(r reconcile.Reconciler, q workqueue.RateLimitingInterface) err
 func TestProcessPolicyRule(t *testing.T) {
 	// AddPolicyRule event
 	t.Run("PolicyRule add", func(t *testing.T) {
-		reconciler.addPolicyRule(event.CreateEvent{
-			Meta:   policyRule1.GetObjectMeta(),
-			Object: policyRule1,
-		}, queue)
+		queue.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+			Name:      policyRule1.GetName(),
+			Namespace: policyRule1.GetNamespace(),
+		}})
 
 		if err := processQueue(reconciler, queue); err != nil {
 			t.Errorf("failed to process add policyRule1 %v.", policyRule1)
@@ -205,10 +205,10 @@ func TestProcessPolicyRule(t *testing.T) {
 
 	// UpdatePolicyRule event: delete event && add event
 	t.Run("PolicyRule Del", func(t *testing.T) {
-		reconciler.addPolicyRule(event.CreateEvent{
-			Meta:   policyRule2.GetObjectMeta(),
-			Object: policyRule2,
-		}, queue)
+		queue.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+			Name:      policyRule2.GetName(),
+			Namespace: policyRule2.GetNamespace(),
+		}})
 
 		if err := processQueue(reconciler, queue); err != nil {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
@@ -220,10 +220,10 @@ func TestProcessPolicyRule(t *testing.T) {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
 
-		reconciler.deletePolicyRule(event.DeleteEvent{
-			Meta:   policyRule2.GetObjectMeta(),
-			Object: policyRule2,
-		}, queue)
+		queue.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+			Name:      policyRule2.GetName(),
+			Namespace: policyRule2.GetNamespace(),
+		}})
 
 		ctx := context.Background()
 		reconciler.Delete(ctx, policyRule2)

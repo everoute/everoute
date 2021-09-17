@@ -33,7 +33,7 @@ import (
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
-func (r *PolicyReconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
+func (r *PolicyReconciler) ReconcileGlobalPolicy(_ context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	var newPolicyRule, oldPolicyRule rulev1alpha1.PolicyRuleList
 
 	err := r.ReadClient.List(context.Background(), &oldPolicyRule, client.HasLabels{

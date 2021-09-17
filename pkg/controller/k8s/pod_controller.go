@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
@@ -47,8 +48,7 @@ type PodReconciler struct {
 }
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
-func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("PodReconciler received pod %s reconcile", req.NamespacedName)
 
 	pod := corev1.Pod{}
@@ -138,25 +138,17 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err = c.Watch(&source.Kind{Type: &v1alpha1.Endpoint{}}, &handler.Funcs{
-		CreateFunc: r.addEndpoint,
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			if strings.HasPrefix(e.Object.GetName(), "pod-") {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      strings.TrimPrefix(e.Object.GetName(), "pod-"),
+					Namespace: e.Object.GetNamespace(),
+				}})
+			}
+		},
 	}); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (r *PodReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Object == nil {
-		klog.Errorf("receive create event with no object %v", e)
-		return
-	}
-
-	// only handle endpoint with "pod-" prefix
-	if strings.HasPrefix(e.Meta.GetName(), "pod-") {
-		q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
-			Namespace: e.Meta.GetNamespace(),
-			Name:      strings.TrimPrefix(e.Meta.GetName(), "pod-"),
-		}})
-	}
 }

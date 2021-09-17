@@ -93,6 +93,7 @@ var _ = Describe("GroupController", func() {
 
 					By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 					Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+					ep.Status.IPs = append(ep.Status.IPs, "192.168.1.1")
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 				})
 				It("should create patch add the endpoint", func() {
@@ -112,6 +113,7 @@ var _ = Describe("GroupController", func() {
 
 				By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				ep.Status.IPs = append(ep.Status.IPs, "192.168.1.1")
 				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 
 				By(fmt.Sprintf("wait endpoint %s in endpointgroup %s", ep.Name, epGroup.Name))
@@ -278,6 +280,7 @@ var _ = Describe("GroupController", func() {
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				ep.Status.IPs = append(ep.Status.IPs, "192.168.1.1")
 				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 			})
 			AfterEach(func() {
@@ -338,6 +341,7 @@ var _ = Describe("GroupController", func() {
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				ep.Status.IPs = append(ep.Status.IPs, "192.168.1.1")
 				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 			})
 			AfterEach(func() {
@@ -359,6 +363,7 @@ var _ = Describe("GroupController", func() {
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				ep.Status.IPs = append(ep.Status.IPs, "192.168.1.1")
 				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 			})
 			AfterEach(func() {

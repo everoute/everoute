@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
@@ -58,8 +59,7 @@ const (
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
 // from agentinfo.
-func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.V(2).Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
 
 	endpoint := securityv1alpha1.Endpoint{}
@@ -124,25 +124,18 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	err = c.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.Funcs{
-		CreateFunc: r.addEndpoint,
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}})
+		},
 	})
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (r *EndpointReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
-		klog.Errorf("AddEndpoint received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
 }
 
 func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateLimitingInterface) {

@@ -23,8 +23,10 @@ import (
 	"testing"
 	"time"
 
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
@@ -105,14 +107,17 @@ func TestEndpointReconcilerPerf(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fail to create agentinfo %s, %s", ai.Name, err)
 		}
-		reconciler.addAgentInfo(event.CreateEvent{Meta: ai.GetObjectMeta(), Object: ai}, queue)
+		reconciler.addAgentInfo(event.CreateEvent{Object: ai}, queue)
 	}
 	for _, ep := range endpoints {
 		err := reconciler.Client.Create(context.Background(), ep)
 		if err != nil {
 			t.Fatalf("fail to create endpoint %s, %s", ep.Name, err)
 		}
-		reconciler.addEndpoint(event.CreateEvent{Meta: ep.GetObjectMeta(), Object: ep}, queue)
+		queue.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+			Name:      ep.GetName(),
+			Namespace: ep.GetNamespace(),
+		}})
 	}
 
 	err := processQueue(reconciler, queue)

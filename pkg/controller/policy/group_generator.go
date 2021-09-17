@@ -22,7 +22,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
@@ -39,7 +38,7 @@ import (
 )
 
 // GroupGenerateReconcile generate EndpointGroups by SecurityPolicy selector.
-func (r *PolicyReconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *PolicyReconciler) GroupGenerateReconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	policyList := securityv1alpha1.SecurityPolicyList{}
 	var endpointGroupExist bool
 
@@ -148,7 +147,7 @@ func (r *PolicyReconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1
 }
 
 // EndpointGroupIndexSecurityPolicyFunc return the SecurityPolicy reference EndpointGroup names
-func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
+func EndpointGroupIndexSecurityPolicyFunc(o client.Object) []string {
 	policy := o.(*securityv1alpha1.SecurityPolicy)
 	groupSet := sets.NewString()
 

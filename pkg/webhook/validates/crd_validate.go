@@ -110,14 +110,20 @@ func RegisterIndexFields(f client.FieldIndexer) error {
 	ctx := context.Background()
 
 	// index priority in Tier object
-	f.IndexField(ctx, &securityv1alpha1.Tier{}, tierPriorityIndex, func(object runtime.Object) []string {
+	err := f.IndexField(ctx, &securityv1alpha1.Tier{}, tierPriorityIndex, func(object client.Object) []string {
 		return []string{fmt.Sprintf("%d", object.(*securityv1alpha1.Tier).Spec.Priority)}
 	})
+	if err != nil {
+		return err
+	}
 
 	// index tier in SecurityPolicy object
-	f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyTierIndex, func(object runtime.Object) []string {
+	err = f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyTierIndex, func(object client.Object) []string {
 		return []string{object.(*securityv1alpha1.SecurityPolicy).Spec.Tier}
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

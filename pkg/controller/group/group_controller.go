@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
@@ -53,8 +54,7 @@ type GroupReconciler struct {
 
 // Reconcile receive endpointgroup from work queue, first it create groupmemberspatch,
 // then it update groupmembers, latest it clean old groupmemberspatches.
-func (r *GroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.V(2).Infof("PatchReconciler received group %s members changes", req.NamespacedName)
 
 	group := groupv1alpha1.EndpointGroup{}
@@ -103,9 +103,19 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	err = c.Watch(&source.Kind{Type: &groupv1alpha1.EndpointGroup{}}, &handler.Funcs{
-		CreateFunc: r.addEndpointGroup,
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}})
+		},
 		UpdateFunc: r.updateEndpointGroup,
-		DeleteFunc: r.deleteEndpointGroup,
+		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}})
+		},
 	})
 	if err != nil {
 		return err
@@ -189,18 +199,6 @@ func (r *GroupReconciler) deleteEndpoint(e event.DeleteEvent, q workqueue.RateLi
 	}
 }
 
-func (r *GroupReconciler) addEndpointGroup(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
-		klog.Errorf("AddEndpointGroup received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
-}
-
 // updateEndpointGroup enqueue endpointgroup if endpointgroup need
 // to delete or selector update.
 func (r *GroupReconciler) updateEndpointGroup(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
@@ -226,18 +224,6 @@ func (r *GroupReconciler) updateEndpointGroup(e event.UpdateEvent, q workqueue.R
 			Name:      newGroup.Name,
 		}})
 	}
-}
-
-func (r *GroupReconciler) deleteEndpointGroup(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
-		klog.Errorf("DeleteEndpointGroup received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
 }
 
 func (r *GroupReconciler) addNamespace(e event.CreateEvent, q workqueue.RateLimitingInterface) {

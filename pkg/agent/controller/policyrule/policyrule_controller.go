@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
@@ -65,8 +66,18 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRule{}}, &handler.Funcs{
-		CreateFunc: r.addPolicyRule,
-		DeleteFunc: r.deletePolicyRule,
+		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}})
+		},
+		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			q.Add(reconcile.Request{NamespacedName: k8stypes.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}})
+		},
 	})
 
 	return nil
@@ -75,8 +86,7 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=networkpolicy.lynx.smartx.com,resources=policyrules,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networkpolicy.lynx.smartx.com,resources=policyrules/status,verbs=get;update;patch
 
-func (r *PolicyRuleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	var ctx = context.Background()
+func (r *PolicyRuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var policyRule = networkpolicyv1alpha1.PolicyRule{}
 
 	err := r.Get(ctx, req.NamespacedName, &policyRule)
@@ -93,42 +103,6 @@ func (r *PolicyRuleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	r.processPolicyRuleAdd(&policyRule)
 
 	return ctrl.Result{}, nil
-}
-
-func (r *PolicyRuleReconciler) addPolicyRule(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	_, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
-	if !ok {
-		klog.Errorf("addPolicyRule receive event %v with error object", e)
-		return
-	}
-
-	if e.Meta == nil {
-		klog.Errorf("AddPolicyRule received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
-}
-
-func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	_, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
-	if !ok {
-		klog.Errorf("addPolicyRule receive event %v with error object", e)
-		return
-	}
-
-	if e.Meta == nil {
-		klog.Errorf("AddPolicyRule received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
-	}})
 }
 
 func (r *PolicyRuleReconciler) processPolicyRuleDelete(ruleName string) {

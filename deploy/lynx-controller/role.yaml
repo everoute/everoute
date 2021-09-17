@@ -28,6 +28,12 @@ rules:
   - update
   - get
 - apiGroups:
+    - networking.k8s.io
+  resources:
+    - networkpolicies
+  verbs:
+    - watch
+- apiGroups:
   - ""
   resources:
   - namespaces
@@ -73,6 +79,7 @@ rules:
   - get
   - list
   - watch
+  - create
 - apiGroups:
   - policyrule.lynx.smartx.com
   resources:
@@ -87,3 +94,11 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+    - coordination.k8s.io
+  resources:
+    - leases
+  verbs:
+    - get
+    - create
+    - update

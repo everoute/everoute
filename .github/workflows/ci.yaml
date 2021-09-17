@@ -2,20 +2,22 @@ name: ci
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - '*'
 
   push:
-    branches: [main]
+    branches:
+      - '*'
 
 jobs:
   pr-check:
     runs-on: [ubuntu-20.04]
-
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v2
         with:
-          go-version: ^1.15
+          go-version: ^1.17
+      - uses: actions/checkout@v2
       - uses: actions/cache@v2
         with:
           path: ~/go/pkg/mod
@@ -29,11 +31,12 @@ jobs:
       - run: echo "/usr/local/kubebuilder/bin" >> $GITHUB_PATH
       - name: setup openvswitch
         run: sudo sh -c "apt update && apt install -y openvswitch-switch && systemctl start openvswitch-switch"
+      - run: sudo ln -sf `which go` `sudo which go` || true
       - name: run lynx unit test
         run: |
-          sudo make test
-          sudo make race-test
-          sudo make cover-test
+          sudo -E make test
+          sudo -E make race-test
+          sudo -E make cover-test
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
@@ -73,15 +76,16 @@ jobs:
     runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v2
-
       - name: install e2e environment dependency
         run: sudo sh -c "apt update && apt install -y openvswitch-switch && systemctl start openvswitch-switch"
-
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.17
       - name: allow ssh connect to localhost
         run: sudo -H sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
-
+      - run: sudo ln -sf `which go` `sudo which go` || true
       - name: setup e2e environment
-        run: sudo -H bash tests/e2e/scripts/e2e-setup.sh
-
+        run: sudo -H -E bash tests/e2e/scripts/e2e-setup.sh
       - name: run e2e test cases
-        run: sudo -H make e2e-test
+        run: sudo -H -E make e2e-test

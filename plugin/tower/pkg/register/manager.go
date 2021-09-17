@@ -17,6 +17,7 @@ limitations under the License.
 package register
 
 import (
+	"context"
 	"flag"
 	"time"
 
@@ -79,10 +80,10 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
 	endpointController := controller.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 
-	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
-		towerFactory.Start(stopChan)
-		crdFactory.Start(stopChan)
-		endpointController.Run(opts.WorkerNumber, stopChan)
+	err = mgr.Add(manager.RunnableFunc(func(stopChan context.Context) error {
+		towerFactory.Start(stopChan.Done())
+		crdFactory.Start(stopChan.Done())
+		endpointController.Run(opts.WorkerNumber, stopChan.Done())
 		return nil
 	}))
 

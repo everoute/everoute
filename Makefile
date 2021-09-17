@@ -39,7 +39,7 @@ e2e-test:
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests
-	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt \
+	$(APISERVER_BOOT) build generated --generator client --generator deepcopy --copyright hack/boilerplate.go.txt \
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
 		--api-versions policyrule/v1alpha1 \
