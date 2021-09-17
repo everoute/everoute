@@ -29,6 +29,7 @@ import (
 
 	controller "github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
 	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
+	. "github.com/smartxworks/lynx/plugin/tower/pkg/utils/testing"
 )
 
 var _ = Describe("EndpointController", func() {
@@ -50,9 +51,9 @@ var _ = Describe("EndpointController", func() {
 		var labelA, labelB, labelC *schema.Label
 
 		BeforeEach(func() {
-			labelA = newRandomLabel()
-			labelB = newRandomLabel()
-			labelC = newRandomLabel()
+			labelA = NewRandomLabel()
+			labelB = NewRandomLabel()
+			labelC = NewRandomLabel()
 
 			By(fmt.Sprintf("create labels: %+v, %+v, %+v", labelA, labelB, labelC))
 			server.TrackerFactory().Label().CreateOrUpdate(labelA)
@@ -65,8 +66,8 @@ var _ = Describe("EndpointController", func() {
 			var vnic *schema.VMNic
 
 			BeforeEach(func() {
-				vm = newRandomVM()
-				vnic = newRandomVMNicAttachedTo(vm)
+				vm = NewRandomVM()
+				vnic = NewRandomVMNicAttachedTo(vm)
 
 				By(fmt.Sprintf("create vm %+v with vnic %+v", vm, vnic))
 				server.TrackerFactory().VM().CreateOrUpdate(vm)
@@ -96,9 +97,9 @@ var _ = Describe("EndpointController", func() {
 			var vnicA, vnicB *schema.VMNic
 
 			BeforeEach(func() {
-				vm = newRandomVM()
-				vnicA = newRandomVMNicAttachedTo(vm)
-				vnicB = newRandomVMNicAttachedTo(vm)
+				vm = NewRandomVM()
+				vnicA = NewRandomVMNicAttachedTo(vm)
+				vnicB = NewRandomVMNicAttachedTo(vm)
 
 				labelA.VMs = append(labelA.VMs, schema.ObjectReference{ID: vm.GetID()})
 				labelB.VMs = append(labelA.VMs, schema.ObjectReference{ID: vm.GetID()})
@@ -113,21 +114,21 @@ var _ = Describe("EndpointController", func() {
 			})
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 2)
-				assertHasEndpoint(ctx, vnicA.GetID(), aggregateLabels(labelA, labelB), vnicA.InterfaceID)
-				assertHasEndpoint(ctx, vnicB.GetID(), aggregateLabels(labelA, labelB), vnicB.InterfaceID)
+				assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
+				assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB), vnicB.InterfaceID)
 			})
 
 			When("add vnic to vm", func() {
 				var newVNic *schema.VMNic
 
 				BeforeEach(func() {
-					newVNic = newRandomVMNicAttachedTo(vm)
+					newVNic = NewRandomVMNicAttachedTo(vm)
 					By(fmt.Sprintf("update vm %+v with new vnic %+v", vm, newVNic))
 					server.TrackerFactory().VM().CreateOrUpdate(vm)
 				})
 				It("should create endpoints", func() {
 					assertEndpointsNum(ctx, 3)
-					assertHasEndpoint(ctx, newVNic.GetID(), aggregateLabels(labelA, labelB), newVNic.InterfaceID)
+					assertHasEndpoint(ctx, newVNic.GetID(), AggregateLabels(labelA, labelB), newVNic.InterfaceID)
 				})
 			})
 
@@ -139,7 +140,7 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should remove endpoint", func() {
 					assertEndpointsNum(ctx, 1)
-					assertHasEndpoint(ctx, vnicA.GetID(), aggregateLabels(labelA, labelB), vnicA.InterfaceID)
+					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
 					assertNoEnpoint(ctx, vnicB.GetID())
 				})
 			})
@@ -152,8 +153,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), aggregateLabels(labelA, labelB, labelC), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), aggregateLabels(labelA, labelB, labelC), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB, labelC), vnicA.InterfaceID)
+					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB, labelC), vnicB.InterfaceID)
 				})
 			})
 
@@ -165,8 +166,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), aggregateLabels(labelA), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), aggregateLabels(labelA), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA), vnicA.InterfaceID)
+					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA), vnicB.InterfaceID)
 				})
 			})
 
@@ -178,8 +179,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), aggregateLabels(labelA, labelB), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), aggregateLabels(labelA, labelB), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
+					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB), vnicB.InterfaceID)
 				})
 			})
 
@@ -242,49 +243,6 @@ func TestValidKubernetesLabel(t *testing.T) {
 			}
 		})
 	}
-}
-
-func newRandomLabel() *schema.Label {
-	return &schema.Label{
-		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
-		Key:        rand.String(10),
-		Value:      rand.String(10),
-	}
-}
-
-func newRandomVM() *schema.VM {
-	return &schema.VM{
-		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
-		Name:       rand.String(10),
-		Status:     schema.VMStatusRunning,
-	}
-}
-
-func newRandomVMNicAttachedTo(vm *schema.VM) *schema.VMNic {
-	vlanInfo := schema.Vlan{
-		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
-		Name:       rand.String(10),
-		VlanID:     0,
-		Type:       schema.NetworkVM,
-	}
-
-	vmnic := schema.VMNic{
-		ObjectMeta:  schema.ObjectMeta{ID: rand.String(10)},
-		Vlan:        vlanInfo,
-		Enabled:     true,
-		InterfaceID: rand.String(10),
-	}
-
-	vm.VMNics = append(vm.VMNics, vmnic)
-	return &vmnic
-}
-
-func aggregateLabels(labels ...*schema.Label) map[string]string {
-	labelMap := make(map[string]string)
-	for _, label := range labels {
-		labelMap[label.Key] = label.Value
-	}
-	return labelMap
 }
 
 func assertEndpointsNum(ctx context.Context, numOfEndpoints int) {

@@ -582,7 +582,7 @@ func (c *Controller) applyPoliciesChanges(oldKeys []string, new []v1alpha1.Secur
 	return nil
 }
 
-// parseIsolationPolicy convert schema.SecurityPolicy to []v1alpha1.SecurityPolicy
+// parseSecurityPolicy convert schema.SecurityPolicy to []v1alpha1.SecurityPolicy
 func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) ([]v1alpha1.SecurityPolicy, error) {
 	var policyList []v1alpha1.SecurityPolicy
 
