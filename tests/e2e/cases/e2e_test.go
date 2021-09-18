@@ -27,8 +27,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 
+	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
+	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
 	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
 	"github.com/smartxworks/lynx/tests/e2e/framework"
@@ -84,38 +87,28 @@ func E2eFail(message string, callerSkip ...int) {
 		fmt.Printf("%sDump Flows:\n%s\n\n", splitLine, string(raw))
 	}
 
-	// Dump and print SecurityPolicies
-	policyList := securityv1alpha1.SecurityPolicyList{}
-	err = e2eEnv.KubeClient().List(ctx, &policyList)
-	if err == nil {
-		raw, _ := json.Marshal(policyList)
-		fmt.Printf("%sDump Policies:\n%s\n\n", splitLine, string(raw))
-	}
-
-	// Dump and print GlobalPolicy
-	globalPolicyList := securityv1alpha1.GlobalPolicyList{}
-	err = e2eEnv.KubeClient().List(ctx, &globalPolicyList)
-	if err == nil {
-		raw, _ := json.Marshal(globalPolicyList)
-		fmt.Printf("%sDump GlobalPolicy:\n%s\n\n", splitLine, string(raw))
-	}
-
-	// Dump and print Endpoints
-	endpointList := securityv1alpha1.EndpointList{}
-	err = e2eEnv.KubeClient().List(ctx, &endpointList)
-	if err == nil {
-		raw, _ := json.Marshal(endpointList)
-		fmt.Printf("%sDump Endpoints:\n%s\n\n", splitLine, string(raw))
-	}
-
-	// Dump and print PolicyRules
-	policyRuleList := policyrulev1alpha1.PolicyRuleList{}
-	err = e2eEnv.KubeClient().List(ctx, &policyRuleList)
-	if err == nil {
-		raw, _ := json.Marshal(policyRuleList)
-		fmt.Printf("%sDump PolicyRules:\n%s\n\n", splitLine, string(raw))
-	}
+	// Dump and print kubernetes resources
+	dumpAndPrintResource(splitLine,
+		&securityv1alpha1.SecurityPolicyList{},
+		&securityv1alpha1.GlobalPolicyList{},
+		&securityv1alpha1.EndpointList{},
+		&agentv1alpha1.AgentInfoList{},
+		&groupv1alpha1.EndpointGroupList{},
+		&groupv1alpha1.GroupMembersList{},
+		&groupv1alpha1.GroupMembersPatchList{},
+		&policyrulev1alpha1.PolicyRuleList{},
+	)
 
 	// Final call ginkgo Fail
 	Fail(message, callerSkip...)
+}
+
+func dumpAndPrintResource(splitLine string, resources ...runtime.Object) {
+	for _, resource := range resources {
+		err := e2eEnv.KubeClient().List(ctx, resource)
+		if err == nil {
+			raw, _ := json.Marshal(resource)
+			fmt.Printf("%sDump %T:\n%s\n\n", resource, splitLine, string(raw))
+		}
+	}
 }
