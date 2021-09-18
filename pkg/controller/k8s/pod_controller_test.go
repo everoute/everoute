@@ -57,12 +57,11 @@ var _ = Describe("pod controller", func() {
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "pod1",
-				Name:         "pod1",
-				Namespace:    "default",
+				Name:      "pod1",
+				Namespace: "default",
 				Labels: map[string]string{
-					"label1": "value1",
-					"label2": "value2",
+					TestLabelKey: TestLabelValue,
+					"label1":     "value1",
 				},
 			},
 			Spec: corev1.PodSpec{
@@ -73,6 +72,10 @@ var _ = Describe("pod controller", func() {
 					},
 				},
 			},
+		}
+		podReq := types.NamespacedName{
+			Name:      "pod1",
+			Namespace: "default",
 		}
 		endpointName := "pod-" + pod.Name
 		endpoint := securityv1alpha1.Endpoint{}
@@ -86,12 +89,25 @@ var _ = Describe("pod controller", func() {
 		})
 
 		BeforeEach(func() {
-			Expect(k8sClient.Create(ctx, pod)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, pod.DeepCopy())).Should(Succeed())
+		})
+		AfterEach(func() {
+			// delete test pod
 			Eventually(func() int {
 				podList := corev1.PodList{}
-				Expect(k8sClient.List(ctx, &podList)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &podList, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+				for index := range podList.Items {
+					Expect(k8sClient.Delete(ctx, &podList.Items[index])).Should(Succeed())
+				}
+				Expect(k8sClient.List(ctx, &podList, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
 				return len(podList.Items)
-			}, time.Minute, interval).Should(Equal(1))
+			}, time.Minute, interval).Should(BeZero())
+
+			Eventually(func() int {
+				endpointList := securityv1alpha1.EndpointList{}
+				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
+				return len(endpointList.Items)
+			}, time.Minute, interval).Should(BeZero())
 		})
 
 		It("should create and delete an endpoint", func() {
@@ -101,25 +117,58 @@ var _ = Describe("pod controller", func() {
 				return len(endpointList.Items)
 			}, time.Minute, interval).Should(Equal(1))
 
-			Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
-			Expect(endpoint.Spec.Reference.ExternalIDName).Should(Equal("pod-uuid"))
-			Expect(endpoint.Spec.Reference.ExternalIDValue).Should(Equal(externalIDValue))
-			Expect(len(endpoint.ObjectMeta.Labels)).Should(Equal(2))
-			Expect(endpoint.ObjectMeta.Labels["label1"]).Should(Equal("value1"))
-			Expect(endpoint.ObjectMeta.Labels["label2"]).Should(Equal("value2"))
+			endpointGet := securityv1alpha1.Endpoint{}
+			Expect(k8sClient.Get(ctx, endpointReq, &endpointGet)).Should(Succeed())
+			Expect(endpointGet.Spec.Reference.ExternalIDName).Should(Equal("pod-uuid"))
+			Expect(endpointGet.Spec.Reference.ExternalIDValue).Should(Equal(externalIDValue))
+			Expect(len(endpointGet.ObjectMeta.Labels)).Should(Equal(2))
+			Expect(endpointGet.ObjectMeta.Labels["label1"]).Should(Equal("value1"))
 
-			podList := corev1.PodList{}
 			Expect(k8sClient.Delete(ctx, pod)).Should(Succeed())
-			Eventually(func() int {
-				Expect(k8sClient.List(ctx, &podList, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
-				return len(podList.Items)
-			}, time.Minute, interval).Should(BeZero())
 
 			Eventually(func() int {
 				endpointList := securityv1alpha1.EndpointList{}
 				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
 				return len(endpointList.Items)
 			}, timeout, interval).Should(BeZero())
+		})
+
+		It("should update an endpoint - add a new label", func() {
+			Eventually(func() int {
+				endpointList := securityv1alpha1.EndpointList{}
+				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
+				return len(endpointList.Items)
+			}, time.Minute, interval).Should(Equal(1))
+
+			podGet := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, podReq, podGet)).Should(Succeed())
+			podGet.ObjectMeta.Labels["label2"] = "value2"
+			Expect(k8sClient.Update(ctx, podGet)).Should(Succeed())
+
+			Eventually(func() int {
+				Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
+				return len(endpoint.ObjectMeta.Labels)
+			}, timeout, interval).Should(Equal(3))
+
+		})
+
+		It("should update an endpoint - remove a label", func() {
+			Eventually(func() int {
+				endpointList := securityv1alpha1.EndpointList{}
+				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
+				return len(endpointList.Items)
+			}, time.Minute, interval).Should(Equal(1))
+
+			podGet := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, podReq, podGet)).Should(Succeed())
+			delete(podGet.ObjectMeta.Labels, "label1")
+			Expect(k8sClient.Update(ctx, podGet)).Should(Succeed())
+
+			Eventually(func() int {
+				Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
+				return len(endpoint.ObjectMeta.Labels)
+			}, timeout, interval).Should(Equal(1))
+
 		})
 	})
 })

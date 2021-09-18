@@ -103,6 +103,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	case metav1.StatusReasonUnknown: // no error
 		// update pod
+		endpoint.ObjectMeta.Labels = map[string]string{} // clear old labels
 		for key, value := range pod.ObjectMeta.Labels {
 			endpoint.ObjectMeta.Labels[key] = value
 		}
