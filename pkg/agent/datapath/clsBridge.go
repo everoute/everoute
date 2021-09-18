@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +42,7 @@ const (
 
 type ClsBridge struct {
 	name            string
+	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
 	clsBridgeLearningTable   *ofctrl.Table
@@ -64,8 +64,7 @@ func NewClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
 func (c *ClsBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	log.Infof("Switch %s connected", c.name)
 
-	vdsname := strings.Split(c.name, "-")[0]
-	c.datapathManager.OfSwitchMap[vdsname]["cls"] = sw
+	c.OfSwitch = sw
 
 	c.clsSwitchStatusMutex.Lock()
 	c.isClsSwitchConnected = true
@@ -79,8 +78,7 @@ func (c *ClsBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	c.isClsSwitchConnected = false
 	c.clsSwitchStatusMutex.Unlock()
 
-	vdsname := strings.Split(c.name, "-")[0]
-	c.datapathManager.OfSwitchMap[vdsname]["cls"] = nil
+	c.OfSwitch = nil
 }
 
 func (c *ClsBridge) IsSwitchConnected() bool {
@@ -294,8 +292,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 }
 
 func (c *ClsBridge) BridgeInit() {
-	vdsname := strings.Split(c.name, "-")[0]
-	sw := c.datapathManager.OfSwitchMap[vdsname]["cls"]
+	sw := c.OfSwitch
 
 	c.clsBridgeLearningTable = sw.DefaultTable()
 	c.clsBridgeForwardingTable, _ = sw.NewTable(CLSBRIDGE_FORWARDING_TABLE_ID)
