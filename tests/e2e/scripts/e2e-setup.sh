@@ -71,7 +71,7 @@ $(
     fi
     printf "      user: %s\n" ${USER}
     printf "      dial-address: %s:22\n" $agent
-    printf "      bridge-name: vlanLearnBridge\n"
+    printf "      bridge-name: ovsbr1\n"
   done
 )
 EOF

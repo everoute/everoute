@@ -18,6 +18,7 @@ set -o pipefail
 set -o nounset
 
 LYNX_AGENT_HOSTLIST=${1:-127.0.0.1}
+DEFAULT_BRIDGE="ovsbr1"
 
 echo "clean lynx controlplane on localhost"
 eval kill -9 "$(pidof lynx-controller) $(pidof lynx-agent) $(pidof kube-apiserver) $(pidof etcd) $(pidof net-utils)"
@@ -25,6 +26,10 @@ rm -rf /etc/lynx/
 
 for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
   printf "clean lynx-agent and ovsdb on host %s\n" ${agent}
+  ovs-vsctl del-br ${DEFAULT_BRIDGE}
+  ovs-vsctl del-br ${DEFAULT_BRIDGE}-policy
+  ovs-vsctl del-br ${DEFAULT_BRIDGE}-cls
+  ovs-vsctl del-br ${DEFAULT_BRIDGE}-uplink
 
   ssh_args="-o StrictHostKeyChecking=no"
 

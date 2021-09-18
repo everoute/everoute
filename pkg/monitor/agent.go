@@ -28,7 +28,6 @@ import (
 	"time"
 
 	ovsdb "github.com/contiv/libovsdb"
-	"github.com/contiv/ofnet"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +39,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/types"
 )
@@ -50,24 +50,24 @@ const (
 )
 
 type ovsdbEventHandler interface {
-	AddLocalEndpoint(endpointInfo ofnet.EndpointInfo)
-	DeleteLocalEndpoint(portNo uint32)
+	AddLocalEndpoint(endpoint datapath.Endpoint)
+	DeleteLocalEndpoint(endpoint datapath.Endpoint)
 }
 
 type OvsdbEventHandlerFuncs struct {
-	LocalEndpointAddFunc    func(endpointInfo ofnet.EndpointInfo)
-	LocalEndpointDeleteFunc func(portNo uint32)
+	LocalEndpointAddFunc    func(endpoint datapath.Endpoint)
+	LocalEndpointDeleteFunc func(endpoint datapath.Endpoint)
 }
 
-func (handler OvsdbEventHandlerFuncs) AddLocalEndpoint(endpointInfo ofnet.EndpointInfo) {
+func (handler OvsdbEventHandlerFuncs) AddLocalEndpoint(endpoint datapath.Endpoint) {
 	if handler.LocalEndpointAddFunc != nil {
-		handler.LocalEndpointAddFunc(endpointInfo)
+		handler.LocalEndpointAddFunc(endpoint)
 	}
 }
 
-func (handler OvsdbEventHandlerFuncs) DeleteLocalEndpoint(portNo uint32) {
+func (handler OvsdbEventHandlerFuncs) DeleteLocalEndpoint(endpoint datapath.Endpoint) {
 	if handler.LocalEndpointDeleteFunc != nil {
-		handler.LocalEndpointDeleteFunc(portNo)
+		handler.LocalEndpointDeleteFunc(endpoint)
 	}
 }
 
@@ -95,8 +95,9 @@ type agentMonitor struct {
 	// cacheLock is a read/write lock for accessing the cache
 	cacheLock                  sync.RWMutex
 	ovsdbCache                 map[string]map[string]ovsdb.Row
-	ofportsCache               map[int32][]types.IPAddress
-	ofPortIPAddressMonitorChan chan map[uint32][]net.IP
+	ipCacheLock                sync.RWMutex
+	ofportsCache               map[string][]types.IPAddress
+	ofPortIPAddressMonitorChan chan map[string][]net.IP
 
 	ovsdbEventHandler              ovsdbEventHandler
 	localEndpointHardwareAddrCache sets.String
@@ -106,12 +107,13 @@ type agentMonitor struct {
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[uint32][]net.IP) (*agentMonitor, error) {
+func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[string][]net.IP) (*agentMonitor, error) {
 	monitor := &agentMonitor{
 		k8sClient:                      client,
 		cacheLock:                      sync.RWMutex{},
+		ipCacheLock:                    sync.RWMutex{},
 		ovsdbCache:                     make(map[string]map[string]ovsdb.Row),
-		ofportsCache:                   make(map[int32][]types.IPAddress),
+		ofportsCache:                   make(map[string][]types.IPAddress),
 		ofPortIPAddressMonitorChan:     ofPortIPAddressMonitorChan,
 		localEndpointHardwareAddrCache: sets.NewString(),
 		syncQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
@@ -162,7 +164,7 @@ func (monitor *agentMonitor) Run(stopChan <-chan struct{}) error {
 	return nil
 }
 
-func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[uint32][]net.IP, stopChan <-chan struct{}) {
+func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[string][]net.IP, stopChan <-chan struct{}) {
 	for {
 		select {
 		case localEndpointInfo := <-ofPortIPAddressMonitorChan:
@@ -173,14 +175,14 @@ func (monitor *agentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorC
 	}
 }
 
-func (monitor *agentMonitor) updateOfPortIPAddress(localEndpointInfo map[uint32][]net.IP) {
-	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
+func (monitor *agentMonitor) updateOfPortIPAddress(localEndpointInfo map[string][]net.IP) {
+	monitor.ipCacheLock.Lock()
+	defer monitor.ipCacheLock.Unlock()
 
-	for port, ips := range localEndpointInfo {
+	for bridgePort, ips := range localEndpointInfo {
 		// OfPort already updated, flush deprecated ofportsCache entry related with port
 		if len(ips) == 0 {
-			delete(monitor.ofportsCache, int32(port))
+			delete(monitor.ofportsCache, bridgePort)
 			break
 		}
 
@@ -188,7 +190,7 @@ func (monitor *agentMonitor) updateOfPortIPAddress(localEndpointInfo map[uint32]
 		for _, ip := range ips {
 			ipAddrs = append(ipAddrs, types.IPAddress(ip.String()))
 		}
-		monitor.ofportsCache[int32(port)] = ipAddrs
+		monitor.ofportsCache[bridgePort] = ipAddrs
 	}
 
 	monitor.syncQueue.Add(monitor.Name())
@@ -218,6 +220,45 @@ func (monitor *agentMonitor) startOvsdbMonitor() error {
 	monitor.handleOvsUpdates(*initial)
 
 	return nil
+}
+
+// Endpoint implement in lynx datapath module pr
+func (monitor *agentMonitor) interfaceToEndpoint(ofport uint32, interfaceName, macAddrStr string) *datapath.Endpoint {
+	// NOTE should use interface uuid to caculate endpoint info
+	var bridgeName string
+	var portUUID string
+	var vlanID uint16
+
+	monitor.ipCacheLock.Lock()
+	defer monitor.ipCacheLock.Unlock()
+	for uuid, port := range monitor.ovsdbCache["Port"] {
+		if port.Fields["name"].(string) == interfaceName {
+			portUUID = uuid
+			tag, ok := port.Fields["tag"].(float64)
+			if !ok {
+				break
+			}
+			vlanID = uint16(tag)
+			break
+		}
+	}
+
+	for _, bridge := range monitor.ovsdbCache["Bridge"] {
+		portUUIDs := listUUID(bridge.Fields["ports"])
+		for _, uuid := range portUUIDs {
+			if uuid.GoUuid == portUUID {
+				bridgeName = bridge.Fields["name"].(string)
+				break
+			}
+		}
+	}
+
+	return &datapath.Endpoint{
+		MacAddrStr: macAddrStr,
+		PortNo:     ofport,
+		BridgeName: bridgeName,
+		VlanID:     vlanID,
+	}
 }
 
 func (monitor *agentMonitor) syncAgentInfoWorker() {
@@ -317,8 +358,8 @@ func (monitor *agentMonitor) rebuildOfportCache() error {
 		return client.IgnoreNotFound(err)
 	}
 
-	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
+	monitor.ipCacheLock.Lock()
+	defer monitor.ipCacheLock.Unlock()
 
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
@@ -327,11 +368,11 @@ func (monitor *agentMonitor) rebuildOfportCache() error {
 					// skip if interface has empty IPaddr
 					continue
 				}
-				if _, ok := monitor.ofportsCache[iface.Ofport]; ok {
+				if _, ok := monitor.ofportsCache[fmt.Sprintf("%s-%d", bridge.Name, iface.Ofport)]; ok {
 					// skip if monitor has learned ofport IPaddr
 					continue
 				}
-				monitor.ofportsCache[iface.Ofport] = iface.IPs
+				monitor.ofportsCache[fmt.Sprintf("%s-%d", bridge.Name, iface.Ofport)] = iface.IPs
 			}
 		}
 	}
@@ -339,7 +380,7 @@ func (monitor *agentMonitor) rebuildOfportCache() error {
 	return nil
 }
 
-func (monitor *agentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *ofnet.EndpointInfo {
+func (monitor *agentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	if rowupdate.New.Fields["external_ids"] == nil {
 		return nil
 	}
@@ -377,16 +418,15 @@ func (monitor *agentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *ofn
 
 		monitor.localEndpointHardwareAddrCache.Insert(newExternalIds[LocalEndpointIdentity].(string))
 
-		return &ofnet.EndpointInfo{
-			MacAddr: macAddr,
-			PortNo:  ofport,
-		}
+		endpoint := monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds["attached-mac"].(string))
+		klog.Infof("########### newly added endpoint %v", endpoint)
+		return endpoint
 	}
 
 	return nil
 }
 
-func (monitor *agentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *uint32 {
+func (monitor *agentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	if rowupdate.Old.Fields["external_ids"] == nil {
 		return nil
 	}
@@ -410,7 +450,8 @@ func (monitor *agentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *u
 
 		monitor.localEndpointHardwareAddrCache.Delete(oldExternalIds[LocalEndpointIdentity].(string))
 
-		return &ofport
+		endpoint := monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds["attached-mac"].(string))
+		return endpoint
 	}
 
 	return nil
@@ -476,7 +517,7 @@ func (monitor *agentMonitor) fetchOvsVersionLocked() (string, error) {
 	return "", nil
 }
 
-func (monitor *agentMonitor) fetchPortLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSPort, error) {
+func (monitor *agentMonitor) fetchPortLocked(uuid ovsdb.UUID, bridgeName string) (*agentv1alpha1.OVSPort, error) {
 	ovsPort, ok := monitor.ovsdbCache["Port"][uuid.GoUuid]
 	if !ok {
 		return nil, fmt.Errorf("ovs port %s not found in cache", uuid)
@@ -511,7 +552,7 @@ func (monitor *agentMonitor) fetchPortLocked(uuid ovsdb.UUID) (*agentv1alpha1.OV
 	}
 
 	for _, uuid := range listUUID(ovsPort.Fields["interfaces"]) {
-		iface, err := monitor.fetchInterfaceLocked(uuid)
+		iface, err := monitor.fetchInterfaceLocked(uuid, bridgeName)
 		if err != nil {
 			return nil, err
 		}
@@ -521,7 +562,7 @@ func (monitor *agentMonitor) fetchPortLocked(uuid ovsdb.UUID) (*agentv1alpha1.OV
 	return port, nil
 }
 
-func (monitor *agentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSInterface, error) {
+func (monitor *agentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName string) (*agentv1alpha1.OVSInterface, error) {
 	ovsIface, ok := monitor.ovsdbCache["Interface"][uuid.GoUuid]
 	if !ok {
 		return nil, fmt.Errorf("ovs interface %s not found in cache", uuid)
@@ -549,7 +590,9 @@ func (monitor *agentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID) (*agentv1alph
 	ofport, ok := ovsIface.Fields["ofport"].(float64)
 	if ok && ofport >= 0 {
 		iface.Ofport = int32(ofport)
-		iface.IPs = monitor.ofportsCache[iface.Ofport]
+		monitor.ipCacheLock.Lock()
+		defer monitor.ipCacheLock.Unlock()
+		iface.IPs = monitor.ofportsCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
 	}
 
 	return &iface, nil
@@ -566,7 +609,7 @@ func (monitor *agentMonitor) fetchBridgeLocked(uuid ovsdb.UUID) (*agentv1alpha1.
 	}
 
 	for _, uuid := range listUUID(ovsBri.Fields["ports"]) {
-		port, err := monitor.fetchPortLocked(uuid)
+		port, err := monitor.fetchPortLocked(uuid, bridge.Name)
 		if err != nil {
 			return nil, err
 		}

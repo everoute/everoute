@@ -18,13 +18,10 @@ package policyrule
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"testing"
 
-	"github.com/contiv/ofnet"
-	"github.com/contiv/ofnet/ovsdbDriver"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 )
 
@@ -51,14 +49,6 @@ var (
 	IpProtocol1 = "UDP"
 	IpProtocol2 = "TCP"
 	IpProtocol3 = "ICMP"
-)
-
-const (
-	BridgeName = "vlanArpLearnBridge"
-	DPName     = "vlanArpLearner"
-	LocalIp    = "127.0.0.1"
-	RPCPort    = 30000
-	OVSPort    = 30001
 )
 
 var reconciler *PolicyRuleReconciler
@@ -109,57 +99,30 @@ var (
 		},
 		Status: networkpolicyv1alpha1.PolicyRuleStatus{},
 	}
-	policyRule2Updated = &networkpolicyv1alpha1.PolicyRule{
-		TypeMeta: v1.TypeMeta{
-			Kind:       "PolicyRule",
-			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
+)
+
+var (
+	datapathConfig = datapath.Config{
+		ManagedVDSMap: map[string]string{
+			"ovsbr1": "ovsbr1",
 		},
-		ObjectMeta: v1.ObjectMeta{
-			Name: "securityPolicy1-policyRule2Updated",
-		},
-		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			Direction:  networkpolicyv1alpha1.RuleDirectionOut,
-			RuleType:   networkpolicyv1alpha1.RuleTypeNormalRule,
-			Tier:       "tier0",
-			SrcIPAddr:  SrcIpAddr2,
-			DstIPAddr:  DstIpAddr3,
-			IPProtocol: IpProtocol2,
-			SrcPort:    uint16(SrcPort2),
-			DstPort:    uint16(DstPort2),
-			TCPFlags:   "",
-			Action:     networkpolicyv1alpha1.RuleActionAllow,
-		},
-		Status: networkpolicyv1alpha1.PolicyRuleStatus{},
 	}
 )
 
 func TestMain(m *testing.M) {
-	var err error
-	ofPortUpdateChan := make(chan map[uint32][]net.IP, 100)
-	uplinks := []string{}
+	ofPortUpdateChan := make(chan map[string][]net.IP, 100)
 
-	ovsdbDriver := ovsdbDriver.NewOvsDriver(BridgeName)
-	agent, err := ofnet.NewOfnetAgent(BridgeName, DPName, net.ParseIP(LocalIp), RPCPort, OVSPort, nil, uplinks, ofPortUpdateChan)
-	if err != nil {
-		fmt.Println("Init ofnetAgent failed.")
-		return
-	}
-	err = ovsdbDriver.AddController(LocalIp, OVSPort)
-	if err != nil {
-		fmt.Println("Init ovs controller failed")
-		return
-	}
-
-	agent.WaitForSwitchConnection()
+	datapathManager := datapath.NewDatapathManager(&datapathConfig, ofPortUpdateChan)
+	datapathManager.InitializeDatapath()
 
 	queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	reconciler = newFakeReconciler(agent, policyRule1, policyRule2)
+	reconciler = newFakeReconciler(datapathManager, policyRule1, policyRule2)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
 
-func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *PolicyRuleReconciler {
+func newFakeReconciler(datapathManager *datapath.DpManager, initObjs ...runtime.Object) *PolicyRuleReconciler {
 	// Add scheme
 	scheme := runtime.NewScheme()
 	_ = networkpolicyv1alpha1.AddToScheme(scheme)
@@ -167,7 +130,7 @@ func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *Pol
 	return &PolicyRuleReconciler{
 		Client:              fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
 		Scheme:              scheme,
-		Agent:               agent,
+		DatapathManager:     datapathManager,
 		flowKeyReferenceMap: make(map[string]sets.String),
 	}
 }
@@ -197,7 +160,7 @@ func TestProcessPolicyRule(t *testing.T) {
 		}
 
 		flowKey := flowKeyFromRuleName(policyRule1.Name)
-		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules := reconciler.DatapathManager.Rules
 		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule1 %v to datapath.", policyRule1)
 		}
@@ -215,7 +178,7 @@ func TestProcessPolicyRule(t *testing.T) {
 		}
 
 		flowKey := flowKeyFromRuleName(policyRule1.Name)
-		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules := reconciler.DatapathManager.Rules
 		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
@@ -232,7 +195,7 @@ func TestProcessPolicyRule(t *testing.T) {
 			t.Errorf("failed to process del policyRule2 %v.", policyRule2)
 		}
 
-		datapathRules = reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules = reconciler.DatapathManager.Rules
 		if _, ok := datapathRules["securityPolicy1-policyRule2"]; ok {
 			t.Errorf("Failed to del policyRule2 %v.", policyRule2)
 		}

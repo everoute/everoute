@@ -185,7 +185,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
-	// NOTE deepcopy
 	datapathManager.datapathConfig = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 
@@ -232,16 +231,16 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 
 		// initialize of controller
 		vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-		vdsOfControllerMap["local"] = ofctrl.NewController(localBridge)
-		vdsOfControllerMap["policy"] = ofctrl.NewController(policyBridge)
-		vdsOfControllerMap["cls"] = ofctrl.NewController(clsBridge)
-		vdsOfControllerMap["uplink"] = ofctrl.NewController(uplinkBridge)
+		vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewController(localBridge)
+		vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewController(policyBridge)
+		vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewController(clsBridge)
+		vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewController(uplinkBridge)
 		datapathManager.ControllerMap[vdsID] = vdsOfControllerMap
 
-		go vdsOfControllerMap["local"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET))
-		go vdsOfControllerMap["policy"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*2))
-		go vdsOfControllerMap["cls"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*3))
-		go vdsOfControllerMap["uplink"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*4))
+		go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET))
+		go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*2))
+		go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*3))
+		go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*4))
 
 		vdsCount++
 	}
@@ -261,31 +260,31 @@ func (datapathManager *DpManager) InitializeDatapath() {
 		randID = vdsID
 		break
 	}
-	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[randID]["local"])
+	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[randID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
 		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
 	// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 	}
 
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
 
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
 
-		datapathManager.BridgeChainMap[vdsID]["local"].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID]["policy"].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID]["cls"].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID]["uplink"].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
 
 		// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
 		// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
@@ -295,12 +294,12 @@ func (datapathManager *DpManager) InitializeDatapath() {
 		go func(vdsID string) {
 			time.Sleep(time.Second * 15)
 
-			datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
 
-			err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID]["local"])
+			err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 			if err != nil {
 				log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 			}
@@ -323,16 +322,16 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	var dpStatus bool = false
 
 	for _, bridgeChain := range datapathManager.BridgeChainMap {
-		if !bridgeChain["local"].IsSwitchConnected() {
+		if !bridgeChain[LOCAL_BRIDGE_KEYWORD].IsSwitchConnected() {
 			return dpStatus
 		}
-		if !bridgeChain["policy"].IsSwitchConnected() {
+		if !bridgeChain[POLICY_BRIDGE_KEYWORD].IsSwitchConnected() {
 			return dpStatus
 		}
-		if !bridgeChain["cls"].IsSwitchConnected() {
+		if !bridgeChain[CLS_BRIDGE_KEYWORD].IsSwitchConnected() {
 			return dpStatus
 		}
-		if !bridgeChain["uplink"].IsSwitchConnected() {
+		if !bridgeChain[UPLINK_BRIDGE_KEYWORD].IsSwitchConnected() {
 			return dpStatus
 		}
 	}
@@ -344,14 +343,13 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
-		log.Infof("############# datapathManager add local endpoint %v", *endpoint)
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo)); ep != nil {
 				log.Errorf("Already added local endpoint: %v", ep)
 				return nil
 			}
 
-			err := datapathManager.BridgeChainMap[vdsID]["local"].AddLocalEndpoint(endpoint)
+			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}
@@ -377,7 +375,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 			return fmt.Errorf("Endpoint not found for %v-%v", ovsbrname, endpoint.PortNo)
 		}
 
-		err := datapathManager.BridgeChainMap[vdsID]["local"].RemoveLocalEndpoint(endpoint)
+		err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
 		if err != nil {
 			return fmt.Errorf("failed to remove local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 		}
@@ -408,9 +406,9 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	ruleFlowMap := make(map[string]*ofctrl.Flow)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
-		ruleFlow, err := bridgeChain["policy"].AddMicroSegmentRule(rule, direction, tier)
+		ruleFlow, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier)
 		if err != nil {
-			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain["policy"], err)
+			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
 		}
 		ruleFlowMap[vdsID] = ruleFlow
 	}

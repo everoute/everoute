@@ -5,7 +5,7 @@ on:
     branches: [main]
 
   push:
-    branches: [main]
+    branches: [lynxagent]
 
 jobs:
   pr-check:

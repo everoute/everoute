@@ -428,7 +428,6 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return err
 	}
-	log.Infof("######## add from local endpoint flow: %v, to entpoint %v", vlanInputTableFromLocalFlow, *endpoint)
 	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
 	l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
 
