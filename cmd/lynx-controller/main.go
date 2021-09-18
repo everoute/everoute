@@ -26,6 +26,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	matev1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,6 +49,7 @@ import (
 func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(v1beta1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(networkingv1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
