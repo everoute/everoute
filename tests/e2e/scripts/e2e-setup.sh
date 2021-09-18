@@ -60,6 +60,7 @@ metadata:
   namespace: kube-system
 data:
   config: |-
+    timeout: 60s
     nodes:
 $(
   for agent in $(echo ${APISERVER_EXPOSE_IP},${LYNX_AGENT_HOSTLIST} | sed "s/,/\n/g" | sort -u); do
