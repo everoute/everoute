@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +30,7 @@ const (
 
 type PolicyBridge struct {
 	name            string
+	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
 	inputTable              *ofctrl.Table
@@ -60,9 +60,7 @@ func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
 func (p *PolicyBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	log.Infof("Switch %s connected", p.name)
 
-	log.Infof("cls switch connected : %v", p.datapathManager.OfSwitchMap)
-	vdsname := strings.Split(p.name, "-")[0]
-	p.datapathManager.OfSwitchMap[vdsname]["policy"] = sw
+	p.OfSwitch = sw
 
 	p.policySwitchStatusMutex.Lock()
 	p.isPolicySwitchConnected = true
@@ -76,8 +74,7 @@ func (p *PolicyBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	p.isPolicySwitchConnected = false
 	p.policySwitchStatusMutex.Unlock()
 
-	vdsname := strings.Split(p.name, "-")[0]
-	p.datapathManager.OfSwitchMap[vdsname]["policy"] = nil
+	p.OfSwitch = nil
 }
 
 func (p *PolicyBridge) IsSwitchConnected() bool {
@@ -108,8 +105,7 @@ func (p *PolicyBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.Multi
 }
 
 func (p *PolicyBridge) BridgeInit() {
-	vdsname := strings.Split(p.name, "-")[0]
-	sw := p.datapathManager.OfSwitchMap[vdsname]["policy"]
+	sw := p.OfSwitch
 
 	p.inputTable = sw.DefaultTable()
 	p.ctStateTable, _ = sw.NewTable(CT_STATE_TABLE)
@@ -461,8 +457,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		}
 	case "deny":
 		// Point it to next table
-		vdsname := strings.Split(p.name, "-")[0]
-		err = ruleFlow.Next(p.datapathManager.OfSwitchMap[vdsname]["policy"].DropAction())
+		err = ruleFlow.Next(p.OfSwitch.DropAction())
 		if err != nil {
 			log.Errorf("Failed to install flow {%+v}. Err: %v", ruleFlow, err)
 			return nil, err

@@ -18,7 +18,6 @@ package datapath
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 
 type UplinkBridge struct {
 	name            string
+	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
 	uplinkSwitchStatueMutex sync.RWMutex
@@ -45,9 +45,7 @@ func NewUplinkBridge(brName string, datapathManager *DpManager) *UplinkBridge {
 func (u *UplinkBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	log.Infof("Switch %s connected", u.name)
 
-	log.Infof("cls switch connected : %v", u.datapathManager.OfSwitchMap)
-	vdsname := strings.Split(u.name, "-")[0]
-	u.datapathManager.OfSwitchMap[vdsname]["uplink"] = sw
+	u.OfSwitch = sw
 
 	u.uplinkSwitchStatueMutex.Lock()
 	u.isUplinkSwitchConnected = true
@@ -61,8 +59,7 @@ func (u *UplinkBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	u.isUplinkSwitchConnected = false
 	u.uplinkSwitchStatueMutex.Unlock()
 
-	vdsname := strings.Split(u.name, "-")[0]
-	u.datapathManager.OfSwitchMap[vdsname]["uplink"] = nil
+	u.OfSwitch = nil
 }
 
 func (u *UplinkBridge) IsSwitchConnected() bool {
