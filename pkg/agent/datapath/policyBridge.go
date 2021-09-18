@@ -168,7 +168,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(POLICY_TO_LOCAL_PORT),
 	})
 	outputPort, _ := sw.OutputPort(POLICY_TO_CLS_PORT)
@@ -178,7 +178,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 
 	// Table 0, from cls bridge flow
 	inputFromUpstreamFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(POLICY_TO_CLS_PORT),
 	})
 	outputPort, _ = sw.OutputPort(POLICY_TO_LOCAL_PORT)
@@ -188,7 +188,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 
 	// Table 0, default flow
 	inputDefaultFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := inputDefaultFlow.Next(sw.DropAction()); err != nil {
 		return fmt.Errorf("failed to install input default flow, error: %v", err)
@@ -226,7 +226,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 
 	// Table 1. default flow
 	ctStateDefaultFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  DEFAULT_FLOW_PRIORITY,
+		Priority:  DEFAULT_FLOW_MISS_PRIORITY,
 		Ethertype: PROTOCOL_IP,
 	})
 	if err := ctStateDefaultFlow.Next(p.directionSelectionTable); err != nil {
@@ -247,7 +247,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	_ = ctCommitFlow.SetConntrack(ctCommitAction)
 
 	ctCommitTableDefaultFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := ctCommitTableDefaultFlow.Next(p.sfcPolicyTable); err != nil {
 		return fmt.Errorf("failed to install ct commit flow, error: %v", err)
@@ -259,19 +259,19 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 func (p *PolicyBridge) initPolicyTable() error {
 	// egress policy table
 	egressTier1DefaultFlow, _ := p.egressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := egressTier1DefaultFlow.Next(p.egressTier2PolicyTable); err != nil {
 		return fmt.Errorf("failed to install egress tier1 default flow, error: %v", err)
 	}
 	egressTier2DefaultFlow, _ := p.egressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := egressTier2DefaultFlow.Next(p.egressTier3PolicyTable); err != nil {
 		return fmt.Errorf("failed to install egress tier2 default flow, error: %v", err)
 	}
 	egressTier3DefaultFlow, _ := p.egressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := egressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
 		return fmt.Errorf("failed to install egress tier3 default flow, error: %v", err)
@@ -279,19 +279,19 @@ func (p *PolicyBridge) initPolicyTable() error {
 
 	// ingress policy table
 	ingressTier1DefaultFlow, _ := p.ingressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := ingressTier1DefaultFlow.Next(p.ingressTier2PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier1 default flow, error: %v", err)
 	}
 	ingressTier2DefaultFlow, _ := p.ingressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := ingressTier2DefaultFlow.Next(p.ingressTier3PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
 	}
 	ingressTier3DefaultFlow, _ := p.ingressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := ingressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier3 default flow, error: %v", err)
@@ -299,7 +299,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 
 	// sfc policy table
 	sfcPolicyTableDefaultFlow, _ := p.sfcPolicyTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := sfcPolicyTableDefaultFlow.Next(p.policyForwardingTable); err != nil {
 		return fmt.Errorf("failed to install sfc policy table default flow, error: %v", err)

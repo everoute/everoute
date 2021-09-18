@@ -339,7 +339,7 @@ func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
 	}
 
 	vlanInputTableDefaultFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := vlanInputTableDefaultFlow.Next(sw.DropAction()); err != nil {
 		return fmt.Errorf("failed to install vlanInputTable default flow, error: %v", err)
@@ -351,7 +351,7 @@ func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
 func (l *LocalBridge) initL2ForwardingTable(sw *ofctrl.OFSwitch) error {
 	// l2 forwarding table
 	localToLocalBUMDefaultFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	outputPort, _ := sw.OutputPort(openflow13.P_ALL)
 	if err := localToLocalBUMDefaultFlow.Next(outputPort); err != nil {
@@ -411,10 +411,8 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	// Table 0, from local endpoint
 	var vlanIDMask uint16 = 0xfff
 	vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:   MID_MATCH_FLOW_PRIORITY,
-		InputPort:  endpoint.PortNo,
-		VlanId:     endpoint.VlanID,
-		VlanIdMask: &vlanIDMask,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		InputPort: endpoint.PortNo,
 	})
 	if err := vlanInputTableFromLocalFlow.LoadField("nxm_of_vlan_tci", uint64(endpoint.VlanID), openflow13.NewNXRange(0, 11)); err != nil {
 		return err
@@ -428,7 +426,6 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return err
 	}
-	log.Infof("######## add from local endpoint flow: %v, to entpoint %v", vlanInputTableFromLocalFlow, *endpoint)
 	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
 	l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
 

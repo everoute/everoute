@@ -21,7 +21,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/contiv/ofnet"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
@@ -136,13 +135,12 @@ func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model
 
 func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
 	var flows []string
-	priority := constants.NormalPolicyRulePriority + ofnet.FLOW_POLICY_PRIORITY_OFFSET
-	ingressTableID, egressTableID := getTableIds(tier)
-
-	if ingressTableID == nil || egressTableID == nil {
+	priority := constants.NormalPolicyRulePriority
+	ingressTableID, ingressNextTableID, egressTableID, egressNextTableID, err := getTableIds(tier)
+	if err != nil {
+		klog.Infof("Failed to computePolicyFlow, error: %v", err)
 		return nil
 	}
-	ingressNextTableID, egressNextTableID := 45, 20
 
 	for _, appliedToIP := range appliedToIPs {
 		for _, srcIP := range ingressIPs {
@@ -153,15 +151,15 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 
 				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
-						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressNextTableID)
+						*ingressTableID, priority, protocol, srcIP, appliedToIP, *ingressNextTableID)
 				} else if ingressGroupPort.DstPort != 0 {
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
-						ingressNextTableID)
+						*ingressNextTableID)
 					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
 						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
 							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask,
-							ingressNextTableID)
+							*ingressNextTableID)
 					}
 				}
 				flows = append(flows, flow)
@@ -181,14 +179,14 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 
 				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, egressNextTableID)
+						*egressTableID, priority, protocol, appliedToIP, dstIP, *egressNextTableID)
 				} else if egressGroupPort.DstPort != 0 {
 					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, egressNextTableID)
+						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, *egressNextTableID)
 					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
 						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
 							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask,
-							ingressNextTableID)
+							*egressNextTableID)
 					}
 				}
 				flows = append(flows, flow)
@@ -205,19 +203,27 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 	return flows
 }
 
-func getTableIds(tier string) (*int, *int) {
-	var ingressTableID, egressTableID int
+func getTableIds(tier string) (*int, *int, *int, *int, error) {
+	var ingressTableID, ingressNextTableID, egressTableID, egressNextTableID int
 	switch tier {
 	case "tier0":
-		egressTableID = 10
-		ingressTableID = 30
+		egressTableID = 20
+		egressNextTableID = 25
+		ingressTableID = 50
+		ingressNextTableID = 55
 	case "tier1":
-		egressTableID = 11
-		ingressTableID = 31
+		egressTableID = 25
+		egressNextTableID = 30
+		ingressTableID = 55
+		ingressNextTableID = 60
 	case "tier2":
-		egressTableID = 12
-		ingressTableID = 32
+		egressTableID = 30
+		egressNextTableID = 70
+		ingressTableID = 60
+		ingressNextTableID = 70
+	default:
+		return nil, nil, nil, nil, fmt.Errorf("failed to get tableId")
 	}
 
-	return &ingressTableID, &egressTableID
+	return &ingressTableID, &ingressNextTableID, &egressTableID, &egressNextTableID, nil
 }

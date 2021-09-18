@@ -19,16 +19,14 @@ package main
 import (
 	"flag"
 	"net"
-	"time"
 
-	"github.com/contiv/ofnet"
-	"github.com/contiv/ofnet/ovsdbDriver"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/smartxworks/lynx/pkg/agent/controller/policyrule"
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/monitor"
@@ -44,65 +42,40 @@ func init() {
 }
 
 func main() {
-	// Init ofnetAgent: init config and default flow
+	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
-	ofPortIpAddrMoniotorChan := make(chan map[uint32][]net.IP, 1024)
-	agentConfig, err := getAgentConfig()
+	ofPortIPAddrMoniotorChan := make(chan map[string][]net.IP, 1024)
+
+	// TODO Update vds which is managed by everoute agent from datapathConfig.
+	datapathConfig, err := getDatapathConfig()
 	if err != nil {
-		klog.Fatalf("error %v when get agentconfig.", err)
+		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
-	uplinkConfig := initUplinkConfig(agentConfig)
-
-	localIp := net.ParseIP(agentConfig.LocalIp)
-	var uplinks []string
-	if len(agentConfig.UplinkInfo.Links) == 0 {
-		klog.Fatalf("error when get uplink config")
-	}
-	for _, link := range agentConfig.UplinkInfo.Links {
-		uplinks = append(uplinks, link.LinkInterfaceName)
-	}
-
-	ovsDriver := ovsdbDriver.NewOvsDriver(agentConfig.BridgeName)
-	err = ovsDriver.AddController(agentConfig.LocalIp, agentConfig.OvsCtlPort)
-	if err != nil {
-		klog.Fatalf("error %v when config ovs controller.", err)
-	}
-
-	vlanArpLearnerAgent, err := ofnet.NewOfnetAgent(
-		agentConfig.BridgeName, agentConfig.DatapathName,
-		localIp, agentConfig.RpcPort, agentConfig.OvsCtlPort,
-		uplinkConfig, uplinks, ofPortIpAddrMoniotorChan)
-	if err != nil {
-		klog.Fatalf("error %v when init ofnetAgent.", err)
-	}
-
-	// We need to wait for long enough to guarantee that datapath completes flowtable initialize. It is a temporary
-	// method.
-	// Implement datapath initialized status Synchronization mechanism. TODO
-	time.Sleep(5 * time.Second)
+	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	datapathManager.InitializeDatapath()
 
 	// NetworkPolicy controller: watch policyRule crud and update flow
-	mgr, err := startManager(scheme, vlanArpLearnerAgent, stopChan)
+	mgr, err := startManager(scheme, datapathManager, stopChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
 	k8sClient := mgr.GetClient()
-	agentmonitor, err := monitor.NewAgentMonitor(k8sClient, ofPortIpAddrMoniotorChan)
+	agentmonitor, err := monitor.NewAgentMonitor(k8sClient, ofPortIPAddrMoniotorChan)
 	if err != nil {
 		klog.Fatalf("error %v when start agentmonitor.", err)
 	}
 	agentmonitor.RegisterOvsdbEventHandler(monitor.OvsdbEventHandlerFuncs{
-		LocalEndpointAddFunc: func(endpointInfo ofnet.EndpointInfo) {
-			err := vlanArpLearnerAgent.AddLocalEndpoint(endpointInfo)
+		LocalEndpointAddFunc: func(endpoint datapath.Endpoint) {
+			err := datapathManager.AddLocalEndpoint(&endpoint)
 			if err != nil {
-				klog.Errorf("Failed to add local endpoint: %+v, error: %+v", endpointInfo, err)
+				klog.Errorf("Failed to add local endpoint: %+v, error: %+v", endpoint, err)
 			}
 		},
-		LocalEndpointDeleteFunc: func(portNo uint32) {
-			err := vlanArpLearnerAgent.RemoveLocalEndpoint(portNo)
+		LocalEndpointDeleteFunc: func(endpoint datapath.Endpoint) {
+			err := datapathManager.RemoveLocalEndpoint(&endpoint)
 			if err != nil {
-				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", portNo, err)
+				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", endpoint, err)
 			}
 		},
 	})
@@ -111,7 +84,7 @@ func main() {
 	<-stopChan
 }
 
-func startManager(scheme *runtime.Scheme, agent *ofnet.OfnetAgent, stopChan <-chan struct{}) (manager.Manager, error) {
+func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, stopChan <-chan struct{}) (manager.Manager, error) {
 	var metricsAddr string
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)
@@ -128,9 +101,9 @@ func startManager(scheme *runtime.Scheme, agent *ofnet.OfnetAgent, stopChan <-ch
 	}
 
 	if err = (&policyrule.PolicyRuleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Agent:  agent,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		DatapathManager: datapathManager,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Errorf("unable to create policyrule controller: %s", err.Error())
 		return nil, err

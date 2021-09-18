@@ -73,7 +73,7 @@ func (n *Agent) DumpFlow() ([]string, error) {
 }
 
 func (n *Agent) runOpenflowCmd(cmd string) ([]byte, error) {
-	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 %s %s", cmd, n.BridgeName)
+	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 %s %s", cmd, fmt.Sprintf("%s-policy", n.BridgeName))
 	rc, out, err := n.runCommand(cmdStr)
 	if rc != 0 || err != nil {
 		return nil, fmt.Errorf("error running ovs-ofctl %s %s. Error: %v", cmd, n.BridgeName, err)

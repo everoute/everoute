@@ -17,33 +17,18 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
-	"log"
 
-	"github.com/contiv/ofnet"
 	"gopkg.in/yaml.v2"
+
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 )
 
 const agentConfigFilePath = "/var/lib/lynx/agentconfig.yaml"
 
 type agentConfig struct {
-	BridgeName   string     `yaml:"bridgeName"`
-	DatapathName string     `yaml:"datapathName"`
-	LocalIp      string     `yaml:"localIp"`
-	RpcPort      uint16     `yaml:"rpcPort"`
-	OvsCtlPort   uint16     `yaml:"ovsControllerPort"`
-	UplinkInfo   UplinkInfo `yaml:"uplinkInfo"`
-}
-
-type UplinkInfo struct {
-	UplinkPortType string `yaml:"uplinkPortType"`
-	UplinkPortName string `yaml:"uplinkPortName"`
-	Links          []Link `yaml:"links"`
-}
-
-type Link struct {
-	LinkInterfaceName string `yaml:"linkInterfaceName"`
-	OfPortNo          uint32 `yaml:"ofPortNo"`
+	DatapathConfig map[string]string `yaml:"datapathConfig"`
 }
 
 func getAgentConfig() (*agentConfig, error) {
@@ -52,35 +37,29 @@ func getAgentConfig() (*agentConfig, error) {
 
 	configdata, err := ioutil.ReadFile(agentConfigFilePath)
 	if err != nil {
-		log.Fatalf("error %v when read agentConfigFile", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to read agentConfig, error: %v. ", err)
 	}
 
 	err = yaml.Unmarshal(configdata, &agentConfig)
 	if err != nil {
-		log.Fatalf("error %v when Unmarshal agentConfig", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to Unmarshal agentConfig, error: %v. ", err)
 	}
 
 	return &agentConfig, nil
 }
 
-func initUplinkConfig(agentConfig *agentConfig) *ofnet.PortInfo {
-	var port ofnet.PortInfo
-	port = ofnet.PortInfo{
-		Name:     agentConfig.UplinkInfo.UplinkPortName,
-		Type:     agentConfig.UplinkInfo.UplinkPortType,
-		MbrLinks: []*ofnet.LinkInfo{},
+func getDatapathConfig() (*datapath.Config, error) {
+	agentConfig, err := getAgentConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
 
-	for _, link := range agentConfig.UplinkInfo.Links {
-		linkInfo := ofnet.LinkInfo{
-			Name:   link.LinkInterfaceName,
-			OfPort: link.OfPortNo,
-			Port:   &port,
-		}
-		port.MbrLinks = append(port.MbrLinks, &linkInfo)
+	dpConfig := new(datapath.Config)
+	managedVDSMap := make(map[string]string)
+	for managedvds, ovsbrname := range agentConfig.DatapathConfig {
+		managedVDSMap[managedvds] = ovsbrname
 	}
+	dpConfig.ManagedVDSMap = managedVDSMap
 
-	return &port
+	return dpConfig, nil
 }

@@ -22,7 +22,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/contiv/ofnet"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -36,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 	"github.com/smartxworks/lynx/pkg/constants"
 )
@@ -43,8 +43,8 @@ import (
 // PolicyRuleReconciler reconciles a PolicyRule object
 type PolicyRuleReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Agent  *ofnet.OfnetAgent
+	Scheme          *runtime.Scheme
+	DatapathManager *datapath.DpManager
 
 	flowKeyReferenceMapLock sync.RWMutex
 	flowKeyReferenceMap     map[string]sets.String // Map flowKey to policyRule names
@@ -64,10 +64,12 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRule{}}, &handler.Funcs{
+	if err := c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRule{}}, &handler.Funcs{
 		CreateFunc: r.addPolicyRule,
 		DeleteFunc: r.deletePolicyRule,
-	})
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -169,34 +171,32 @@ func (r *PolicyRuleReconciler) processPolicyRuleAdd(policyRule *networkpolicyv1a
 
 func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(flowKey string) {
 	var err error
-	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId: flowKey,
+	ERPolicyRule := &datapath.EveroutePolicyRule{
+		RuleID: flowKey,
 	}
 
-	datapath := r.Agent.GetDatapath()
-	err = datapath.GetPolicyAgent().DelRule(ofnetPolicyRule, nil)
+	err = r.DatapathManager.RemoveEveroutePolicyRule(ERPolicyRule)
 	if err != nil {
 		// Update policyRule enforce status for statistics and display. TODO
-		klog.Fatalf("del ofnetPolicyRule %v failed,", ofnetPolicyRule)
+		klog.Fatalf("del EveroutePolicyRule %v failed,", ERPolicyRule)
 	}
 }
 
-func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec) {
-	// Process PolicyRule: convert it to ofnetPolicyRule, filter illegal PolicyRule; install ofnetPolicyRule flow
+func (r *PolicyRuleReconciler) addPolicyRuleToDatapath(ruleID string, rule *networkpolicyv1alpha1.PolicyRuleSpec) {
+	// Process PolicyRule: convert it to everoutePolicyRule, filter illegal PolicyRule; install everoutePolicyRule flow
 	var err error
-	ofnetPolicyRule := toOfnetPolicyRule(ruleId, rule)
+	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
-	datapath := r.Agent.GetDatapath()
-	err = datapath.GetPolicyAgent().AddRuleToTier(ofnetPolicyRule, ruleDirection, ruleTier)
+	err = r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, ruleDirection, ruleTier)
 	if err != nil {
 		// Update policyRule enforce status for statistics and display. TODO
-		klog.Fatalf("add ofnetPolicyRule %v failed,", ofnetPolicyRule)
+		klog.Fatalf("add everoutePolicyRule %v failed,", everoutePolicyRule)
 	}
 }
 
-func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec) *ofnet.OfnetPolicyRule {
+func toEveroutePolicyRule(ruleID string, rule *networkpolicyv1alpha1.PolicyRuleSpec) *datapath.EveroutePolicyRule {
 	ipProtoNo := protocolToInt(rule.IPProtocol)
 	ruleAction := getRuleAction(rule.Action)
 
@@ -210,21 +210,20 @@ func toOfnetPolicyRule(ruleId string, rule *networkpolicyv1alpha1.PolicyRuleSpec
 		rulePriority = constants.NormalPolicyRulePriority
 	}
 
-	ofnetPolicyRule := &ofnet.OfnetPolicyRule{
-		RuleId:      ruleId,
+	everoutePolicyRule := &datapath.EveroutePolicyRule{
+		RuleID:      ruleID,
 		Priority:    rulePriority,
-		SrcIpAddr:   rule.SrcIPAddr,
-		DstIpAddr:   rule.DstIPAddr,
-		IpProtocol:  ipProtoNo,
+		SrcIPAddr:   rule.SrcIPAddr,
+		DstIPAddr:   rule.DstIPAddr,
+		IPProtocol:  ipProtoNo,
 		SrcPort:     rule.SrcPort,
 		SrcPortMask: rule.SrcPortMask,
 		DstPort:     rule.DstPort,
 		DstPortMask: rule.DstPortMask,
-		TcpFlags:    rule.TCPFlags,
 		Action:      ruleAction,
 	}
 
-	return ofnetPolicyRule
+	return everoutePolicyRule
 }
 
 func protocolToInt(ipProtocol string) uint8 {
@@ -275,11 +274,11 @@ func getRuleTier(ruleTier string) uint8 {
 	var tier uint8
 	switch ruleTier {
 	case "tier0":
-		tier = 0
+		tier = datapath.POLICY_TIER0
 	case "tier1":
-		tier = 1
+		tier = datapath.POLICY_TIER1
 	case "tier2":
-		tier = 2
+		tier = datapath.POLICY_TIER2
 	default:
 		klog.Fatalf("unsupport ruleTier %s in policyRule.", ruleTier)
 	}
