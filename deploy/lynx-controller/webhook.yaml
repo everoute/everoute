@@ -55,3 +55,13 @@ spec:
   selector:
     app: lynx
     component: lynx-controller
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lynx-controller-tls
+  namespace: kube-system
+type: kubernetes.io/tls
+data:
+  tls.crt: ""
+  tls.key: ""

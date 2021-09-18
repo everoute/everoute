@@ -9,7 +9,9 @@ images:
 	docker build -f build/images/release/Dockerfile -t lynx/release .
 
 yaml:
-	find deploy -name "*.yaml" | xargs cat | cat > deploy/lynx.yaml
+	find deploy/crds -type f -name "*.yaml" | xargs cat  > deploy/lynx.yaml
+	find deploy/lynx-agent -type f -name "*.yaml" | xargs cat  >> deploy/lynx.yaml
+	find deploy/lynx-controller -type f -name "*.yaml" | xargs cat  >> deploy/lynx.yaml
 
 controller:
 	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go

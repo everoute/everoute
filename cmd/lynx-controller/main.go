@@ -27,8 +27,6 @@ import (
 	"k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	matev1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	certutil "k8s.io/client-go/util/cert"
@@ -138,20 +136,24 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	}
 	secret := &corev1.Secret{}
 
-	// get secret, if not existed, create a new one
+	// get and update secret
 	if err := backoff.Retry(func() error {
-		if err := k8sClient.Get(ctx, secretReq, secret); err != nil {
-			if errors.IsNotFound(err) {
-				secret = GenSecret()
-				if err = k8sClient.Create(ctx, secret); err != nil {
-					return err
-				}
+		if err := k8sClient.Get(ctx, secretReq, secret); err == nil {
+			if len(secret.Data["ca.crt"]) > 0 {
+				klog.Info("secret has been updated")
+				return nil
 			}
+			// update secret data
+			secret.Data = genSecretData()
+			if err = k8sClient.Update(ctx, secret); err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 10)); err != nil {
-		klog.Fatalf("fail to get secret after 10 tries. err: %s", err)
+		klog.Fatalf("fail to update secret after 10 tries. err: %s", err)
 	}
 
 	// update webhook
@@ -180,15 +182,8 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	}
 }
 
-func GenSecret() *corev1.Secret {
-	secret := &corev1.Secret{
-		ObjectMeta: matev1.ObjectMeta{
-			Name:      "lynx-controller-tls",
-			Namespace: "kube-system",
-		},
-		Data: map[string][]byte{},
-		Type: corev1.SecretTypeTLS,
-	}
+func genSecretData() map[string][]byte {
+	data := make(map[string][]byte)
 
 	// create ca & caKey
 	caConf := &cert.CertConfig{
@@ -219,10 +214,10 @@ func GenSecret() *corev1.Secret {
 	tlsKeyByte, _ := keyutil.MarshalPrivateKeyToPEM(tlsKey)
 
 	// set ca & tls into secret
-	secret.Data["tls.crt"] = append(secret.Data["tls.crt"], cert.EncodeCertPEM(tls)...)
-	secret.Data["tls.key"] = append(secret.Data["tls.key"], tlsKeyByte...)
-	secret.Data["ca.crt"] = append(secret.Data["ca.crt"], cert.EncodeCertPEM(ca)...)
-	secret.Data["ca.key"] = append(secret.Data["ca.key"], caKeyByte...)
+	data["tls.crt"] = append(data["tls.crt"], cert.EncodeCertPEM(tls)...)
+	data["tls.key"] = append(data["tls.key"], tlsKeyByte...)
+	data["ca.crt"] = append(data["ca.crt"], cert.EncodeCertPEM(ca)...)
+	data["ca.key"] = append(data["ca.key"], caKeyByte...)
 
-	return secret
+	return data
 }
