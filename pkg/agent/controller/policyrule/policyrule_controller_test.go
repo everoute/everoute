@@ -18,13 +18,10 @@ package policyrule
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"testing"
 
-	"github.com/contiv/ofnet"
-	"github.com/contiv/ofnet/ovsdbDriver"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,30 +32,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/smartxworks/lynx/pkg/agent/datapath"
 	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
 )
 
 var (
-	SrcIpAddr1  = "10.10.10.1"
-	SrcIpAddr2  = "10.10.10.2"
-	DstIpAddr1  = "10.10.20.1"
-	DstIpAddr2  = "10.10.20.2"
-	DstIpAddr3  = "10.10.20.3"
+	SrcIPAddr1  = "10.10.10.1"
+	SrcIPAddr2  = "10.10.10.2"
+	DstIPAddr1  = "10.10.20.1"
+	DstIPAddr2  = "10.10.20.2"
+	DstIPAddr3  = "10.10.20.3"
 	SrcPort1    = 80
 	SrcPort2    = 8080
 	DstPort1    = 443
 	DstPort2    = 8443
-	IpProtocol1 = "UDP"
-	IpProtocol2 = "TCP"
-	IpProtocol3 = "ICMP"
-)
-
-const (
-	BridgeName = "vlanArpLearnBridge"
-	DPName     = "vlanArpLearner"
-	LocalIp    = "127.0.0.1"
-	RPCPort    = 30000
-	OVSPort    = 30001
+	IPProtocol1 = "UDP"
+	IPProtocol2 = "TCP"
 )
 
 var reconciler *PolicyRuleReconciler
@@ -77,9 +66,9 @@ var (
 			Direction:  networkpolicyv1alpha1.RuleDirectionOut,
 			RuleType:   networkpolicyv1alpha1.RuleTypeNormalRule,
 			Tier:       "tier0",
-			SrcIPAddr:  SrcIpAddr1,
-			DstIPAddr:  DstIpAddr1,
-			IPProtocol: IpProtocol1,
+			SrcIPAddr:  SrcIPAddr1,
+			DstIPAddr:  DstIPAddr1,
+			IPProtocol: IPProtocol1,
 			SrcPort:    uint16(SrcPort1),
 			DstPort:    uint16(DstPort1),
 			TCPFlags:   "",
@@ -99,31 +88,9 @@ var (
 			Direction:  networkpolicyv1alpha1.RuleDirectionOut,
 			RuleType:   networkpolicyv1alpha1.RuleTypeNormalRule,
 			Tier:       "tier0",
-			SrcIPAddr:  SrcIpAddr2,
-			DstIPAddr:  DstIpAddr2,
-			IPProtocol: IpProtocol2,
-			SrcPort:    uint16(SrcPort2),
-			DstPort:    uint16(DstPort2),
-			TCPFlags:   "",
-			Action:     networkpolicyv1alpha1.RuleActionAllow,
-		},
-		Status: networkpolicyv1alpha1.PolicyRuleStatus{},
-	}
-	policyRule2Updated = &networkpolicyv1alpha1.PolicyRule{
-		TypeMeta: v1.TypeMeta{
-			Kind:       "PolicyRule",
-			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name: "securityPolicy1-policyRule2Updated",
-		},
-		Spec: networkpolicyv1alpha1.PolicyRuleSpec{
-			Direction:  networkpolicyv1alpha1.RuleDirectionOut,
-			RuleType:   networkpolicyv1alpha1.RuleTypeNormalRule,
-			Tier:       "tier0",
-			SrcIPAddr:  SrcIpAddr2,
-			DstIPAddr:  DstIpAddr3,
-			IPProtocol: IpProtocol2,
+			SrcIPAddr:  SrcIPAddr2,
+			DstIPAddr:  DstIPAddr2,
+			IPProtocol: IPProtocol2,
 			SrcPort:    uint16(SrcPort2),
 			DstPort:    uint16(DstPort2),
 			TCPFlags:   "",
@@ -133,33 +100,28 @@ var (
 	}
 )
 
+var (
+	datapathConfig = datapath.Config{
+		ManagedVDSMap: map[string]string{
+			"ovsbr1": "ovsbr1",
+		},
+	}
+)
+
 func TestMain(m *testing.M) {
-	var err error
-	ofPortUpdateChan := make(chan map[uint32][]net.IP, 100)
-	uplinks := []string{}
+	ofPortUpdateChan := make(chan map[string][]net.IP, 100)
 
-	ovsdbDriver := ovsdbDriver.NewOvsDriver(BridgeName)
-	agent, err := ofnet.NewOfnetAgent(BridgeName, DPName, net.ParseIP(LocalIp), RPCPort, OVSPort, nil, uplinks, ofPortUpdateChan)
-	if err != nil {
-		fmt.Println("Init ofnetAgent failed.")
-		return
-	}
-	err = ovsdbDriver.AddController(LocalIp, OVSPort)
-	if err != nil {
-		fmt.Println("Init ovs controller failed")
-		return
-	}
-
-	agent.WaitForSwitchConnection()
+	datapathManager := datapath.NewDatapathManager(&datapathConfig, ofPortUpdateChan)
+	datapathManager.InitializeDatapath()
 
 	queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	reconciler = newFakeReconciler(agent, policyRule1, policyRule2)
+	reconciler = newFakeReconciler(datapathManager, policyRule1, policyRule2)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
 
-func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *PolicyRuleReconciler {
+func newFakeReconciler(datapathManager *datapath.DpManager, initObjs ...runtime.Object) *PolicyRuleReconciler {
 	// Add scheme
 	scheme := runtime.NewScheme()
 	_ = networkpolicyv1alpha1.AddToScheme(scheme)
@@ -167,7 +129,7 @@ func newFakeReconciler(agent *ofnet.OfnetAgent, initObjs ...runtime.Object) *Pol
 	return &PolicyRuleReconciler{
 		Client:              fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
 		Scheme:              scheme,
-		Agent:               agent,
+		DatapathManager:     datapathManager,
 		flowKeyReferenceMap: make(map[string]sets.String),
 	}
 }
@@ -197,7 +159,7 @@ func TestProcessPolicyRule(t *testing.T) {
 		}
 
 		flowKey := flowKeyFromRuleName(policyRule1.Name)
-		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules := reconciler.DatapathManager.Rules
 		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule1 %v to datapath.", policyRule1)
 		}
@@ -215,7 +177,7 @@ func TestProcessPolicyRule(t *testing.T) {
 		}
 
 		flowKey := flowKeyFromRuleName(policyRule1.Name)
-		datapathRules := reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules := reconciler.DatapathManager.Rules
 		if _, ok := datapathRules[flowKey]; !ok {
 			t.Errorf("Failed to add policyRule2 %v from datapath.", policyRule2)
 		}
@@ -226,13 +188,15 @@ func TestProcessPolicyRule(t *testing.T) {
 		}, queue)
 
 		ctx := context.Background()
-		reconciler.Delete(ctx, policyRule2)
+		if err := reconciler.Delete(ctx, policyRule2); err != nil {
+			t.Errorf("failed to del policyRule2 %v.", policyRule2)
+		}
 
 		if err := processQueue(reconciler, queue); err != nil {
 			t.Errorf("failed to process del policyRule2 %v.", policyRule2)
 		}
 
-		datapathRules = reconciler.Agent.GetDatapath().GetPolicyAgent().Rules
+		datapathRules = reconciler.DatapathManager.Rules
 		if _, ok := datapathRules["securityPolicy1-policyRule2"]; ok {
 			t.Errorf("Failed to del policyRule2 %v.", policyRule2)
 		}

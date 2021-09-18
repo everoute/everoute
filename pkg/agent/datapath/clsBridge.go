@@ -189,7 +189,7 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 
 	// clsBridgeLearningTable learningTableDefaultFlow
 	learningTableDefaultFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := learningTableDefaultFlow.Next(sw.DropAction()); err != nil {
 		return fmt.Errorf("failed to install cls bridge learning table default flow, error: %v", err)
@@ -215,7 +215,7 @@ func (c *ClsBridge) initForwardingTable() error {
 
 	// clsBridgeForwardingTable unlearnedFlow
 	unlearnedFlow, _ := c.clsBridgeForwardingTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := unlearnedFlow.LoadField("nxm_nx_reg0", 0, openflow13.NewNXRange(0, 15)); err != nil {
 		return fmt.Errorf("failed to add unlearned flow, error: %v", err)
@@ -282,7 +282,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 
 	// clsBridgeOutputTable default flow
 	outputTableDefaultFlow, _ := c.clsBridgeOutputTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_PRIORITY,
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := outputTableDefaultFlow.Next(sw.DropAction()); err != nil {
 		return fmt.Errorf("failed to install cls bridge outputTableDefaultFlow, error: %v", err)

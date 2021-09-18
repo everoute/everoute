@@ -18,8 +18,8 @@ package constants
 
 const (
 	NormalPolicyRulePriority        = 100
-	DefaultPolicyRulePriority       = 10
-	GlobalDefaultPolicyRulePriority = 5
+	DefaultPolicyRulePriority       = 70
+	GlobalDefaultPolicyRulePriority = 40
 
 	DefaultMaxConcurrentReconciles   = 4
 	NumOfRetainedGroupMembersPatches = 3
