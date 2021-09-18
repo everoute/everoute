@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +39,7 @@ const (
 
 type LocalBridge struct {
 	name            string
+	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
 	vlanInputTable                 *ofctrl.Table // Table 0
@@ -70,8 +70,7 @@ func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 func (l *LocalBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	log.Infof("Switch %s connected", l.name)
 
-	vdsname := strings.Split(l.name, "-")[0]
-	l.datapathManager.OfSwitchMap[vdsname]["local"] = sw
+	l.OfSwitch = sw
 
 	l.localSwitchStatusMuxtex.Lock()
 	l.isLocalSwitchConnected = true
@@ -85,8 +84,7 @@ func (l *LocalBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	l.isLocalSwitchConnected = false
 	l.localSwitchStatusMuxtex.Unlock()
 
-	vdsname := strings.Split(l.name, "-")[0]
-	l.datapathManager.OfSwitchMap[vdsname]["local"] = nil
+	l.OfSwitch = nil
 }
 
 func (l *LocalBridge) IsSwitchConnected() bool {
@@ -263,13 +261,12 @@ func (l *LocalBridge) arpOutput(pkt protocol.Ethernet, inPort uint32, outputPort
 	pktOut.Data = ethPkt
 	pktOut.AddAction(openflow13.NewActionOutput(outputPort))
 
-	l.datapathManager.OfSwitchMap[strings.Split(l.name, "-")[0]]["local"].Send(pktOut)
+	l.OfSwitch.Send(pktOut)
 }
 
 // specific type Bridge interface
 func (l *LocalBridge) BridgeInit() {
-	vdsname := strings.Split(l.name, "-")[0]
-	sw := l.datapathManager.OfSwitchMap[vdsname]["local"]
+	sw := l.OfSwitch
 
 	l.vlanInputTable = sw.DefaultTable()
 	l.localEndpointL2ForwardingTable, _ = sw.NewTable(L2_FORWARDING_TABLE)
@@ -431,6 +428,7 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return err
 	}
+	log.Infof("######## add from local endpoint flow: %v, to entpoint %v", vlanInputTableFromLocalFlow, *endpoint)
 	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
 	l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
 
@@ -448,7 +446,7 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
 		return err
 	}
-	if err := localToLocalBUMFlow.Next(l.datapathManager.OfSwitchMap[strings.Split(l.name, "-")[0]]["local"].NormalLookup()); err != nil {
+	if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
 		return err
 	}
 	log.Infof("add local to local flow: %v", localToLocalBUMFlow)

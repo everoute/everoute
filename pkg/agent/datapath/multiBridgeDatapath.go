@@ -39,7 +39,7 @@ const (
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
 	NORMAL_MATCH_FLOW_PRIORITY          = 100
-	DEFAULT_FLOW_PRIORITY               = 10
+	DEFAULT_FLOW_PRIORITY               = 5
 	GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY = 5
 	FLOW_MATCH_OFFSET                   = 3
 )
@@ -131,7 +131,6 @@ type Bridge interface {
 type DpManager struct {
 	BridgeChainMap map[string]map[string]Bridge                 // map vds to bridge instance map
 	OvsdbDriverMap map[string]map[string]*ovsdbDriver.OvsDriver // map vds to bridge ovsdbDriver map
-	OfSwitchMap    map[string]map[string]*ofctrl.OFSwitch
 	ControllerMap  map[string]map[string]*ofctrl.Controller
 
 	localEndpointDB           cmap.ConcurrentMap       // list of local endpoint map
@@ -184,7 +183,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
-	datapathManager.OfSwitchMap = make(map[string]map[string]*ofctrl.OFSwitch)
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	// NOTE deepcopy
@@ -240,10 +238,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		vdsOfControllerMap["uplink"] = ofctrl.NewController(uplinkBridge)
 		datapathManager.ControllerMap[vdsID] = vdsOfControllerMap
 
-		// initialize of swtich
-		vdsOfSwitchMap := make(map[string]*ofctrl.OFSwitch)
-		datapathManager.OfSwitchMap[vdsID] = vdsOfSwitchMap
-
 		go vdsOfControllerMap["local"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET))
 		go vdsOfControllerMap["policy"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*2))
 		go vdsOfControllerMap["cls"].Listen(fmt.Sprintf(":%d", OVS_CTRL_PORT_START+OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*3))
@@ -274,19 +268,19 @@ func (datapathManager *DpManager) InitializeDatapath() {
 
 	// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		datapathManager.OfSwitchMap[vdsID]["local"].DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.OfSwitchMap[vdsID]["policy"].DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.OfSwitchMap[vdsID]["cls"].DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.OfSwitchMap[vdsID]["uplink"].DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 	}
 
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
 
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		datapathManager.OfSwitchMap[vdsID]["local"].CookieAllocator = cookieAllocator
-		datapathManager.OfSwitchMap[vdsID]["policy"].CookieAllocator = cookieAllocator
-		datapathManager.OfSwitchMap[vdsID]["cls"].CookieAllocator = cookieAllocator
-		datapathManager.OfSwitchMap[vdsID]["uplink"].CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
 
 		datapathManager.BridgeChainMap[vdsID]["local"].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID]["policy"].BridgeInit()
@@ -301,10 +295,10 @@ func (datapathManager *DpManager) InitializeDatapath() {
 		go func(vdsID string) {
 			time.Sleep(time.Second * 15)
 
-			datapathManager.OfSwitchMap[vdsID]["local"].DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.OfSwitchMap[vdsID]["policy"].DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.OfSwitchMap[vdsID]["cls"].DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.OfSwitchMap[vdsID]["uplink"].DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID]["local"].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID]["policy"].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID]["cls"].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			datapathManager.BridgeChainMap[vdsID]["uplink"].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
 
 			err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID]["local"])
 			if err != nil {
@@ -315,7 +309,7 @@ func (datapathManager *DpManager) InitializeDatapath() {
 }
 
 func (datapathManager *DpManager) WaitForBridgeConnected() {
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 40; i++ {
 		time.Sleep(1 * time.Second)
 		if datapathManager.IsBridgesConnected() {
 			return
@@ -350,6 +344,7 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
+		log.Infof("############# datapathManager add local endpoint %v", *endpoint)
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo)); ep != nil {
 				log.Errorf("Already added local endpoint: %v", ep)
