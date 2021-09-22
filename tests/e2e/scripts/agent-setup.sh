@@ -66,6 +66,7 @@ ovs-vsctl \
     -- set interface $CLS_TO_UPLINK_PATCH type=patch options:peer=$UPLINK_TO_CLS_PATCH ofport=$CLS_TO_UPLINK_OFPORT
 
 ovs-vsctl add-port ${DEFAULT_BRIDGE}-uplink ${UPLINK_IFACE} -- set Port ${UPLINK_IFACE} external_ids=uplink-port="true" -- set Interface ${UPLINK_IFACE} ofport=${OFPORT_NUM}
+ovs-ofctl add-flow ${DEFAULT_BRIDGE}-uplink "table=0,priority=10,actions=normal"
 
 echo "generate lynx-agent config"
 mkdir -p "$(dirname ${AGENT_CONFIG_PATH})"
