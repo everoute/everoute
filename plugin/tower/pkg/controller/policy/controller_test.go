@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,10 +31,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/constants"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
-	. "github.com/smartxworks/lynx/plugin/tower/pkg/utils/testing"
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
+	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
 )
 
 var _ = Describe("PolicyController", func() {

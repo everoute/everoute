@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@ import (
 	"github.com/gorilla/websocket"
 	"k8s.io/klog"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/conn"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/generated"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/resolver"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/resolver/tracker"
+	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/conn"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/generated"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/resolver"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/resolver/tracker"
 )
 
 // Server mock the tower server, you can query, subscribe or login to the server.

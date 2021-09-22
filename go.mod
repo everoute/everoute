@@ -1,4 +1,4 @@
-module github.com/smartxworks/lynx
+module github.com/everoute/everoute
 
 go 1.15
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,13 +29,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
-	"github.com/smartxworks/lynx/tests/e2e/framework/config"
-	"github.com/smartxworks/lynx/tests/e2e/framework/endpoint"
-	"github.com/smartxworks/lynx/tests/e2e/framework/ipam"
-	"github.com/smartxworks/lynx/tests/e2e/framework/node"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/tests/e2e/framework/config"
+	"github.com/everoute/everoute/tests/e2e/framework/endpoint"
+	"github.com/everoute/everoute/tests/e2e/framework/ipam"
+	"github.com/everoute/everoute/tests/e2e/framework/node"
 )
 
 type Framework struct {

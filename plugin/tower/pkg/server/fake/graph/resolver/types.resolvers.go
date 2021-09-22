@@ -6,8 +6,8 @@ package resolver
 import (
 	"context"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/generated"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/generated"
 )
 
 func (r *labelResolver) Vms(ctx context.Context, obj *schema.Label) ([]schema.VM, error) {

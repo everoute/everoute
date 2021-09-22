@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,13 +35,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	clientsetscheme "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
-	endpointctrl "github.com/smartxworks/lynx/pkg/controller/endpoint"
-	groupctrl "github.com/smartxworks/lynx/pkg/controller/group"
-	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
-	"github.com/smartxworks/lynx/pkg/webhook"
-	towerplugin "github.com/smartxworks/lynx/plugin/tower/pkg/register"
-	"github.com/smartxworks/lynx/third_party/cert"
+	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
+	groupctrl "github.com/everoute/everoute/pkg/controller/group"
+	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/pkg/webhook"
+	towerplugin "github.com/everoute/everoute/plugin/tower/pkg/register"
+	"github.com/everoute/everoute/third_party/cert"
 )
 
 func init() {
@@ -62,9 +62,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for lynx webhook use.")
+	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
-	flag.IntVar(&serverPort, "port", 9443, "The port for the Lynx controller to serve on.")
+	flag.IntVar(&serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
@@ -75,7 +75,7 @@ func main() {
 		Port:                    serverPort,
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionNamespace: leaderElectionNamespace,
-		LeaderElectionID:        "24d5749e.lynx.smartx.com",
+		LeaderElectionID:        "24d5749e.leader-election.everoute.io",
 		CertDir:                 tlsCertDir,
 	})
 	if err != nil {
@@ -131,7 +131,7 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	k8sClient := k8sReader.(client.Client)
 
 	secretReq := types.NamespacedName{
-		Name:      "lynx-controller-tls",
+		Name:      "everoute-controller-tls",
 		Namespace: "kube-system",
 	}
 	secret := &corev1.Secret{}
@@ -157,7 +157,7 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	}
 
 	// update webhook
-	webhookReq := types.NamespacedName{Name: "validator.lynx.smartx.com"}
+	webhookReq := types.NamespacedName{Name: "validator.everoute.io"}
 	webhookObj := &v1beta1.ValidatingWebhookConfiguration{}
 	if err := backoff.Retry(func() error {
 		if err := k8sClient.Get(ctx, webhookReq, webhookObj); err != nil {
@@ -189,7 +189,7 @@ func genSecretData() map[string][]byte {
 	caConf := &cert.CertConfig{
 		Config: certutil.Config{
 			CommonName:   "everoute",
-			Organization: []string{"SmartX"},
+			Organization: []string{"Everoute"},
 			Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 		},
 		PublicKeyAlgorithm: x509.RSA,
@@ -201,9 +201,9 @@ func genSecretData() map[string][]byte {
 	tlsConf := &cert.CertConfig{
 		Config: certutil.Config{
 			CommonName:   "everoute",
-			Organization: []string{"SmartX"},
+			Organization: []string{"Everoute"},
 			AltNames: certutil.AltNames{
-				DNSNames: []string{"lynx-validator-webhook.kube-system.svc"},
+				DNSNames: []string{"everoute-validator-webhook.kube-system.svc"},
 				IPs:      []net.IP{net.ParseIP("127.0.0.1")},
 			},
 			Usages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},

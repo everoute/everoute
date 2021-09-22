@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: agentinfos.agent.lynx.smartx.com
+  name: agentinfos.agent.everoute.io
 spec:
-  group: agent.lynx.smartx.com
+  group: agent.everoute.io
   names:
     kind: AgentInfo
     listKind: AgentInfoList

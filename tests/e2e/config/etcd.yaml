@@ -1,8 +1,8 @@
 # Human-readable name for this member.
-name: 'lynx-etcd'
+name: 'everoute-etcd'
 
 # Path to the data directory.
-data-dir: /etc/lynx/etcd/data-dir
+data-dir: /etc/everoute/etcd/data-dir
 
 # Time (in milliseconds) of a heartbeat interval.
 heartbeat-interval: 100

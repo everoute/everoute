@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/smartxworks/lynx/pkg/agent/controller/policyrule"
-	"github.com/smartxworks/lynx/pkg/agent/datapath"
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/monitor"
+	"github.com/everoute/everoute/pkg/agent/controller/policyrule"
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	networkpolicyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
+	"github.com/everoute/everoute/pkg/monitor"
 )
 
 var (

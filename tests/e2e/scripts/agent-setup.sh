@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021 The Lynx Authors.
+# Copyright 2021 The Everoute Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ set -o pipefail
 set -o nounset
 
 UPLINK_IFACE=${1:-ens11}
-KUBECONFIG_PATH=${2:-/var/lib/lynx/agent-kubeconfig.yaml}
+KUBECONFIG_PATH=${2:-/var/lib/everoute/agent-kubeconfig.yaml}
 DEFAULT_BRIDGE="ovsbr1"
 OFPORT_NUM=10
-AGENT_CONFIG_PATH=/var/lib/lynx/agentconfig.yaml
+AGENT_CONFIG_PATH=/var/lib/everoute/agentconfig.yaml
 
 LOCAL_TO_POLICY_OFPORT=101
 POLICY_TO_LOCAL_OFPORT=102
@@ -68,12 +68,12 @@ ovs-vsctl \
 ovs-vsctl add-port ${DEFAULT_BRIDGE}-uplink ${UPLINK_IFACE} -- set Port ${UPLINK_IFACE} external_ids=uplink-port="true" -- set Interface ${UPLINK_IFACE} ofport=${OFPORT_NUM}
 ovs-ofctl add-flow ${DEFAULT_BRIDGE}-uplink "table=0,priority=10,actions=normal"
 
-echo "generate lynx-agent config"
+echo "generate everoute-agent config"
 mkdir -p "$(dirname ${AGENT_CONFIG_PATH})"
 cat > ${AGENT_CONFIG_PATH} << EOF
 datapathConfig:
     ${DEFAULT_BRIDGE}: ${DEFAULT_BRIDGE}
 EOF
 
-echo "start lynx-agent"
-nohup /usr/local/bin/lynx-agent --kubeconfig ${KUBECONFIG_PATH} > /var/log/lynx-agent.log 2>&1 &
+echo "start everoute-agent"
+nohup /usr/local/bin/everoute-agent --kubeconfig ${KUBECONFIG_PATH} > /var/log/everoute-agent.log 2>&1 &

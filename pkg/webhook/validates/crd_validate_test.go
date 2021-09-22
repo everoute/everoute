@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
 
 func init() {
@@ -59,7 +59,7 @@ var initObject = func() {
 	tierPri50 = &securityv1alpha1.Tier{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Tier",
-			APIVersion: "security.lynx.smartx.com/v1alpha1",
+			APIVersion: "security.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "tier-pri50",
@@ -75,7 +75,7 @@ var initObject = func() {
 	securityPolicyIngress = &securityv1alpha1.SecurityPolicy{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "SecurityPolicy",
-			APIVersion: "security.lynx.smartx.com/v1alpha1",
+			APIVersion: "security.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "security-policy-ingress",
@@ -108,7 +108,7 @@ var initObject = func() {
 	securityPolicyEgress = &securityv1alpha1.SecurityPolicy{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "SecurityPolicy",
-			APIVersion: "security.lynx.smartx.com/v1alpha1",
+			APIVersion: "security.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "security-policy-egress",
@@ -146,7 +146,7 @@ var initObject = func() {
 	endpointA = &securityv1alpha1.Endpoint{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Endpoint",
-			APIVersion: "security.lynx.smartx.com/v1alpha1",
+			APIVersion: "security.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "endpoint01",
@@ -166,7 +166,7 @@ var initObject = func() {
 	endpointGroupA = &groupv1alpha1.EndpointGroup{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "EndpointGroup",
-			APIVersion: "group.lynx.smartx.com/v1alpha1",
+			APIVersion: "group.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "group01",
@@ -185,7 +185,7 @@ var initObject = func() {
 	endpointGroupB = &groupv1alpha1.EndpointGroup{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "EndpointGroup",
-			APIVersion: "group.lynx.smartx.com/v1alpha1",
+			APIVersion: "group.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "group02",
@@ -207,7 +207,7 @@ var initObject = func() {
 	globalPolicy = &securityv1alpha1.GlobalPolicy{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "GlobalPolicy",
-			APIVersion: "security.lynx.smartx.com/v1alpha1",
+			APIVersion: "security.everoute.io/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "global-policy",

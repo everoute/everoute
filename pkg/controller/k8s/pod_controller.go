@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,9 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/constants"
-	"github.com/smartxworks/lynx/pkg/utils"
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 // PodReconciler watch pod and sync to endpoint

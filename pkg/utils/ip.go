@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/smartxworks/lynx/pkg/types"
-	"github.com/smartxworks/lynx/third_party/netutil"
+	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/third_party/netutil"
 )
 
 // EqualIPs return true when two IP set have same IPaddresses.

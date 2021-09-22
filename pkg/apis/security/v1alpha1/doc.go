@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,6 @@ limitations under the License.
 
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package
-// +groupName=security.lynx.smartx.com
+// +groupName=security.everoute.io
 
 package v1alpha1

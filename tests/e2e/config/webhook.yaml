@@ -2,18 +2,18 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: validator.lynx.smartx.com
+  name: validator.everoute.io
 webhooks:
   - clientConfig:
-      # CaBundle must set as the ca for secret lynx-controller-tls.
+      # CaBundle must set as the ca for secret everoute-controller-tls.
       caBundle:
-      # use local lynx-controller webhook
+      # use local everoute-controller webhook
       url: https://127.0.0.1:9443/validate/crds
     failurePolicy: Fail
-    name: validator.lynx.smartx.com
+    name: validator.everoute.io
     rules:
       - apiGroups:
-          - security.lynx.smartx.com
+          - security.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -26,7 +26,7 @@ webhooks:
           - endpoints
           - globalpolicies
       - apiGroups:
-          - group.lynx.smartx.com
+          - group.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -39,7 +39,7 @@ webhooks:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: lynx-controller-tls
+  name: everoute-controller-tls
   namespace: kube-system
 type: kubernetes.io/tls
 data:

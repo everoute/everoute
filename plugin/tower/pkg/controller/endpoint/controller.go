@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,11 +31,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
-	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
-	crd "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
 type Controller struct {

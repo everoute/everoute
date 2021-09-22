@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/smartxworks/lynx/pkg/webhook/validates"
+	"github.com/everoute/everoute/pkg/webhook/validates"
 )
 
 // ValidateHandle defines capability about process AdmissionReview.
@@ -36,7 +36,7 @@ type ValidateHandle interface {
 	Validate(ar *admv1.AdmissionReview) *admv1.AdmissionResponse
 }
 
-// ValidateWebhook register webhook for validate lynx objects.
+// ValidateWebhook register webhook for validate everoute objects.
 type ValidateWebhook struct {
 	Scheme *runtime.Scheme
 }

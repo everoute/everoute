@@ -4,7 +4,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cniversion "github.com/containernetworking/cni/pkg/version"
 
-	"github.com/smartxworks/lynx/pkg/cni"
+	"github.com/everoute/everoute/pkg/cni"
 )
 
 func main() {
@@ -13,6 +13,6 @@ func main() {
 		cni.CheckRequest,
 		cni.DelRequest,
 		cniversion.All,
-		"Lynx CNI Client",
+		"Everoute CNI Client",
 	)
 }

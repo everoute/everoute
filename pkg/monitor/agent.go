@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,13 +39,13 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/smartxworks/lynx/pkg/agent/datapath"
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/types"
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
-	AgentNameConfigPath   = "/var/lib/lynx/agent/name"
+	AgentNameConfigPath   = "/var/lib/everoute/agent/name"
 	LocalEndpointIdentity = "attached-mac"
 )
 
@@ -220,7 +220,7 @@ func (monitor *AgentMonitor) startOvsdbMonitor() error {
 	return nil
 }
 
-// Endpoint implement in lynx datapath module pr
+// Endpoint implement in everoute datapath module pr
 func (monitor *AgentMonitor) interfaceToEndpoint(ofport uint32, interfaceName, macAddrStr string) *datapath.Endpoint {
 	// NOTE should use interface uuid to caculate endpoint info
 	var bridgeName string

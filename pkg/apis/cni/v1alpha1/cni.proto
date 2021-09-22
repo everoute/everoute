@@ -1,5 +1,5 @@
 syntax = "proto3";
-package github_com.smartxworks.lynx.pkg.apis.agent.v1alpha1;
+package everoute_io.pkg.apis.cni.v1alpha1;
 option go_package = "pkg/apis/cni/v1alpha1";
 
 message CniRequest {

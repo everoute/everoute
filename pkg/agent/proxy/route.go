@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/smartxworks/lynx/pkg/constants"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 const (
@@ -176,47 +176,46 @@ func UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
 		return
 	}
 
-	// TODO: LYNX name needs to update
-	// check existence of chain LYNX-OUTPUT, if not, then create it
-	if exist, err = ipt.ChainExists("nat", "LYNX-OUTPUT"); err != nil {
-		klog.Errorf("Get iptables LYNX-OUTPUT error, error: %s", err)
+	// check existence of chain EVEROUTE-OUTPUT, if not, then create it
+	if exist, err = ipt.ChainExists("nat", "EVEROUTE-OUTPUT"); err != nil {
+		klog.Errorf("Get iptables EVEROUTE-OUTPUT error, error: %s", err)
 		return
 	}
 	if !exist {
-		err = ipt.NewChain("nat", "LYNX-OUTPUT")
+		err = ipt.NewChain("nat", "EVEROUTE-OUTPUT")
 		if err != nil {
-			klog.Errorf("Create iptables LYNX-OUTPUT error, error: %s", err)
+			klog.Errorf("Create iptables EVEROUTE-OUTPUT error, error: %s", err)
 			return
 		}
 	}
 
-	// check and add LYNX-OUTPUT to POSTROUTING
-	if exist, err = ipt.Exists("nat", "POSTROUTING", "-j", "LYNX-OUTPUT"); err != nil {
-		klog.Errorf("Check LYNX-OUTPUT in nat POSTROUTING error, err: %s", err)
+	// check and add EVEROUTE-OUTPUT to POSTROUTING
+	if exist, err = ipt.Exists("nat", "POSTROUTING", "-j", "EVEROUTE-OUTPUT"); err != nil {
+		klog.Errorf("Check EVEROUTE-OUTPUT in nat POSTROUTING error, err: %s", err)
 	}
 	if !exist {
-		if err = ipt.Append("nat", "POSTROUTING", "-j", "LYNX-OUTPUT"); err != nil {
-			klog.Errorf("Append LYNX-OUTPUT into nat POSTROUTING error, err: %s", err)
+		if err = ipt.Append("nat", "POSTROUTING", "-j", "EVEROUTE-OUTPUT"); err != nil {
+			klog.Errorf("Append EVEROUTE-OUTPUT into nat POSTROUTING error, err: %s", err)
 		}
 	}
 
-	// check and add MASQUERADE in LYNX-OUTPUT"
+	// check and add MASQUERADE in EVEROUTE-OUTPUT"
 	for _, podCIDR := range thisNode.Spec.PodCIDRs {
 		ruleSpec := []string{"-s", podCIDR, "-j", "MASQUERADE"}
-		if exist, err = ipt.Exists("nat", "LYNX-OUTPUT", ruleSpec...); err != nil {
-			klog.Errorf("Check MASQUERADE rule in nat LYNX-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+		if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+			klog.Errorf("Check MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
 			continue
 		}
 		if !exist {
-			err = ipt.Append("nat", "LYNX-OUTPUT", ruleSpec...)
+			err = ipt.Append("nat", "EVEROUTE-OUTPUT", ruleSpec...)
 			if err != nil {
-				klog.Errorf("Add MASQUERADE rule in nat LYNX-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+				klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
 				continue
 			}
 		}
 	}
 
-	// check and add ACCEPT in LYNX-OUTPUT
+	// check and add ACCEPT in EVEROUTE-OUTPUT
 	// ACCEPT is used to skip the traffic inside the cluster.
 	for _, podCIDR := range thisNode.Spec.PodCIDRs {
 		for _, nodeItem := range nodeList.Items {
@@ -225,13 +224,13 @@ func UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
 			}
 			for _, otherPodCIDR := range nodeItem.Spec.PodCIDRs {
 				ruleSpec := []string{"-s", podCIDR, "-d", otherPodCIDR, "-j", "ACCEPT"}
-				if exist, err = ipt.Exists("nat", "LYNX-OUTPUT", ruleSpec...); err != nil {
-					klog.Errorf("Check ACCEPT rule in nat LYNX-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+				if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+					klog.Errorf("Check ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
 					continue
 				}
 				if !exist {
-					if err = ipt.Insert("nat", "LYNX-OUTPUT", 1, ruleSpec...); err != nil {
-						klog.Errorf("[ALERT] Add ACCEPT rule in nat LYNX-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+					if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
+						klog.Errorf("[ALERT] Add ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
 						continue
 					}
 				}

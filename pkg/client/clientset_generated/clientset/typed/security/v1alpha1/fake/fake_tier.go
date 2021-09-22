@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,9 +35,9 @@ type FakeTiers struct {
 	Fake *FakeSecurityV1alpha1
 }
 
-var tiersResource = schema.GroupVersionResource{Group: "security.lynx.smartx.com", Version: "v1alpha1", Resource: "tiers"}
+var tiersResource = schema.GroupVersionResource{Group: "security.everoute.io", Version: "v1alpha1", Resource: "tiers"}
 
-var tiersKind = schema.GroupVersionKind{Group: "security.lynx.smartx.com", Version: "v1alpha1", Kind: "Tier"}
+var tiersKind = schema.GroupVersionKind{Group: "security.everoute.io", Version: "v1alpha1", Kind: "Tier"}
 
 // Get takes name of the tier, and returns the corresponding tier object, and an error if there is any.
 func (c *FakeTiers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Tier, err error) {

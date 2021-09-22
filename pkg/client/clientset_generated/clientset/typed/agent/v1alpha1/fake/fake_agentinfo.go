@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,9 +35,9 @@ type FakeAgentInfos struct {
 	Fake *FakeAgentV1alpha1
 }
 
-var agentinfosResource = schema.GroupVersionResource{Group: "agent.lynx.smartx.com", Version: "v1alpha1", Resource: "agentinfos"}
+var agentinfosResource = schema.GroupVersionResource{Group: "agent.everoute.io", Version: "v1alpha1", Resource: "agentinfos"}
 
-var agentinfosKind = schema.GroupVersionKind{Group: "agent.lynx.smartx.com", Version: "v1alpha1", Kind: "AgentInfo"}
+var agentinfosKind = schema.GroupVersionKind{Group: "agent.everoute.io", Version: "v1alpha1", Kind: "AgentInfo"}
 
 // Get takes name of the agentInfo, and returns the corresponding agentInfo object, and an error if there is any.
 func (c *FakeAgentInfos) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AgentInfo, err error) {

@@ -1,4 +1,4 @@
-# lynx
+# everoute
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/smartxworks/lynx)](https://goreportcard.com/report/github.com/smartxworks/lynx)
-[![codecov](https://codecov.io/gh/smartxworks/lynx/branch/main/graph/badge.svg)](https://codecov.io/gh/smartxworks/lynx)
+[![Go Report Card](https://goreportcard.com/badge/github.com/everoute/everoute)](https://goreportcard.com/report/github.com/everoute/everoute)
+[![codecov](https://codecov.io/gh/everoute/everoute/branch/main/graph/badge.svg)](https://codecov.io/gh/everoute/everoute)

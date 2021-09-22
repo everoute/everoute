@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
-	"github.com/smartxworks/lynx/tests/e2e/framework/ipam"
-	"github.com/smartxworks/lynx/tests/e2e/framework/model"
-	"github.com/smartxworks/lynx/tests/e2e/framework/node"
+	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/tests/e2e/framework/ipam"
+	"github.com/everoute/everoute/tests/e2e/framework/model"
+	"github.com/everoute/everoute/tests/e2e/framework/node"
 )
 
 // provider provide virtual machine from tower as endpoint

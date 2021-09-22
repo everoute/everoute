@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,9 +35,9 @@ type FakeGroupMemberses struct {
 	Fake *FakeGroupV1alpha1
 }
 
-var groupmembersesResource = schema.GroupVersionResource{Group: "group.lynx.smartx.com", Version: "v1alpha1", Resource: "groupmemberses"}
+var groupmembersesResource = schema.GroupVersionResource{Group: "group.everoute.io", Version: "v1alpha1", Resource: "groupmemberses"}
 
-var groupmembersesKind = schema.GroupVersionKind{Group: "group.lynx.smartx.com", Version: "v1alpha1", Kind: "GroupMembers"}
+var groupmembersesKind = schema.GroupVersionKind{Group: "group.everoute.io", Version: "v1alpha1", Kind: "GroupMembers"}
 
 // Get takes name of the groupMembers, and returns the corresponding groupMembers object, and an error if there is any.
 func (c *FakeGroupMemberses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.GroupMembers, err error) {

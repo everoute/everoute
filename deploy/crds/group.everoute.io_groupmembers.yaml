@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: groupmembers.group.lynx.smartx.com
+  name: groupmembers.group.everoute.io
 spec:
-  group: group.lynx.smartx.com
+  group: group.everoute.io
   names:
     kind: GroupMembers
     listKind: GroupMembersList

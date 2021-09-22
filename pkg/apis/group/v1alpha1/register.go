@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package v1alpha1 contains API Schema definitions for the group v1alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=group.lynx.smartx.com
+// +groupName=group.everoute.io
 package v1alpha1
 
 import (
@@ -37,7 +37,7 @@ func init() {
 
 var (
 	// GroupVersion is group version used to register these objects
-	SchemeGroupVersion = schema.GroupVersion{Group: "group.lynx.smartx.com", Version: "v1alpha1"}
+	SchemeGroupVersion = schema.GroupVersion{Group: "group.everoute.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}

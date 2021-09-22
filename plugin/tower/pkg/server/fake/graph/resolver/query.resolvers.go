@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/generated"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/model"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/generated"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 )
 
 func (r *mutationResolver) Login(ctx context.Context, data model.LoginInput) (*model.Login, error) {

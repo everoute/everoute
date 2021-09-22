@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/model"
+	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 )
 
 var (

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	policyrulev1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -55,11 +55,11 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=agent.lynx.smartx.com, Version=v1alpha1
+	// Group=agent.everoute.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("agentinfos"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agent().V1alpha1().AgentInfos().Informer()}, nil
 
-		// Group=group.lynx.smartx.com, Version=v1alpha1
+		// Group=group.everoute.io, Version=v1alpha1
 	case groupv1alpha1.SchemeGroupVersion.WithResource("endpointgroups"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().EndpointGroups().Informer()}, nil
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberses"):
@@ -67,11 +67,11 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberspatches"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMembersPatches().Informer()}, nil
 
-		// Group=policyrule.lynx.smartx.com, Version=v1alpha1
+		// Group=policyrule.everoute.io, Version=v1alpha1
 	case policyrulev1alpha1.SchemeGroupVersion.WithResource("policyrules"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Policyrule().V1alpha1().PolicyRules().Informer()}, nil
 
-		// Group=security.lynx.smartx.com, Version=v1alpha1
+		// Group=security.everoute.io, Version=v1alpha1
 	case securityv1alpha1.SchemeGroupVersion.WithResource("endpoints"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().Endpoints().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("globalpolicies"):

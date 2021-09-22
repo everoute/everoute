@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,11 +40,11 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cnipb "github.com/smartxworks/lynx/pkg/apis/cni/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/utils"
+	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
-const CNISocketAddr = "/var/run/lynx/cni.sock"
+const CNISocketAddr = "/var/run/everoute/cni.sock"
 
 type CNIServer struct {
 	k8sClient client.Client

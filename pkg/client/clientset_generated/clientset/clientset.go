@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ package clientset
 import (
 	"fmt"
 
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
-	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
+	policyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

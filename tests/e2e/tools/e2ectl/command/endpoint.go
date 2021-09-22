@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/smartxworks/lynx/tests/e2e/framework"
-	"github.com/smartxworks/lynx/tests/e2e/framework/model"
+	"github.com/everoute/everoute/tests/e2e/framework"
+	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
 
 func NewEndpointCommand(f *framework.Framework) *cobra.Command {

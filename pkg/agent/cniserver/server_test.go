@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	cnipb "github.com/smartxworks/lynx/pkg/apis/cni/v1alpha1"
+	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
 )
 
 var _ = Describe("Test cniserver", func() {
