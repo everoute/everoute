@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
-	clientsetscheme "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
-	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
+	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

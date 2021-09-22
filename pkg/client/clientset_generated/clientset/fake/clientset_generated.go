@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,15 +19,15 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
-	fakeagentv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1/fake"
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
-	fakegroupv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/group/v1alpha1/fake"
-	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
-	fakepolicyrulev1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1/fake"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
-	fakesecurityv1alpha1 "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	fakeagentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1/fake"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
+	fakegroupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1/fake"
+	policyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
+	fakepolicyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1/fake"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
+	fakesecurityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

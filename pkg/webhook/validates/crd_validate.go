@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,12 +41,12 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	ctrltypes "github.com/smartxworks/lynx/pkg/controller/types"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
 )
 
-// CRDValidate maintains list of validator for validate lynx objects.
+// CRDValidate maintains list of validator for validate everoute objects.
 type CRDValidate struct {
 	client   client.Client
 	scheme   *runtime.Scheme
@@ -61,37 +61,37 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 		validate: make(map[metav1.GroupVersionKind][]validator),
 	}
 
-	// security.lynx.smartx.com/v1alpha1 endpoint validator
+	// security.everoute.io/v1alpha1 endpoint validator
 	v.register(metav1.GroupVersionKind{
-		Group:   "security.lynx.smartx.com",
+		Group:   "security.everoute.io",
 		Version: "v1alpha1",
 		Kind:    "Endpoint",
 	}, &endpointValidator{v.client})
 
-	// group.lynx.smartx.com/v1alpha1 endpointgroup validator
+	// group.everoute.io/v1alpha1 endpointgroup validator
 	v.register(metav1.GroupVersionKind{
-		Group:   "group.lynx.smartx.com",
+		Group:   "group.everoute.io",
 		Version: "v1alpha1",
 		Kind:    "EndpointGroup",
 	}, &endpointGroupValidator{v.client})
 
-	// security.lynx.smartx.com/v1alpha1 securitypolicy validator
+	// security.everoute.io/v1alpha1 securitypolicy validator
 	v.register(metav1.GroupVersionKind{
-		Group:   "security.lynx.smartx.com",
+		Group:   "security.everoute.io",
 		Version: "v1alpha1",
 		Kind:    "SecurityPolicy",
 	}, &securityPolicyValidator{v.client})
 
-	// security.lynx.smartx.com/v1alpha1 tier validator
+	// security.everoute.io/v1alpha1 tier validator
 	v.register(metav1.GroupVersionKind{
-		Group:   "security.lynx.smartx.com",
+		Group:   "security.everoute.io",
 		Version: "v1alpha1",
 		Kind:    "Tier",
 	}, &tierValidator{v.client})
 
-	// security.lynx.smartx.com/v1alpha1 globalpolicy validator
+	// security.everoute.io/v1alpha1 globalpolicy validator
 	v.register(metav1.GroupVersionKind{
-		Group:   "security.lynx.smartx.com",
+		Group:   "security.everoute.io",
 		Version: "v1alpha1",
 		Kind:    "GlobalPolicy",
 	}, &globalPolicyValidator{v.client})

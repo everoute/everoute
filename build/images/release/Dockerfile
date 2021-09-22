@@ -1,21 +1,21 @@
 FROM golang:1.15 as builder
 
 # Download deps
-RUN mkdir -p $GOPATH/src/lynx
-WORKDIR $GOPATH/src/lynx
+RUN mkdir -p $GOPATH/src/everoute
+WORKDIR $GOPATH/src/everoute
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 # Build
-COPY . $GOPATH/src/lynx
-RUN mkdir -p /opt/lynx/bin && \
+COPY . $GOPATH/src/everoute
+RUN mkdir -p /opt/everoute/bin && \
     make bin && \
-    cp $GOPATH/src/lynx/bin/* /opt/lynx/bin/
+    cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
 
 FROM alpine
 
-COPY --from=builder /opt/lynx/bin/* /opt/lynx/bin/
+COPY --from=builder /opt/everoute/bin/* /opt/everoute/bin/
 
-WORKDIR /opt/lynx/bin
-ENV PATH=${PATH}:/opt/lynx/bin
+WORKDIR /opt/everoute/bin
+ENV PATH=${PATH}:/opt/everoute/bin

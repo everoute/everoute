@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ const (
 
 	DefaultMaxConcurrentReconciles   = 4
 	NumOfRetainedGroupMembersPatches = 3
-	DependentsCleanFinalizer         = "finalizer.lynx.smartx.com/dependentsclean"
-	OwnerGroupLabelKey               = "label.lynx.smartx.com/ownergroup"
-	OwnerPolicyLabelKey              = "label.lynx.smartx.com/ownerpolicy"
-	IsGlobalPolicyRuleLabel          = "label.lynx.smartx.com/isglobalpolicy"
+	DependentsCleanFinalizer         = "finalizer.everoute.io/dependentsclean"
+	OwnerGroupLabelKey               = "label.everoute.io/ownergroup"
+	OwnerPolicyLabelKey              = "label.everoute.io/ownerpolicy"
+	IsGlobalPolicyRuleLabel          = "label.everoute.io/isglobalpolicy"
 
 	// Tier0 used for isolation policy
 	Tier0 = "tier0"

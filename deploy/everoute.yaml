@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: agentinfos.agent.lynx.smartx.com
+  name: agentinfos.agent.everoute.io
 spec:
-  group: agent.lynx.smartx.com
+  group: agent.everoute.io
   names:
     kind: AgentInfo
     listKind: AgentInfoList
@@ -136,9 +136,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: endpointgroups.group.lynx.smartx.com
+  name: endpointgroups.group.everoute.io
 spec:
-  group: group.lynx.smartx.com
+  group: group.everoute.io
   names:
     kind: EndpointGroup
     listKind: EndpointGroupList
@@ -291,9 +291,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: groupmembers.group.lynx.smartx.com
+  name: groupmembers.group.everoute.io
 spec:
-  group: group.lynx.smartx.com
+  group: group.everoute.io
   names:
     kind: GroupMembers
     listKind: GroupMembersList
@@ -367,9 +367,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: groupmemberspatches.group.lynx.smartx.com
+  name: groupmemberspatches.group.everoute.io
 spec:
-  group: group.lynx.smartx.com
+  group: group.everoute.io
   names:
     kind: GroupMembersPatch
     listKind: GroupMembersPatchList
@@ -506,9 +506,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: policyrules.policyrule.lynx.smartx.com
+  name: policyrules.policyrule.everoute.io
 spec:
-  group: policyrule.lynx.smartx.com
+  group: policyrule.everoute.io
   names:
     kind: PolicyRule
     listKind: PolicyRuleList
@@ -598,9 +598,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: endpoints.security.lynx.smartx.com
+  name: endpoints.security.everoute.io
 spec:
-  group: security.lynx.smartx.com
+  group: security.everoute.io
   names:
     kind: Endpoint
     listKind: EndpointList
@@ -676,9 +676,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: globalpolicies.security.lynx.smartx.com
+  name: globalpolicies.security.everoute.io
 spec:
-  group: security.lynx.smartx.com
+  group: security.everoute.io
   names:
     kind: GlobalPolicy
     listKind: GlobalPolicyList
@@ -755,9 +755,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: securitypolicies.security.lynx.smartx.com
+  name: securitypolicies.security.everoute.io
 spec:
-  group: security.lynx.smartx.com
+  group: security.everoute.io
   names:
     kind: SecurityPolicy
     listKind: SecurityPolicyList
@@ -1626,9 +1626,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: tiers.security.lynx.smartx.com
+  name: tiers.security.everoute.io
 spec:
-  group: security.lynx.smartx.com
+  group: security.everoute.io
   names:
     kind: Tier
     listKind: TierList
@@ -1686,10 +1686,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: lynx-agent
+  name: everoute-agent
 rules:
 - apiGroups:
-  - agent.lynx.smartx.com
+  - agent.everoute.io
   resources:
   - agentinfos
   verbs:
@@ -1701,7 +1701,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - policyrule.lynx.smartx.com
+  - policyrule.everoute.io
   resources:
   - policyrules
   verbs:
@@ -1712,34 +1712,34 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: lynx-agent
+  name: everoute-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: lynx-agent
+  name: everoute-agent
 subjects:
   - kind: ServiceAccount
-    name: lynx-agent
+    name: everoute-agent
     namespace: kube-system
   - apiGroup: rbac.authorization.k8s.io
     kind: User
     # support use certs authentication
-    name: lynx-agent
+    name: everoute-agent
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: lynx-agent
+  name: everoute-agent
   namespace: kube-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: lynx-controller
+  name: everoute-controller
   namespace: kube-system
   labels:
-    app: lynx
-    component: lynx-controller
+    app: everoute
+    component: everoute-controller
 spec:
   strategy:
     # Ensure the existing Pod is killed before the new one is created.
@@ -1747,26 +1747,26 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: lynx
-      component: lynx-controller
+      app: everoute
+      component: everoute-controller
   template:
     metadata:
       labels:
-        app: lynx
-        component: lynx-controller
+        app: everoute
+        component: everoute-controller
     spec:
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
-      serviceAccountName: lynx-controller
+      serviceAccountName: everoute-controller
       hostNetwork: true
       containers:
-        - name: lynx-controller
-          image: lynx/release
+        - name: everoute-controller
+          image: everoute/release
           imagePullPolicy: IfNotPresent
-          command: ["lynx-controller"]
+          command: ["everoute-controller"]
           args:
             - --enable-leader-election=true
             - --port=9443
@@ -1777,7 +1777,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: lynx-controller
+  name: everoute-controller
 rules:
 - apiGroups:
   - ""
@@ -1815,7 +1815,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - agent.lynx.smartx.com
+  - agent.everoute.io
   resources:
   - agentinfos
   verbs:
@@ -1823,7 +1823,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - group.lynx.smartx.com
+  - group.everoute.io
   resources:
   - groupmembers
   - groupmemberspatches
@@ -1838,7 +1838,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - security.lynx.smartx.com
+  - security.everoute.io
   resources:
   - tiers
   - securitypolicies
@@ -1856,7 +1856,7 @@ rules:
   - watch
   - create
 - apiGroups:
-  - policyrule.lynx.smartx.com
+  - policyrule.everoute.io
   resources:
   - policyrules
   - policyrules/status
@@ -1873,44 +1873,44 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: lynx-controller
+  name: everoute-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: lynx-controller
+  name: everoute-controller
 subjects:
   - kind: ServiceAccount
-    name: lynx-controller
+    name: everoute-controller
     namespace: kube-system
   - apiGroup: rbac.authorization.k8s.io
     kind: User
     # support use certs authentication
-    name: lynx-controller
+    name: everoute-controller
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: lynx-controller
+  name: everoute-controller
   namespace: kube-system
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: validator.lynx.smartx.com
+  name: validator.everoute.io
 webhooks:
   - clientConfig:
-      # CaBundle must set as the ca for secret lynx-controller-tls.
+      # CaBundle must set as the ca for secret everoute-controller-tls.
       caBundle:
       service:
-        name: lynx-validator-webhook
+        name: everoute-validator-webhook
         namespace: kube-system
         path: /validate/crds
         port: 9443
     failurePolicy: Fail
-    name: validator.lynx.smartx.com
+    name: validator.everoute.io
     rules:
       - apiGroups:
-          - security.lynx.smartx.com
+          - security.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -1923,7 +1923,7 @@ webhooks:
           - endpoints
           - globalpolicies
       - apiGroups:
-          - group.lynx.smartx.com
+          - group.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -1937,23 +1937,23 @@ webhooks:
 apiVersion: v1
 kind: Service
 metadata:
-  name: lynx-validator-webhook
+  name: everoute-validator-webhook
   namespace: kube-system
 spec:
   type: ClusterIP
   ports:
     - port: 9443
       protocol: TCP
-      # This port should match port lynx-controller exposed.
+      # This port should match port everoute-controller exposed.
       targetPort: 9443
   selector:
-    app: lynx
-    component: lynx-controller
+    app: everoute
+    component: everoute-controller
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: lynx-controller-tls
+  name: everoute-controller-tls
   namespace: kube-system
 type: kubernetes.io/tls
 data:

@@ -13,8 +13,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/server/fake/graph/model"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -914,7 +914,7 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 	var arg0 model.LoginInput
 	if tmp, ok := rawArgs["data"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
-		arg0, err = ec.unmarshalNLoginInput2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLoginInput(ctx, tmp)
+		arg0, err = ec.unmarshalNLoginInput2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLoginInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -1043,7 +1043,7 @@ func (ec *executionContext) _IsolationPolicy_everoute_cluster(ctx context.Contex
 	}
 	res := resTmp.(schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicy_vm(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
@@ -1078,7 +1078,7 @@ func (ec *executionContext) _IsolationPolicy_vm(ctx context.Context, field graph
 	}
 	res := resTmp.(schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicy_mode(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
@@ -1113,7 +1113,7 @@ func (ec *executionContext) _IsolationPolicy_mode(ctx context.Context, field gra
 	}
 	res := resTmp.(schema.IsolationMode)
 	fc.Result = res
-	return ec.marshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx, field.Selections, res)
+	return ec.marshalNIsolationMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicy_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
@@ -1145,7 +1145,7 @@ func (ec *executionContext) _IsolationPolicy_ingress(ctx context.Context, field 
 	}
 	res := resTmp.([]schema.NetworkPolicyRule)
 	fc.Result = res
-	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicy_egress(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
@@ -1177,7 +1177,7 @@ func (ec *executionContext) _IsolationPolicy_egress(ctx context.Context, field g
 	}
 	res := resTmp.([]schema.NetworkPolicyRule)
 	fc.Result = res
-	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicyEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
@@ -1212,7 +1212,7 @@ func (ec *executionContext) _IsolationPolicyEvent_mutation(ctx context.Context, 
 	}
 	res := resTmp.(model.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
@@ -1247,7 +1247,7 @@ func (ec *executionContext) _IsolationPolicyEvent_node(ctx context.Context, fiel
 	}
 	res := resTmp.(*schema.IsolationPolicy)
 	fc.Result = res
-	return ec.marshalNIsolationPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, field.Selections, res)
+	return ec.marshalNIsolationPolicy2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicyEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
@@ -1279,7 +1279,7 @@ func (ec *executionContext) _IsolationPolicyEvent_previousValues(ctx context.Con
 	}
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Label_id(ctx context.Context, field graphql.CollectedField, obj *schema.Label) (ret graphql.Marshaler) {
@@ -1413,7 +1413,7 @@ func (ec *executionContext) _Label_vms(ctx context.Context, field graphql.Collec
 	}
 	res := resTmp.([]schema.VM)
 	fc.Result = res
-	return ec.marshalOVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx, field.Selections, res)
+	return ec.marshalOVM2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _LabelEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.LabelEvent) (ret graphql.Marshaler) {
@@ -1448,7 +1448,7 @@ func (ec *executionContext) _LabelEvent_mutation(ctx context.Context, field grap
 	}
 	res := resTmp.(model.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _LabelEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.LabelEvent) (ret graphql.Marshaler) {
@@ -1483,7 +1483,7 @@ func (ec *executionContext) _LabelEvent_node(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*schema.Label)
 	fc.Result = res
-	return ec.marshalNLabel2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx, field.Selections, res)
+	return ec.marshalNLabel2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _LabelEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.LabelEvent) (ret graphql.Marshaler) {
@@ -1515,7 +1515,7 @@ func (ec *executionContext) _LabelEvent_previousValues(ctx context.Context, fiel
 	}
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Login_token(ctx context.Context, field graphql.CollectedField, obj *model.Login) (ret graphql.Marshaler) {
@@ -1592,7 +1592,7 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*model.Login)
 	fc.Result = res
-	return ec.marshalNLogin2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx, field.Selections, res)
+	return ec.marshalNLogin2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRule_ip_block(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
@@ -1656,7 +1656,7 @@ func (ec *executionContext) _NetworkPolicyRule_ports(ctx context.Context, field 
 	}
 	res := resTmp.([]schema.NetworkPolicyRulePort)
 	fc.Result = res
-	return ec.marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx, field.Selections, res)
+	return ec.marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRule_selector(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
@@ -1688,7 +1688,7 @@ func (ec *executionContext) _NetworkPolicyRule_selector(ctx context.Context, fie
 	}
 	res := resTmp.([]schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRule_type(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
@@ -1723,7 +1723,7 @@ func (ec *executionContext) _NetworkPolicyRule_type(ctx context.Context, field g
 	}
 	res := resTmp.(schema.NetworkPolicyRuleType)
 	fc.Result = res
-	return ec.marshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx, field.Selections, res)
+	return ec.marshalNNetworkPolicyRuleType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRulePort_port(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRulePort) (ret graphql.Marshaler) {
@@ -1790,7 +1790,7 @@ func (ec *executionContext) _NetworkPolicyRulePort_protocol(ctx context.Context,
 	}
 	res := resTmp.(schema.NetworkPolicyRulePortProtocol)
 	fc.Result = res
-	return ec.marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx, field.Selections, res)
+	return ec.marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ObjectReference_id(ctx context.Context, field graphql.CollectedField, obj *schema.ObjectReference) (ret graphql.Marshaler) {
@@ -1860,7 +1860,7 @@ func (ec *executionContext) _Query_vms(ctx context.Context, field graphql.Collec
 	}
 	res := resTmp.([]schema.VM)
 	fc.Result = res
-	return ec.marshalNVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx, field.Selections, res)
+	return ec.marshalNVM2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_labels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1895,7 +1895,7 @@ func (ec *executionContext) _Query_labels(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.([]schema.Label)
 	fc.Result = res
-	return ec.marshalNLabel2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabelᚄ(ctx, field.Selections, res)
+	return ec.marshalNLabel2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabelᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_securityPolicies(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1930,7 +1930,7 @@ func (ec *executionContext) _Query_securityPolicies(ctx context.Context, field g
 	}
 	res := resTmp.([]schema.SecurityPolicy)
 	fc.Result = res
-	return ec.marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx, field.Selections, res)
+	return ec.marshalNSecurityPolicy2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_isolationPolicies(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1965,7 +1965,7 @@ func (ec *executionContext) _Query_isolationPolicies(ctx context.Context, field 
 	}
 	res := resTmp.([]schema.IsolationPolicy)
 	fc.Result = res
-	return ec.marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx, field.Selections, res)
+	return ec.marshalNIsolationPolicy2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2106,7 +2106,7 @@ func (ec *executionContext) _SecurityPolicy_everoute_cluster(ctx context.Context
 	}
 	res := resTmp.(schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicy_apply_to(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
@@ -2141,7 +2141,7 @@ func (ec *executionContext) _SecurityPolicy_apply_to(ctx context.Context, field 
 	}
 	res := resTmp.([]schema.SecurityPolicyApply)
 	fc.Result = res
-	return ec.marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx, field.Selections, res)
+	return ec.marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicy_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
@@ -2173,7 +2173,7 @@ func (ec *executionContext) _SecurityPolicy_ingress(ctx context.Context, field g
 	}
 	res := resTmp.([]schema.NetworkPolicyRule)
 	fc.Result = res
-	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicy_egress(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
@@ -2205,7 +2205,7 @@ func (ec *executionContext) _SecurityPolicy_egress(ctx context.Context, field gr
 	}
 	res := resTmp.([]schema.NetworkPolicyRule)
 	fc.Result = res
-	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyApply_communicable(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
@@ -2275,7 +2275,7 @@ func (ec *executionContext) _SecurityPolicyApply_selector(ctx context.Context, f
 	}
 	res := resTmp.([]schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalNObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+	return ec.marshalNObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
@@ -2310,7 +2310,7 @@ func (ec *executionContext) _SecurityPolicyEvent_mutation(ctx context.Context, f
 	}
 	res := resTmp.(model.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
@@ -2345,7 +2345,7 @@ func (ec *executionContext) _SecurityPolicyEvent_node(ctx context.Context, field
 	}
 	res := resTmp.(*schema.SecurityPolicy)
 	fc.Result = res
-	return ec.marshalNSecurityPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, field.Selections, res)
+	return ec.marshalNSecurityPolicy2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
@@ -2377,7 +2377,7 @@ func (ec *executionContext) _SecurityPolicyEvent_previousValues(ctx context.Cont
 	}
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Subscription_vm(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
@@ -2419,7 +2419,7 @@ func (ec *executionContext) _Subscription_vm(ctx context.Context, field graphql.
 			w.Write([]byte{'{'})
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
-			ec.marshalNVMEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx, field.Selections, res).MarshalGQL(w)
+			ec.marshalNVMEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2464,7 +2464,7 @@ func (ec *executionContext) _Subscription_label(ctx context.Context, field graph
 			w.Write([]byte{'{'})
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
-			ec.marshalNLabelEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx, field.Selections, res).MarshalGQL(w)
+			ec.marshalNLabelEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2509,7 +2509,7 @@ func (ec *executionContext) _Subscription_securityPolicy(ctx context.Context, fi
 			w.Write([]byte{'{'})
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
-			ec.marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
+			ec.marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2554,7 +2554,7 @@ func (ec *executionContext) _Subscription_isolationPolicy(ctx context.Context, f
 			w.Write([]byte{'{'})
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
-			ec.marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
+			ec.marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2764,7 +2764,7 @@ func (ec *executionContext) _VM_vm_nics(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.([]schema.VMNic)
 	fc.Result = res
-	return ec.marshalOVMNic2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicᚄ(ctx, field.Selections, res)
+	return ec.marshalOVMNic2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VM_status(ctx context.Context, field graphql.CollectedField, obj *schema.VM) (ret graphql.Marshaler) {
@@ -2799,7 +2799,7 @@ func (ec *executionContext) _VM_status(ctx context.Context, field graphql.Collec
 	}
 	res := resTmp.(schema.VMStatus)
 	fc.Result = res
-	return ec.marshalNVMStatus2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx, field.Selections, res)
+	return ec.marshalNVMStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
@@ -2834,7 +2834,7 @@ func (ec *executionContext) _VMEvent_mutation(ctx context.Context, field graphql
 	}
 	res := resTmp.(model.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
@@ -2869,7 +2869,7 @@ func (ec *executionContext) _VMEvent_node(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*schema.VM)
 	fc.Result = res
-	return ec.marshalNVM2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, field.Selections, res)
+	return ec.marshalNVM2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
@@ -2901,7 +2901,7 @@ func (ec *executionContext) _VMEvent_previousValues(ctx context.Context, field g
 	}
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMNic_id(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
@@ -2968,7 +2968,7 @@ func (ec *executionContext) _VMNic_vlan(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(schema.Vlan)
 	fc.Result = res
-	return ec.marshalOVlan2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVlan(ctx, field.Selections, res)
+	return ec.marshalOVlan2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVlan(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMNic_enabled(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
@@ -3064,7 +3064,7 @@ func (ec *executionContext) _VMNic_model(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(schema.VMNicModel)
 	fc.Result = res
-	return ec.marshalOVMNicModel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx, field.Selections, res)
+	return ec.marshalOVMNicModel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMNic_interface_id(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
@@ -3236,7 +3236,7 @@ func (ec *executionContext) _Vlan_type(ctx context.Context, field graphql.Collec
 	}
 	res := resTmp.(schema.NetworkType)
 	fc.Result = res
-	return ec.marshalNNetworkType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx, field.Selections, res)
+	return ec.marshalNNetworkType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -4344,7 +4344,7 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj in
 			var err error
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
-			it.Source, err = ec.unmarshalNUserSource2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx, v)
+			it.Source, err = ec.unmarshalNUserSource2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -5367,13 +5367,13 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, v interface{}) (schema.IsolationMode, error) {
+func (ec *executionContext) unmarshalNIsolationMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, v interface{}) (schema.IsolationMode, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.IsolationMode(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNIsolationMode2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, sel ast.SelectionSet, v schema.IsolationMode) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx context.Context, sel ast.SelectionSet, v schema.IsolationMode) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -5383,11 +5383,11 @@ func (ec *executionContext) marshalNIsolationMode2githubᚗcomᚋsmartxworksᚋl
 	return res
 }
 
-func (ec *executionContext) marshalNIsolationPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v schema.IsolationPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationPolicy2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v schema.IsolationPolicy) graphql.Marshaler {
 	return ec._IsolationPolicy(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IsolationPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationPolicy2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IsolationPolicy) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5411,7 +5411,7 @@ func (ec *executionContext) marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxwork
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNIsolationPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, sel, v[i])
+			ret[i] = ec.marshalNIsolationPolicy2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5424,7 +5424,7 @@ func (ec *executionContext) marshalNIsolationPolicy2ᚕgithubᚗcomᚋsmartxwork
 	return ret
 }
 
-func (ec *executionContext) marshalNIsolationPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.IsolationPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationPolicy2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.IsolationPolicy) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5434,11 +5434,11 @@ func (ec *executionContext) marshalNIsolationPolicy2ᚖgithubᚗcomᚋsmartxwork
 	return ec._IsolationPolicy(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNIsolationPolicyEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.IsolationPolicyEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationPolicyEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.IsolationPolicyEvent) graphql.Marshaler {
 	return ec._IsolationPolicyEvent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.IsolationPolicyEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.IsolationPolicyEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5448,11 +5448,11 @@ func (ec *executionContext) marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋsmart
 	return ec._IsolationPolicyEvent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLabel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v schema.Label) graphql.Marshaler {
+func (ec *executionContext) marshalNLabel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v schema.Label) graphql.Marshaler {
 	return ec._Label(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLabel2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.Label) graphql.Marshaler {
+func (ec *executionContext) marshalNLabel2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.Label) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5476,7 +5476,7 @@ func (ec *executionContext) marshalNLabel2ᚕgithubᚗcomᚋsmartxworksᚋlynx�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNLabel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx, sel, v[i])
+			ret[i] = ec.marshalNLabel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5489,7 +5489,7 @@ func (ec *executionContext) marshalNLabel2ᚕgithubᚗcomᚋsmartxworksᚋlynx�
 	return ret
 }
 
-func (ec *executionContext) marshalNLabel2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v *schema.Label) graphql.Marshaler {
+func (ec *executionContext) marshalNLabel2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v *schema.Label) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5499,11 +5499,11 @@ func (ec *executionContext) marshalNLabel2ᚖgithubᚗcomᚋsmartxworksᚋlynx�
 	return ec._Label(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLabelEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx context.Context, sel ast.SelectionSet, v model.LabelEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNLabelEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx context.Context, sel ast.SelectionSet, v model.LabelEvent) graphql.Marshaler {
 	return ec._LabelEvent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLabelEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx context.Context, sel ast.SelectionSet, v *model.LabelEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNLabelEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLabelEvent(ctx context.Context, sel ast.SelectionSet, v *model.LabelEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5513,11 +5513,11 @@ func (ec *executionContext) marshalNLabelEvent2ᚖgithubᚗcomᚋsmartxworksᚋl
 	return ec._LabelEvent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLogin2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx context.Context, sel ast.SelectionSet, v model.Login) graphql.Marshaler {
+func (ec *executionContext) marshalNLogin2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx context.Context, sel ast.SelectionSet, v model.Login) graphql.Marshaler {
 	return ec._Login(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLogin2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx context.Context, sel ast.SelectionSet, v *model.Login) graphql.Marshaler {
+func (ec *executionContext) marshalNLogin2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx context.Context, sel ast.SelectionSet, v *model.Login) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5527,36 +5527,36 @@ func (ec *executionContext) marshalNLogin2ᚖgithubᚗcomᚋsmartxworksᚋlynx�
 	return ec._Login(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNLoginInput2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLoginInput(ctx context.Context, v interface{}) (model.LoginInput, error) {
+func (ec *executionContext) unmarshalNLoginInput2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLoginInput(ctx context.Context, v interface{}) (model.LoginInput, error) {
 	res, err := ec.unmarshalInputLoginInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, v interface{}) (model.MutationType, error) {
+func (ec *executionContext) unmarshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, v interface{}) (model.MutationType, error) {
 	var res model.MutationType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNMutationType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, sel ast.SelectionSet, v model.MutationType) graphql.Marshaler {
+func (ec *executionContext) marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, sel ast.SelectionSet, v model.MutationType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNNetworkPolicyRule2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRule) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkPolicyRule2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRule) graphql.Marshaler {
 	return ec._NetworkPolicyRule(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNetworkPolicyRulePort2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePort) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkPolicyRulePort2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePort) graphql.Marshaler {
 	return ec._NetworkPolicyRulePort(ctx, sel, &v)
 }
 
-func (ec *executionContext) unmarshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, v interface{}) (schema.NetworkPolicyRulePortProtocol, error) {
+func (ec *executionContext) unmarshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, v interface{}) (schema.NetworkPolicyRulePortProtocol, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.NetworkPolicyRulePortProtocol(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePortProtocol) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePortProtocol) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -5566,13 +5566,13 @@ func (ec *executionContext) marshalNNetworkPolicyRulePortProtocol2githubᚗcom�
 	return res
 }
 
-func (ec *executionContext) unmarshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, v interface{}) (schema.NetworkPolicyRuleType, error) {
+func (ec *executionContext) unmarshalNNetworkPolicyRuleType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, v interface{}) (schema.NetworkPolicyRuleType, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.NetworkPolicyRuleType(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRuleType) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkPolicyRuleType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRuleType) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -5582,13 +5582,13 @@ func (ec *executionContext) marshalNNetworkPolicyRuleType2githubᚗcomᚋsmartxw
 	return res
 }
 
-func (ec *executionContext) unmarshalNNetworkType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx context.Context, v interface{}) (schema.NetworkType, error) {
+func (ec *executionContext) unmarshalNNetworkType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx context.Context, v interface{}) (schema.NetworkType, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.NetworkType(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNetworkType2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx context.Context, sel ast.SelectionSet, v schema.NetworkType) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkType(ctx context.Context, sel ast.SelectionSet, v schema.NetworkType) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -5598,11 +5598,11 @@ func (ec *executionContext) marshalNNetworkType2githubᚗcomᚋsmartxworksᚋlyn
 	return res
 }
 
-func (ec *executionContext) marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v schema.ObjectReference) graphql.Marshaler {
+func (ec *executionContext) marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v schema.ObjectReference) graphql.Marshaler {
 	return ec._ObjectReference(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
+func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5626,7 +5626,7 @@ func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋsmartxwork
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
+			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5639,11 +5639,11 @@ func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋsmartxwork
 	return ret
 }
 
-func (ec *executionContext) marshalNSecurityPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicy2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicy) graphql.Marshaler {
 	return ec._SecurityPolicy(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicy2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicy) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5667,7 +5667,7 @@ func (ec *executionContext) marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworks
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSecurityPolicy2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, sel, v[i])
+			ret[i] = ec.marshalNSecurityPolicy2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5680,7 +5680,7 @@ func (ec *executionContext) marshalNSecurityPolicy2ᚕgithubᚗcomᚋsmartxworks
 	return ret
 }
 
-func (ec *executionContext) marshalNSecurityPolicy2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.SecurityPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicy2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicy(ctx context.Context, sel ast.SelectionSet, v *schema.SecurityPolicy) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5690,11 +5690,11 @@ func (ec *executionContext) marshalNSecurityPolicy2ᚖgithubᚗcomᚋsmartxworks
 	return ec._SecurityPolicy(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSecurityPolicyApply2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicyApply) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicyApply2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx context.Context, sel ast.SelectionSet, v schema.SecurityPolicyApply) graphql.Marshaler {
 	return ec._SecurityPolicyApply(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicyApply) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApplyᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.SecurityPolicyApply) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5718,7 +5718,7 @@ func (ec *executionContext) marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartx
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSecurityPolicyApply2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx, sel, v[i])
+			ret[i] = ec.marshalNSecurityPolicyApply2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityPolicyApply(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5731,11 +5731,11 @@ func (ec *executionContext) marshalNSecurityPolicyApply2ᚕgithubᚗcomᚋsmartx
 	return ret
 }
 
-func (ec *executionContext) marshalNSecurityPolicyEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.SecurityPolicyEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicyEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v model.SecurityPolicyEvent) graphql.Marshaler {
 	return ec._SecurityPolicyEvent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.SecurityPolicyEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNSecurityPolicyEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityPolicyEvent(ctx context.Context, sel ast.SelectionSet, v *model.SecurityPolicyEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5760,21 +5760,21 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalNUserSource2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx context.Context, v interface{}) (model.UserSource, error) {
+func (ec *executionContext) unmarshalNUserSource2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx context.Context, v interface{}) (model.UserSource, error) {
 	var res model.UserSource
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNUserSource2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx context.Context, sel ast.SelectionSet, v model.UserSource) graphql.Marshaler {
+func (ec *executionContext) marshalNUserSource2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx context.Context, sel ast.SelectionSet, v model.UserSource) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNVM2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx context.Context, sel ast.SelectionSet, v schema.VM) graphql.Marshaler {
+func (ec *executionContext) marshalNVM2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx context.Context, sel ast.SelectionSet, v schema.VM) graphql.Marshaler {
 	return ec._VM(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VM) graphql.Marshaler {
+func (ec *executionContext) marshalNVM2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VM) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5798,7 +5798,7 @@ func (ec *executionContext) marshalNVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpl
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNVM2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, sel, v[i])
+			ret[i] = ec.marshalNVM2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5811,7 +5811,7 @@ func (ec *executionContext) marshalNVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpl
 	return ret
 }
 
-func (ec *executionContext) marshalNVM2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx context.Context, sel ast.SelectionSet, v *schema.VM) graphql.Marshaler {
+func (ec *executionContext) marshalNVM2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx context.Context, sel ast.SelectionSet, v *schema.VM) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5821,11 +5821,11 @@ func (ec *executionContext) marshalNVM2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpl
 	return ec._VM(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNVMEvent2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx context.Context, sel ast.SelectionSet, v model.VMEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNVMEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx context.Context, sel ast.SelectionSet, v model.VMEvent) graphql.Marshaler {
 	return ec._VMEvent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNVMEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx context.Context, sel ast.SelectionSet, v *model.VMEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNVMEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐVMEvent(ctx context.Context, sel ast.SelectionSet, v *model.VMEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -5835,17 +5835,17 @@ func (ec *executionContext) marshalNVMEvent2ᚖgithubᚗcomᚋsmartxworksᚋlynx
 	return ec._VMEvent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNVMNic2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNic(ctx context.Context, sel ast.SelectionSet, v schema.VMNic) graphql.Marshaler {
+func (ec *executionContext) marshalNVMNic2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNic(ctx context.Context, sel ast.SelectionSet, v schema.VMNic) graphql.Marshaler {
 	return ec._VMNic(ctx, sel, &v)
 }
 
-func (ec *executionContext) unmarshalNVMStatus2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx context.Context, v interface{}) (schema.VMStatus, error) {
+func (ec *executionContext) unmarshalNVMStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx context.Context, v interface{}) (schema.VMStatus, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.VMStatus(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNVMStatus2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx context.Context, sel ast.SelectionSet, v schema.VMStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNVMStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMStatus(ctx context.Context, sel ast.SelectionSet, v schema.VMStatus) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -6108,7 +6108,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
-func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRule) graphql.Marshaler {
+func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRule) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6135,7 +6135,7 @@ func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxwo
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNetworkPolicyRule2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx, sel, v[i])
+			ret[i] = ec.marshalNNetworkPolicyRule2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6148,7 +6148,7 @@ func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋsmartxwo
 	return ret
 }
 
-func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRulePort) graphql.Marshaler {
+func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRulePort) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6175,7 +6175,7 @@ func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmar
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNetworkPolicyRulePort2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx, sel, v[i])
+			ret[i] = ec.marshalNNetworkPolicyRulePort2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePort(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6188,7 +6188,7 @@ func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋsmar
 	return ret
 }
 
-func (ec *executionContext) marshalOObjectReference2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
+func (ec *executionContext) marshalOObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.ObjectReference) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6215,7 +6215,7 @@ func (ec *executionContext) marshalOObjectReference2ᚕgithubᚗcomᚋsmartxwork
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
+			ret[i] = ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6228,7 +6228,7 @@ func (ec *executionContext) marshalOObjectReference2ᚕgithubᚗcomᚋsmartxwork
 	return ret
 }
 
-func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v *schema.ObjectReference) graphql.Marshaler {
+func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx context.Context, sel ast.SelectionSet, v *schema.ObjectReference) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6259,7 +6259,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return graphql.MarshalString(*v)
 }
 
-func (ec *executionContext) marshalOVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VM) graphql.Marshaler {
+func (ec *executionContext) marshalOVM2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VM) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6286,7 +6286,7 @@ func (ec *executionContext) marshalOVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpl
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNVM2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, sel, v[i])
+			ret[i] = ec.marshalNVM2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVM(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6299,7 +6299,7 @@ func (ec *executionContext) marshalOVM2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpl
 	return ret
 }
 
-func (ec *executionContext) marshalOVMNic2ᚕgithubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VMNic) graphql.Marshaler {
+func (ec *executionContext) marshalOVMNic2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VMNic) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6326,7 +6326,7 @@ func (ec *executionContext) marshalOVMNic2ᚕgithubᚗcomᚋsmartxworksᚋlynx�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNVMNic2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNic(ctx, sel, v[i])
+			ret[i] = ec.marshalNVMNic2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNic(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6339,17 +6339,17 @@ func (ec *executionContext) marshalOVMNic2ᚕgithubᚗcomᚋsmartxworksᚋlynx�
 	return ret
 }
 
-func (ec *executionContext) unmarshalOVMNicModel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx context.Context, v interface{}) (schema.VMNicModel, error) {
+func (ec *executionContext) unmarshalOVMNicModel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx context.Context, v interface{}) (schema.VMNicModel, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.VMNicModel(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOVMNicModel2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx context.Context, sel ast.SelectionSet, v schema.VMNicModel) graphql.Marshaler {
+func (ec *executionContext) marshalOVMNicModel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx context.Context, sel ast.SelectionSet, v schema.VMNicModel) graphql.Marshaler {
 	return graphql.MarshalString(string(v))
 }
 
-func (ec *executionContext) marshalOVlan2githubᚗcomᚋsmartxworksᚋlynxᚋpluginᚋtowerᚋpkgᚋschemaᚐVlan(ctx context.Context, sel ast.SelectionSet, v schema.Vlan) graphql.Marshaler {
+func (ec *executionContext) marshalOVlan2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVlan(ctx context.Context, sel ast.SelectionSet, v schema.Vlan) graphql.Marshaler {
 	return ec._Vlan(ctx, sel, &v)
 }
 

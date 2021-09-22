@@ -7,7 +7,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/smartxworks/lynx/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
 type IsolationPolicyEvent struct {

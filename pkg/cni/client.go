@@ -11,10 +11,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	cnipb "github.com/smartxworks/lynx/pkg/apis/cni/v1alpha1"
+	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
 )
 
-const CNISocketAddr = "/var/run/lynx/cni.sock"
+const CNISocketAddr = "/var/run/everoute/cni.sock"
 
 func rpcRequest(requestType string, arg *skel.CmdArgs) error {
 	conn, err := grpc.Dial(CNISocketAddr,

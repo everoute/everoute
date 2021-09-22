@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,10 +35,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/smartxworks/lynx/pkg/agent/datapath"
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/scheme"
-	"github.com/smartxworks/lynx/pkg/types"
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -87,7 +87,7 @@ func TestAgentMonitor(t *testing.T) {
 	brName := string(uuid.NewUUID())
 	portName := string(uuid.NewUUID())
 	ifaceName := portName
-	externalIDs := map[string]string{"lynx.agent.monitor.externalID.name": "lynx.agent.monitor.externalID.value"}
+	externalIDs := map[string]string{"everoute.agent.monitor.externalID.name": "everoute.agent.monitor.externalID.value"}
 
 	t.Logf("create new bridge %s", brName)
 	Expect(createBridge(ovsClient, brName)).Should(Succeed())

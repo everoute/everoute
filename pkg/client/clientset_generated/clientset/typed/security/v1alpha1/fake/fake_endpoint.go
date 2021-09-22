@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,9 +36,9 @@ type FakeEndpoints struct {
 	ns   string
 }
 
-var endpointsResource = schema.GroupVersionResource{Group: "security.lynx.smartx.com", Version: "v1alpha1", Resource: "endpoints"}
+var endpointsResource = schema.GroupVersionResource{Group: "security.everoute.io", Version: "v1alpha1", Resource: "endpoints"}
 
-var endpointsKind = schema.GroupVersionKind{Group: "security.lynx.smartx.com", Version: "v1alpha1", Kind: "Endpoint"}
+var endpointsKind = schema.GroupVersionKind{Group: "security.everoute.io", Version: "v1alpha1", Kind: "Endpoint"}
 
 // Get takes name of the endpoint, and returns the corresponding endpoint object, and an error if there is any.
 func (c *FakeEndpoints) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Endpoint, err error) {

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
-	"github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/client"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/controller/policy"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	"github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
 type Options struct {

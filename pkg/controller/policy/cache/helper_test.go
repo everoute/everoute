@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ limitations under the License.
 package cache
 
 import (
-	"github.com/smartxworks/lynx/pkg/types"
 	"testing"
+
+	"github.com/everoute/everoute/pkg/types"
 )
 
 func TestUnmarshalPortRange(t *testing.T) {

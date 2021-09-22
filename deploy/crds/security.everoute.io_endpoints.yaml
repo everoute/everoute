@@ -6,20 +6,19 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: policyrules.policyrule.lynx.smartx.com
+  name: endpoints.security.everoute.io
 spec:
-  group: policyrule.lynx.smartx.com
+  group: security.everoute.io
   names:
-    kind: PolicyRule
-    listKind: PolicyRuleList
-    plural: policyrules
-    singular: policyrule
-  scope: Cluster
+    kind: Endpoint
+    listKind: EndpointList
+    plural: endpoints
+    singular: endpoint
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PolicyRule
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,51 +33,38 @@ spec:
           metadata:
             type: object
           spec:
-            description: PolicyRuleSpec defines the desired state of PolicyRule
             properties:
-              action:
-                type: string
-              direction:
-                type: string
-              dstIPAddr:
-                type: string
-              dstPort:
+              reference:
+                properties:
+                  externalIDName:
+                    type: string
+                  externalIDValue:
+                    type: string
+                required:
+                - externalIDName
+                - externalIDValue
+                type: object
+              vid:
+                format: int32
                 type: integer
-              dstPortMask:
-                type: integer
-              ipProtocol:
-                type: string
-              ruleType:
-                type: string
-              srcIPAddr:
-                type: string
-              srcPort:
-                type: integer
-              srcPortMask:
-                type: integer
-              tcpFlags:
-                type: string
-              tier:
-                type: string
             required:
-            - action
-            - direction
-            - ipProtocol
-            - ruleType
-            - tcpFlags
+            - reference
+            - vid
             type: object
           status:
-            description: PolicyRuleStatus defines the observed state of PolicyRule
             properties:
-              enforceState:
+              ips:
+                items:
+                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
+                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                  type: string
+                type: array
+              macAddress:
                 type: string
-              matchStatistics:
-                format: int64
-                type: integer
-            required:
-            - enforceState
-            - matchStatistics
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

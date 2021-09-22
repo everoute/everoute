@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,11 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
-	groupv1alpha1 "github.com/smartxworks/lynx/pkg/apis/group/v1alpha1"
-	policyrulev1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/tests/e2e/framework"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	policyrulev1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/tests/e2e/framework"
 )
 
 var (
@@ -46,7 +46,7 @@ var (
 
 func TestE2e(t *testing.T) {
 	RegisterFailHandlerWithT(t, E2eFail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Lynx e2e Suite", []Reporter{})
+	RunSpecsWithDefaultAndCustomReporters(t, "Everoute e2e Suite", []Reporter{})
 }
 
 var _ = BeforeSuite(func() {

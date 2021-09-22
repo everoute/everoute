@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
-	"github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset/fake"
-	"github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions"
-	controller "github.com/smartxworks/lynx/plugin/tower/pkg/controller/endpoint"
-	"github.com/smartxworks/lynx/plugin/tower/pkg/informer"
-	fakeserver "github.com/smartxworks/lynx/plugin/tower/pkg/server/fake"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
+	"github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
+	fakeserver "github.com/everoute/everoute/plugin/tower/pkg/server/fake"
 )
 
 var (

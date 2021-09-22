@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/printers"
 
-	"github.com/smartxworks/lynx/tests/e2e/framework/model"
+	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
 
 func printEndpoint(output io.Writer, eps []*model.Endpoint) error {

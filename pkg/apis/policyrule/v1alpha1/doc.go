@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,13 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Api versions allow the api contract for a resource to be changed while keeping
-// backward compatibility by support multiple concurrent versions
-// of the same resource
-
 // +k8s:openapi-gen=true
-// +k8s:deepcopy-gen=package,register
-// +k8s:conversion-gen=lynxpolicyrule-apiboot/pkg/apis/policyrule
-// +k8s:defaulter-gen=TypeMeta
-// +groupName=policyrule.lynx.smartx.com
-package v1alpha1 // import "lynxpolicyrule-apiboot/pkg/apis/policyrule/v1alpha1"
+// +k8s:deepcopy-gen=package
+// +groupName=policyrule.everoute.io
+
+package v1alpha1

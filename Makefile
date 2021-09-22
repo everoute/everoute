@@ -6,23 +6,23 @@ all: codegen manifests bin
 bin: controller agent e2e-tools
 
 images:
-	docker build -f build/images/release/Dockerfile -t lynx/release .
+	docker build -f build/images/release/Dockerfile -t everoute/release .
 	docker build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
 
 yaml:
-	find deploy -name "*.yaml" | grep -v ^deploy/lynx.yaml$ | sort -u | xargs cat | cat > deploy/lynx.yaml
+	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
 
 generate: codegen gqlgen protopb manifests yaml
 
 docker-generate:
-	$(eval WORKDIR := /go/src/github.com/smartxworks/lynx)
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu $$(id -u):$$(id -g) -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
 controller:
-	CGO_ENABLED=0 go build -o bin/lynx-controller cmd/lynx-controller/main.go
+	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
 
 agent:
-	CGO_ENABLED=0 go build -o bin/lynx-agent cmd/lynx-agent/*.go
+	CGO_ENABLED=0 go build -o bin/everoute-agent cmd/everoute-agent/*.go
 
 e2e-tools:
 	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go

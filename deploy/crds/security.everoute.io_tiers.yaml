@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
-  name: tiers.security.lynx.smartx.com
+  name: tiers.security.everoute.io
 spec:
-  group: security.lynx.smartx.com
+  group: security.everoute.io
   names:
     kind: Tier
     listKind: TierList

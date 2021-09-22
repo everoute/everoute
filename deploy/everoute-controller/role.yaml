@@ -4,7 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: lynx-controller
+  name: everoute-controller
 rules:
 - apiGroups:
   - ""
@@ -42,7 +42,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - agent.lynx.smartx.com
+  - agent.everoute.io
   resources:
   - agentinfos
   verbs:
@@ -50,7 +50,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - group.lynx.smartx.com
+  - group.everoute.io
   resources:
   - groupmembers
   - groupmemberspatches
@@ -65,7 +65,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - security.lynx.smartx.com
+  - security.everoute.io
   resources:
   - tiers
   - securitypolicies
@@ -83,7 +83,7 @@ rules:
   - watch
   - create
 - apiGroups:
-  - policyrule.lynx.smartx.com
+  - policyrule.everoute.io
   resources:
   - policyrules
   - policyrules/status

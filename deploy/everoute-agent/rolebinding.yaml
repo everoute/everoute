@@ -2,16 +2,16 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: lynx-agent
+  name: everoute-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: lynx-agent
+  name: everoute-agent
 subjects:
   - kind: ServiceAccount
-    name: lynx-agent
+    name: everoute-agent
     namespace: kube-system
   - apiGroup: rbac.authorization.k8s.io
     kind: User
     # support use certs authentication
-    name: lynx-agent
+    name: everoute-agent

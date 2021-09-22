@@ -2,11 +2,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: lynx-controller
+  name: everoute-controller
   namespace: kube-system
   labels:
-    app: lynx
-    component: lynx-controller
+    app: everoute
+    component: everoute-controller
 spec:
   strategy:
     # Ensure the existing Pod is killed before the new one is created.
@@ -14,26 +14,26 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: lynx
-      component: lynx-controller
+      app: everoute
+      component: everoute-controller
   template:
     metadata:
       labels:
-        app: lynx
-        component: lynx-controller
+        app: everoute
+        component: everoute-controller
     spec:
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
-      serviceAccountName: lynx-controller
+      serviceAccountName: everoute-controller
       hostNetwork: true
       containers:
-        - name: lynx-controller
-          image: lynx/release
+        - name: everoute-controller
+          image: everoute/release
           imagePullPolicy: IfNotPresent
-          command: ["lynx-controller"]
+          command: ["everoute-controller"]
           args:
             - --enable-leader-election=true
             - --port=9443

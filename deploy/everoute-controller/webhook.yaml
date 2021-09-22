@@ -2,21 +2,21 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: validator.lynx.smartx.com
+  name: validator.everoute.io
 webhooks:
   - clientConfig:
-      # CaBundle must set as the ca for secret lynx-controller-tls.
+      # CaBundle must set as the ca for secret everoute-controller-tls.
       caBundle:
       service:
-        name: lynx-validator-webhook
+        name: everoute-validator-webhook
         namespace: kube-system
         path: /validate/crds
         port: 9443
     failurePolicy: Fail
-    name: validator.lynx.smartx.com
+    name: validator.everoute.io
     rules:
       - apiGroups:
-          - security.lynx.smartx.com
+          - security.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -29,7 +29,7 @@ webhooks:
           - endpoints
           - globalpolicies
       - apiGroups:
-          - group.lynx.smartx.com
+          - group.everoute.io
         apiVersions:
           - v1alpha1
         operations:
@@ -43,23 +43,23 @@ webhooks:
 apiVersion: v1
 kind: Service
 metadata:
-  name: lynx-validator-webhook
+  name: everoute-validator-webhook
   namespace: kube-system
 spec:
   type: ClusterIP
   ports:
     - port: 9443
       protocol: TCP
-      # This port should match port lynx-controller exposed.
+      # This port should match port everoute-controller exposed.
       targetPort: 9443
   selector:
-    app: lynx
-    component: lynx-controller
+    app: everoute
+    component: everoute-controller
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: lynx-controller-tls
+  name: everoute-controller-tls
   namespace: kube-system
 type: kubernetes.io/tls
 data:

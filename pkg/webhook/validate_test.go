@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import (
 
 	admv1 "k8s.io/api/admission/v1"
 
-	"github.com/smartxworks/lynx/pkg/webhook"
+	"github.com/everoute/everoute/pkg/webhook"
 )
 
 // validate implements handlers.Validate, with allowed always true.

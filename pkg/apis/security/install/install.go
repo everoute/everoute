@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
-	"github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
 
 // Install registers the API group and adds types to a scheme

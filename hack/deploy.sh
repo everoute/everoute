@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021 The Lynx Authors.
+# Copyright 2021 The Everoute Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,14 +35,14 @@ function wait_for_up() {
 }
 
 local_path=$(dirname "$(readlink -f ${0})")
-kubectl apply -f ${local_path}/../deploy/lynx.yaml
+kubectl apply -f ${local_path}/../deploy/everoute.yaml
 
 
 ### wait for pods setup
-wait_for_up lynx-controller
+wait_for_up everoute-controller
 
 echo "========================================================="
 echo " "
-echo "Installation is complete for lynx !"
+echo "Installation is complete for everoute !"
 echo " "
 echo "========================================================="

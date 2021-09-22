@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@ import (
 	sync "sync"
 	time "time"
 
-	clientset "github.com/smartxworks/lynx/pkg/client/clientset_generated/clientset"
-	agent "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions/agent"
-	group "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions/group"
-	internalinterfaces "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions/internalinterfaces"
-	policyrule "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions/policyrule"
-	security "github.com/smartxworks/lynx/pkg/client/informers_generated/externalversions/security"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	agent "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent"
+	group "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/group"
+	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
+	policyrule "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/policyrule"
+	security "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/security"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/smartxworks/lynx/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/agent/datapath"
 )
 
-const agentConfigFilePath = "/var/lib/lynx/agentconfig.yaml"
+const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 
 type agentConfig struct {
 	DatapathConfig map[string]string `yaml:"datapathConfig"`

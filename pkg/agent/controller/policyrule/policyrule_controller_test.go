@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/smartxworks/lynx/pkg/agent/datapath"
-	networkpolicyv1alpha1 "github.com/smartxworks/lynx/pkg/apis/policyrule/v1alpha1"
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	networkpolicyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 )
 
 var (
@@ -57,7 +57,7 @@ var (
 	policyRule1 = &networkpolicyv1alpha1.PolicyRule{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "PolicyRule",
-			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
+			APIVersion: "policyrule.everoute.io/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Name: "securityPolicy1-policyRule1",
@@ -79,7 +79,7 @@ var (
 	policyRule2 = &networkpolicyv1alpha1.PolicyRule{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "PolicyRule",
-			APIVersion: "policyrule.lynx.smartx.com/v1alpha1",
+			APIVersion: "policyrule.everoute.io/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Name: "securityPolicy1-policyRule2",

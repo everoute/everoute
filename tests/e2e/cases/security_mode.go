@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 
-	securityv1alpha1 "github.com/smartxworks/lynx/pkg/apis/security/v1alpha1"
-	"github.com/smartxworks/lynx/pkg/constants"
-	policyctrl "github.com/smartxworks/lynx/pkg/controller/policy"
-	"github.com/smartxworks/lynx/pkg/controller/policy/cache"
-	"github.com/smartxworks/lynx/tests/e2e/framework/model"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
+	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/pkg/controller/policy/cache"
+	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
 
 type SecurityModel struct {

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Lynx Authors.
+Copyright 2021 The Everoute Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 package types
 
 import (
-	agentv1alpha1 "github.com/smartxworks/lynx/pkg/apis/agent/v1alpha1"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 )
 
 // ExternalID describe the externalID of an endpoint.
@@ -27,7 +27,7 @@ type ExternalID struct {
 }
 
 // ExternalID Name and Value should not containers separator '/', this is
-// validated by lynx validate webhook.
+// validated by everoute validate webhook.
 const (
 	Separator = '/'
 )
@@ -45,7 +45,7 @@ func (n ExternalID) MatchIface(ifaces []agentv1alpha1.OVSInterface) (index int, 
 }
 
 // String returns the general purpose string representation
-// Eg. endpoint.lynx.smartx.com/ep01
+// Eg. endpoint.everoute.io/ep01
 func (n ExternalID) String() string {
 	return n.Name + string(Separator) + n.Value
 }

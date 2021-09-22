@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021 The Lynx Authors.
+# Copyright 2021 The Everoute Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,10 +54,10 @@ function start_etcd() {
     return 1
   fi
 
-  mkdir -p /etc/lynx/etcd
-  cp "${BASEDIR}/tests/e2e/config/etcd.yaml" /etc/lynx/etcd/etcd.yaml
+  mkdir -p /etc/everoute/etcd
+  cp "${BASEDIR}/tests/e2e/config/etcd.yaml" /etc/everoute/etcd/etcd.yaml
 
-  nohup etcd --config-file /etc/lynx/etcd/etcd.yaml > /var/log/kube-apiserver.log 2>&1 &
+  nohup etcd --config-file /etc/everoute/etcd/etcd.yaml > /var/log/kube-apiserver.log 2>&1 &
 }
 
 function start_apiserver() {
@@ -78,12 +78,12 @@ function start_apiserver() {
   nohup kube-apiserver ${apiserver_args} ${apiserver_extra_args} ${apiserver_cert_args} > /var/log/kube-apiserver.log 2>&1 &
 }
 
-function start_lynxcontroller() {
-  lynx_controller_config="--kubeconfig /etc/lynx/kubeconfig/lynx-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/lynx/pki/ -v 10"
-  nohup /usr/local/bin/lynx-controller ${lynx_controller_config} > /var/log/lynx-controller.log 2>&1 &
+function start_everoutecontroller() {
+  everoute_controller_config="--kubeconfig /etc/everoute/kubeconfig/everoute-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/everoute/pki/ -v 10"
+  nohup /usr/local/bin/everoute-controller ${everoute_controller_config} > /var/log/everoute-controller.log 2>&1 &
 }
 
-function wait_lynxcontroller_ready() {
+function wait_everoutecontroller_ready() {
   for n in {1..10}; do
     curl -sk https://127.0.0.1:9443/healthz && return
     printf "retry %d: failed wait for controller up\n" $n
@@ -118,14 +118,14 @@ function setup_crds() {
 }
 
 function setup_rbac() {
-  local lynx_agent_rbac_path="${BASEDIR}/deploy/lynx-agent"
-  local lynx_controller_rbac_path="${BASEDIR}/deploy/lynx-controller"
+  local everoute_agent_rbac_path="${BASEDIR}/deploy/everoute-agent"
+  local everoute_controller_rbac_path="${BASEDIR}/deploy/everoute-controller"
 
-  kubectl apply -f ${lynx_agent_rbac_path}/role.yaml
-  kubectl apply -f ${lynx_controller_rbac_path}/role.yaml
+  kubectl apply -f ${everoute_agent_rbac_path}/role.yaml
+  kubectl apply -f ${everoute_controller_rbac_path}/role.yaml
 
-  kubectl apply -f ${lynx_agent_rbac_path}/rolebinding.yaml
-  kubectl apply -f ${lynx_controller_rbac_path}/rolebinding.yaml
+  kubectl apply -f ${everoute_agent_rbac_path}/rolebinding.yaml
+  kubectl apply -f ${everoute_controller_rbac_path}/rolebinding.yaml
 }
 
 function generate_kubeconfig() {
@@ -174,11 +174,11 @@ EOF
 ETCD_VERSION="v3.5.0"
 # kube-apiserver 1.19 or high has a issue with webhook: https://github.com/kubernetes/kubernetes/issues/100454
 KUBE_VERSION="v1.18.17"
-CERT_PATH=/etc/lynx/pki
+CERT_PATH=/etc/everoute/pki
 APISERVER_ADDR="${1:-127.0.0.1}"
 PLATFORM="${2:-amd64}"
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
-## lynx project basedir
+## everoute project basedir
 BASEDIR=${LOCAL_PATH}/../../..
 
 echo "install etcd and kube-apiserver on localhost"
@@ -190,10 +190,10 @@ echo "start controlplane (etcd and apiserver)"
 start_etcd ${PLATFORM}
 start_apiserver ${CERT_PATH} ${APISERVER_ADDR}
 
-echo "generate kubeconfig for lynx-controller lynx-agent and kubectl"
+echo "generate kubeconfig for everoute-controller everoute-agent and kubectl"
 ##                  cert path    user name       org name         kubeconfig save path                      kube-apiserver address
-generate_kubeconfig ${CERT_PATH} lynx-agent      "lynx"           /etc/lynx/kubeconfig/lynx-agent.yaml      ${APISERVER_ADDR}
-generate_kubeconfig ${CERT_PATH} lynx-controller "lynx"           /etc/lynx/kubeconfig/lynx-controller.yaml ${APISERVER_ADDR}
+generate_kubeconfig ${CERT_PATH} everoute-agent      "everoute"           /etc/everoute/kubeconfig/everoute-agent.yaml      ${APISERVER_ADDR}
+generate_kubeconfig ${CERT_PATH} everoute-controller "everoute"           /etc/everoute/kubeconfig/everoute-controller.yaml ${APISERVER_ADDR}
 generate_kubeconfig ${CERT_PATH} kubectl         "system:masters" ~/.kube/config                            ${APISERVER_ADDR}
 
 echo "crds, rbac, validate webhook resource setup"
@@ -201,6 +201,6 @@ setup_crds
 setup_rbac
 kubectl apply -f ${BASEDIR}/tests/e2e/config/webhook.yaml
 
-echo "build start and wait lynx controller"
-start_lynxcontroller
-wait_lynxcontroller_ready
+echo "build start and wait everoute controller"
+start_everoutecontroller
+wait_everoutecontroller_ready

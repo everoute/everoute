@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2021 The Lynx Authors.
+# Copyright 2021 The Everoute Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@
 set -o pipefail
 set -o nounset
 
-LYNX_AGENT_HOSTLIST=${1:-127.0.0.1}
+EVEROUTE_AGENT_HOSTLIST=${1:-127.0.0.1}
 DEFAULT_BRIDGE="ovsbr1"
 
-echo "clean lynx controlplane on localhost"
-eval kill -9 "$(pidof lynx-controller) $(pidof lynx-agent) $(pidof kube-apiserver) $(pidof etcd) $(pidof net-utils)"
-rm -rf /etc/lynx/
+echo "clean everoute controlplane on localhost"
+eval kill -9 "$(pidof everoute-controller) $(pidof everoute-agent) $(pidof kube-apiserver) $(pidof etcd) $(pidof net-utils)"
+rm -rf /etc/everoute/
 
-for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
-  printf "clean lynx-agent and ovsdb on host %s\n" ${agent}
+for agent in $(IFS=','; echo ${EVEROUTE_AGENT_HOSTLIST}); do
+  printf "clean everoute-agent and ovsdb on host %s\n" ${agent}
   ovs-vsctl del-br ${DEFAULT_BRIDGE}
   ovs-vsctl del-br ${DEFAULT_BRIDGE}-policy
   ovs-vsctl del-br ${DEFAULT_BRIDGE}-cls
@@ -38,6 +38,6 @@ for agent in $(IFS=','; echo ${LYNX_AGENT_HOSTLIST}); do
     ip netns list | awk '{print $1}' | xargs -rl ip netns pid | xargs -rl kill -9
     ip -all netns del
     ip a | grep veth | cut -d: -f2 | cut -d@ -f1 | xargs -rl ip link del
-    pidof lynx-agent | xargs -r kill -9
+    pidof everoute-agent | xargs -r kill -9
 EOF
 done
