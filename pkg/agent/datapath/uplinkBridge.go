@@ -31,6 +31,7 @@ type UplinkBridge struct {
 	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
+	defaultTable            *ofctrl.Table
 	uplinkSwitchStatueMutex sync.RWMutex
 	isUplinkSwitchConnected bool
 }
@@ -90,6 +91,15 @@ func (u *UplinkBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.Multi
 }
 
 func (u *UplinkBridge) BridgeInit() {
+	sw := u.OfSwitch
+	u.defaultTable = sw.DefaultTable()
+
+	defaultTableDefaultFlow, _ := u.defaultTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := defaultTableDefaultFlow.Next(sw.NormalLookup()); err != nil {
+		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
+	}
 }
 
 func (u *UplinkBridge) BridgeReset() {
