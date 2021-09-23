@@ -38,6 +38,7 @@ import (
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
+	"github.com/everoute/everoute/pkg/controller/k8s"
 	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/webhook"
 	towerplugin "github.com/everoute/everoute/plugin/tower/pkg/register"
@@ -57,6 +58,7 @@ func main() {
 	var serverPort int
 	var leaderElectionNamespace string
 	var towerPluginOptions towerplugin.Options
+	var enableCNI bool
 
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
@@ -65,6 +67,7 @@ func main() {
 	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
 	flag.IntVar(&serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
+	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI related controller.")
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
@@ -104,6 +107,26 @@ func main() {
 		ReadClient: mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
+	}
+
+	if enableCNI {
+		// pod controller
+		if err = (&k8s.PodReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create pod controller: %s", err.Error())
+		}
+		klog.Info("start pod controller")
+
+		// networkPolicy controller
+		if err = (&k8s.NetworkPolicyReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create networkPolicy controller: %s", err.Error())
+		}
+		klog.Info("start networkPolicy controller")
 	}
 
 	// register validate handle

@@ -3,7 +3,7 @@ APISERVER_BOOT=$(shell which apiserver-boot)
 
 all: codegen manifests bin
 
-bin: controller agent e2e-tools
+bin: controller agent cni e2e-tools
 
 images:
 	docker build -f build/images/release/Dockerfile -t everoute/release .
@@ -23,6 +23,9 @@ controller:
 
 agent:
 	CGO_ENABLED=0 go build -o bin/everoute-agent cmd/everoute-agent/*.go
+
+cni:
+	CGO_ENABLED=0 go build -o bin/everoute-cni cmd/everoute-cni/*.go
 
 e2e-tools:
 	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go

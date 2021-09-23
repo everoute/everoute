@@ -12,6 +12,8 @@ rules:
   - configmaps
   - events
   - secrets
+  - pods
+  - nodes
   verbs:
   - patch
   - create
@@ -33,6 +35,8 @@ rules:
     - networkpolicies
   verbs:
     - watch
+    - list
+    - get
 - apiGroups:
   - ""
   resources:

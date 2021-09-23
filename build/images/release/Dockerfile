@@ -4,17 +4,31 @@ FROM golang:1.15 as builder
 RUN mkdir -p $GOPATH/src/everoute
 WORKDIR $GOPATH/src/everoute
 
-COPY go.mod go.sum ./
+ADD go.mod go.sum ./
 RUN go mod download
 
+RUN mkdir -p /opt/everoute/bin
+
+ARG CNI_BINARIES_VERSION=v1.0.0
+
+RUN wget -q -O - https://github.com/containernetworking/plugins/releases/download/$CNI_BINARIES_VERSION/cni-plugins-linux-amd64-$CNI_BINARIES_VERSION.tgz | tar xz -C /opt/everoute/bin ./host-local ./loopback ./portmap
+
+ADD ./build/script/* /opt/everoute/bin/
+ADD . $GOPATH/src/everoute
+
 # Build
-COPY . $GOPATH/src/everoute
-RUN mkdir -p /opt/everoute/bin && \
-    make bin && \
-    cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
+RUN make bin
 
-FROM alpine
+RUN cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
 
+#FROM ubuntu
+FROM ubuntu:20.04
+
+#RUN apk update && apk add openvswitch
+RUN apt update && apt install -y openvswitch-switch iproute2 iptables
+RUN apt clean
+
+RUN mkdir -p /opt/everoute/bin
 COPY --from=builder /opt/everoute/bin/* /opt/everoute/bin/
 
 WORKDIR /opt/everoute/bin

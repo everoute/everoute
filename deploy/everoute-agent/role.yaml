@@ -25,3 +25,16 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+    - ""
+  resources:
+    - pods
+    - nodes
+  verbs:
+    - patch
+    - create
+    - update
+    - delete
+    - get
+    - list
+    - watch

@@ -176,6 +176,13 @@ func UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
 		return
 	}
 
+	// set FORWARD in filter to accept
+	err = ipt.ChangePolicy("filter", "FORWARD", "ACCEPT")
+	if err != nil {
+		klog.Errorf("Set iptables FORWARD error, error: %s", err)
+		return
+	}
+
 	// check existence of chain EVEROUTE-OUTPUT, if not, then create it
 	if exist, err = ipt.ChainExists("nat", "EVEROUTE-OUTPUT"); err != nil {
 		klog.Errorf("Get iptables EVEROUTE-OUTPUT error, error: %s", err)

@@ -1682,6 +1682,139 @@ status:
   conditions: []
   storedVersions: []
 ---
+apiVersion: v1
+data:
+  agentconfig.yaml: |
+    datapathConfig:
+      cnibr0: cnibr0
+  cni-conf.conflist: |
+    {
+        "cniVersion": "0.3.0",
+        "name": "everoute",
+        "plugins": [
+            {
+                "type": "everoute"
+            },
+            {
+                "type": "portmap",
+                "capabilities": {"portMappings": true}
+            }
+        ]
+    }
+kind: ConfigMap
+metadata:
+  annotations: {}
+  labels:
+    app: everoute
+  name: everoute-config-xu73od84d3
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: everoute-agent
+  namespace: kube-system
+  labels:
+    app: everoute
+    component: everoute-agent
+spec:
+  selector:
+    matchLabels:
+      app: everoute
+      component: everoute-agent
+  template:
+    metadata:
+      labels:
+        app: everoute
+        component: everoute-agent
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: everoute-agent
+      containers:
+        - name: everoute-agent
+          image: everoute/release
+          imagePullPolicy: IfNotPresent
+          command: ["everoute-agent"]
+          args:
+            - --enable-cni=true
+            - -v=0
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: everoute-run
+              mountPath: /var/run/everoute/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - name: host-openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: host-proc
+              mountPath: /host/proc/
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: everoute-ipam
+              mountPath: /var/lib/cni/networks/everoute
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      initContainers:
+        - command: ["install_cni"]
+          image: everoute/release
+          imagePullPolicy: IfNotPresent
+          name: install-cni
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: everoute-run
+              mountPath: /var/run/everoute/
+            - name: cni-conf
+              mountPath: /etc/cni/net.d
+            - name: everoute-config
+              mountPath: /var/lib/everoute/cni-conf.conflist
+              subPath: cni-conf.conflist
+            - name: host-openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config
+        - hostPath:
+            path: /var/run/openvswitch
+          name: host-openvswitch
+        - hostPath:
+            path: /var/lib/everoute/
+          name: everoute-agent
+        - hostPath:
+            path: /var/lib/cni/networks/everoute
+          name: everoute-ipam
+        - hostPath:
+            path: /opt/cni/bin/
+          name: cni-bin
+        - hostPath:
+            path: /var/run/everoute
+          name: everoute-run
+        - hostPath:
+            path: /etc/cni/net.d
+          name: cni-conf
+        - hostPath:
+            path: /proc
+          name: host-proc
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1708,6 +1841,19 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+    - ""
+  resources:
+    - pods
+    - nodes
+  verbs:
+    - patch
+    - create
+    - update
+    - delete
+    - get
+    - list
+    - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1770,6 +1916,7 @@ spec:
           args:
             - --enable-leader-election=true
             - --port=9443
+            - --enable-cni=true
             - -v=0
 
 ---
@@ -1785,6 +1932,8 @@ rules:
   - configmaps
   - events
   - secrets
+  - pods
+  - nodes
   verbs:
   - patch
   - create
@@ -1806,6 +1955,8 @@ rules:
     - networkpolicies
   verbs:
     - watch
+    - list
+    - get
 - apiGroups:
   - ""
   resources:
