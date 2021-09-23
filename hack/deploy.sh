@@ -20,6 +20,7 @@ set -o nounset
 
 function wait_for_up() {
   for i in {1..100}; do
+    echo `kubectl get po -Aowide | grep ${1}`
     status=$(kubectl get po -Aowide | grep Running | grep ${1} || true)
     if [[ x${status} != x"" ]]; then
       echo "success wait ${1} setup"

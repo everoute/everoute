@@ -20,13 +20,16 @@ import (
 	"flag"
 	"net"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/everoute/everoute/pkg/agent/cniserver"
 	"github.com/everoute/everoute/pkg/agent/controller/policyrule"
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/agent/proxy"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	networkpolicyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	"github.com/everoute/everoute/pkg/monitor"
@@ -39,9 +42,13 @@ var (
 func init() {
 	_ = networkpolicyv1alpha1.AddToScheme(scheme)
 	_ = agentv1alpha1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
 }
 
 func main() {
+	var enableCNI bool
+	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
+
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
 	ofPortIPAddrMoniotorChan := make(chan map[string][]net.IP, 1024)
@@ -55,7 +62,7 @@ func main() {
 	datapathManager.InitializeDatapath()
 
 	// NetworkPolicy controller: watch policyRule crud and update flow
-	mgr, err := startManager(scheme, datapathManager, stopChan)
+	mgr, err := startManager(scheme, datapathManager, enableCNI, stopChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
@@ -81,10 +88,16 @@ func main() {
 	})
 	go agentmonitor.Run(stopChan)
 
+	if enableCNI {
+		// cni server
+		cniServer := cniserver.Initialize(k8sClient, datapathManager)
+		go cniServer.Run(stopChan)
+	}
+
 	<-stopChan
 }
 
-func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, stopChan <-chan struct{}) (manager.Manager, error) {
+func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, enableCNI bool, stopChan <-chan struct{}) (manager.Manager, error) {
 	var metricsAddr string
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)
@@ -107,6 +120,17 @@ func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, s
 	}).SetupWithManager(mgr); err != nil {
 		klog.Errorf("unable to create policyrule controller: %s", err.Error())
 		return nil, err
+	}
+
+	if enableCNI {
+		if err = (&proxy.NodeReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			StopChan: stopChan,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Errorf("unable to create node controller: %s", err.Error())
+			return nil, err
+		}
 	}
 
 	klog.Info("starting manager")

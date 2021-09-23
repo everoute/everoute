@@ -37,4 +37,5 @@ spec:
           args:
             - --enable-leader-election=true
             - --port=9443
+            - --enable-cni=true
             - -v=0

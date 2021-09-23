@@ -40,6 +40,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -49,6 +50,8 @@ const CNISocketAddr = "/var/run/everoute/cni.sock"
 type CNIServer struct {
 	k8sClient client.Client
 	ovsDriver *ovsdbDriver.OvsDriver
+	gwName    string
+	brName    string
 	podCIDR   []types.IPNet
 
 	mutex sync.Mutex
@@ -331,10 +334,17 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 	return nil
 }
 
-func Initialize(k8sClient client.Client, ovsDriver *ovsdbDriver.OvsDriver) *CNIServer {
+func Initialize(k8sClient client.Client, dpManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
-		ovsDriver: ovsDriver,
+	}
+
+	klog.Infof("%+v", dpManager.OvsdbDriverMap)
+	for name := range dpManager.OvsdbDriverMap {
+		s.brName = name
+		s.gwName = name + "-gw"
+		s.ovsDriver = dpManager.OvsdbDriverMap[name][datapath.LOCAL_BRIDGE_KEYWORD]
+		break
 	}
 
 	// get current node
@@ -355,7 +365,7 @@ func Initialize(k8sClient client.Client, ovsDriver *ovsdbDriver.OvsDriver) *CNIS
 	}
 
 	// set gateway ip address, first ip in first CIDR
-	if err := SetLinkAddr("gw0",
+	if err := SetLinkAddr(s.gwName,
 		&net.IPNet{
 			IP:   ip.NextIP(s.podCIDR[0].IP),
 			Mask: s.podCIDR[0].Mask}); err != nil {
