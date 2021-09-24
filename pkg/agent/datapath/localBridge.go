@@ -409,7 +409,7 @@ func (l *LocalBridge) BridgeReset() {
 
 func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	// Table 0, from local endpoint
-	var vlanIDMask uint16 = 0xfff
+	var vlanIDMask uint16 = 0x1fff
 	vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: endpoint.PortNo,
@@ -437,7 +437,7 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		VlanId:     endpoint.VlanID,
 		VlanIdMask: &vlanIDMask,
 	})
-	if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 11)); err != nil {
+	if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 12)); err != nil {
 		return err
 	}
 	if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
