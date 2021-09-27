@@ -1,0 +1,947 @@
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+<style type="text/css">
+td p {
+margin-bottom: 0
+}
+code {
+color: #b70000;
+display: inline-block;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h2 style="border-bottom: 3px solid lightslategray; line-height: 80px">API Groups</h2>
+<p>The API Groups and their versions are summarized in the following list.</p><li><a href="#security.everoute.io%2fv1alpha1">security.everoute.io/v1alpha1</a></li><h2 style="border-bottom: 3px solid lightslategray; line-height: 80px" id="security.everoute.io/v1alpha1">security.everoute.io/v1alpha1</h2>
+<h3>Resource Types:</h3>
+<ul><li>
+<a href="#security.everoute.io/v1alpha1.Endpoint">Endpoint</a>
+</li><li>
+<a href="#security.everoute.io/v1alpha1.GlobalPolicy">GlobalPolicy</a>
+</li><li>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicy">SecurityPolicy</a>
+</li></ul>
+<h3 id="security.everoute.io/v1alpha1.Endpoint">Endpoint
+</h3>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code><br/>string</td>
+<td><code>security.everoute.io/v1alpha1</code></td>
+</tr>
+<tr>
+<td><code>kind</code><br/>string</td>
+<td><code>Endpoint</code></td>
+</tr>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#objectmeta-v1-meta">
+metav1.ObjectMeta
+</a>
+</em>
+</td>
+<td>
+Refer to the Kubernetes API documentation for the fields of the
+<code>metadata</code> field.
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointSpec">
+EndpointSpec
+</a>
+</em>
+</td>
+<td>
+<br/><br/>
+<table>
+<tr>
+<td>
+<code>vid</code><br/>
+<em>
+uint32
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>reference</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointReference">
+EndpointReference
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointStatus">
+EndpointStatus
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.GlobalPolicy">GlobalPolicy
+</h3>
+<p>GlobalPolicy allow defines default action of traffics and global
+ip whitelist. Only one GlobalPolicy can exist on kubernetes.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code><br/>string</td>
+<td><code>security.everoute.io/v1alpha1</code></td>
+</tr>
+<tr>
+<td><code>kind</code><br/>string</td>
+<td><code>GlobalPolicy</code></td>
+</tr>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#objectmeta-v1-meta">
+metav1.ObjectMeta
+</a>
+</em>
+</td>
+<td>
+Refer to the Kubernetes API documentation for the fields of the
+<code>metadata</code> field.
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.GlobalPolicySpec">
+GlobalPolicySpec
+</a>
+</em>
+</td>
+<td>
+<br/><br/>
+<table>
+<tr>
+<td>
+<code>defaultAction</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.GlobalDefaultAction">
+GlobalDefaultAction
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>DefaultAction defines global traffic action</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>whitelist</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ipblock-v1-networking">
+[]networkingv1.IPBlock
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Whitelist defines IPBlocks than always allow traffics.</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.SecurityPolicy">SecurityPolicy
+</h3>
+<p>SecurityPolicy describes what network traffic is allowed for a set of Endpoint.
+Follow NetworkPolicy <a href="https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29">https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29</a>.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code><br/>string</td>
+<td><code>security.everoute.io/v1alpha1</code></td>
+</tr>
+<tr>
+<td><code>kind</code><br/>string</td>
+<td><code>SecurityPolicy</code></td>
+</tr>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#objectmeta-v1-meta">
+metav1.ObjectMeta
+</a>
+</em>
+</td>
+<td>
+Refer to the Kubernetes API documentation for the fields of the
+<code>metadata</code> field.
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">
+SecurityPolicySpec
+</a>
+</em>
+</td>
+<td>
+<p>Specification of the desired behavior for this SecurityPolicy.</p>
+<br/><br/>
+<table>
+<tr>
+<td>
+<code>tier</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Tier specifies the tier to which this SecurityPolicy belongs to.
+In v1alpha1, Tier only support tier0, tier1, tier2.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>symmetricMode</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>SymmetricMode will generate symmetry rules for the policy.
+Defaults to false.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>appliedTo</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.ApplyToPeer">
+[]ApplyToPeer
+</a>
+</em>
+</td>
+<td>
+<p>Selects the endpoints to which this SecurityPolicy object applies. This field
+must not empty.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ingressRules</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Rule">
+[]Rule
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of ingress rules to be applied to the selected endpoints. If this field
+is empty then this SecurityPolicy does not allow any traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>egressRules</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Rule">
+[]Rule
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of egress rules to be applied to the selected endpoints. If this field
+is empty then this SecurityPolicy limits all outgoing traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>policyTypes</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#policytype-v1-networking">
+[]networkingv1.PolicyType
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of rule types that the Security relates to.
+Valid options are &ldquo;Ingress&rdquo;, &ldquo;Egress&rdquo;, or &ldquo;Ingress,Egress&rdquo;.
+If this field is not specified, it will default based on the existence of Ingress or Egress rules;
+policies that contain an Egress section are assumed to affect Egress, and all policies
+(whether or not they contain an Ingress section) are assumed to affect Ingress.
+If you want to write an egress-only policy, you must explicitly specify policyTypes [ &ldquo;Egress&rdquo; ].
+Likewise, if you want to write a policy that specifies that no egress is allowed,
+you must specify a policyTypes value that include &ldquo;Egress&rdquo; (since such a policy would not include
+an Egress section and would otherwise default to just [ &ldquo;Ingress&rdquo; ]).</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.ApplyToPeer">ApplyToPeer
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec</a>)
+</p>
+<p>ApplyToPeer describes sets of endpoints which this SecurityPolicy object applies
+At least one field (Endpoint or EndpointSelector) should be set.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>endpoint</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Endpoint defines policy on a specific Endpoint.</p>
+<p>If Endpoint is set, then the SecurityPolicy would apply to the endpoint
+in the SecurityPolicy Namespace. If Endpoint doesnot exist OR has empty
+IPAddr, the ApplyToPeer would be ignored.
+If this field is set then neither of the other fields can be.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpointSelector</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#labelselector-v1-meta">
+metav1.LabelSelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EndpointSelector selects endpoints. This field follows standard label
+selector semantics; if present but empty, it selects all endpoints.</p>
+<p>If EndpointSelector is set, then the SecurityPolicy would apply to the
+endpoints matching EndpointSelector in the SecurityPolicy Namespace.
+If this field is set then neither of the other fields can be.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.EndpointReference">EndpointReference
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>externalIDName</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>externalIDValue</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.Endpoint">Endpoint</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>vid</code><br/>
+<em>
+uint32
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>reference</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointReference">
+EndpointReference
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.EndpointStatus">EndpointStatus
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.Endpoint">Endpoint</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>ips</code><br/>
+<em>
+<a href="https://pkg.go.dev/github.com/everoute/everoute/pkg/types#IPAddress">
+[]IPAddress
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>macAddress</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.GlobalDefaultAction">GlobalDefaultAction
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;Allow&#34;</p></td>
+<td></td>
+</tr><tr>
+<td><p>&#34;Drop&#34;</p></td>
+<td></td>
+</tr></tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.GlobalPolicy">GlobalPolicy</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>defaultAction</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.GlobalDefaultAction">
+GlobalDefaultAction
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>DefaultAction defines global traffic action</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>whitelist</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ipblock-v1-networking">
+[]networkingv1.IPBlock
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Whitelist defines IPBlocks than always allow traffics.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.NamespacedName">NamespacedName
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPeer">SecurityPolicyPeer</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is unique within a namespace to reference a resource.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespace</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Namespace defines the space within which the resource name must be unique.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.Protocol">Protocol
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPort">SecurityPolicyPort</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;ICMP&#34;</p></td>
+<td><p>ProtocolICMP is the ICMP protocol.</p>
+</td>
+</tr><tr>
+<td><p>&#34;TCP&#34;</p></td>
+<td><p>ProtocolTCP is the TCP protocol.</p>
+</td>
+</tr><tr>
+<td><p>&#34;UDP&#34;</p></td>
+<td><p>ProtocolUDP is the UDP protocol.</p>
+</td>
+</tr></tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.Rule">Rule
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec</a>)
+</p>
+<p>Rule describes a particular set of traffic that is allowed from/to the endpoints
+matched by a SecurityPolicySpec&rsquo;s AppliedTo.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name must be unique within the policy and conforms RFC 1123.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ports</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPort">
+[]SecurityPolicyPort
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of ports which should be made accessible on the endpoints selected for this
+rule. Each item in this list is combined using a logical OR. If this field is
+empty or missing, this rule matches all ports (traffic not restricted by port).
+If this field is present and contains at least one item, then this rule allows
+traffic only if the traffic matches at least one port in the list.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>from</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPeer">
+[]SecurityPolicyPeer
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of sources which should be able to access the endpoints selected for this rule.
+Items in this list are combined using a logical OR operation. If this field is
+empty or missing, this rule matches all sources (traffic not restricted by
+source). If this field is present and contains at least one item, this rule
+allows traffic only if the traffic matches at least one item in the from list.
+This field only works when rule is ingress.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>to</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPeer">
+[]SecurityPolicyPeer
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of destinations for outgoing traffic of endpoints selected for this rule.
+Items in this list are combined using a logical OR operation. If this field is
+empty or missing, this rule matches all destinations (traffic not restricted by
+destination). If this field is present and contains at least one item, this rule
+allows traffic only if the traffic matches at least one item in the to list.
+This field only works when rule is egress.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.SecurityPolicyPeer">SecurityPolicyPeer
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.Rule">Rule</a>)
+</p>
+<p>SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+of fields are allowed</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>ipBlock</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ipblock-v1-networking">
+networkingv1.IPBlock
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>IPBlock defines policy on a particular IPBlock. If this field is set then
+neither of the other fields can be.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpoint</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.NamespacedName">
+NamespacedName
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Endpoint defines policy on a specific Endpoint. If this field is set then
+neither of the other fields can be.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpointSelector</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#labelselector-v1-meta">
+metav1.LabelSelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EndpointSelector selects endpoints. This field follows standard label
+selector semantics; if present but empty, it selects all endpoints.</p>
+<p>If NamespaceSelector is also set, then the Rule would select the endpoints
+matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+Otherwise, it selects the Endpoints matching EndpointSelector in the policy&rsquo;s own Namespace.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespaceSelector</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#labelselector-v1-meta">
+metav1.LabelSelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>NamespaceSelector selects namespaces. This field follows standard label
+selector semantics; if present but empty, it selects all namespaces.</p>
+<p>If EndpointSelector is also set, then the Rule would select the endpoints
+matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.SecurityPolicyPort">SecurityPolicyPort
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.Rule">Rule</a>)
+</p>
+<p>SecurityPolicyPort describes the port and protocol to match in a rule.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>protocol</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Protocol">
+Protocol
+</a>
+</em>
+</td>
+<td>
+<p>The protocol (TCP, UDP or ICMP) which traffic must match.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>portRange</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>PortRange is a range of port. If you want match all ports, you should set empty. If you
+want match single port, you should write like 22. If you want match a range of port, you
+should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
+want match multiple ports, you should write like 20,22-24,90.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicy">SecurityPolicy</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>tier</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Tier specifies the tier to which this SecurityPolicy belongs to.
+In v1alpha1, Tier only support tier0, tier1, tier2.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>symmetricMode</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>SymmetricMode will generate symmetry rules for the policy.
+Defaults to false.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>appliedTo</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.ApplyToPeer">
+[]ApplyToPeer
+</a>
+</em>
+</td>
+<td>
+<p>Selects the endpoints to which this SecurityPolicy object applies. This field
+must not empty.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ingressRules</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Rule">
+[]Rule
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of ingress rules to be applied to the selected endpoints. If this field
+is empty then this SecurityPolicy does not allow any traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>egressRules</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Rule">
+[]Rule
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of egress rules to be applied to the selected endpoints. If this field
+is empty then this SecurityPolicy limits all outgoing traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>policyTypes</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#policytype-v1-networking">
+[]networkingv1.PolicyType
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>List of rule types that the Security relates to.
+Valid options are &ldquo;Ingress&rdquo;, &ldquo;Egress&rdquo;, or &ldquo;Ingress,Egress&rdquo;.
+If this field is not specified, it will default based on the existence of Ingress or Egress rules;
+policies that contain an Egress section are assumed to affect Egress, and all policies
+(whether or not they contain an Ingress section) are assumed to affect Ingress.
+If you want to write an egress-only policy, you must explicitly specify policyTypes [ &ldquo;Egress&rdquo; ].
+Likewise, if you want to write a policy that specifies that no egress is allowed,
+you must specify a policyTypes value that include &ldquo;Egress&rdquo; (since such a policy would not include
+an Egress section and would otherwise default to just [ &ldquo;Ingress&rdquo; ]).</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</body>
+</html>

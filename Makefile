@@ -12,7 +12,7 @@ images:
 yaml:
 	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
 
-generate: codegen gqlgen protopb manifests yaml
+generate: codegen gqlgen protopb manifests yaml apidocs-gen
 
 docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
@@ -58,6 +58,12 @@ gqlgen:
 
 protopb:
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/cni/v1alpha1/cni.proto
+
+apidocs-gen:
+	go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
+	$(shell go env GOPATH)/bin/gen-crd-api-reference-docs --config docs/apidocs-gen.json \
+		--out-file docs/content/docs/reference/api-docs.html --template-dir docs/templates/ \
+		--api-dir ./pkg/apis/security/v1alpha1
 
 deploy-test:
 	bash hack/deploy.sh
