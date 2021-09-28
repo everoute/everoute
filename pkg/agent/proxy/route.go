@@ -301,6 +301,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// update network config every 100 seconds
+	r.UpdateNetwork()
 	ticker := time.NewTicker(100 * time.Second)
 	go func() {
 		for {
