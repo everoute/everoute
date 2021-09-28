@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"k8s.io/api/admissionregistration/v1beta1"
+	admv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -47,7 +47,7 @@ import (
 
 func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
-	utilruntime.Must(v1beta1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(admv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(networkingv1.AddToScheme(clientsetscheme.Scheme))
 }
 
@@ -181,7 +181,7 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 
 	// update webhook
 	webhookReq := types.NamespacedName{Name: "validator.everoute.io"}
-	webhookObj := &v1beta1.ValidatingWebhookConfiguration{}
+	webhookObj := &admv1.ValidatingWebhookConfiguration{}
 	if err := backoff.Retry(func() error {
 		if err := k8sClient.Get(ctx, webhookReq, webhookObj); err != nil {
 			return err
