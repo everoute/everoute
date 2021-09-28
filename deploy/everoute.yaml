@@ -2044,12 +2044,14 @@ metadata:
   name: everoute-controller
   namespace: kube-system
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: validator.everoute.io
 webhooks:
-  - clientConfig:
+  - admissionReviewVersions: ["v1"]
+    sideEffects: None
+    clientConfig:
       # CaBundle must set as the ca for secret everoute-controller-tls.
       caBundle:
       service:
