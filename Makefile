@@ -18,11 +18,6 @@ docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu $$(id -u):$$(id -g) -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
-# Start website server locally
-web-server:
-	git submodule update --init --recursive --depth 1
-	cd docs && hugo server -D
-
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
 
