@@ -18,6 +18,11 @@ docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu $$(id -u):$$(id -g) -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
+# Start website server locally
+web-server:
+	git submodule update --init --recursive --depth 1
+	cd docs && hugo server -D
+
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
 
@@ -61,8 +66,8 @@ protopb:
 
 apidocs-gen:
 	go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
-	$(shell go env GOPATH)/bin/gen-crd-api-reference-docs --config docs/apidocs-gen.json \
-		--out-file docs/content/docs/reference/api-docs.html --template-dir docs/templates/ \
+	$(shell go env GOPATH)/bin/gen-crd-api-reference-docs --config docs/assets/apidocs-gen.json \
+		--out-file docs/content/en/docs/reference/apidocs.html --template-dir docs/assets/templates/ \
 		--api-dir ./pkg/apis/security/v1alpha1
 
 deploy-test:

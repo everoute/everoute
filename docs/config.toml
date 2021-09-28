@@ -1,0 +1,23 @@
+baseURL = "https://everoute.io"
+title = "Everoute"
+languageCode = "en-us"
+theme = "docsy"
+
+[params]
+copyright = "The Everoute Authors"
+github_repo = "https://github.com/everoute/everoute"
+
+[languages]
+[languages.en]
+title = "Everoute"
+description = "Everoute documentation"
+languageName ="English"
+contentDir = "content/en"
+weight = 1
+
+[params.links]
+# Developer relevant links. These will show up on right side of footer and in the community page.
+[[params.links.developer]]
+	name = "GitHub"
+	url = "https://github.com/everoute/everoute"
+	icon = "fab fa-github"
