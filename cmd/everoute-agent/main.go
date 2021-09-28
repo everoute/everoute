@@ -36,7 +36,9 @@ import (
 )
 
 var (
-	scheme = runtime.NewScheme()
+	scheme      = runtime.NewScheme()
+	enableCNI   bool
+	metricsAddr string
 )
 
 func init() {
@@ -46,8 +48,10 @@ func init() {
 }
 
 func main() {
-	var enableCNI bool
 	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
+	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
+	klog.InitFlags(nil)
+	flag.Parse()
 
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
@@ -62,7 +66,7 @@ func main() {
 	datapathManager.InitializeDatapath()
 
 	// NetworkPolicy controller: watch policyRule crud and update flow
-	mgr, err := startManager(scheme, datapathManager, enableCNI, stopChan)
+	mgr, err := startManager(scheme, datapathManager, stopChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
@@ -97,12 +101,7 @@ func main() {
 	<-stopChan
 }
 
-func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, enableCNI bool, stopChan <-chan struct{}) (manager.Manager, error) {
-	var metricsAddr string
-	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
-	klog.InitFlags(nil)
-	flag.Parse()
-
+func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, stopChan <-chan struct{}) (manager.Manager, error) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
