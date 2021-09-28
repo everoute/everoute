@@ -141,7 +141,8 @@ type DpManager struct {
 }
 
 type Config struct {
-	ManagedVDSMap map[string]string // map vds to ovsbr-name
+	ManagedVDSMap    map[string]string // map vds to ovsbr-name
+	OvsCtrlPortStart *int
 }
 
 type Endpoint struct {
@@ -189,9 +190,14 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.localEndpointDB = cmap.New()
 
 	var vdsCount int = 0
+	var ctrlPortBase int
 	// vdsID equals to ovsbrname
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
-		ctrlPortBase := OVS_CTRL_PORT_START + OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount
+		if datapathConfig.OvsCtrlPortStart != nil {
+			ctrlPortBase = *datapathConfig.OvsCtrlPortStart + OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount
+		} else {
+			ctrlPortBase = OVS_CTRL_PORT_START + OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount
+		}
 
 		// initialize vds bridge chain
 		localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -395,6 +401,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 		if RuleIsSame(oldRule, rule) {
 			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, oldRule)
+			return nil
 		} else {
 			datapathManager.ruleMux.RUnlock()
 			log.Fatalf("Different rule %v and %v with same ruleId.", oldRule, rule)
