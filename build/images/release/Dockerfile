@@ -25,11 +25,12 @@ RUN cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
 FROM ubuntu:20.04
 
 #RUN apk update && apk add openvswitch
-RUN apt update && apt install -y openvswitch-switch iproute2 iptables
+RUN apt update && apt install -y openvswitch-switch=2.13.3-0ubuntu0.20.04.2 iproute2 iptables tcpdump
 RUN apt clean
 
 RUN mkdir -p /opt/everoute/bin
 COPY --from=builder /opt/everoute/bin/* /opt/everoute/bin/
 
 WORKDIR /opt/everoute/bin
+RUN chmod 755 /opt/everoute/bin/*
 ENV PATH=${PATH}:/opt/everoute/bin

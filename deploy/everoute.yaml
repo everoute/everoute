@@ -1733,6 +1733,37 @@ spec:
         kubernetes.io/os: linux
       serviceAccountName: everoute-agent
       containers:
+        - name: init-agent
+          command: [ "init_agent" ]
+          image: everoute/release
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "agent_init_probe"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: everoute-run
+              mountPath: /var/run/everoute/
+            - name: cni-conf
+              mountPath: /etc/cni/net.d
+            - name: everoute-config
+              mountPath: /var/lib/everoute/cni-conf.conflist
+              subPath: cni-conf.conflist
+            - name: openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - mountPath: /lib/modules
+              name: host-lib-modules
+            - name: tmp
+              mountPath: /tmp
         - name: everoute-agent
           image: everoute/release
           imagePullPolicy: IfNotPresent
@@ -1750,7 +1781,7 @@ spec:
             - name: everoute-config
               mountPath: /var/lib/everoute/agentconfig.yaml
               subPath: agentconfig.yaml
-            - name: host-openvswitch
+            - name: openvswitch
               mountPath: /var/run/openvswitch/
             - name: host-proc
               mountPath: /host/proc/
@@ -1758,6 +1789,8 @@ spec:
               mountPath: /opt/cni/bin/
             - name: everoute-ipam
               mountPath: /var/lib/cni/networks/everoute
+            - name: tmp
+              mountPath: /tmp
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
@@ -1765,37 +1798,14 @@ spec:
           operator: Exists
         - effect: NoExecute
           operator: Exists
-      initContainers:
-        - command: ["install_cni"]
-          image: everoute/release
-          imagePullPolicy: IfNotPresent
-          name: install-cni
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - name: everoute-agent
-              mountPath: /var/lib/everoute/
-            - name: cni-bin
-              mountPath: /opt/cni/bin/
-            - name: everoute-run
-              mountPath: /var/run/everoute/
-            - name: cni-conf
-              mountPath: /etc/cni/net.d
-            - name: everoute-config
-              mountPath: /var/lib/everoute/cni-conf.conflist
-              subPath: cni-conf.conflist
-            - name: host-openvswitch
-              mountPath: /var/run/openvswitch/
-            - name: everoute-config
-              mountPath: /var/lib/everoute/agentconfig.yaml
-              subPath: agentconfig.yaml
       volumes:
         - configMap:
             name: everoute-config-xu73od84d3
           name: everoute-config
-        - hostPath:
-            path: /var/run/openvswitch
-          name: host-openvswitch
+        - name: openvswitch
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
         - hostPath:
             path: /var/lib/everoute/
           name: everoute-agent
@@ -1805,15 +1815,18 @@ spec:
         - hostPath:
             path: /opt/cni/bin/
           name: cni-bin
-        - hostPath:
+        - name: everoute-run
+          hostPath:
             path: /var/run/everoute
-          name: everoute-run
         - hostPath:
             path: /etc/cni/net.d
           name: cni-conf
         - hostPath:
             path: /proc
           name: host-proc
+        - hostPath:
+            path: /lib/modules
+          name: host-lib-modules
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

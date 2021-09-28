@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+while true; do
+  sleep 1
+  if [ -f /tmp/everoute_agent_init ]; then
+    break
+  fi
+done
+
+exit 0
