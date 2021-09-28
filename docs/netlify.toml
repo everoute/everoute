@@ -1,0 +1,7 @@
+[build]
+  command = "git submodule update --init --recursive --depth 1 && hugo --enableGitInfo"
+  publish = "public"
+
+[build.environment]
+  NODE_VERSION = "10.20.0"
+  HUGO_VERSION = "0.85.0"
