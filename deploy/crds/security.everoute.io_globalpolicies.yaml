@@ -16,7 +16,11 @@ spec:
     singular: globalpolicy
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.defaultAction
+      name: DefaultAction
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: GlobalPolicy allow defines default action of traffics and global
@@ -35,6 +39,7 @@ spec:
           metadata:
             type: object
           spec:
+            description: Specification of the desired behavior for this GlobalPolicy.
             properties:
               defaultAction:
                 default: Allow
@@ -71,6 +76,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

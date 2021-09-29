@@ -30,6 +30,8 @@ display: inline-block;
 </li></ul>
 <h3 id="security.everoute.io/v1alpha1.Endpoint">Endpoint
 </h3>
+<p>Endpoint is a network communication entity. It&rsquo;s provided by the endpoint provider,
+it could be a virtual network interface, a pod, an ovs port or other entities.</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -70,6 +72,7 @@ EndpointSpec
 </em>
 </td>
 <td>
+<p>Spec contains description of the endpoint</p>
 <br/><br/>
 <table>
 <tr>
@@ -80,6 +83,7 @@ uint32
 </em>
 </td>
 <td>
+<p>VID describe the endpoint in which VLAN</p>
 </td>
 </tr>
 <tr>
@@ -92,6 +96,8 @@ EndpointReference
 </em>
 </td>
 <td>
+<p>Reference of an endpoint, also the external_id of an ovs interface.
+We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
 </table>
@@ -107,6 +113,7 @@ EndpointStatus
 </em>
 </td>
 <td>
+<p>Status is the current state of the Endpoint</p>
 </td>
 </tr>
 </tbody>
@@ -155,6 +162,8 @@ GlobalPolicySpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
+<p>Specification of the desired behavior for this GlobalPolicy.</p>
 <br/><br/>
 <table>
 <tr>
@@ -390,6 +399,7 @@ If this field is set then neither of the other fields can be.</p>
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec</a>)
 </p>
+<p>EndpointReference uniquely identifies an endpoint</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -406,6 +416,7 @@ string
 </em>
 </td>
 <td>
+<p>ExternalIDName of an endpoint.</p>
 </td>
 </tr>
 <tr>
@@ -416,6 +427,7 @@ string
 </em>
 </td>
 <td>
+<p>ExternalIDValue of an endpint.</p>
 </td>
 </tr>
 </tbody>
@@ -426,6 +438,7 @@ string
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.Endpoint">Endpoint</a>)
 </p>
+<p>EndpointSpec provides the specification of an Endpoint</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -442,6 +455,7 @@ uint32
 </em>
 </td>
 <td>
+<p>VID describe the endpoint in which VLAN</p>
 </td>
 </tr>
 <tr>
@@ -454,6 +468,8 @@ EndpointReference
 </em>
 </td>
 <td>
+<p>Reference of an endpoint, also the external_id of an ovs interface.
+We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
 </tbody>
@@ -464,6 +480,7 @@ EndpointReference
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.Endpoint">Endpoint</a>)
 </p>
+<p>EndpointStatus describe the current state of the Endpoint</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -482,6 +499,7 @@ EndpointReference
 </em>
 </td>
 <td>
+<p>IPs of an endpoint, can be IPV4 or IPV6.</p>
 </td>
 </tr>
 <tr>
@@ -492,6 +510,7 @@ string
 </em>
 </td>
 <td>
+<p>MACAddress of an endpoint.</p>
 </td>
 </tr>
 </tbody>
@@ -502,6 +521,7 @@ string
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec</a>)
 </p>
+<p>GlobalDefaultAction defines actions supported for GlobalPolicy.</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -511,10 +531,12 @@ string
 </thead>
 <tbody><tr>
 <td><p>&#34;Allow&#34;</p></td>
-<td></td>
+<td><p>GlobalDefaultActionAllow default allow all traffics between Endpoints.</p>
+</td>
 </tr><tr>
 <td><p>&#34;Drop&#34;</p></td>
-<td></td>
+<td><p>GlobalDefaultActionDrop default drop all traffics between Endpoints.</p>
+</td>
 </tr></tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec
@@ -523,6 +545,7 @@ string
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.GlobalPolicy">GlobalPolicy</a>)
 </p>
+<p>GlobalPolicySpec provides the specification of a GlobalPolicy</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -567,6 +590,7 @@ GlobalDefaultAction
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.SecurityPolicyPeer">SecurityPolicyPeer</a>)
 </p>
+<p>NamespacedName contains information to specify an object.</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -605,6 +629,7 @@ string
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.SecurityPolicyPort">SecurityPolicyPort</a>)
 </p>
+<p>Protocol defines network protocols supported for SecurityPolicy.</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
@@ -845,6 +870,7 @@ want match multiple ports, you should write like 20,22-24,90.</p>
 (<em>Appears in:</em>
 <a href="#security.everoute.io/v1alpha1.SecurityPolicy">SecurityPolicy</a>)
 </p>
+<p>SecurityPolicySpec provides the specification of a SecurityPolicy</p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
 <tr>
