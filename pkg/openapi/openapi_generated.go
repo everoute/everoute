@@ -1408,7 +1408,8 @@ func schema_pkg_apis_security_v1alpha1_Endpoint(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "Endpoint is a network communication entity. It's provided by the endpoint provider, it could be a virtual network interface, a pod, an ovs port or other entities.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
@@ -1431,12 +1432,14 @@ func schema_pkg_apis_security_v1alpha1_Endpoint(ref common.ReferenceCallback) co
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointSpec"),
+							Description: "Spec contains description of the endpoint",
+							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointStatus"),
+							Description: "Status is the current state of the Endpoint",
+							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointStatus"),
 						},
 					},
 				},
@@ -1499,18 +1502,21 @@ func schema_pkg_apis_security_v1alpha1_EndpointReference(ref common.ReferenceCal
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "EndpointReference uniquely identifies an endpoint",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"externalIDName": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "ExternalIDName of an endpoint.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"externalIDValue": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "ExternalIDValue of an endpint.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -1524,17 +1530,20 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "EndpointSpec provides the specification of an Endpoint",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"vid": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int64",
+							Description: "VID describe the endpoint in which VLAN",
+							Type:        []string{"integer"},
+							Format:      "int64",
 						},
 					},
 					"reference": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference"),
+							Description: "Reference of an endpoint, also the external_id of an ovs interface. We map between endpoint and ovs interface use the Reference.",
+							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference"),
 						},
 					},
 				},
@@ -1550,11 +1559,13 @@ func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallba
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "EndpointStatus describe the current state of the Endpoint",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"ips": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "IPs of an endpoint, can be IPV4 or IPV6.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1567,8 +1578,9 @@ func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallba
 					},
 					"macAddress": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "MACAddress of an endpoint.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -1605,7 +1617,8 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicy(ref common.ReferenceCallback
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.GlobalPolicySpec"),
+							Description: "Specification of the desired behavior for this GlobalPolicy.",
+							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.GlobalPolicySpec"),
 						},
 					},
 				},
@@ -1666,7 +1679,8 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref common.ReferenceCall
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "GlobalPolicySpec provides the specification of a GlobalPolicy",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"defaultAction": {
 						SchemaProps: spec.SchemaProps{
@@ -1700,7 +1714,8 @@ func schema_pkg_apis_security_v1alpha1_NamespacedName(ref common.ReferenceCallba
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "NamespacedName contains information to specify an object.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
@@ -1944,7 +1959,8 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "SecurityPolicySpec provides the specification of a SecurityPolicy",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"tier": {
 						SchemaProps: spec.SchemaProps{

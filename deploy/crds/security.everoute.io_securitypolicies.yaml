@@ -16,7 +16,17 @@ spec:
     singular: securitypolicy
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.tier
+      name: Tier
+      type: string
+    - jsonPath: .spec.symmetricMode
+      name: SymmetricMode
+      type: boolean
+    - jsonPath: .spec.policyTypes
+      name: PolicyTypes
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: SecurityPolicy describes what network traffic is allowed for

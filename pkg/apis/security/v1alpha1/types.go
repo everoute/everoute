@@ -29,6 +29,9 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Tier",type="string",JSONPath=".spec.tier"
+// +kubebuilder:printcolumn:name="SymmetricMode",type="boolean",JSONPath=".spec.symmetricMode"
+// +kubebuilder:printcolumn:name="PolicyTypes",type="string",JSONPath=".spec.policyTypes"
 
 // SecurityPolicy describes what network traffic is allowed for a set of Endpoint.
 // Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
@@ -40,6 +43,7 @@ type SecurityPolicy struct {
 	Spec SecurityPolicySpec `json:"spec"`
 }
 
+// SecurityPolicySpec provides the specification of a SecurityPolicy
 type SecurityPolicySpec struct {
 	// Tier specifies the tier to which this SecurityPolicy belongs to.
 	// In v1alpha1, Tier only support tier0, tier1, tier2.
@@ -176,6 +180,7 @@ type SecurityPolicyPort struct {
 	PortRange string `json:"portRange,omitempty"` // only valid when Protocol is not ICMP
 }
 
+// NamespacedName contains information to specify an object.
 type NamespacedName struct {
 	// Name is unique within a namespace to reference a resource.
 	Name string `json:"name"`
@@ -188,6 +193,7 @@ func (n NamespacedName) String() string {
 	return n.Namespace + string(k8stypes.Separator) + n.Name
 }
 
+// Protocol defines network protocols supported for SecurityPolicy.
 // +kubebuilder:validation:Enum=TCP;UDP;ICMP
 type Protocol string
 
@@ -255,28 +261,49 @@ type TierList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ExternalName",type="string",JSONPath=".spec.reference.externalIDName"
+// +kubebuilder:printcolumn:name="ExternalValue",type="string",JSONPath=".spec.reference.externalIDValue"
+// +kubebuilder:printcolumn:name="IPAddr",type="string",JSONPath=".status.ips"
+// +kubebuilder:printcolumn:name="MAC",type="string",JSONPath=".status.macAddress"
 
+// Endpoint is a network communication entity. It's provided by the endpoint provider,
+// it could be a virtual network interface, a pod, an ovs port or other entities.
 type Endpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   EndpointSpec   `json:"spec"`
+	// Spec contains description of the endpoint
+	Spec EndpointSpec `json:"spec"`
+
+	// Status is the current state of the Endpoint
 	Status EndpointStatus `json:"status,omitempty"`
 }
 
+// EndpointSpec provides the specification of an Endpoint
 type EndpointSpec struct {
-	VID       uint32            `json:"vid"`
+	// VID describe the endpoint in which VLAN
+	VID uint32 `json:"vid"`
+
+	// Reference of an endpoint, also the external_id of an ovs interface.
+	// We map between endpoint and ovs interface use the Reference.
 	Reference EndpointReference `json:"reference"`
 }
 
+// EndpointReference uniquely identifies an endpoint
 type EndpointReference struct {
-	ExternalIDName  string `json:"externalIDName"`
+	// ExternalIDName of an endpoint.
+	ExternalIDName string `json:"externalIDName"`
+
+	// ExternalIDValue of an endpint.
 	ExternalIDValue string `json:"externalIDValue"`
 }
 
+// EndpointStatus describe the current state of the Endpoint
 type EndpointStatus struct {
-	IPs        []types.IPAddress `json:"ips,omitempty"`
-	MacAddress string            `json:"macAddress,omitempty"`
+	// IPs of an endpoint, can be IPV4 or IPV6.
+	IPs []types.IPAddress `json:"ips,omitempty"`
+	// MACAddress of an endpoint.
+	MacAddress string `json:"macAddress,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -295,6 +322,7 @@ type EndpointList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="DefaultAction",type="string",JSONPath=".spec.defaultAction"
 
 // GlobalPolicy allow defines default action of traffics and global
 // ip whitelist. Only one GlobalPolicy can exist on kubernetes.
@@ -302,9 +330,12 @@ type GlobalPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// Specification of the desired behavior for this GlobalPolicy.
+	// +optional
 	Spec GlobalPolicySpec `json:"spec,omitempty"`
 }
 
+// GlobalPolicySpec provides the specification of a GlobalPolicy
 type GlobalPolicySpec struct {
 	// DefaultAction defines global traffic action
 	// +optional
@@ -316,12 +347,15 @@ type GlobalPolicySpec struct {
 	Whitelist []networkingv1.IPBlock `json:"whitelist,omitempty"`
 }
 
+// GlobalDefaultAction defines actions supported for GlobalPolicy.
 // +kubebuilder:validation:Enum=Allow;Drop
 type GlobalDefaultAction string
 
 const (
+	// GlobalDefaultActionAllow default allow all traffics between Endpoints.
 	GlobalDefaultActionAllow GlobalDefaultAction = "Allow"
-	GlobalDefaultActionDrop  GlobalDefaultAction = "Drop"
+	// GlobalDefaultActionDrop default drop all traffics between Endpoints.
+	GlobalDefaultActionDrop GlobalDefaultAction = "Drop"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

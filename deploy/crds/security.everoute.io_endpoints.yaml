@@ -16,9 +16,25 @@ spec:
     singular: endpoint
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.reference.externalIDName
+      name: ExternalName
+      type: string
+    - jsonPath: .spec.reference.externalIDValue
+      name: ExternalValue
+      type: string
+    - jsonPath: .status.ips
+      name: IPAddr
+      type: string
+    - jsonPath: .status.macAddress
+      name: MAC
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
+        description: Endpoint is a network communication entity. It's provided by
+          the endpoint provider, it could be a virtual network interface, a pod, an
+          ovs port or other entities.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,18 +49,25 @@ spec:
           metadata:
             type: object
           spec:
+            description: Spec contains description of the endpoint
             properties:
               reference:
+                description: Reference of an endpoint, also the external_id of an
+                  ovs interface. We map between endpoint and ovs interface use the
+                  Reference.
                 properties:
                   externalIDName:
+                    description: ExternalIDName of an endpoint.
                     type: string
                   externalIDValue:
+                    description: ExternalIDValue of an endpint.
                     type: string
                 required:
                 - externalIDName
                 - externalIDValue
                 type: object
               vid:
+                description: VID describe the endpoint in which VLAN
                 format: int32
                 type: integer
             required:
@@ -52,8 +75,10 @@ spec:
             - vid
             type: object
           status:
+            description: Status is the current state of the Endpoint
             properties:
               ips:
+                description: IPs of an endpoint, can be IPV4 or IPV6.
                 items:
                   description: IPAddress is net ip address, can be ipv4 or ipv6. Format
                     like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
@@ -61,6 +86,7 @@ spec:
                   type: string
                 type: array
               macAddress:
+                description: MACAddress of an endpoint.
                 type: string
             type: object
         required:
