@@ -60,8 +60,9 @@ protopb:
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/cni/v1alpha1/cni.proto
 
 apidocs-gen:
-	go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
-	$(shell go env GOPATH)/bin/gen-crd-api-reference-docs --config docs/assets/apidocs-gen.json \
+	$(eval PATH := $$(PATH):$(shell go env GOPATH)/bin)
+	which gen-crd-api-reference-docs || go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
+	gen-crd-api-reference-docs --config docs/assets/apidocs-gen.json \
 		--out-file docs/content/en/docs/reference/apidocs.html --template-dir docs/assets/templates/ \
 		--api-dir ./pkg/apis/security/v1alpha1
 
