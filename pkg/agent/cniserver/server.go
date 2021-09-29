@@ -145,7 +145,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 	nsPath := "/host" + request.Netns
 	// vethName - ovs port name
-	vethName := "veth" + strings.Split(request.Netns, "/")[2]
+	vethName := request.ContainerId[:12]
 	if err = ns.WithNetNSPath(nsPath, func(hostNS ns.NetNS) error {
 		// create veth pair in container NS and host NS
 		// TODO: MTU is a const variable here
@@ -168,7 +168,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 	err = s.ovsDriver.CreatePort(vethName, "", 0)
 	if err != nil {
 		klog.Errorf("create ovs port error, vethName: %s, err: %s", vethName, err)
-		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "exec error in namespace", err)
+		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "add port to ovs bridge error", err)
 	}
 
 	// set externalID on the interface for arp learning
@@ -215,9 +215,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "failed to decode request", err)
 	}
 
-	// retrieve vethName from Sandbox
-	vethName := "veth" +
-		strings.Split(conf.RawPrevResult["interfaces"].([]interface{})[0].(map[string]interface{})["sandbox"].(string), "/")[2]
+	vethName := request.ContainerId[:12]
 
 	// check ovs port
 	if !s.ovsDriver.IsPortNamePresent(vethName) {
@@ -248,13 +246,7 @@ func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cni
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "Parse request conf error", err)
 	}
 
-	// ignore unknown delete event
-	if conf.RawPrevResult["interfaces"] == nil {
-		return s.ParseResult(&cniv1.Result{CNIVersion: conf.CNIVersion})
-	}
-	// retrieve vethName from Sandbox
-	vethName := "veth" +
-		strings.Split(conf.RawPrevResult["interfaces"].([]interface{})[0].(map[string]interface{})["sandbox"].(string), "/")[2]
+	vethName := request.ContainerId[:12]
 
 	// delete ovs port
 	if s.ovsDriver.IsPortNamePresent(vethName) {
@@ -298,7 +290,6 @@ func (s *CNIServer) GetIpamConfByte(conf *types.NetConf) []byte {
 		IPAM: &allocator.IPAMConfig{
 			Type:   "host-local",
 			Ranges: []allocator.RangeSet{ipamRanges},
-			//DataDir: "/tmp/cni-example",
 		},
 		Args: nil,
 	}
