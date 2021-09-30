@@ -118,7 +118,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
-	err = validates.RegisterIndexFields(k8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
 	validate = validates.NewCRDValidate(k8sManager.GetClient(), k8sManager.GetScheme())
 	Expect(validate).ToNot(BeNil())

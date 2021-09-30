@@ -30,8 +30,6 @@ type Interface interface {
 	GlobalPolicies() GlobalPolicyInformer
 	// SecurityPolicies returns a SecurityPolicyInformer.
 	SecurityPolicies() SecurityPolicyInformer
-	// Tiers returns a TierInformer.
-	Tiers() TierInformer
 }
 
 type version struct {
@@ -58,9 +56,4 @@ func (v *version) GlobalPolicies() GlobalPolicyInformer {
 // SecurityPolicies returns a SecurityPolicyInformer.
 func (v *version) SecurityPolicies() SecurityPolicyInformer {
 	return &securityPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// Tiers returns a TierInformer.
-func (v *version) Tiers() TierInformer {
-	return &tierInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

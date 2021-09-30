@@ -3,7 +3,6 @@
     "TypeMeta"
   ],
   "hideTypePatterns": [
-    "Tier(|Spec|Mode)$",
     "ParseError$",
     "List$"
   ],

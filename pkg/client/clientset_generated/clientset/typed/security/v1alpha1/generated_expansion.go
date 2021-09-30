@@ -23,5 +23,3 @@ type EndpointExpansion interface{}
 type GlobalPolicyExpansion interface{}
 
 type SecurityPolicyExpansion interface{}
-
-type TierExpansion interface{}

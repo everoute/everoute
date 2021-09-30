@@ -71,7 +71,6 @@ rules:
 - apiGroups:
   - security.everoute.io
   resources:
-  - tiers
   - securitypolicies
   - endpoints
   - endpoints/status

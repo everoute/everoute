@@ -37,7 +37,3 @@ type SecurityPolicyListerExpansion interface{}
 // SecurityPolicyNamespaceListerExpansion allows custom methods to be added to
 // SecurityPolicyNamespaceLister.
 type SecurityPolicyNamespaceListerExpansion interface{}
-
-// TierListerExpansion allows custom methods to be added to
-// TierLister.
-type TierListerExpansion interface{}

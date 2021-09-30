@@ -43,6 +43,7 @@ import (
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
 )
 
@@ -82,13 +83,6 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 		Kind:    "SecurityPolicy",
 	}, &securityPolicyValidator{v.client})
 
-	// security.everoute.io/v1alpha1 tier validator
-	v.register(metav1.GroupVersionKind{
-		Group:   "security.everoute.io",
-		Version: "v1alpha1",
-		Kind:    "Tier",
-	}, &tierValidator{v.client})
-
 	// security.everoute.io/v1alpha1 globalpolicy validator
 	v.register(metav1.GroupVersionKind{
 		Group:   "security.everoute.io",
@@ -97,29 +91,6 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 	}, &globalPolicyValidator{v.client})
 
 	return v
-}
-
-const (
-	tierPriorityIndex = "TierPriorityIndex"
-	policyTierIndex   = "PolicyTierIndex"
-)
-
-// RegisterIndexFields register custom fields for FieldIndexer, this field
-// can later be used by a field selector.
-func RegisterIndexFields(f client.FieldIndexer) error {
-	ctx := context.Background()
-
-	// index priority in Tier object
-	f.IndexField(ctx, &securityv1alpha1.Tier{}, tierPriorityIndex, func(object runtime.Object) []string {
-		return []string{fmt.Sprintf("%d", object.(*securityv1alpha1.Tier).Spec.Priority)}
-	})
-
-	// index tier in SecurityPolicy object
-	f.IndexField(ctx, &securityv1alpha1.SecurityPolicy{}, policyTierIndex, func(object runtime.Object) []string {
-		return []string{object.(*securityv1alpha1.SecurityPolicy).Spec.Tier}
-	})
-
-	return nil
 }
 
 // validator interface introduces the set of functions that must be implemented
@@ -331,45 +302,6 @@ func (v endpointGroupValidator) deleteValidate(oldObj runtime.Object, userInfo a
 	return "", true
 }
 
-type tierValidator resourceValidator
-
-func (t tierValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	tierList := securityv1alpha1.TierList{}
-
-	if err := t.List(context.Background(), &tierList, client.MatchingFields{
-		tierPriorityIndex: fmt.Sprintf("%d", curObj.(*securityv1alpha1.Tier).Spec.Priority),
-	}); err != nil {
-		return err.Error(), false
-	}
-
-	if len(tierList.Items) != 0 {
-		return "create tier with same priority not allowed", false
-	}
-	return "", true
-}
-
-func (t tierValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	if oldObj.(*securityv1alpha1.Tier).Spec.Priority != curObj.(*securityv1alpha1.Tier).Spec.Priority {
-		return "update tier priority not allowed", false
-	}
-	return "", true
-}
-
-func (t tierValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	policyList := securityv1alpha1.SecurityPolicyList{}
-
-	if err := t.List(context.Background(), &policyList, client.MatchingFields{
-		policyTierIndex: oldObj.(*securityv1alpha1.Tier).Name,
-	}); err != nil {
-		return err.Error(), false
-	}
-
-	if len(policyList.Items) != 0 {
-		return "delete tier used by security policy not allowed", false
-	}
-	return "", true
-}
-
 type securityPolicyValidator resourceValidator
 
 func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
@@ -394,13 +326,14 @@ func (v securityPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo 
 
 func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.SecurityPolicy) error {
 	// check attached tier exist
-	err := v.Get(context.Background(), types.NamespacedName{Name: policy.Spec.Tier}, &securityv1alpha1.Tier{})
-	if err != nil {
-		return fmt.Errorf("tier must create first: %s", err.Error())
+	switch policy.Spec.Tier {
+	case constants.Tier0, constants.Tier1, constants.Tier2:
+	default:
+		return fmt.Errorf("tier %s not in: %s, %s, %s", policy.Spec.Tier, constants.Tier0, constants.Tier1, constants.Tier2)
 	}
 
 	// check validate of spec.appliedTo
-	err = v.validateAppliedTo(policy.Spec.AppliedTo)
+	err := v.validateAppliedTo(policy.Spec.AppliedTo)
 	if err != nil {
 		return fmt.Errorf("error format of spec.appliedTo: %s", err)
 	}
