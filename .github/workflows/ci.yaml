@@ -62,7 +62,7 @@ jobs:
 
       - name: build and import image
         run: |
-          make images
+          make image
           docker save everoute/release | sudo k3s ctr images import -
 
       - name: make kubernetes deploy test
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: make docker-generate
-        run: sudo sh -c "make images && make docker-generate"
+        run: sudo sh -c "make image-generate && make docker-generate"
 
       - name: check if code changes
         run: sudo sh -c "git add -A && git diff HEAD --exit-code"
