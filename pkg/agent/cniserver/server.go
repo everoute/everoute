@@ -24,8 +24,10 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/containernetworking/cni/pkg/types"
+	"github.com/cenkalti/backoff"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	cniv1 "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
@@ -42,6 +44,9 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/controller/endpoint"
+	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -52,21 +57,21 @@ type CNIServer struct {
 	ovsDriver *ovsdbDriver.OvsDriver
 	gwName    string
 	brName    string
-	podCIDR   []types.IPNet
+	podCIDR   []cnitypes.IPNet
 
 	mutex sync.Mutex
 }
 
 type CNIArgs struct {
-	types.CommonArgs
-	K8S_POD_NAME               types.UnmarshallableString //nolint
-	K8S_POD_NAMESPACE          types.UnmarshallableString //nolint
-	K8S_POD_INFRA_CONTAINER_ID types.UnmarshallableString //nolint
+	cnitypes.CommonArgs
+	K8S_POD_NAME               cnitypes.UnmarshallableString //nolint
+	K8S_POD_NAMESPACE          cnitypes.UnmarshallableString //nolint
+	K8S_POD_INFRA_CONTAINER_ID cnitypes.UnmarshallableString //nolint
 }
 
-func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*types.NetConf, *CNIArgs, error) {
+func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *CNIArgs, error) {
 	// parse request Stdin
-	conf := &types.NetConf{}
+	conf := &cnitypes.NetConf{}
 	err := json.Unmarshal(request.Stdin, &conf)
 	if err != nil {
 		return nil, nil, err
@@ -74,7 +79,7 @@ func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*types.NetConf, *CNIAr
 
 	// parse request Args
 	args := &CNIArgs{}
-	err = types.LoadArgs(request.Args, args)
+	err = cnitypes.LoadArgs(request.Args, args)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -100,6 +105,34 @@ func (s *CNIServer) ParseResult(result *cniv1.Result) (*cnipb.CniResponse, error
 		Result: resultBytes.Bytes(),
 		Error:  nil,
 	}, nil
+}
+
+func (s *CNIServer) setEndpointIP(ctx context.Context, args CNIArgs, ipNet net.IPNet) error {
+	ep := securityv1alpha1.Endpoint{}
+	namespacedName := coretypes.NamespacedName{
+		Name:      string("ep-" + args.K8S_POD_NAME),
+		Namespace: string(args.K8S_POD_NAMESPACE),
+	}
+	if err := backoff.Retry(func() error {
+		if err := s.k8sClient.Get(ctx, namespacedName, &ep); err != nil {
+			return err
+		}
+		epStatus := &securityv1alpha1.EndpointStatus{
+			MacAddress: string(ipNet.Mask),
+			IPs:        append([]types.IPAddress{}, types.IPAddress(ipNet.IP.String())),
+		}
+		if endpoint.EqualEndpointStatus(ep.Status, *epStatus) {
+			return nil
+		}
+		ep.Status = *epStatus
+		if err := s.k8sClient.Status().Update(ctx, &ep); err != nil {
+			return err
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Millisecond*100), 50)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cnipb.CniResponse, error) {
@@ -131,7 +164,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 	result := &cniv1.Result{
 		CNIVersion: conf.CNIVersion,
 		IPs:        ipamResult.IPs,
-		Routes: []*types.Route{{
+		Routes: []*cnitypes.Route{{
 			Dst: net.IPNet{
 				IP:   net.IPv4zero,
 				Mask: net.IPMask(net.IPv4zero)},
@@ -165,8 +198,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 	}
 
 	// add the veth device to ovs bridge
-	err = s.ovsDriver.CreatePort(vethName, "", 0)
-	if err != nil {
+	if err = s.ovsDriver.CreatePort(vethName, "", 0); err != nil {
 		klog.Errorf("create ovs port error, vethName: %s, err: %s", vethName, err)
 		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "add port to ovs bridge error", err)
 	}
@@ -178,10 +210,13 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 		Name:      "pod-" + string(args.K8S_POD_NAME),
 		Namespace: string(args.K8S_POD_NAMESPACE),
 	})
-	err = s.ovsDriver.UpdateInterface(vethName, externalID)
-	if err != nil {
+	if err = s.ovsDriver.UpdateInterface(vethName, externalID); err != nil {
 		klog.Errorf("set externalID for %s error, err: %s", vethName, err)
 		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "set externalID for %s error", err)
+	}
+
+	if err = s.setEndpointIP(ctx, *args, result.IPs[0].Address); err != nil {
+		klog.Errorf("fail to update endpoint. err: %s", err)
 	}
 
 	// broadcast arp pkg in namespace
@@ -278,7 +313,7 @@ func (s *CNIServer) RetError(code cnipb.ErrorCode, msg string, err error) (*cnip
 	return resp, err
 }
 
-func (s *CNIServer) GetIpamConfByte(conf *types.NetConf) []byte {
+func (s *CNIServer) GetIpamConfByte(conf *cnitypes.NetConf) []byte {
 	var ipamRanges allocator.RangeSet
 	for _, item := range s.podCIDR {
 		ipamRanges = append(ipamRanges, allocator.Range{Subnet: item})
@@ -351,8 +386,8 @@ func Initialize(k8sClient client.Client, dpManager *datapath.DpManager) *CNIServ
 
 	// record all pod CIDRs
 	for _, cidrString := range node.Spec.PodCIDRs {
-		cidr, _ := types.ParseCIDR(cidrString)
-		s.podCIDR = append(s.podCIDR, types.IPNet(*cidr))
+		cidr, _ := cnitypes.ParseCIDR(cidrString)
+		s.podCIDR = append(s.podCIDR, cnitypes.IPNet(*cidr))
 	}
 
 	// set gateway ip address, first ip in first CIDR

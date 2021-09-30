@@ -5,8 +5,12 @@ all: codegen manifests bin
 
 bin: controller agent cni e2e-tools
 
-images:
+images: image generate
+
+image:
 	docker build -f build/images/release/Dockerfile -t everoute/release .
+
+image-generate:
 	docker build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
 
 yaml:
