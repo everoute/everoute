@@ -45,9 +45,6 @@ type ValidateWebhook struct {
 func (v *ValidateWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	crdValidate := validates.NewCRDValidate(mgr.GetClient(), mgr.GetScheme())
 
-	// custom index fields must register first before caches start sync
-	_ = validates.RegisterIndexFields(mgr.GetFieldIndexer())
-
 	mgr.GetWebhookServer().Register("/validate/crds", v.Handler(crdValidate))
 	mgr.GetWebhookServer().Register("/healthz", http.HandlerFunc(v.healthHandler))
 	return nil

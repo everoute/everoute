@@ -24,7 +24,6 @@ webhooks:
           - DELETE
         resources:
           - securitypolicies
-          - tiers
           - endpoints
           - globalpolicies
       - apiGroups:

@@ -30,8 +30,6 @@ func init() {
 		&EndpointList{},
 		&SecurityPolicy{},
 		&SecurityPolicyList{},
-		&Tier{},
-		&TierList{},
 		&GlobalPolicy{},
 		&GlobalPolicyList{},
 	)

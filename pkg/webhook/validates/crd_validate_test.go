@@ -32,6 +32,7 @@ import (
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 func init() {
@@ -40,7 +41,6 @@ func init() {
 }
 
 var (
-	tierPri50             *securityv1alpha1.Tier
 	securityPolicyIngress *securityv1alpha1.SecurityPolicy
 	securityPolicyEgress  *securityv1alpha1.SecurityPolicy
 	endpointA             *securityv1alpha1.Endpoint
@@ -56,22 +56,6 @@ const (
 
 // init and create all object before each
 var initObject = func() {
-	tierPri50 = &securityv1alpha1.Tier{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Tier",
-			APIVersion: "security.everoute.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "tier-pri50",
-			Labels: map[string]string{
-				"app": "validate-test",
-			},
-		},
-		Spec: securityv1alpha1.TierSpec{
-			Priority: 50,
-			TierMode: securityv1alpha1.TierBlackList,
-		},
-	}
 	securityPolicyIngress = &securityv1alpha1.SecurityPolicy{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "SecurityPolicy",
@@ -85,7 +69,7 @@ var initObject = func() {
 			},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			Tier: "tier-pri50",
+			Tier: constants.Tier1,
 			AppliedTo: []securityv1alpha1.ApplyToPeer{{
 				EndpointSelector: &metav1.LabelSelector{},
 			}},
@@ -118,7 +102,7 @@ var initObject = func() {
 			},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
-			Tier: "tier-pri50",
+			Tier: constants.Tier1,
 			AppliedTo: []securityv1alpha1.ApplyToPeer{{
 				EndpointSelector: &metav1.LabelSelector{},
 			}},
@@ -220,7 +204,6 @@ var initObject = func() {
 		},
 	}
 
-	createAndWait(k8sClient, tierPri50)
 	createAndWait(k8sClient, securityPolicyEgress)
 	createAndWait(k8sClient, securityPolicyIngress)
 	createAndWait(k8sClient, endpointA)
@@ -234,7 +217,6 @@ var removeObject = func() {
 	namespaceDefault := client.InNamespace(metav1.NamespaceDefault)
 	matchTestLabel := client.MatchingLabels{"app": "validate-test"}
 
-	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Tier{}, matchTestLabel)).Should(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.Endpoint{}, namespaceDefault, matchTestLabel)).Should(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.Background(), &groupv1alpha1.EndpointGroup{}, matchTestLabel)).Should(Succeed())
 	Expect(k8sClient.DeleteAllOf(context.Background(), &securityv1alpha1.SecurityPolicy{}, namespaceDefault, matchTestLabel)).Should(Succeed())
@@ -293,34 +275,6 @@ func fakeAdmissionReview(newObject runtime.Object, oldObject runtime.Object, use
 }
 
 var _ = Describe("CRD Validate", func() {
-
-	Context("Validate On Tier", func() {
-		It("Create tier with same priority should not allowed", func() {
-			tier := tierPri50.DeepCopy()
-			tier.Name = "tier"
-			Expect(validate.Validate(fakeAdmissionReview(tier, nil, "")).Allowed).Should(BeFalse())
-		})
-		It("Update tier priority should not allowed", func() {
-			tier := tierPri50.DeepCopy()
-			tier.Spec.Priority = 60
-			Expect(validate.Validate(fakeAdmissionReview(tier, tierPri50, "")).Allowed).Should(BeFalse())
-		})
-		It("Delete tier used by SecurityPolicy should not allowed", func() {
-			Expect(validate.Validate(fakeAdmissionReview(nil, tierPri50, "")).Allowed).Should(BeFalse())
-		})
-		It("Create tier with difference priority should allowed", func() {
-			tier := tierPri50.DeepCopy()
-			tier.Name = "tier"
-			tier.Spec.Priority = 51
-			Expect(validate.Validate(fakeAdmissionReview(tier, nil, "")).Allowed).Should(BeTrue())
-		})
-		It("Delete tier unused by SecurityPolicy should allowed", func() {
-			tier := tierPri50.DeepCopy()
-			tier.Name = "tier"
-			Expect(validate.Validate(fakeAdmissionReview(nil, tier, "")).Allowed).Should(BeTrue())
-		})
-
-	})
 
 	Context("Validate On EndpointGroup", func() {
 		It("Create validate EndpointGroup should always allowed", func() {

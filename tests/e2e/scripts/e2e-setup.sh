@@ -77,33 +77,6 @@ $(
 )
 EOF
 
-echo "generate default tiers: tier0, tier1, tier2"
-kubectl apply -f - << EOF
-apiVersion: security.everoute.io/v1alpha1
-kind: Tier
-metadata:
-  name: tier0
-spec:
-  priority: 0
-  tierMode: Whitelist
----
-apiVersion: security.everoute.io/v1alpha1
-kind: Tier
-metadata:
-  name: tier1
-spec:
-  priority: 1
-  tierMode: Whitelist
----
-apiVersion: security.everoute.io/v1alpha1
-kind: Tier
-metadata:
-  name: tier2
-spec:
-  priority: 2
-  tierMode: Whitelist
-EOF
-
 echo "========================================================="
 echo " "
 echo "Installation is complete for everoute e2e environment!"

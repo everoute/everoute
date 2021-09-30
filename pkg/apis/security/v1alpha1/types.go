@@ -216,47 +216,6 @@ type SecurityPolicyList struct {
 }
 
 // +genclient
-// +genclient:nonNamespaced
-// +genclient:noStatus
-// +k8s:openapi-gen=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
-
-type Tier struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec TierSpec `json:"spec"`
-}
-
-type TierSpec struct {
-	// Description is an optional field to add more information regarding
-	// the purpose of this Tier.
-	Description string `json:"description,omitempty"`
-
-	Priority int32    `json:"priority"`
-	TierMode TierMode `json:"tierMode"`
-}
-
-// +kubebuilder:validation:Enum=Whitelist;Blacklist
-type TierMode string
-
-const (
-	TierWhiteList TierMode = "Whitelist"
-	TierBlackList TierMode = "Blacklist"
-)
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// TierList contains a list of Tier
-type TierList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Tier `json:"items"`
-}
-
-// +genclient
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true

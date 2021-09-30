@@ -40,10 +40,6 @@ func (c *FakeSecurityV1alpha1) SecurityPolicies(namespace string) v1alpha1.Secur
 	return &FakeSecurityPolicies{c, namespace}
 }
 
-func (c *FakeSecurityV1alpha1) Tiers() v1alpha1.TierInterface {
-	return &FakeTiers{c}
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeSecurityV1alpha1) RESTClient() rest.Interface {
