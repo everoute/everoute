@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/everoute/everoute/pkg/utils"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/cache"
@@ -33,7 +35,7 @@ import (
 type CompleteRule struct {
 	lock sync.RWMutex
 
-	// RuleID is an unique identifier of rule, it's always set to policyName/ruleName.
+	// RuleID is an unique identifier of rule, it's always set to policyName/policyNamespace/ruleName.
 	RuleID string
 
 	Tier      string
@@ -132,14 +134,20 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		},
 	}
 
-	ruleName := strings.Split(rule.RuleID, "/")[1]
-	policyName := strings.Split(rule.RuleID, "/")[0]
+	ruleName := strings.Split(rule.RuleID, "/")[2]
+	policyName := utils.EncodeNamespacedName(k8stypes.NamespacedName{
+		Name:      strings.Split(rule.RuleID, "/")[0],
+		Namespace: strings.Split(rule.RuleID, "/")[1],
+	})
 
 	flowKey := HashName(32, policyRule.Spec)
 
 	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
 	policyRule.Labels = map[string]string{
-		constants.OwnerPolicyLabelKey: policyName,
+		constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
+			Name:      strings.Split(rule.RuleID, "/")[0],
+			Namespace: strings.Split(rule.RuleID, "/")[1],
+		}),
 	}
 
 	return policyRule
@@ -233,7 +241,7 @@ func groupIndexFunc(obj interface{}) ([]string, error) {
 
 func policyIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	policyName := strings.Split(rule.RuleID, "/")[0]
+	policyName := strings.Split(rule.RuleID, "/")[0] + "/" + strings.Split(rule.RuleID, "/")[1]
 	return []string{policyName}, nil
 }
 

@@ -27,7 +27,7 @@ func EncodeNamespacedName(namespacedName coretypes.NamespacedName) string {
 	b = append(b, Base64Encode([]byte(namespacedName.Namespace))...)
 	b = append(b, Base64Encode([]byte(namespacedName.Name))...)
 
-	// encode with sha356
+	// encode with sha256
 	hash := sha256.Sum256(b)
 
 	return fmt.Sprintf("%x", hash)[:32]
