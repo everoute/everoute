@@ -39,6 +39,7 @@ import (
 	"github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -673,46 +674,48 @@ var _ = Describe("CompleteRuleCache", func() {
 	})
 
 	When("add a completerule to rule cache", func() {
-		var policyName, ruleId, srcGroup, dstGroup string
+		var policyName, policyNamespace, policyNamespacedName, ruleID, srcGroup, dstGroup string
 
 		BeforeEach(func() {
 			policyName = rand.String(6)
-			ruleId = fmt.Sprintf("%s/%s", policyName, rand.String(6))
+			policyNamespace = rand.String(6)
+			policyNamespacedName = policyName + "/" + policyNamespace
+			ruleID = fmt.Sprintf("%s/%s/%s", policyName, policyNamespace, rand.String(6))
 			srcGroup = rand.String(6)
 			dstGroup = rand.String(6)
 
-			completeRuleCache.Add(newTestCompleteRule(ruleId, srcGroup, dstGroup))
+			Expect(completeRuleCache.Add(newTestCompleteRule(ruleID, srcGroup, dstGroup))).Should(Succeed())
 		})
 		AfterEach(func() {
-			completeRuleCache.Delete(&cache.CompleteRule{RuleID: ruleId})
+			Expect(completeRuleCache.Delete(&cache.CompleteRule{RuleID: ruleID})).Should(Succeed())
 		})
 
 		It("should get complete rule by policy index", func() {
-			objs, err := completeRuleCache.ByIndex(cache.PolicyIndex, policyName)
+			objs, err := completeRuleCache.ByIndex(cache.PolicyIndex, policyNamespacedName)
 			Expect(err).Should(Succeed())
 			Expect(objs).Should(HaveLen(1))
-			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleID))
 		})
 
 		It("should get complete rule by source group index", func() {
 			objs, err := completeRuleCache.ByIndex(cache.GroupIndex, srcGroup)
 			Expect(err).Should(Succeed())
 			Expect(objs).Should(HaveLen(1))
-			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleID))
 		})
 
 		It("should get complete rule by destination group index", func() {
 			objs, err := completeRuleCache.ByIndex(cache.GroupIndex, dstGroup)
 			Expect(err).Should(Succeed())
 			Expect(objs).Should(HaveLen(1))
-			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+			Expect(objs[0].(*cache.CompleteRule).RuleID).Should(Equal(ruleID))
 		})
 
 		It("should get complete rule by ruleID", func() {
-			obj, exists, err := completeRuleCache.GetByKey(ruleId)
+			obj, exists, err := completeRuleCache.GetByKey(ruleID)
 			Expect(err).Should(Succeed())
 			Expect(exists).Should(BeTrue())
-			Expect(obj.(*cache.CompleteRule).RuleID).Should(Equal(ruleId))
+			Expect(obj.(*cache.CompleteRule).RuleID).Should(Equal(ruleID))
 		})
 	})
 })
@@ -939,7 +942,11 @@ func assertHasPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityP
 
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{
+			constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
+				Name:      policy.Name,
+				Namespace: policy.Namespace,
+			})})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -963,7 +970,11 @@ func assertHasPolicyRuleWithPortRange(ctx context.Context, policy *securityv1alp
 	direction, action, srcCidr string, srcPort uint16, srcPortMask uint16, dstCidr string, dstPort uint16, dstPortMask uint16, protocol string) {
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{
+			constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
+				Name:      policy.Name,
+				Namespace: policy.Namespace,
+			})})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -990,7 +1001,11 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 
 	Eventually(func() bool {
 		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{
+			constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
+				Name:      policy.Name,
+				Namespace: policy.Namespace,
+			})})).Should(Succeed())
 
 		var tier = policy.Spec.Tier
 
@@ -1013,7 +1028,11 @@ func assertNoPolicyRule(ctx context.Context, policy *securityv1alpha1.SecurityPo
 func assertPolicyRulesNum(ctx context.Context, policy *securityv1alpha1.SecurityPolicy, numOfPolicyRules int) {
 	Eventually(func() int {
 		policyRuleList := policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{constants.OwnerPolicyLabelKey: policy.Name})).Should(Succeed())
+		Expect(k8sClient.List(ctx, &policyRuleList, client.MatchingLabels{
+			constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
+				Name:      policy.Name,
+				Namespace: policy.Namespace,
+			})})).Should(Succeed())
 		return len(policyRuleList.Items)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }
