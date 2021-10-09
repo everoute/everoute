@@ -358,12 +358,16 @@ func (p *PolicyBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 
 func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table, *ofctrl.Table, error) {
 	var policyTable, nextTable *ofctrl.Table
+	// POLICY_TIER0 for endpoint isolation policy:
+	// 1) high priority rule is whitelist for support forensic policyrule, thus packet that match
+	//    that rules should passthrough other policy tier ---- send to ctCommitTable;
+	// 2) low priority rule is blacklist for support general isolation policyrule.
 	switch direction {
 	case POLICY_DIRECTION_OUT:
 		switch tier {
 		case POLICY_TIER0:
 			policyTable = p.egressTier1PolicyTable
-			nextTable = p.egressTier2PolicyTable
+			nextTable = p.ctCommitTable
 		case POLICY_TIER1:
 			policyTable = p.egressTier2PolicyTable
 			nextTable = p.egressTier3PolicyTable
@@ -377,7 +381,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table,
 		switch tier {
 		case POLICY_TIER0:
 			policyTable = p.ingressTier1PolicyTable
-			nextTable = p.ingressTier2PolicyTable
+			nextTable = p.ctCommitTable
 		case POLICY_TIER1:
 			policyTable = p.ingressTier2PolicyTable
 			nextTable = p.ingressTier3PolicyTable
