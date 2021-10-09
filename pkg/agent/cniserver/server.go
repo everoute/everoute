@@ -178,7 +178,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 	nsPath := "/host" + request.Netns
 	// vethName - ovs port name
-	vethName := request.ContainerId[:12]
+	vethName := "_" + request.ContainerId[:12]
 	if err = ns.WithNetNSPath(nsPath, func(hostNS ns.NetNS) error {
 		// create veth pair in container NS and host NS
 		// TODO: MTU is a const variable here
@@ -250,7 +250,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "failed to decode request", err)
 	}
 
-	vethName := request.ContainerId[:12]
+	vethName := "_" + request.ContainerId[:12]
 
 	// check ovs port
 	if !s.ovsDriver.IsPortNamePresent(vethName) {
@@ -281,7 +281,7 @@ func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cni
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "Parse request conf error", err)
 	}
 
-	vethName := request.ContainerId[:12]
+	vethName := "_" + request.ContainerId[:12]
 
 	// delete ovs port
 	if s.ovsDriver.IsPortNamePresent(vethName) {
