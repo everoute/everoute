@@ -179,10 +179,16 @@ func peerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyP
 	group := new(groupv1alpha1.EndpointGroup)
 
 	if peer.NamespaceSelector != nil {
+		endpointSelector := peer.EndpointSelector
+		if peer.EndpointSelector == nil {
+			// If EndpointSelector is nil, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
+			// It has the same semantics with empty LabelSelector (An empty label selector matches all objects).
+			endpointSelector = new(metav1.LabelSelector)
+		}
 		// If NamespaceSelector is also set, then the Rule would select the endpoints
 		// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
 		group.Spec = groupv1alpha1.EndpointGroupSpec{
-			EndpointSelector:  peer.EndpointSelector,
+			EndpointSelector:  endpointSelector,
 			NamespaceSelector: peer.NamespaceSelector,
 		}
 	} else {
