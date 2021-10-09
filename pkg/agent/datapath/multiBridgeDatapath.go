@@ -388,6 +388,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 		if RuleIsSame(oldRule, rule) {
 			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, oldRule)
+			return nil
 		} else {
 			datapathManager.ruleMux.RUnlock()
 			log.Fatalf("Different rule %v and %v with same ruleId.", oldRule, rule)
