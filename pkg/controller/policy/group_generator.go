@@ -84,7 +84,7 @@ func (r *PolicyReconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result
 				klog.Errorf("unable create EndpointGroup %+v: %s", req.Name, err)
 				return ctrl.Result{}, err
 			}
-			klog.Errorf("successful create EndpointGroup %+v", endpointGroup)
+			klog.Infof("successful create EndpointGroup %+v", endpointGroup)
 			return ctrl.Result{}, nil
 		}
 	}
