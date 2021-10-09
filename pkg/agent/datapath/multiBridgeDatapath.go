@@ -46,13 +46,6 @@ const (
 
 //nolint
 const (
-	OVS_CTRL_PORT_START             = 20000
-	OVS_CTRL_PORT_PER_VDS_OFFSET    = 10
-	OVS_CTRL_PORT_PER_BRIDGE_OFFSET = 1
-)
-
-//nolint
-const (
 	LOCAL_TO_POLICY_PORT = 101
 	POLICY_TO_LOCAL_PORT = 102
 	POLICY_TO_CLS_PORT   = 201
@@ -191,7 +184,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	var vdsCount int = 0
 	// vdsID equals to ovsbrname
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
-		ctrlPortBase := OVS_CTRL_PORT_START + OVS_CTRL_PORT_PER_VDS_OFFSET*vdsCount
 
 		// initialize vds bridge chain
 		localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -205,30 +197,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		vdsBridgeMap[UPLINK_BRIDGE_KEYWORD] = uplinkBridge
 		datapathManager.BridgeChainMap[vdsID] = vdsBridgeMap
 
-		// initialize ovsdbDriver
-		vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
-		vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(localBridge.name)
-		vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(policyBridge.name)
-		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(clsBridge.name)
-		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(uplinkBridge.name)
-		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
-		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET)); err != nil {
-			log.Fatalf("Failed to add local bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*2)); err != nil {
-			log.Fatalf("Failed to add policy bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*3)); err != nil {
-			log.Fatalf("Failed to add cls bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*4)); err != nil {
-			log.Fatalf("Failed to add uplink bridge controller to ovsdb, error: %v", err)
-		}
-
 		// initialize of controller
 		vdsOfControllerMap := make(map[string]*ofctrl.Controller)
 		vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewController(localBridge)
@@ -237,10 +205,35 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewController(uplinkBridge)
 		datapathManager.ControllerMap[vdsID] = vdsOfControllerMap
 
-		go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET))
-		go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*2))
-		go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*3))
-		go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Listen(fmt.Sprintf(":%d", ctrlPortBase+OVS_CTRL_PORT_PER_BRIDGE_OFFSET*4))
+		go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Listen("0")
+		go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Listen("0")
+		go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Listen("0")
+		go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Listen("0")
+
+		// initialize ovsdbDriver
+		vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
+		vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(localBridge.name)
+		vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(policyBridge.name)
+		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(clsBridge.name)
+		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(uplinkBridge.name)
+		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
+
+		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			log.Fatalf("Failed to add local bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			log.Fatalf("Failed to add policy bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(vdsOfControllerMap[CLS_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			log.Fatalf("Failed to add cls bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			log.Fatalf("Failed to add uplink bridge controller to ovsdb, error: %v", err)
+		}
 
 		vdsCount++
 	}
