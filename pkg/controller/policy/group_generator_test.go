@@ -155,7 +155,7 @@ var _ = Describe("GroupGenerator", func() {
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 2)
 				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
-				assertHasEndpointGroup(ctx, nil, namespaceSelector, nil)
+				assertHasEndpointGroup(ctx, new(metav1.LabelSelector), namespaceSelector, nil)
 			})
 		})
 
