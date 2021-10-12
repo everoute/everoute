@@ -19,7 +19,7 @@ and standard NetworkPolicy network strategy
 ## Image
 ### Build image
 ```shell
-git glone https://github.com/everoute/everoute.git
+git clone https://github.com/everoute/everoute.git
 cd everoute
 make images
 ```
