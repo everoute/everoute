@@ -218,23 +218,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(uplinkBridge.name)
 		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
 
-		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].GetListenPort())); err != nil {
-			log.Fatalf("Failed to add local bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].GetListenPort())); err != nil {
-			log.Fatalf("Failed to add policy bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(vdsOfControllerMap[CLS_BRIDGE_KEYWORD].GetListenPort())); err != nil {
-			log.Fatalf("Failed to add cls bridge controller to ovsdb, error: %v", err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
-			uint16(vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].GetListenPort())); err != nil {
-			log.Fatalf("Failed to add uplink bridge controller to ovsdb, error: %v", err)
-		}
-
 		vdsCount++
 	}
 
@@ -244,6 +227,14 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 }
 
 func (datapathManager *DpManager) InitializeDatapath() {
+	if err := datapathManager.removeControllers(); err != nil {
+		log.Fatalf("Failed to clean old controller config, error: %v", err)
+	}
+
+	if err := datapathManager.addControllers(); err != nil {
+		log.Fatalf("Failed to add new controller config, error: %v", err)
+	}
+
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
@@ -298,6 +289,48 @@ func (datapathManager *DpManager) InitializeDatapath() {
 			}
 		}(vdsID)
 	}
+}
+
+func (datapathManager *DpManager) addControllers() error {
+	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(datapathManager.ControllerMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			return fmt.Errorf("failed to add local bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(datapathManager.ControllerMap[vdsID][POLICY_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			return fmt.Errorf("failed to add policy bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(datapathManager.ControllerMap[vdsID][CLS_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			return fmt.Errorf("failed to add cls bridge controller to ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddController(LOOP_BACK_ADDR,
+			uint16(datapathManager.ControllerMap[vdsID][UPLINK_BRIDGE_KEYWORD].GetListenPort())); err != nil {
+			return fmt.Errorf("failed to add uplink bridge controller to ovsdb, error: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) removeControllers() error {
+	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveController(); err != nil {
+			return fmt.Errorf("failed to remove local bridge controller from ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].RemoveController(); err != nil {
+			return fmt.Errorf("failed to remove policy bridge controller from ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].RemoveController(); err != nil {
+			return fmt.Errorf("failed to remove cls bridge controller from ovsdb, error: %v", err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].RemoveController(); err != nil {
+			return fmt.Errorf("failed to remove uplink bridge controller from ovsdb, error: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (datapathManager *DpManager) WaitForBridgeConnected() {
