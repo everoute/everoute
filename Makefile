@@ -3,7 +3,7 @@ APISERVER_BOOT=$(shell which apiserver-boot)
 
 all: codegen manifests bin
 
-bin: controller agent cni e2e-tools
+bin: controller agent cni
 
 images: image generate
 
