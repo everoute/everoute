@@ -17,9 +17,11 @@ limitations under the License.
 package datapath
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
+	"os/exec"
 	"reflect"
 	"strconv"
 	"strings"
@@ -89,6 +91,11 @@ const (
 
 const (
 	datapathRestartRound string = "datapathRestartRound"
+
+	openflowProtorolVersion10 string = "OpenFlow10"
+	openflowProtorolVersion11 string = "OpenFlow11"
+	openflowProtorolVersion12 string = "OpenFlow12"
+	openflowProtorolVersion13 string = "OpenFlow13"
 )
 
 type Bridge interface {
@@ -184,7 +191,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	var vdsCount int = 0
 	// vdsID equals to ovsbrname
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
-
 		// initialize vds bridge chain
 		localBridge := NewLocalBridge(ovsbrname, datapathManager)
 		policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
@@ -217,6 +223,25 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(clsBridge.name)
 		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(uplinkBridge.name)
 		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
+
+		// setbridge work with openflow10 ~ openflow13
+		protocols := map[string][]string{
+			"protocols": {
+				openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+			},
+		}
+		if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+			log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+		}
+		if err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+			log.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
+		}
+		if err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+			log.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
+		}
+		if err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+			log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
+		}
 
 		vdsCount++
 	}
@@ -269,6 +294,10 @@ func (datapathManager *DpManager) InitializeDatapath() {
 		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
+			LOCAL_TO_POLICY_PORT); err != nil {
+			log.Fatalf("Failed to set local to policy port with no flood port mode, %v", err)
+		}
 
 		// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
 		// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
@@ -557,4 +586,18 @@ func ParseIPAddrMaskString(ipAddr string) (*net.IP, *net.IP, error) {
 	ipMask := net.ParseIP(IP_BROADCAST_ADDR)
 
 	return &ipDa, &ipMask, nil
+}
+
+func SetPortNoFlood(bridge string, ofport int) error {
+	cmdStr := fmt.Sprintf("ovs-ofctl mod-port %s %d no-flood", bridge, ofport)
+	cmd := exec.Command("/bin/sh", "-c", cmdStr)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("fail to set no-flood config for port %d on bridge %s: %v, stderr: %s", ofport, bridge, err,
+			stderr.String())
+	}
+	return nil
 }

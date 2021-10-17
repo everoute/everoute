@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -111,6 +112,10 @@ var (
 func TestMain(m *testing.M) {
 	ofPortUpdateChan := make(chan map[string][]net.IP, 100)
 
+	if err := datapath.ExcuteCommand(datapath.SetupBridgeChain, "ovsbr1"); err != nil {
+		klog.Fatalf("Failed to setup bridgechain, error: %v", err)
+	}
+
 	datapathManager := datapath.NewDatapathManager(&datapathConfig, ofPortUpdateChan)
 	datapathManager.InitializeDatapath()
 
@@ -118,6 +123,7 @@ func TestMain(m *testing.M) {
 	reconciler = newFakeReconciler(datapathManager, policyRule1, policyRule2)
 
 	exitCode := m.Run()
+	_ = datapath.ExcuteCommand(datapath.CleanBridgeChain, "ovsbr1")
 	os.Exit(exitCode)
 }
 
