@@ -20,12 +20,26 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
+	. "github.com/onsi/gomega"
+)
+
+const (
+	ovsctlScriptPath           = "/usr/share/openvswitch/scripts/ovs-ctl"
+	ovsVswitchdRestartInterval = 1
+)
+
+const (
+	timeout  = time.Second * 20
+	interval = time.Millisecond * 500
 )
 
 var (
@@ -36,16 +50,20 @@ var (
 		},
 	}
 
+	ovsBridgeList   = []string{"ovsbr0", "ovsbr0-policy", "ovsbr0-cls", "ovsbr0-uplink"}
+	defaultFlowList []string
+
 	ep1IP = "10.0.1.11"
 	ep1   = &Endpoint{
-		PortNo:     11,
-		MacAddrStr: "00:00:11:11:11:11",
+		PortNo:     uint32(11),
+		MacAddrStr: "00:00:aa:aa:aa:aa",
 		BridgeName: "ovsbr0",
 		VlanID:     uint16(1),
 	}
 
 	rule1 = &EveroutePolicyRule{
 		RuleID:     "rule1",
+		Priority:   200,
 		IPProtocol: uint8(1),
 		SrcIPAddr:  "10.100.100.1",
 		DstIPAddr:  "10.100.100.2",
@@ -54,9 +72,13 @@ var (
 	rule2 = &EveroutePolicyRule{
 		RuleID:     "rule2",
 		IPProtocol: uint8(17),
-		SrcIPAddr:  "10.100.100.1/24",
+		SrcIPAddr:  "10.100.100.0/24",
 		Action:     "deny",
 	}
+
+	rule1Flow           = "table=50, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 actions=goto_table:70"
+	ep1VlanInputFlow    = "table=0, priority=200,in_port=11 actions=load:0x1->NXM_OF_VLAN_TCI[0..11],resubmit(,10),resubmit(,15)"
+	ep1LocalToLocalFlow = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 )
 
 func TestMain(m *testing.M) {
@@ -65,15 +87,29 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
+	stopChan := make(<-chan struct{})
 	datapathManager = NewDatapathManager(&datapathConfig, ipAddressChan)
-	datapathManager.InitializeDatapath()
+	datapathManager.InitializeDatapath(stopChan)
 
 	exitCode := m.Run()
 	_ = ExcuteCommand(CleanBridgeChain, "ovsbr0")
 	os.Exit(exitCode)
 }
 
-func TestLocalEndpoint(t *testing.T) {
+func TestDpManager(t *testing.T) {
+	var err error
+	if defaultFlowList, err = dumpAllFlows(); err != nil {
+		log.Fatalf("Failed to dump default flow while test env setup")
+	}
+
+	testLocalEndpoint(t)
+	testERPolicyRule(t)
+	// Wait for policyrule test initialize DpManager, and then start flow relay test, avoid connection reset error
+	time.Sleep(time.Second * 5)
+	testFlowReplay(t)
+}
+
+func testLocalEndpoint(t *testing.T) {
 	t.Run("Test add local endpoint", func(t *testing.T) {
 		if err := datapathManager.AddLocalEndpoint(ep1); err != nil {
 			t.Errorf("Failed to add local endpoint %v, error: %v", ep1, err)
@@ -99,7 +135,7 @@ func TestLocalEndpoint(t *testing.T) {
 	})
 }
 
-func TestERPolicyRule(t *testing.T) {
+func testERPolicyRule(t *testing.T) {
 	t.Run("test ER policy rule", func(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule1, POLICY_DIRECTION_IN, POLICY_TIER1); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
@@ -124,6 +160,45 @@ func TestERPolicyRule(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule2, POLICY_DIRECTION_OUT, POLICY_TIER0); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
+	})
+}
+
+func testFlowReplay(t *testing.T) {
+	RegisterTestingT(t)
+
+	if err := datapathManager.AddLocalEndpoint(ep1); err != nil {
+		t.Errorf("Failed to add local endpoint %v, error: %v", ep1, err)
+	}
+	t.Run("add ER policy rule", func(t *testing.T) {
+		Eventually(func() error {
+			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER0)
+			return datapathManager.AddEveroutePolicyRule(rule1, POLICY_DIRECTION_IN, POLICY_TIER0)
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("restart ovs-vswitchd", func(t *testing.T) {
+		Eventually(func() error {
+			err := restartOvsVswitchd(ovsVswitchdRestartInterval)
+			return err
+		}, time.Second*2, time.Second*1).Should(Succeed())
+	})
+
+	t.Run("validate default Flow replay", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator(defaultFlowList)
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("validate local endpoint flow replay", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator([]string{ep1LocalToLocalFlow, ep1VlanInputFlow})
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("validate ER policyrule flow replay", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator([]string{rule1Flow})
+		}, timeout, interval).Should(Succeed())
 	})
 }
 
@@ -153,4 +228,74 @@ func injectArpReq(bridge *LocalBridge, inPort uint32, vlan uint16, macSrc, macDs
 	arpReq.Data.Data = arpPkt
 	pkt := ofctrl.PacketIn(*arpReq)
 	bridge.PacketRcvd(bridge.OfSwitch, &pkt)
+}
+
+func flowValidator(expectedFlows []string) error {
+	var currentFlowList []string
+	var err error
+	if currentFlowList, err = dumpAllFlows(); err != nil {
+		return fmt.Errorf("failed to dump current default flow")
+	}
+
+	for _, expectedFlow := range expectedFlows {
+		isExpectedFlowExists := false
+		for _, actualFlow := range currentFlowList {
+			if strings.Contains(expectedFlow, actualFlow) {
+				isExpectedFlowExists = true
+			}
+		}
+		if isExpectedFlowExists {
+			continue
+		}
+
+		return fmt.Errorf("expected flow %v is not contains in current flow list\n: %v", expectedFlow, currentFlowList)
+	}
+
+	return nil
+}
+
+func excuteCommand(commandStr string) ([]byte, error) {
+	out, err := exec.Command("/bin/sh", "-c", commandStr).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to excute cmd: %v, error: %v", string(out), err)
+	}
+
+	return out, nil
+}
+
+func restartOvsVswitchd(interval int) error {
+	commandStr := fmt.Sprintf("kill -9 $(pidof ovs-vswitchd) && sleep %d && %s start", interval, ovsctlScriptPath)
+	if _, err := excuteCommand(commandStr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func dumpAllFlows() ([]string, error) {
+	var flowDump []string
+	for _, br := range ovsBridgeList {
+		cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 dump-flows %s", br)
+		flowsByte, err := excuteCommand(cmdStr)
+		if err != nil {
+			return nil, err
+		}
+
+		flowOutStr := string(flowsByte)
+		flowDB := strings.Split(flowOutStr, "\n")[1:]
+
+		var flowList []string
+		for _, flow := range flowDB {
+			felem := strings.Fields(flow)
+			if len(felem) > 2 {
+				felem = append([]string{felem[2]}, felem[5:]...)
+				fstr := strings.Join(felem, " ")
+				flowList = append(flowList, fstr)
+			}
+		}
+
+		flowDump = append(flowDump, flowList...)
+	}
+
+	return flowDump, nil
 }
