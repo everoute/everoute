@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"reflect"
 	"strconv"
@@ -34,7 +35,9 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
+	"github.com/fsnotify/fsnotify"
 	cmap "github.com/streamrail/concurrent-map"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 //nolint
@@ -92,7 +95,10 @@ const (
 )
 
 const (
-	datapathRestartRound string = "datapathRestartRound"
+	datapathRestartRound            string = "datapathRestartRound"
+	ovsVswitchdUnixDomainSockPath   string = "/var/run/openvswitch"
+	ovsVswitchdUnixDomainSockSuffix string = "mgmt"
+	ovsdbDomainSock                        = "/var/run/openvswitch/db.sock"
 
 	openflowProtorolVersion10 string = "OpenFlow10"
 	openflowProtorolVersion11 string = "OpenFlow11"
@@ -138,8 +144,10 @@ type DpManager struct {
 	localEndpointDB           cmap.ConcurrentMap       // list of local endpoint map
 	ofPortIPAddressUpdateChan chan map[string][]net.IP // map bridgename-ofport to endpoint ips
 	datapathConfig            *Config
-	ruleMux                   sync.RWMutex
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
+	flowReplayChan            chan struct{}
+	flowReplayMutex           sync.RWMutex
+	ovsdbReconnectChan        chan struct{}
 
 	AgentInfo *AgentConf
 }
@@ -188,6 +196,8 @@ type EveroutePolicyRule struct {
 
 type EveroutePolicyRuleEntry struct {
 	EveroutePolicyRule *EveroutePolicyRule
+	Direction          uint8
+	Tier               uint8
 	RuleFlowMap        map[string]*ofctrl.Flow
 }
 
@@ -209,6 +219,9 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.AgentInfo = new(AgentConf)
 	datapathManager.AgentInfo.EnableCNI = false
+	datapathManager.flowReplayChan = make(chan struct{})
+	datapathManager.flowReplayMutex = sync.RWMutex{}
+	datapathManager.ovsdbReconnectChan = make(chan struct{})
 
 	var vdsCount int = 0
 	// vdsID equals to ovsbrname
@@ -273,7 +286,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	return datapathManager
 }
 
-func (datapathManager *DpManager) InitializeDatapath() {
+func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	if err := datapathManager.removeControllers(); err != nil {
 		log.Fatalf("Failed to clean old controller config, error: %v", err)
 	}
@@ -340,6 +353,124 @@ func (datapathManager *DpManager) InitializeDatapath() {
 			}
 		}(vdsID)
 	}
+
+	VswitchdUnixSock := fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, randID, ovsVswitchdUnixDomainSockSuffix)
+	go watchFile(VswitchdUnixSock, stopChan, datapathManager.flowReplayChan)
+	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
+
+	go func() {
+		for {
+			select {
+			case <-datapathManager.flowReplayChan:
+				if err := datapathManager.replayFlows(); err != nil {
+					log.Fatalf("Failed to replay flow, error: %v", err)
+				}
+			case <-datapathManager.ovsdbReconnectChan:
+				if err := datapathManager.ovsdbConnectionReset(); err != nil {
+					log.Fatalf("Failed to reset ovsbd connection while ovsdb recovery")
+				}
+			}
+		}
+	}()
+}
+
+func (datapathManager *DpManager) replayFlows() error {
+	log.Infof("flow replay")
+
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+
+	if !datapathManager.IsBridgesConnected() {
+		// 1 second retry interval is too long
+		datapathManager.WaitForBridgeConnected()
+	}
+
+	// replay basic connectivity flow
+	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID]["local"])
+		if err != nil {
+			return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
+		}
+		cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
+
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+	}
+
+	// replay local endpoint flow
+	if err := datapathManager.ReplayLocalEndpointFlow(); err != nil {
+		return fmt.Errorf("failed to replay local endpoint flow while vswitchd restart, error: %v", err)
+	}
+
+	// replay policy flow
+	if err := datapathManager.ReplayMicroSegmentFlow(); err != nil {
+		return fmt.Errorf("failed to replay microsegment flow while vswitchd restart, error: %v", err)
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) ovsdbConnectionReset() error {
+	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
+			return fmt.Errorf("failed to reconnect vds %v localBridge ovsdb, error: %v", vdsID, err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
+			return fmt.Errorf("failed to reconnect vds %v policyBridge ovsdb, error: %v", vdsID, err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
+			return fmt.Errorf("failed to reconnect vds %v clsBridge ovsdb, error: %v", vdsID, err)
+		}
+		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
+			return fmt.Errorf("failed to reconnect vds %v uplinkBridge ovsdb, error: %v", vdsID, err)
+		}
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) ReplayLocalEndpointFlow() error {
+	for endpointObj := range datapathManager.localEndpointDB.IterBuffered() {
+		endpoint := endpointObj.Val.(*Endpoint)
+		for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
+			if ovsbrname != endpoint.BridgeName {
+				continue
+			}
+
+			err := datapathManager.BridgeChainMap[vdsID]["local"].AddLocalEndpoint(endpoint)
+			if err != nil {
+				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
+			}
+
+			break
+		}
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) ReplayMicroSegmentFlow() error {
+	for ruleID, erPolicyRuleEntry := range datapathManager.Rules {
+		for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
+			// Add new policy rule flow to datapath
+			ruleFlow, err := bridgeChain["policy"].AddMicroSegmentRule(erPolicyRuleEntry.EveroutePolicyRule,
+				erPolicyRuleEntry.Direction, erPolicyRuleEntry.Tier)
+			if err != nil {
+				return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain["policy"], err)
+			}
+			// udpate new policy rule flow to datapath flow cache
+			datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = ruleFlow
+		}
+	}
+
+	return nil
 }
 
 func (datapathManager *DpManager) addControllers() error {
@@ -419,6 +550,9 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 }
 
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo)); ep != nil {
@@ -443,6 +577,9 @@ func (datapathManager *DpManager) UpdateLocalEndpoint() {
 }
 
 func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
 		if ovsbrname != endpoint.BridgeName {
 			continue
@@ -466,19 +603,19 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 
 func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, direction uint8, tier uint8) error {
 	// check if we already have the rule
-	datapathManager.ruleMux.RLock()
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+
 	if _, ok := datapathManager.Rules[rule.RuleID]; ok {
 		oldRule := datapathManager.Rules[rule.RuleID].EveroutePolicyRule
 
 		if RuleIsSame(oldRule, rule) {
 			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, oldRule)
 			return nil
-		} else {
-			datapathManager.ruleMux.RUnlock()
-			log.Fatalf("Different rule %v and %v with same ruleId.", oldRule, rule)
 		}
+
+		return fmt.Errorf("different rule %v and %v with same ruleID", oldRule, rule)
 	}
-	datapathManager.ruleMux.RUnlock()
 
 	log.Infof("Received AddRule: %+v", rule)
 	ruleFlowMap := make(map[string]*ofctrl.Flow)
@@ -494,18 +631,18 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	pRule := EveroutePolicyRuleEntry{
 		EveroutePolicyRule: rule,
+		Direction:          direction,
+		Tier:               tier,
 		RuleFlowMap:        ruleFlowMap,
 	}
-	datapathManager.ruleMux.Lock()
 	datapathManager.Rules[rule.RuleID] = &pRule
-	datapathManager.ruleMux.Unlock()
 
 	return nil
 }
 
 func (datapathManager *DpManager) RemoveEveroutePolicyRule(rule *EveroutePolicyRule) error {
-	datapathManager.ruleMux.Lock()
-	defer datapathManager.ruleMux.Unlock()
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
 
 	for vdsID := range datapathManager.BridgeChainMap {
 		pRule := datapathManager.Rules[rule.RuleID]
@@ -622,4 +759,82 @@ func SetPortNoFlood(bridge string, ofport int) error {
 			stderr.String())
 	}
 	return nil
+}
+
+func watchFile(fileName string, stopChan <-chan struct{}, recoveryEventChan chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatalf("Failed to watch file: %v", fileName)
+	}
+
+	if err := addWatchFile(watcher, fileName); err != nil {
+		log.Fatalf("Failed to add file to watcher, error: %v", err)
+	}
+
+	createChan := make(chan bool)
+	removeChan := make(chan bool)
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					continue
+				}
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					createChan <- true
+				}
+				if event.Op&fsnotify.Remove == fsnotify.Remove {
+					removeChan <- true
+				}
+			case err := <-watcher.Errors:
+				// Error chan need handle
+				log.Errorf("File watcher error: %v", err)
+			}
+		}
+	}()
+
+	go func(watcher *fsnotify.Watcher) {
+		for {
+			select {
+			case <-removeChan:
+				log.Infof("Deleted unix domain sock : %v", fileName)
+
+				// wait for watched file recovery (e.g ovsdb/vswitchd failover). we need timeout constant, 10s is temporary value. FIXME
+				if err := waitUntilFileCreate(fileName, 10*time.Second); err != nil {
+					log.Infof("Time out for wait file restore")
+				}
+				// watch vswitchd doamain socket again
+				if err := addWatchFile(watcher, fileName); err != nil {
+					log.Fatalf("Failed to watch file after removed file was re-added")
+				}
+
+				// trigger datapathManager faileover event (e.g flow replay or ovsdb connection reset)
+				recoveryEventChan <- struct{}{}
+			case <-createChan:
+				log.Infof("Created unix domain sock : %v", fileName)
+			}
+		}
+	}(watcher)
+
+	<-stopChan
+	watcher.Close()
+}
+
+func addWatchFile(watcher *fsnotify.Watcher, filepath string) error {
+	if err := watcher.Add(filepath); err != nil {
+		return err
+	}
+	log.Infof("Add file watcher for file: %v", filepath)
+
+	return nil
+}
+
+func waitUntilFileCreate(fileName string, timeout time.Duration) error {
+	return wait.PollImmediate(10*time.Millisecond, timeout, func() (do bool, err error) {
+		if _, err := os.Stat(fileName); os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return true, nil
+	})
 }

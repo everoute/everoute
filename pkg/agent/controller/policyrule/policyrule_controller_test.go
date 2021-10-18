@@ -116,8 +116,9 @@ func TestMain(m *testing.M) {
 		klog.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
+	stopChan := make(<-chan struct{})
 	datapathManager := datapath.NewDatapathManager(&datapathConfig, ofPortUpdateChan)
-	datapathManager.InitializeDatapath()
+	datapathManager.InitializeDatapath(stopChan)
 
 	queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	reconciler = newFakeReconciler(datapathManager, policyRule1, policyRule2)

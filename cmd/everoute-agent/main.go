@@ -83,7 +83,7 @@ func main() {
 		go cniServer.Run(stopChan)
 	}
 
-	datapathManager.InitializeDatapath()
+	datapathManager.InitializeDatapath(stopChan)
 
 	if err = startManager(mgr, datapathManager, stopChan); err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
