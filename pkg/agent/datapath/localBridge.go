@@ -341,8 +341,14 @@ func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
 	vlanInputTableDefaultFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := vlanInputTableDefaultFlow.Next(sw.DropAction()); err != nil {
-		return fmt.Errorf("failed to install vlanInputTable default flow, error: %v", err)
+	if err := vlanInputTableDefaultFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
+		return fmt.Errorf("failed to setup vlan input table default flow resubmit to learning table action, error: %v", err)
+	}
+	if err := vlanInputTableDefaultFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
+		return fmt.Errorf("failed to setup vlan input table default flow resubmit to redirect table action, error: %v", err)
+	}
+	if err := vlanInputTableDefaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install vlan input table default flow, error: %v", err)
 	}
 
 	return nil
