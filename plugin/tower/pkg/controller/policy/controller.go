@@ -336,7 +336,8 @@ func (c *Controller) handleSecurityPolicy(obj interface{}) {
 		obj = unknow.Obj
 	}
 	policy := obj.(*schema.SecurityPolicy)
-	if policy.EverouteCluster.ID == c.everouteCluster {
+	// when policy delete, policy.EverouteCluster.ID would be empty
+	if policy.EverouteCluster.ID == "" || policy.EverouteCluster.ID == c.everouteCluster {
 		c.securityPolicyQueue.Add(policy.GetID())
 	}
 }
@@ -357,7 +358,8 @@ func (c *Controller) handleIsolationPolicy(obj interface{}) {
 		obj = unknow.Obj
 	}
 	policy := obj.(*schema.IsolationPolicy)
-	if policy.EverouteCluster.ID == c.everouteCluster {
+	// when policy delete, policy.EverouteCluster.ID would be empty
+	if policy.EverouteCluster.ID == "" || policy.EverouteCluster.ID == c.everouteCluster {
 		c.isolationPolicyQueue.Add(policy.GetID())
 	}
 }
