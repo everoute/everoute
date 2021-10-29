@@ -38,6 +38,7 @@ function start_ovs {
         /usr/share/openvswitch/scripts/ovs-ctl --no-ovsdb-server --system-id=random start --db-file=$OVS_DB_FILE
         echo "Started ovs-vswitchd"
     fi
+    ovs-appctl vlog/set info
 }
 
 start_ovs
@@ -53,6 +54,9 @@ CLS_TO_POLICY_OFPORT=202
 CLS_TO_UPLINK_OFPORT=301
 UPLINK_TO_CLS_OFPORT=302
 
+LOCAL_GATEWAY_OFPORT=10
+UPLINK_GATEWAY_OFPORT=10
+
 LOCAL_TO_POLICY_PATCH="local-to-policy"
 POLICY_TO_LOCAL_PATCH="policy-to-local"
 POLICY_TO_CLS_PATCH="policy-to-cls"
@@ -60,8 +64,15 @@ CLS_TO_POLICY_PATCH="cls-to-policy"
 CLS_TO_UPLINK_PATCH="cls-to-uplink"
 UPLINK_TO_CLS_PATCH="uplink-to-cls"
 
+EVEROUTE_ROUTE_TABLE=100
+EVEROUTE_IP_RULE_PREF=100
+LOCAL_IP_RULE_PREF=200
+
+
 DEFAULT_BRIDGE=`cat ${AGENT_CONFIG_PATH} | grep datapathConfig: -A1 | grep -v datapathConfig: | awk -F ':' '{print $1}' | awk '$1=$1'`
+LOCAL_GW_IP=`cat ${AGENT_CONFIG_PATH} | grep localGwIP | awk -F ':' '{print $2}' | awk '$1=$1'`
 GW_IFACE=${DEFAULT_BRIDGE}-gw
+GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
 
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${DEFAULT_BRIDGE}-policy -- set bridge ${DEFAULT_BRIDGE}-policy protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
@@ -91,7 +102,25 @@ ovs-vsctl \
     -- add-port ${DEFAULT_BRIDGE}-cls $CLS_TO_UPLINK_PATCH \
     -- set interface $CLS_TO_UPLINK_PATCH type=patch options:peer=$UPLINK_TO_CLS_PATCH ofport=$CLS_TO_UPLINK_OFPORT
 
-ovs-vsctl add-port ${DEFAULT_BRIDGE}-uplink ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal -- set Interface ${GW_IFACE} ofport=10
+ovs-vsctl add-port ${DEFAULT_BRIDGE}-uplink ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal -- set Interface ${GW_IFACE} ofport=${UPLINK_GATEWAY_OFPORT}
+
+# add port gw-local
+ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal -- set Interface ${GW_LOCAL_IFACE} ofport=${LOCAL_GATEWAY_OFPORT}
+ip link set ${GW_LOCAL_IFACE} up
+ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE}
+
+# add policy route
+ip rule add preference ${LOCAL_IP_RULE_PREF} lookup local
+ip rule add preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
+ip rule delete preference 0
+ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
+
+# set sysctl
+echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
+echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
+echo 0 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter
+
+echo 0 > /proc/sys/net/ipv4/ip_early_demux
 
 echo "finish init"
 touch /tmp/everoute_agent_init

@@ -4,6 +4,7 @@ data:
   agentconfig.yaml: |
     datapathConfig:
       cnibr0: cnibr0
+    localGwIP: 100.64.254.254
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",

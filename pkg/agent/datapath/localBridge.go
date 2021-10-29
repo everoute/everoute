@@ -35,6 +35,7 @@ const (
 	L2_FORWARDING_TABLE       = 5
 	L2_LEARNING_TABLE         = 10
 	FROM_LOCAL_REDIRECT_TABLE = 15
+	FACK_MAC                  = "ee:ee:ee:ee:ee:ee"
 )
 
 type LocalBridge struct {
@@ -285,6 +286,219 @@ func (l *LocalBridge) BridgeInit() {
 	if err := l.initFromLocalRedirectTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 	}
+	if l.datapathManager.AgentInfo.EnableCNI {
+		if err := l.initCniRelatedFlow(sw); err != nil {
+			log.Fatalf("Failed to init cni related flows, error: %v", err)
+		}
+	}
+}
+
+func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
+	// arp response flow
+
+	// target for local pod
+	arpPodFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:   HIGH_MATCH_FLOW_PRIORITY,
+		InputPort:  uint32(LOCAL_GATEWAY_PORT),
+		Ethertype:  PROTOCOL_ARP,
+		ArpTpa:     &l.datapathManager.AgentInfo.PodCIDR[0].IP,
+		ArpTpaMask: (*net.IP)(&l.datapathManager.AgentInfo.PodCIDR[0].Mask),
+	})
+	flood, _ := sw.OutputPort(openflow13.P_FLOOD)
+	if err := arpPodFlow.Next(flood); err != nil {
+		return fmt.Errorf("failed to install flow, error: %v", err)
+	}
+
+	// target for other ip, response arp with uplink gateway mac address
+	arpGwFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		InputPort: uint32(LOCAL_GATEWAY_PORT),
+		Ethertype: PROTOCOL_ARP,
+	})
+	// set actions for arp response
+	if err := arpGwFlow.MoveField(32, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false); err != nil {
+		return err
+	}
+	if err := arpGwFlow.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.AgentInfo.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := arpGwFlow.MoveField(48, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
+		return err
+	}
+	if err := arpGwFlow.LoadField("nxm_of_arp_op", 0x0002, openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	fakeMac, _ := net.ParseMAC(FACK_MAC)
+	if err := arpGwFlow.SetMacSa(fakeMac); err != nil {
+		return err
+	}
+	if err := arpGwFlow.MoveField(48, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
+		return err
+	}
+
+	outputInPort, _ := sw.OutputPort(openflow13.P_IN_PORT)
+	if err := arpGwFlow.Next(outputInPort); err != nil {
+		return fmt.Errorf("failed to install from arpGwFlow flow, error: %v", err)
+	}
+
+	// target for other ip, response arp with uplink gateway mac address
+	arpGwFlowHigh, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:   HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		InputPort:  uint32(LOCAL_GATEWAY_PORT),
+		Ethertype:  PROTOCOL_ARP,
+		ArpTpa:     &l.datapathManager.AgentInfo.GatewayIP,
+		ArpTpaMask: &net.IPv4bcast,
+	})
+	// set actions for arp response
+	if err := arpGwFlowHigh.MoveField(32, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.AgentInfo.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.MoveField(48, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.LoadField("nxm_of_arp_op", 0x0002, openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.SetMacSa(fakeMac); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.MoveField(48, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
+		return err
+	}
+	if err := arpGwFlowHigh.Next(outputInPort); err != nil {
+		return fmt.Errorf("failed to install from arpGwFlowHigh flow, error: %v", err)
+	}
+	return nil
+}
+
+func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
+	localToLocalGw, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+	})
+	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47))
+	outputPortLocalGateWay, _ := sw.OutputPort(LOCAL_GATEWAY_PORT)
+	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
+		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
+	}
+
+	outToLocalGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_TO_POLICY_PORT),
+	})
+	if err := outToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := outToLocalGw.Next(outputPortLocalGateWay); err != nil {
+		return fmt.Errorf("failed to install from outToLocalGw flow, error: %v", err)
+	}
+
+	gwToLocalGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + 3*FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_TO_POLICY_PORT),
+		IpSa:      &l.datapathManager.AgentInfo.GatewayIP,
+		IpSaMask:  &net.IPv4bcast,
+	})
+	if err := gwToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := gwToLocalGw.Next(outputPortLocalGateWay); err != nil {
+		return fmt.Errorf("failed to install from gwToLocalGw flow, error: %v", err)
+	}
+
+	fromPolicyBypass, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + 2*FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_TO_POLICY_PORT),
+		IpSa:      &l.datapathManager.AgentInfo.PodCIDR[0].IP,
+		IpSaMask:  (*net.IP)(&l.datapathManager.AgentInfo.PodCIDR[0].Mask),
+	})
+	if err := fromPolicyBypass.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
+		return fmt.Errorf("failed to install fromPolicyBypass flow, error: %v", err)
+	}
+	if err := fromPolicyBypass.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install fromPolicyBypass flow, error: %v", err)
+	}
+	return nil
+}
+
+func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
+	localGwToPolicy, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_GATEWAY_PORT),
+		IpSa:      &l.datapathManager.AgentInfo.PodCIDR[0].IP,
+		IpSaMask:  (*net.IP)(&l.datapathManager.AgentInfo.PodCIDR[0].Mask),
+	})
+	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	outputPortPolicy, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
+	if err := localGwToPolicy.Next(outputPortPolicy); err != nil {
+		return fmt.Errorf("failed to install localGwToPolicy flow, error: %v", err)
+	}
+
+	localGwResumit, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_GATEWAY_PORT),
+	})
+	if err := localGwResumit.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := localGwResumit.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
+		return fmt.Errorf("failed to install localGwResumit flow, error: %v", err)
+	}
+	if err := localGwResumit.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install localGwResumit flow, error: %v", err)
+	}
+
+	localGwResumitHigh, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		InputPort: uint32(LOCAL_GATEWAY_PORT),
+		IpSa:      &l.datapathManager.AgentInfo.GatewayIP,
+		IpSaMask:  &net.IPv4bcast,
+	})
+	if err := localGwResumitHigh.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47)); err != nil {
+		return err
+	}
+	if err := localGwResumitHigh.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
+		return fmt.Errorf("failed to install localGwResumitHigh flow, error: %v", err)
+	}
+	if err := localGwResumitHigh.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install localGwResumitHigh flow, error: %v", err)
+	}
+	return nil
+}
+
+func (l *LocalBridge) initCniRelatedFlow(sw *ofctrl.OFSwitch) error {
+	if err := l.initLocalGwArpFlow(sw); err != nil {
+		return err
+	}
+
+	// traffic into local gateway
+	if err := l.initToLocalGwFlow(sw); err != nil {
+		return err
+	}
+
+	// traffic from local gateway
+	if err := l.initFromLocalGwFlow(sw); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (l *LocalBridge) InitFromLocalLearnAction(fromLocalLearnAction *ofctrl.LearnAction) error {

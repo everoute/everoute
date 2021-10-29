@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
@@ -48,6 +47,8 @@ const (
 type NodeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	DatapathManager *datapath.DpManager
 
 	StopChan    <-chan struct{}
 	updateMutex sync.Mutex
@@ -92,7 +93,7 @@ func RouteEqual(r1, r2 netlink.Route) bool {
 // for example, if there are two nodes in cluster and node2 has two pod cidrs, Here are route item in node1:
 // ip route add node2-podCIDR-1 via node2
 // ip route add node2-podCIDR-2 via node2
-func UpdateRoute(nodeList corev1.NodeList, thisNode corev1.Node) {
+func (r *NodeReconciler) UpdateRoute(nodeList corev1.NodeList, thisNode corev1.Node) {
 	var oldRoute []netlink.Route
 	var targetRoute []netlink.Route
 	var err error
@@ -166,7 +167,7 @@ func UpdateRoute(nodeList corev1.NodeList, thisNode corev1.Node) {
 // UpdateIptables will be called when Node has been updated, or every 100 seconds.
 // This function will update iptables in linux kernel.
 // iptables used to DNAT for the OUTPUT traffic( outside of the cluster)
-func UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
+func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
 	var exist bool
 	var err error
 
@@ -244,6 +245,26 @@ func UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
 			}
 		}
 	}
+
+	// check and add ACCEPT for traffic from gw-local
+	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", "-o", r.DatapathManager.AgentInfo.LocalGwName, "-j", "ACCEPT"); err != nil {
+		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.AgentInfo.LocalGwName, err)
+	}
+	if !exist {
+		if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, "-o", r.DatapathManager.AgentInfo.LocalGwName, "-j", "ACCEPT"); err != nil {
+			klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.AgentInfo.LocalGwName, err)
+		}
+	}
+
+	// check and add CT zone for gw-local
+	if exist, err = ipt.Exists("raw", "PREROUTING", "-i", r.DatapathManager.AgentInfo.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
+		klog.Errorf("Check %s in raw PREROUTING error, err: %s", r.DatapathManager.AgentInfo.LocalGwName, err)
+	}
+	if !exist {
+		if err = ipt.Insert("raw", "PREROUTING", 1, "-i", r.DatapathManager.AgentInfo.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
+			klog.Errorf("Append %s into raw PREROUTING error, err: %s", r.DatapathManager.AgentInfo.LocalGwName, err)
+		}
+	}
 }
 
 func (r *NodeReconciler) UpdateNetwork() {
@@ -258,18 +279,16 @@ func (r *NodeReconciler) UpdateNetwork() {
 		return
 	}
 	// Get current node
-	nodeName, _ := os.Hostname()
-	nodeName = strings.ToLower(nodeName)
 	var currentNode corev1.Node
 	for _, item := range nodeList.Items {
-		if item.Name == nodeName {
+		if item.Name == r.DatapathManager.AgentInfo.NodeName {
 			currentNode = item
 			break
 		}
 	}
 
-	UpdateRoute(nodeList, currentNode)
-	UpdateIptables(nodeList, currentNode)
+	r.UpdateRoute(nodeList, currentNode)
+	r.UpdateIptables(nodeList, currentNode)
 }
 
 // Reconcile receive node from work queue, synchronize network config

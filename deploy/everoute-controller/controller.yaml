@@ -27,6 +27,8 @@ spec:
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
       serviceAccountName: everoute-controller
       hostNetwork: true
       containers:
