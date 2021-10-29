@@ -29,6 +29,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
@@ -54,6 +55,7 @@ const (
 	CLS_TO_POLICY_PORT   = 202
 	CLS_TO_UPLINK_PORT   = 301
 	UPLINK_TO_CLS_PORT   = 302
+	LOCAL_GATEWAY_PORT   = 10
 )
 
 //nolint
@@ -138,6 +140,24 @@ type DpManager struct {
 	datapathConfig            *Config
 	ruleMux                   sync.RWMutex
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
+
+	AgentInfo *AgentConf
+}
+
+type AgentConf struct {
+	EnableCNI bool // enable CNI in Everoute
+
+	NodeName   string
+	PodCIDR    []cnitypes.IPNet
+	BridgeName string
+
+	LocalGwName string
+	LocalGwIP   net.IP
+	LocalGwMac  net.HardwareAddr
+
+	GatewayName string
+	GatewayIP   net.IP
+	GatewayMac  net.HardwareAddr
 }
 
 type Config struct {
@@ -187,6 +207,8 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.datapathConfig = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
+	datapathManager.AgentInfo = new(AgentConf)
+	datapathManager.AgentInfo.EnableCNI = false
 
 	var vdsCount int = 0
 	// vdsID equals to ovsbrname

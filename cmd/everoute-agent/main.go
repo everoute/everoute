@@ -63,15 +63,32 @@ func main() {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
-	datapathManager.InitializeDatapath()
 
-	// NetworkPolicy controller: watch policyRule crud and update flow
-	mgr, err := startManager(scheme, datapathManager, stopChan)
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:             scheme,
+		MetricsBindAddress: metricsAddr,
+		Port:               9443,
+	})
 	if err != nil {
-		klog.Fatalf("error %v when start controller manager.", err)
+		klog.Fatalf("unable to create manager: %s", err.Error())
 	}
 
 	k8sClient := mgr.GetClient()
+
+	if enableCNI {
+		setAgentConf(datapathManager, mgr.GetClient())
+
+		// cni server
+		cniServer := cniserver.Initialize(k8sClient, datapathManager)
+		go cniServer.Run(stopChan)
+	}
+
+	datapathManager.InitializeDatapath()
+
+	if err = startManager(mgr, datapathManager, stopChan); err != nil {
+		klog.Fatalf("error %v when start controller manager.", err)
+	}
+
 	agentmonitor, err := monitor.NewAgentMonitor(k8sClient, ofPortIPAddrMoniotorChan)
 	if err != nil {
 		klog.Fatalf("error %v when start agentmonitor.", err)
@@ -92,43 +109,30 @@ func main() {
 	})
 	go agentmonitor.Run(stopChan)
 
-	if enableCNI {
-		// cni server
-		cniServer := cniserver.Initialize(k8sClient, datapathManager)
-		go cniServer.Run(stopChan)
-	}
-
 	<-stopChan
 }
 
-func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, stopChan <-chan struct{}) (manager.Manager, error) {
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-	})
-	if err != nil {
-		klog.Errorf("unable to start manager: %s", err.Error())
-		return nil, err
-	}
-
+func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
+	var err error
+	// NetworkPolicy controller: watch policyRule crud and update flow
 	if err = (&policyrule.PolicyRuleReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
 		DatapathManager: datapathManager,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Errorf("unable to create policyrule controller: %s", err.Error())
-		return nil, err
+		return err
 	}
 
 	if enableCNI {
 		if err = (&proxy.NodeReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			StopChan: stopChan,
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			DatapathManager: datapathManager,
+			StopChan:        stopChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create node controller: %s", err.Error())
-			return nil, err
+			return err
 		}
 	}
 
@@ -139,5 +143,5 @@ func startManager(scheme *runtime.Scheme, datapathManager *datapath.DpManager, s
 		}
 	}()
 
-	return mgr, nil
+	return nil
 }

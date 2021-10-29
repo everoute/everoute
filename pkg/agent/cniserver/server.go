@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +36,6 @@ import (
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
-	corev1 "k8s.io/api/core/v1"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -360,40 +358,18 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 	return nil
 }
 
-func Initialize(k8sClient client.Client, dpManager *datapath.DpManager) *CNIServer {
+func Initialize(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
-	}
-
-	klog.Infof("%+v", dpManager.OvsdbDriverMap)
-	for name := range dpManager.OvsdbDriverMap {
-		s.brName = name
-		s.gwName = name + "-gw"
-		s.ovsDriver = dpManager.OvsdbDriverMap[name][datapath.LOCAL_BRIDGE_KEYWORD]
-		break
-	}
-
-	// get current node
-	// TODO: hostname cannot be modified after joining into cluster
-	nodeName, _ := os.Hostname()
-	nodeName = strings.ToLower(nodeName)
-	node := corev1.Node{}
-	if err := s.k8sClient.Get(context.Background(), client.ObjectKey{
-		Name: nodeName,
-	}, &node); err != nil {
-		klog.Fatalf("get node info error, err:%s", err)
-	}
-
-	// record all pod CIDRs
-	for _, cidrString := range node.Spec.PodCIDRs {
-		cidr, _ := cnitypes.ParseCIDR(cidrString)
-		s.podCIDR = append(s.podCIDR, cnitypes.IPNet(*cidr))
+		gwName:    datapathManager.AgentInfo.GatewayName,
+		ovsDriver: datapathManager.OvsdbDriverMap[datapathManager.AgentInfo.BridgeName][datapath.LOCAL_BRIDGE_KEYWORD],
+		podCIDR:   append([]cnitypes.IPNet{}, datapathManager.AgentInfo.PodCIDR...),
 	}
 
 	// set gateway ip address, first ip in first CIDR
 	if err := SetLinkAddr(s.gwName,
 		&net.IPNet{
-			IP:   ip.NextIP(s.podCIDR[0].IP),
+			IP:   datapathManager.AgentInfo.GatewayIP,
 			Mask: s.podCIDR[0].Mask}); err != nil {
 		klog.Errorf("set gateway ip address error, err:%s", err)
 	}

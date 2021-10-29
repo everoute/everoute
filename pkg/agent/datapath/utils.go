@@ -84,3 +84,9 @@ func ExcuteCommand(cmdStr, arg string) error {
 
 	return nil
 }
+
+func ParseMacToUint64(b []byte) uint64 {
+	_ = b[5]
+	return uint64(b[5]) | uint64(b[4])<<8 | uint64(b[3])<<16 | uint64(b[2])<<24 |
+		uint64(b[1])<<32 | uint64(b[0])<<40 | 0<<48 | 0<<56
+}

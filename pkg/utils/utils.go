@@ -4,7 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net"
 
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 )
@@ -31,4 +34,24 @@ func EncodeNamespacedName(namespacedName coretypes.NamespacedName) string {
 	hash := sha256.Sum256(b)
 
 	return fmt.Sprintf("%x", hash)[:32]
+}
+
+func GetIfaceIP(name string) (net.IP, error) {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return nil, err
+	}
+	list, err := netlink.AddrList(link, unix.AF_INET)
+	if err != nil {
+		return nil, err
+	}
+	return list[0].IP, nil
+}
+
+func GetIfaceMAC(name string) (net.HardwareAddr, error) {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return link.Attrs().HardwareAddr, nil
 }
