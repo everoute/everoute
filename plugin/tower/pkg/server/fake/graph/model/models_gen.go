@@ -10,6 +10,18 @@ import (
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
+type EverouteClusterEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.EverouteCluster `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
+}
+
+type HostEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.Host            `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
+}
+
 type IsolationPolicyEvent struct {
 	Mutation       MutationType            `json:"mutation"`
 	Node           *schema.IsolationPolicy `json:"node"`

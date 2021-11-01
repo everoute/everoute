@@ -35,7 +35,7 @@ type SharedInformerFactory interface {
 	Start(stopCh <-chan struct{})
 	// WaitForCacheSync waits for all started informers' cache were synced
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
-	// InternalInformerFor returns the SharedIndexInformer for obj using an internal client.
+	// InformerFor returns the SharedIndexInformer for obj using an internal client.
 	InformerFor(obj schema.Object) cache.SharedIndexInformer
 
 	// VM return informer for &schema.VM{}
@@ -46,6 +46,10 @@ type SharedInformerFactory interface {
 	SecurityPolicy() cache.SharedIndexInformer
 	// IsolationPolicy return informer for &schema.IsolationPolicy{}
 	IsolationPolicy() cache.SharedIndexInformer
+	// Host return informer for &schema.Host{}
+	Host() cache.SharedIndexInformer
+	// EverouteCluster return informer for &schema.EverouteCluster{}
+	EverouteCluster() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -147,6 +151,16 @@ func (f *sharedInformerFactory) InformerFor(obj schema.Object) cache.SharedIndex
 	f.informers[informerType] = sharedInformer
 
 	return sharedInformer
+}
+
+// Host implements SharedInformerFactory.Host
+func (f *sharedInformerFactory) Host() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.Host{})
+}
+
+// EverouteCluster implements SharedInformerFactory.EverouteCluster
+func (f *sharedInformerFactory) EverouteCluster() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.EverouteCluster{})
 }
 
 func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration) cache.SharedIndexInformer {

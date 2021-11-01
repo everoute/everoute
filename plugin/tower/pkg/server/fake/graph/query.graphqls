@@ -4,6 +4,8 @@ type Query {
     labels: [Label!]!
     securityPolicies: [SecurityPolicy!]!
     isolationPolicies: [IsolationPolicy!]!
+    everouteClusters: [EverouteCluster!]!
+    hosts: [Host!]!
 }
 
 # mock tower subscribe vm and label
@@ -12,6 +14,8 @@ type Subscription {
     label: LabelEvent!
     securityPolicy: SecurityPolicyEvent!
     isolationPolicy: IsolationPolicyEvent!
+    everouteCluster: EverouteClusterEvent!
+    host: HostEvent!
 }
 
 # mock tower user login
@@ -55,6 +59,18 @@ type SecurityPolicyEvent {
 type IsolationPolicyEvent {
     mutation: MutationType!
     node: IsolationPolicy!
+    previousValues: ObjectReference
+}
+
+type EverouteClusterEvent {
+    mutation: MutationType!
+    node: EverouteCluster!
+    previousValues: ObjectReference
+}
+
+type HostEvent {
+    mutation: MutationType!
+    node: Host!
     previousValues: ObjectReference
 }
 

@@ -66,6 +66,24 @@ func (r *queryResolver) IsolationPolicies(ctx context.Context) ([]schema.Isolati
 	return policies, nil
 }
 
+func (r *queryResolver) EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error) {
+	erClusterList := r.TrackerFactory().EverouteCluster().List()
+	erClusters := make([]schema.EverouteCluster, 0, len(erClusterList))
+	for _, erCluster := range erClusterList {
+		erClusters = append(erClusters, *erCluster.(*schema.EverouteCluster))
+	}
+	return erClusters, nil
+}
+
+func (r *queryResolver) Hosts(ctx context.Context) ([]schema.Host, error) {
+	hostList := r.TrackerFactory().Host().List()
+	hosts := make([]schema.Host, 0, len(hostList))
+	for _, host := range hostList {
+		hosts = append(hosts, *host.(*schema.Host))
+	}
+	return hosts, nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -172,6 +190,60 @@ func (r *subscriptionResolver) IsolationPolicy(ctx context.Context) (<-chan *mod
 	}()
 
 	return policyEventCh, nil
+}
+
+func (r *subscriptionResolver) EverouteCluster(ctx context.Context) (<-chan *model.EverouteClusterEvent, error) {
+	var erClusterEventCh = make(chan *model.EverouteClusterEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().EverouteCluster().Watch()
+		defer stopWatch()
+		defer close(erClusterEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				erClusterEventCh <- &model.EverouteClusterEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.EverouteCluster),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return erClusterEventCh, nil
+}
+
+func (r *subscriptionResolver) Host(ctx context.Context) (<-chan *model.HostEvent, error) {
+	var hostEventCh = make(chan *model.HostEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().Host().Watch()
+		defer stopWatch()
+		defer close(hostEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				hostEventCh <- &model.HostEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.Host),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return hostEventCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
