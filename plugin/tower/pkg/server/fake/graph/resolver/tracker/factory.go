@@ -71,6 +71,14 @@ func (f *Factory) IsolationPolicy() *Tracker {
 	return f.TrackerFor(&schema.IsolationPolicy{}, nil, 0)
 }
 
+func (f *Factory) EverouteCluster() *Tracker {
+	return f.TrackerFor(&schema.EverouteCluster{}, nil, 0)
+}
+
+func (f *Factory) Host() *Tracker {
+	return f.TrackerFor(&schema.Host{}, nil, 0)
+}
+
 func (f *Factory) User() *Tracker {
 	var userNameFunc = func(obj interface{}) string {
 		return obj.(*model.User).Name

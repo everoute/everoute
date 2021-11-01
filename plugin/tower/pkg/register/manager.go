@@ -27,6 +27,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/global"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
@@ -88,6 +89,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
 	endpointController := endpoint.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 	policyController := policy.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
+	globalaController := global.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
 		towerFactory.Start(stopChan)
@@ -95,6 +97,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 
 		go endpointController.Run(opts.WorkerNumber, stopChan)
 		go policyController.Run(opts.WorkerNumber, stopChan)
+		go globalaController.Run(opts.WorkerNumber, stopChan)
 
 		<-stopChan
 		return nil

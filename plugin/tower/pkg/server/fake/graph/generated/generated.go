@@ -47,6 +47,35 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	EverouteCluster struct {
+		AgentELFClusters    func(childComplexity int) int
+		ControllerInstances func(childComplexity int) int
+		GlobalDefaultAction func(childComplexity int) int
+		ID                  func(childComplexity int) int
+	}
+
+	EverouteClusterEvent struct {
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
+	}
+
+	EverouteControllerInstance struct {
+		IPAddr func(childComplexity int) int
+	}
+
+	Host struct {
+		Cluster      func(childComplexity int) int
+		ID           func(childComplexity int) int
+		ManagementIP func(childComplexity int) int
+	}
+
+	HostEvent struct {
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
+	}
+
 	IsolationPolicy struct {
 		Egress          func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
@@ -100,6 +129,8 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		EverouteClusters  func(childComplexity int) int
+		Hosts             func(childComplexity int) int
 		IsolationPolicies func(childComplexity int) int
 		Labels            func(childComplexity int) int
 		SecurityPolicies  func(childComplexity int) int
@@ -126,6 +157,8 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
+		EverouteCluster func(childComplexity int) int
+		Host            func(childComplexity int) int
 		IsolationPolicy func(childComplexity int) int
 		Label           func(childComplexity int) int
 		SecurityPolicy  func(childComplexity int) int
@@ -176,12 +209,16 @@ type QueryResolver interface {
 	Labels(ctx context.Context) ([]schema.Label, error)
 	SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error)
 	IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error)
+	EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error)
+	Hosts(ctx context.Context) ([]schema.Host, error)
 }
 type SubscriptionResolver interface {
 	VM(ctx context.Context) (<-chan *model.VMEvent, error)
 	Label(ctx context.Context) (<-chan *model.LabelEvent, error)
 	SecurityPolicy(ctx context.Context) (<-chan *model.SecurityPolicyEvent, error)
 	IsolationPolicy(ctx context.Context) (<-chan *model.IsolationPolicyEvent, error)
+	EverouteCluster(ctx context.Context) (<-chan *model.EverouteClusterEvent, error)
+	Host(ctx context.Context) (<-chan *model.HostEvent, error)
 }
 
 type executableSchema struct {
@@ -198,6 +235,104 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "EverouteCluster.agent_elf_clusters":
+		if e.complexity.EverouteCluster.AgentELFClusters == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.AgentELFClusters(childComplexity), true
+
+	case "EverouteCluster.controller_instances":
+		if e.complexity.EverouteCluster.ControllerInstances == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.ControllerInstances(childComplexity), true
+
+	case "EverouteCluster.global_default_action":
+		if e.complexity.EverouteCluster.GlobalDefaultAction == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.GlobalDefaultAction(childComplexity), true
+
+	case "EverouteCluster.id":
+		if e.complexity.EverouteCluster.ID == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.ID(childComplexity), true
+
+	case "EverouteClusterEvent.mutation":
+		if e.complexity.EverouteClusterEvent.Mutation == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterEvent.Mutation(childComplexity), true
+
+	case "EverouteClusterEvent.node":
+		if e.complexity.EverouteClusterEvent.Node == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterEvent.Node(childComplexity), true
+
+	case "EverouteClusterEvent.previousValues":
+		if e.complexity.EverouteClusterEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterEvent.PreviousValues(childComplexity), true
+
+	case "EverouteControllerInstance.ipAddr":
+		if e.complexity.EverouteControllerInstance.IPAddr == nil {
+			break
+		}
+
+		return e.complexity.EverouteControllerInstance.IPAddr(childComplexity), true
+
+	case "Host.cluster":
+		if e.complexity.Host.Cluster == nil {
+			break
+		}
+
+		return e.complexity.Host.Cluster(childComplexity), true
+
+	case "Host.id":
+		if e.complexity.Host.ID == nil {
+			break
+		}
+
+		return e.complexity.Host.ID(childComplexity), true
+
+	case "Host.management_ip":
+		if e.complexity.Host.ManagementIP == nil {
+			break
+		}
+
+		return e.complexity.Host.ManagementIP(childComplexity), true
+
+	case "HostEvent.mutation":
+		if e.complexity.HostEvent.Mutation == nil {
+			break
+		}
+
+		return e.complexity.HostEvent.Mutation(childComplexity), true
+
+	case "HostEvent.node":
+		if e.complexity.HostEvent.Node == nil {
+			break
+		}
+
+		return e.complexity.HostEvent.Node(childComplexity), true
+
+	case "HostEvent.previousValues":
+		if e.complexity.HostEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.HostEvent.PreviousValues(childComplexity), true
 
 	case "IsolationPolicy.egress":
 		if e.complexity.IsolationPolicy.Egress == nil {
@@ -379,6 +514,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ObjectReference.ID(childComplexity), true
 
+	case "Query.everouteClusters":
+		if e.complexity.Query.EverouteClusters == nil {
+			break
+		}
+
+		return e.complexity.Query.EverouteClusters(childComplexity), true
+
+	case "Query.hosts":
+		if e.complexity.Query.Hosts == nil {
+			break
+		}
+
+		return e.complexity.Query.Hosts(childComplexity), true
+
 	case "Query.isolationPolicies":
 		if e.complexity.Query.IsolationPolicies == nil {
 			break
@@ -476,6 +625,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.SecurityPolicyEvent.PreviousValues(childComplexity), true
+
+	case "Subscription.everouteCluster":
+		if e.complexity.Subscription.EverouteCluster == nil {
+			break
+		}
+
+		return e.complexity.Subscription.EverouteCluster(childComplexity), true
+
+	case "Subscription.host":
+		if e.complexity.Subscription.Host == nil {
+			break
+		}
+
+		return e.complexity.Subscription.Host(childComplexity), true
 
 	case "Subscription.isolationPolicy":
 		if e.complexity.Subscription.IsolationPolicy == nil {
@@ -732,6 +895,8 @@ type Query {
     labels: [Label!]!
     securityPolicies: [SecurityPolicy!]!
     isolationPolicies: [IsolationPolicy!]!
+    everouteClusters: [EverouteCluster!]!
+    hosts: [Host!]!
 }
 
 # mock tower subscribe vm and label
@@ -740,6 +905,8 @@ type Subscription {
     label: LabelEvent!
     securityPolicy: SecurityPolicyEvent!
     isolationPolicy: IsolationPolicyEvent!
+    everouteCluster: EverouteClusterEvent!
+    host: HostEvent!
 }
 
 # mock tower user login
@@ -783,6 +950,18 @@ type SecurityPolicyEvent {
 type IsolationPolicyEvent {
     mutation: MutationType!
     node: IsolationPolicy!
+    previousValues: ObjectReference
+}
+
+type EverouteClusterEvent {
+    mutation: MutationType!
+    node: EverouteCluster!
+    previousValues: ObjectReference
+}
+
+type HostEvent {
+    mutation: MutationType!
+    node: Host!
     previousValues: ObjectReference
 }
 
@@ -900,6 +1079,28 @@ type Label {
     value: String
     vms: [VM!]
 }
+
+type EverouteCluster {
+    id: ID!
+    agent_elf_clusters: [ObjectReference!]
+    controller_instances: [EverouteControllerInstance!]!
+    global_default_action: GlobalPolicyAction!
+}
+
+type EverouteControllerInstance {
+    ipAddr: String!
+}
+
+enum GlobalPolicyAction {
+    ALLOW
+    DROP
+}
+
+type Host {
+    id: ID!
+    cluster: ObjectReference!
+    management_ip: String!
+}
 `, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -975,6 +1176,487 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _EverouteCluster_id(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteCluster_agent_elf_clusters(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AgentELFClusters, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteCluster_controller_instances(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ControllerInstances, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.EverouteControllerInstance)
+	fc.Result = res
+	return ec.marshalNEverouteControllerInstance2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteControllerInstanceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteCluster_global_default_action(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GlobalDefaultAction, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.GlobalPolicyAction)
+	fc.Result = res
+	return ec.marshalNGlobalPolicyAction2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGlobalPolicyAction(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mutation, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.MutationType)
+	fc.Result = res
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*schema.EverouteCluster)
+	fc.Result = res
+	return ec.marshalNEverouteCluster2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteCluster(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteControllerInstance_ipAddr(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteControllerInstance) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteControllerInstance",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IPAddr, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Host_id(ctx context.Context, field graphql.CollectedField, obj *schema.Host) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Host",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Host_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.Host) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Host",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cluster, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalNObjectReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Host_management_ip(ctx context.Context, field graphql.CollectedField, obj *schema.Host) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Host",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ManagementIP, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _HostEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.HostEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "HostEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mutation, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.MutationType)
+	fc.Result = res
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _HostEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.HostEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "HostEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*schema.Host)
+	fc.Result = res
+	return ec.marshalNHost2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHost(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _HostEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.HostEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "HostEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _IsolationPolicy_id(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
 	defer func() {
@@ -1968,6 +2650,76 @@ func (ec *executionContext) _Query_isolationPolicies(ctx context.Context, field 
 	return ec.marshalNIsolationPolicy2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationPolicyᚄ(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_everouteClusters(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().EverouteClusters(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.EverouteCluster)
+	fc.Result = res
+	return ec.marshalNEverouteCluster2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_hosts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Hosts(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.Host)
+	fc.Result = res
+	return ec.marshalNHost2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHostᚄ(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2555,6 +3307,96 @@ func (ec *executionContext) _Subscription_isolationPolicy(ctx context.Context, f
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
 			ec.marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐIsolationPolicyEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_everouteCluster(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().EverouteCluster(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.EverouteClusterEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNEverouteClusterEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐEverouteClusterEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_host(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().Host(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.HostEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNHostEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐHostEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -4370,6 +5212,177 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj in
 
 // region    **************************** object.gotpl ****************************
 
+var everouteClusterImplementors = []string{"EverouteCluster"}
+
+func (ec *executionContext) _EverouteCluster(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteCluster) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteCluster")
+		case "id":
+			out.Values[i] = ec._EverouteCluster_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "agent_elf_clusters":
+			out.Values[i] = ec._EverouteCluster_agent_elf_clusters(ctx, field, obj)
+		case "controller_instances":
+			out.Values[i] = ec._EverouteCluster_controller_instances(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "global_default_action":
+			out.Values[i] = ec._EverouteCluster_global_default_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteClusterEventImplementors = []string{"EverouteClusterEvent"}
+
+func (ec *executionContext) _EverouteClusterEvent(ctx context.Context, sel ast.SelectionSet, obj *model.EverouteClusterEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteClusterEvent")
+		case "mutation":
+			out.Values[i] = ec._EverouteClusterEvent_mutation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "node":
+			out.Values[i] = ec._EverouteClusterEvent_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "previousValues":
+			out.Values[i] = ec._EverouteClusterEvent_previousValues(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteControllerInstanceImplementors = []string{"EverouteControllerInstance"}
+
+func (ec *executionContext) _EverouteControllerInstance(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteControllerInstance) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteControllerInstanceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteControllerInstance")
+		case "ipAddr":
+			out.Values[i] = ec._EverouteControllerInstance_ipAddr(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var hostImplementors = []string{"Host"}
+
+func (ec *executionContext) _Host(ctx context.Context, sel ast.SelectionSet, obj *schema.Host) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, hostImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Host")
+		case "id":
+			out.Values[i] = ec._Host_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "cluster":
+			out.Values[i] = ec._Host_cluster(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "management_ip":
+			out.Values[i] = ec._Host_management_ip(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var hostEventImplementors = []string{"HostEvent"}
+
+func (ec *executionContext) _HostEvent(ctx context.Context, sel ast.SelectionSet, obj *model.HostEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, hostEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("HostEvent")
+		case "mutation":
+			out.Values[i] = ec._HostEvent_mutation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "node":
+			out.Values[i] = ec._HostEvent_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "previousValues":
+			out.Values[i] = ec._HostEvent_previousValues(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var isolationPolicyImplementors = []string{"IsolationPolicy"}
 
 func (ec *executionContext) _IsolationPolicy(ctx context.Context, sel ast.SelectionSet, obj *schema.IsolationPolicy) graphql.Marshaler {
@@ -4747,6 +5760,34 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "everouteClusters":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_everouteClusters(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "hosts":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_hosts(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
@@ -4890,6 +5931,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_securityPolicy(ctx, fields[0])
 	case "isolationPolicy":
 		return ec._Subscription_isolationPolicy(ctx, fields[0])
+	case "everouteCluster":
+		return ec._Subscription_everouteCluster(ctx, fields[0])
+	case "host":
+		return ec._Subscription_host(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -5322,6 +6367,112 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNEverouteCluster2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteCluster(ctx context.Context, sel ast.SelectionSet, v schema.EverouteCluster) graphql.Marshaler {
+	return ec._EverouteCluster(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEverouteCluster2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.EverouteCluster) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEverouteCluster2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteCluster(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNEverouteCluster2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteCluster(ctx context.Context, sel ast.SelectionSet, v *schema.EverouteCluster) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._EverouteCluster(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEverouteClusterEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐEverouteClusterEvent(ctx context.Context, sel ast.SelectionSet, v model.EverouteClusterEvent) graphql.Marshaler {
+	return ec._EverouteClusterEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEverouteClusterEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐEverouteClusterEvent(ctx context.Context, sel ast.SelectionSet, v *model.EverouteClusterEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._EverouteClusterEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEverouteControllerInstance2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteControllerInstance(ctx context.Context, sel ast.SelectionSet, v schema.EverouteControllerInstance) graphql.Marshaler {
+	return ec._EverouteControllerInstance(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEverouteControllerInstance2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteControllerInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.EverouteControllerInstance) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEverouteControllerInstance2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteControllerInstance(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v interface{}) (float64, error) {
 	res, err := graphql.UnmarshalFloat(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5335,6 +6486,87 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNGlobalPolicyAction2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGlobalPolicyAction(ctx context.Context, v interface{}) (schema.GlobalPolicyAction, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.GlobalPolicyAction(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGlobalPolicyAction2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGlobalPolicyAction(ctx context.Context, sel ast.SelectionSet, v schema.GlobalPolicyAction) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNHost2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHost(ctx context.Context, sel ast.SelectionSet, v schema.Host) graphql.Marshaler {
+	return ec._Host(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNHost2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHostᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.Host) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNHost2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHost(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNHost2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHost(ctx context.Context, sel ast.SelectionSet, v *schema.Host) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Host(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNHostEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐHostEvent(ctx context.Context, sel ast.SelectionSet, v model.HostEvent) graphql.Marshaler {
+	return ec._HostEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNHostEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐHostEvent(ctx context.Context, sel ast.SelectionSet, v *model.HostEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._HostEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {

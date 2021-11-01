@@ -51,3 +51,25 @@ type Label {
     value: String
     vms: [VM!]
 }
+
+type EverouteCluster {
+    id: ID!
+    agent_elf_clusters: [ObjectReference!]
+    controller_instances: [EverouteControllerInstance!]!
+    global_default_action: GlobalPolicyAction!
+}
+
+type EverouteControllerInstance {
+    ipAddr: String!
+}
+
+enum GlobalPolicyAction {
+    ALLOW
+    DROP
+}
+
+type Host {
+    id: ID!
+    cluster: ObjectReference!
+    management_ip: String!
+}

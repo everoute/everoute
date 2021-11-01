@@ -17,6 +17,9 @@ limitations under the License.
 package testing
 
 import (
+	"fmt"
+	"net"
+
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -190,4 +193,35 @@ func LabelAsReference(labels ...*schema.Label) []schema.ObjectReference {
 		})
 	}
 	return labelRefs
+}
+
+func NewRandomHost(elfClusterID string) *schema.Host {
+	return &schema.Host{
+		ObjectMeta:   schema.ObjectMeta{ID: rand.String(10)},
+		ManagementIP: NewRandomIP().String(),
+		Cluster:      schema.ObjectReference{ID: elfClusterID},
+	}
+}
+
+func NewEverouteCluster(erClusterID string, defaultAction schema.GlobalPolicyAction) *schema.EverouteCluster {
+	return &schema.EverouteCluster{
+		ObjectMeta:          schema.ObjectMeta{ID: erClusterID},
+		GlobalDefaultAction: defaultAction,
+		ControllerInstances: []schema.EverouteControllerInstance{
+			{IPAddr: NewRandomIP().String()},
+			{IPAddr: NewRandomIP().String()},
+			{IPAddr: NewRandomIP().String()},
+		},
+	}
+}
+
+func NewRandomIP() net.IP {
+	return net.ParseIP(
+		fmt.Sprintf("%d.%d.%d.%d",
+			rand.Intn(256),
+			rand.Intn(256),
+			rand.Intn(256),
+			rand.Intn(256),
+		),
+	)
 }

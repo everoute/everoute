@@ -92,3 +92,31 @@ type Label struct {
 type LabelList struct {
 	Labels []Label `json:"labels,omitempty"`
 }
+
+// EverouteCluster defines everoute cluster
+type EverouteCluster struct {
+	ObjectMeta
+
+	AgentELFClusters    []ObjectReference            `json:"agent_elf_clusters"`
+	ControllerInstances []EverouteControllerInstance `json:"controller_instances"`
+	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
+}
+
+type EverouteControllerInstance struct {
+	IPAddr string `json:"ipAddr"`
+}
+
+type GlobalPolicyAction string
+
+const (
+	GlobalPolicyActionAllow GlobalPolicyAction = "ALLOW"
+	GlobalPolicyActionDrop  GlobalPolicyAction = "DROP"
+)
+
+// Host defines elf host node
+type Host struct {
+	ObjectMeta
+
+	ManagementIP string          `json:"management_ip"`
+	Cluster      ObjectReference `json:"cluster"`
+}
