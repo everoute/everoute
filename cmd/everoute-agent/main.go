@@ -76,7 +76,7 @@ func main() {
 	k8sClient := mgr.GetClient()
 
 	if enableCNI {
-		setAgentConf(datapathManager, mgr.GetClient())
+		setAgentConf(datapathManager, mgr.GetAPIReader())
 
 		// cni server
 		cniServer := cniserver.Initialize(k8sClient, datapathManager)
