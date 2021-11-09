@@ -22,9 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/cenkalti/backoff"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"gopkg.in/yaml.v2"
@@ -76,7 +74,8 @@ func getDatapathConfig() (*datapath.Config, error) {
 	return dpConfig, nil
 }
 
-func setAgentConf(datapathManager *datapath.DpManager, k8sClient client.Client) {
+func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) {
+	k8sClient := k8sReader.(client.Client)
 	agentInfo := datapathManager.AgentInfo
 	agentInfo.EnableCNI = true
 
@@ -85,16 +84,11 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sClient client.Client) 
 	agentInfo.NodeName = nodeName
 
 	node := corev1.Node{}
-	if err := backoff.Retry(func() error {
-		if err := k8sClient.Get(context.Background(), client.ObjectKey{
-			Name: nodeName,
-		}, &node); err != nil {
-			klog.Errorf("get node info error, err:%s", err)
-			return err
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 10)); err != nil {
-		klog.Fatalf("fail to get node info after 10 tries. err: %s", err)
+
+	if err := k8sClient.Get(context.Background(), client.ObjectKey{
+		Name: nodeName,
+	}, &node); err != nil {
+		klog.Fatalf("get node info error, err:%s", err)
 	}
 
 	// record all pod CIDRs
