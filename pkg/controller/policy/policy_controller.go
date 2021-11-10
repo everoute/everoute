@@ -359,7 +359,7 @@ func (r *PolicyReconciler) processPolicyDelete(ctx context.Context, policy *secu
 
 func (r *PolicyReconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.NamespacedName) error {
 	// remove policy completeRules from cache
-	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
+	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
 	for _, completeRule := range completeRules {
 		r.ruleCache.Delete(completeRule)
 	}
