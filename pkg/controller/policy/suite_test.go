@@ -31,6 +31,7 @@ import (
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -39,6 +40,7 @@ import (
 var (
 	k8sClient          client.Client // You'll be using this client in your tests.
 	testEnv            *envtest.Environment
+	ruleCacheLister    informer.Lister
 	useExistingCluster bool
 )
 
@@ -103,12 +105,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
-	err = (&policyctrl.PolicyReconciler{
+	policyController := &policyctrl.PolicyReconciler{
 		Client:     k8sManager.GetClient(),
 		Scheme:     k8sManager.GetScheme(),
 		ReadClient: k8sManager.GetAPIReader(),
-	}).SetupWithManager(k8sManager)
+	}
+	err = (policyController).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
+
+	ruleCacheLister = policyController.GetCompleteRuleLister()
+	Expect(ruleCacheLister).ShouldNot(BeNil())
 
 	stopCh := ctrl.SetupSignalHandler()
 	go func() {

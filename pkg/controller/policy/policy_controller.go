@@ -46,6 +46,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	policycache "github.com/everoute/everoute/pkg/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/utils"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
 type PolicyReconciler struct {
@@ -167,6 +168,11 @@ func (r *PolicyReconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// GetCompleteRuleLister return cache.CompleteRule lister, used for debug or testing
+func (r *PolicyReconciler) GetCompleteRuleLister() informer.Lister {
+	return r.ruleCache
 }
 
 func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
