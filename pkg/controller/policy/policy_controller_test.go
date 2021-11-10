@@ -111,6 +111,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 10)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
 					0, 0, "192.168.1.1/32", 0x03e8, 0xfff8, "TCP")
@@ -145,6 +146,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 4)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
 					0, 0, "192.168.1.1/32", 0xfffc, 0xfffc, "TCP")
@@ -164,6 +166,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 4)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRuleWithPortRange(ctx, policy, "Ingress", "Allow", "192.168.2.1/32",
 					0, 0, "192.168.1.1/32", 0, 0, "TCP")
@@ -183,6 +186,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 4)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
@@ -321,6 +325,8 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should add an ingress policy rule allow all sources", func() {
+					assertCompleteRuleNum(5)
+
 					// empty from securityPeer match all sources
 					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "", 0, "192.168.1.1/32", 0, "ICMP")
 				})
@@ -336,6 +342,8 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should remove egress policy rules", func() {
+					assertCompleteRuleNum(3)
+
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 				})
 			})
@@ -353,6 +361,8 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should replace policy rules tier", func() {
+					assertCompleteRuleNum(4)
+
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
@@ -376,6 +386,8 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should replace ingress policy rule ports", func() {
+					assertCompleteRuleNum(4)
+
 					// empty Ports matches all ports
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 0, "")
@@ -393,6 +405,8 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should replace ingress policy rule protocol", func() {
+					assertCompleteRuleNum(4)
+
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 					assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "UDP")
 				})
@@ -409,6 +423,7 @@ var _ = Describe("PolicyController", func() {
 					mustUpdatePolicy(ctx, updPolicy)
 				})
 				It("should sync egress policy rules", func() {
+					assertCompleteRuleNum(4)
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 					assertHasPolicyRuleWithPortRange(ctx, policy, "Egress", "Allow", "192.168.1.1/32",
 						0, 0, "192.168.3.1/32", 8080, 0xfffe, "UDP")
@@ -425,6 +440,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should remove all the policy generate rules", func() {
 					assertPolicyRulesNum(ctx, policy, 0)
+					assertCompleteRuleNum(0)
 				})
 			})
 
@@ -442,6 +458,7 @@ var _ = Describe("PolicyController", func() {
 				It("should generated symmetric policy rules", func() {
 					// 2 ingress, 2 egress, 2 default rules
 					assertPolicyRulesNum(ctx, policy, 6)
+					assertCompleteRuleNum(4)
 
 					// ingress symmetry egress rule
 					assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
@@ -462,6 +479,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should delete egress policy rules", func() {
 					assertPolicyRulesNum(ctx, policy, 2)
+					assertCompleteRuleNum(2)
 
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
 					assertNoPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
@@ -479,6 +497,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should delete ingress policy rules", func() {
 					assertPolicyRulesNum(ctx, policy, 2)
+					assertCompleteRuleNum(2)
 
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
 					assertNoPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
@@ -499,6 +518,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 6)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
 				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
@@ -525,6 +545,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should remove symmetric policy rules", func() {
 					assertPolicyRulesNum(ctx, policy, 4)
+					assertCompleteRuleNum(4)
 
 					assertNoPolicyRule(ctx, policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
 					assertNoPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
@@ -545,6 +566,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 2)
+				assertCompleteRuleNum(2)
 
 				assertHasPolicyRule(ctx, policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
 				assertHasPolicyRule(ctx, policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
@@ -568,6 +590,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(ctx, policy, 2)
+				assertCompleteRuleNum(2)
 
 				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
 				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
@@ -593,6 +616,7 @@ var _ = Describe("PolicyController", func() {
 			It("should flatten policy to rules", func() {
 				// Ingress and Egress exists on SecurityPolicy, should generate both ingress rule and egress rule
 				assertPolicyRulesNum(ctx, policy, 4)
+				assertCompleteRuleNum(4)
 
 				assertHasPolicyRule(ctx, policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
 				assertHasPolicyRule(ctx, policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
@@ -1024,4 +1048,10 @@ func assertPolicyRulesNum(ctx context.Context, policy *securityv1alpha1.Security
 			})})).Should(Succeed())
 		return len(policyRuleList.Items)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
+}
+
+func assertCompleteRuleNum(numOfCompleteRules int) {
+	Eventually(func() int {
+		return len(ruleCacheLister.ListKeys())
+	}, timeout, interval).Should(Equal(numOfCompleteRules))
 }
