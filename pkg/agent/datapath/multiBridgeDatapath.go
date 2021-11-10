@@ -218,10 +218,10 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 
 		// initialize ovsdbDriver
 		vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
-		vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(localBridge.name)
-		vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(policyBridge.name)
-		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(clsBridge.name)
-		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriver(uplinkBridge.name)
+		vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(localBridge.name)
+		vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(policyBridge.name)
+		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(clsBridge.name)
+		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(uplinkBridge.name)
 		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
 
 		// setbridge work with openflow10 ~ openflow13
