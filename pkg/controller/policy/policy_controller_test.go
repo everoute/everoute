@@ -45,13 +45,6 @@ import (
 const (
 	timeout  = time.Second * 10
 	interval = time.Millisecond * 250
-
-	// TestLabelKey is the label key test objects contains. All objects generated
-	// in the unit test must contain this label, all objects contains test labels
-	// should be cleaned up after the test.
-	TestLabelKey = "everoute.unit.test.object"
-	// TestLabelValue is the label TestLabelValue test objects contains.
-	TestLabelValue = "must.clean.after.test"
 )
 
 var _ = Describe("PolicyController", func() {
@@ -65,7 +58,7 @@ var _ = Describe("PolicyController", func() {
 		namespaceDefault := client.InNamespace(metav1.NamespaceDefault)
 
 		By("delete all test policies")
-		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, namespaceDefault, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, namespaceDefault)).Should(Succeed())
 		Eventually(func() int {
 			policyList := securityv1alpha1.SecurityPolicyList{}
 			Expect(k8sClient.List(ctx, &policyList)).Should(Succeed())
@@ -73,7 +66,7 @@ var _ = Describe("PolicyController", func() {
 		}, timeout, interval).Should(BeZero())
 
 		By("delete all test groupmembers")
-		Expect(k8sClient.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{}, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &groupv1alpha1.GroupMembers{})).Should(Succeed())
 		Eventually(func() int {
 			membersList := groupv1alpha1.GroupMembersList{}
 			Expect(k8sClient.List(ctx, &membersList)).Should(Succeed())
@@ -81,7 +74,7 @@ var _ = Describe("PolicyController", func() {
 		}, timeout, interval).Should(BeZero())
 
 		By("delete all test patches")
-		Expect(k8sClient.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{TestLabelKey: TestLabelValue})).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{})).Should(Succeed())
 		Eventually(func() int {
 			patchList := groupv1alpha1.GroupMembersPatchList{}
 			Expect(k8sClient.List(ctx, &patchList)).Should(Succeed())
@@ -776,7 +769,6 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
-			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			AppliedTo: []securityv1alpha1.ApplyToPeer{
@@ -826,7 +818,6 @@ func newTestEndpoint(ip types.IPAddress) *securityv1alpha1.Endpoint {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
-			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Spec: securityv1alpha1.EndpointSpec{
 			Reference: securityv1alpha1.EndpointReference{
@@ -867,7 +858,6 @@ func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) 
 				Namespace:        &namespaceDefault,
 			}),
 			Namespace: metav1.NamespaceNone,
-			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		Revision:     revision,
 		GroupMembers: groupMembers,
@@ -894,7 +884,6 @@ func newTestGroupMembersPatch(groupName string, revision int32, addMember, updMe
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceNone,
-			Labels:    map[string]string{TestLabelKey: TestLabelValue},
 		},
 		AppliedToGroupMembers: groupv1alpha1.GroupMembersReference{
 			Name:     groupName,
