@@ -435,17 +435,21 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 
 	// Install the rule in policy table
 	ruleFlow, err := policyTable.NewFlow(ofctrl.FlowMatch{
-		Priority:   uint16(rule.Priority),
-		Ethertype:  PROTOCOL_IP,
-		IpDa:       ipDa,
-		IpDaMask:   ipDaMask,
-		IpSa:       ipSa,
-		IpSaMask:   ipSaMask,
-		IpProto:    rule.IPProtocol,
-		TcpSrcPort: rule.SrcPort,
-		TcpDstPort: rule.DstPort,
-		UdpSrcPort: rule.SrcPort,
-		UdpDstPort: rule.DstPort,
+		Priority:       uint16(rule.Priority),
+		Ethertype:      PROTOCOL_IP,
+		IpDa:           ipDa,
+		IpDaMask:       ipDaMask,
+		IpSa:           ipSa,
+		IpSaMask:       ipSaMask,
+		IpProto:        rule.IPProtocol,
+		TcpSrcPort:     rule.SrcPort,
+		TcpSrcPortMask: rule.SrcPortMask,
+		TcpDstPort:     rule.DstPort,
+		TcpDstPortMask: rule.DstPortMask,
+		UdpSrcPort:     rule.SrcPort,
+		UdpSrcPortMask: rule.SrcPortMask,
+		UdpDstPort:     rule.DstPort,
+		UdpDstPortMask: rule.DstPortMask,
 	})
 	if err != nil {
 		log.Errorf("Failed to add flow for rule {%v}. Err: %v", rule, err)
