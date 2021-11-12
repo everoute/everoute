@@ -36,13 +36,3 @@ webhooks:
           - DELETE
         resources:
           - endpointgroups
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: everoute-controller-tls
-  namespace: kube-system
-type: kubernetes.io/tls
-data:
-  tls.crt: ""
-  tls.key: ""

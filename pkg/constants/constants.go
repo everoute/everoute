@@ -36,4 +36,8 @@ const (
 
 	SecurityPolicyByEndpointIndex      = "SecurityPolicyByEndpointIndex"
 	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
+
+	EverouteWebhookName     = "validator.everoute.io"
+	EverouteSecretName      = "everoute-controller-tls"
+	EverouteSecretNamespace = "kube-system"
 )

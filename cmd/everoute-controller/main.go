@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"flag"
+	"fmt"
 	"net"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	admv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	certutil "k8s.io/client-go/util/cert"
@@ -36,6 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/controller/common"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
 	"github.com/everoute/everoute/pkg/controller/k8s"
@@ -85,6 +89,15 @@ func main() {
 		klog.Fatalf("unable to start manager: %s", err.Error())
 	}
 
+	// set secret and webhook
+	setWebhookCert(mgr.GetAPIReader(), tlsCertDir)
+	if err = (&common.WebhookReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create webhook controller: %s", err.Error())
+	}
+
 	// endpoint controller sync endpoint status from agentinfo.
 	if err = (&endpointctrl.EndpointReconciler{
 		Client: mgr.GetClient(),
@@ -130,7 +143,6 @@ func main() {
 	}
 
 	// register validate handle
-	setWebhookCert(mgr.GetAPIReader(), tlsCertDir)
 	if err = (&webhook.ValidateWebhook{
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -154,45 +166,28 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	k8sClient := k8sReader.(client.Client)
 
 	secretReq := types.NamespacedName{
-		Name:      "everoute-controller-tls",
-		Namespace: "kube-system",
+		Name:      constants.EverouteSecretName,
+		Namespace: constants.EverouteSecretNamespace,
 	}
 	secret := &corev1.Secret{}
 
-	// get and update secret
+	// get and create secret
 	if err := backoff.Retry(func() error {
 		if err := k8sClient.Get(ctx, secretReq, secret); err == nil {
-			if len(secret.Data["ca.crt"]) > 0 {
-				klog.Info("secret has been updated")
-				return nil
-			}
-			// update secret data
-			secret.Data = genSecretData()
-			if err = k8sClient.Update(ctx, secret); err != nil {
-				return err
+			if len(secret.Data["ca.crt"]) == 0 {
+				_ = k8sClient.Delete(ctx, secret)
+				return fmt.Errorf("invalid secret")
 			}
 		} else {
-			return err
+			// create secret
+			secret = genSecret(secretReq)
+			if err = k8sClient.Create(ctx, secret); err != nil {
+				return err
+			}
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 10)); err != nil {
-		klog.Fatalf("fail to update secret after 10 tries. err: %s", err)
-	}
-
-	// update webhook
-	webhookReq := types.NamespacedName{Name: "validator.everoute.io"}
-	webhookObj := &admv1.ValidatingWebhookConfiguration{}
-	if err := backoff.Retry(func() error {
-		if err := k8sClient.Get(ctx, webhookReq, webhookObj); err != nil {
-			return err
-		}
-		if len(webhookObj.Webhooks[0].ClientConfig.CABundle) > 0 {
-			return nil
-		}
-		webhookObj.Webhooks[0].ClientConfig.CABundle = append(webhookObj.Webhooks[0].ClientConfig.CABundle, secret.Data["ca.crt"]...)
-		return k8sClient.Update(ctx, webhookObj)
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 10)); err != nil {
-		klog.Fatalf("fail to update webhook after 10 tries. err: %s", err)
+		klog.Fatalf("fail to create secret after 10 tries. err: %s", err)
 	}
 
 	// write tls cert into file
@@ -205,7 +200,7 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	}
 }
 
-func genSecretData() map[string][]byte {
+func genSecret(secretReq types.NamespacedName) *corev1.Secret {
 	data := make(map[string][]byte)
 
 	// create ca & caKey
@@ -218,7 +213,6 @@ func genSecretData() map[string][]byte {
 		PublicKeyAlgorithm: x509.RSA,
 	}
 	ca, caKey, _ := cert.NewCertificateAuthority(caConf)
-	caKeyByte, _ := keyutil.MarshalPrivateKeyToPEM(caKey)
 
 	// sign a new tls cert
 	tlsConf := &cert.CertConfig{
@@ -240,7 +234,13 @@ func genSecretData() map[string][]byte {
 	data["tls.crt"] = append(data["tls.crt"], cert.EncodeCertPEM(tls)...)
 	data["tls.key"] = append(data["tls.key"], tlsKeyByte...)
 	data["ca.crt"] = append(data["ca.crt"], cert.EncodeCertPEM(ca)...)
-	data["ca.key"] = append(data["ca.key"], caKeyByte...)
 
-	return data
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretReq.Name,
+			Namespace: secretReq.Namespace,
+		},
+		Data: data,
+		Type: "kubernetes.io/tls",
+	}
 }
