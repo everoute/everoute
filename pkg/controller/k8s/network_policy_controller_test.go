@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 var _ = Describe("pod controller", func() {
@@ -122,7 +123,7 @@ var _ = Describe("pod controller", func() {
 			Expect(k8sClient.Get(ctx, securityPolicyReq, &securityPolicy)).Should(Succeed())
 
 			Expect(len(securityPolicy.Spec.PolicyTypes)).Should(Equal(1))
-			Expect(securityPolicy.Spec.Tier).Should(Equal("tier1"))
+			Expect(securityPolicy.Spec.Tier).Should(Equal(constants.Tier2))
 			Expect(securityPolicy.Spec.SymmetricMode).Should(BeFalse())
 			Expect(len(securityPolicy.Spec.IngressRules)).Should(Equal(1))
 

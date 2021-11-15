@@ -103,7 +103,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType rulev1alpha1.RuleType, rule
 	ingressRule.Spec = rulev1alpha1.PolicyRuleSpec{
 		Direction: rulev1alpha1.RuleDirectionIn,
 		RuleType:  ruleType,
-		Tier:      constants.Tier1,
+		Tier:      constants.Tier2,
 		DstIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}
@@ -113,7 +113,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType rulev1alpha1.RuleType, rule
 	egressRule.Spec = rulev1alpha1.PolicyRuleSpec{
 		Direction: rulev1alpha1.RuleDirectionOut,
 		RuleType:  ruleType,
-		Tier:      constants.Tier1,
+		Tier:      constants.Tier2,
 		SrcIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}

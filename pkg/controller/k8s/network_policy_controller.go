@@ -151,7 +151,7 @@ func getSecurityPolicy(networkPolicy *networkingv1.NetworkPolicy) *v1alpha1.Secu
 			Namespace: networkPolicy.Namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:          "tier1",
+			Tier:          constants.Tier2,
 			SymmetricMode: false,
 			AppliedTo: []v1alpha1.ApplyToPeer{{
 				EndpointSelector: networkPolicy.Spec.PodSelector.DeepCopy(),

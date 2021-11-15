@@ -75,6 +75,7 @@ const (
 	// default tier tier0, tier1, tier2
 	tier0 = "tier0"
 	tier1 = "tier1"
+	tier2 = "tier2"
 )
 
 func E2eFail(message string, callerSkip ...int) {
