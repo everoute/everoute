@@ -75,15 +75,15 @@ var _ = Describe("SecurityPolicy", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier1, nginxSelector)
+				nginxPolicy = newPolicy("nginx-policy", tier2, nginxSelector)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
 				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
 
-				serverPolicy = newPolicy("server-policy", tier1, serverSelector)
+				serverPolicy = newPolicy("server-policy", tier2, serverSelector)
 				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
 				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
 
-				dbPolicy = newPolicy("db-policy", tier1, dbSelector)
+				dbPolicy = newPolicy("db-policy", tier2, dbSelector)
 				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
 				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
 
@@ -182,10 +182,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier1, serverSelector, dbSelector)
+				icmpDropPolicy = newPolicy("icmp-drop-policy", tier2, serverSelector, dbSelector)
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier1, nginxSelector)
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier2, nginxSelector)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
 				Expect(e2eEnv.SetupObjects(ctx, icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
@@ -207,6 +207,7 @@ var _ = Describe("SecurityPolicy", func() {
 	Context("endpoint isolation [Feature:ISOLATION]", func() {
 		var ep01, ep02, ep03, ep04 *model.Endpoint
 		var forensicGroup *metav1.LabelSelector
+		var forensicGroup2 *metav1.LabelSelector
 		var tcpPort int
 
 		BeforeEach(func() {
@@ -221,6 +222,7 @@ var _ = Describe("SecurityPolicy", func() {
 			ep04 = &model.Endpoint{Name: "ep04", TCPPort: tcpPort}
 
 			forensicGroup = newSelector(map[string]string{"component": "forensic"})
+			forensicGroup2 = newSelector(map[string]string{"component": "forensic2"})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ep01, ep02, ep03, ep04)).Should(Succeed())
 		})
@@ -252,22 +254,27 @@ var _ = Describe("SecurityPolicy", func() {
 		})
 
 		When("Forensic endpoint", func() {
-			var forensicPolicy *securityv1alpha1.SecurityPolicy
+			var forensicPolicy1 *securityv1alpha1.SecurityPolicy
+			var forensicPolicy2 *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				forensicPolicy = newPolicy("forensic-policy", tier0, ep01.Name)
-				addIngressRule(forensicPolicy, "TCP", tcpPort, forensicGroup)
+				forensicPolicy1 = newPolicy("forensic-policy-ingress", tier1, ep01.Name)
+				forensicPolicy1.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+				addIngressRule(forensicPolicy1, "TCP", tcpPort, forensicGroup)
+
+				forensicPolicy2 = newPolicy("forensic-policy-egress", tier0, ep01.Name)
+				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				// set ep02 as forensic endpoint
 				ep02.Labels = map[string]string{"component": "forensic"}
 
 				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep02)).Should(Succeed())
-				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy1, forensicPolicy2)).Should(Succeed())
 			})
 
 			It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
 				securityModel := &SecurityModel{
-					Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
+					Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy1, forensicPolicy2},
 					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
 				}
 
@@ -289,7 +296,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 				It("Isolated endpoint should not allow to communicate with all of endpoint except forensic defined allowed endpoint", func() {
 					securityModel := &SecurityModel{
-						Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy},
+						Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy1, forensicPolicy2},
 						Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
 					}
 
@@ -302,6 +309,86 @@ var _ = Describe("SecurityPolicy", func() {
 					expectedTruthTable.SetAllTo(ep01.Name, false)
 					expectedTruthTable.Set(ep02.Name, ep01.Name, true)
 					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+				})
+			})
+		})
+
+		When("Isolate & Forensic endpoint", func() {
+			var forensicPolicy1 *securityv1alpha1.SecurityPolicy
+			var forensicPolicy2 *securityv1alpha1.SecurityPolicy
+			var isolationPolicy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				forensicPolicy1 = newPolicy("forensic-policy-ingress", tier1, ep02.Name)
+				forensicPolicy1.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+				addIngressRule(forensicPolicy1, "TCP", tcpPort, forensicGroup)
+
+				forensicPolicy2 = newPolicy("forensic-policy-egress", tier0, ep02.Name)
+				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+
+				// set ep02 as forensic endpoint
+				ep01.Labels = map[string]string{"component": "forensic"}
+
+				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep01)).Should(Succeed())
+				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy1, forensicPolicy2)).Should(Succeed())
+
+				isolationPolicy = newPolicy("isolation-policy", tier0, ep01.Name)
+				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
+			})
+			It("isolation policy should have higher priority than forensic policy", func() {
+				securityModel := &SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy1, forensicPolicy2, isolationPolicy},
+					Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
+				}
+
+				By("verify all agents has correct flows")
+				assertFlowMatches(securityModel)
+
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+				expectedTruthTable.SetAllFrom(ep01.Name, false)
+				expectedTruthTable.SetAllTo(ep01.Name, false)
+				expectedTruthTable.SetAllFrom(ep02.Name, false)
+				expectedTruthTable.SetAllTo(ep02.Name, false)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+
+			})
+			When("Isolate & Forensic endpoint", func() {
+				var forensicPolicy3 *securityv1alpha1.SecurityPolicy
+				var forensicPolicy4 *securityv1alpha1.SecurityPolicy
+				BeforeEach(func() {
+					forensicPolicy3 = newPolicy("forensic-policy2-ingress", tier1, ep03.Name)
+					forensicPolicy3.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+					addIngressRule(forensicPolicy3, "TCP", tcpPort, forensicGroup2)
+
+					forensicPolicy4 = newPolicy("forensic-policy2-egress", tier0, ep03.Name)
+					forensicPolicy4.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+
+					// set ep02 as forensic endpoint
+					ep02.Labels = map[string]string{"component": "forensic2"}
+
+					Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep02)).Should(Succeed())
+					Expect(e2eEnv.SetupObjects(ctx, forensicPolicy3, forensicPolicy4)).Should(Succeed())
+
+				})
+				It("forensic policy should have effect while cross assigned", func() {
+					securityModel := &SecurityModel{
+						Policies:  []*securityv1alpha1.SecurityPolicy{forensicPolicy1, forensicPolicy2, forensicPolicy3, forensicPolicy4},
+						Endpoints: []*model.Endpoint{ep01, ep02, ep03, ep04},
+					}
+
+					By("verify all agents has correct flows")
+					assertFlowMatches(securityModel)
+
+					By("verify reachable between endpoints")
+					expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+					expectedTruthTable.SetAllFrom(ep01.Name, false)
+					expectedTruthTable.SetAllTo(ep01.Name, false)
+					expectedTruthTable.SetAllFrom(ep02.Name, false)
+					expectedTruthTable.SetAllTo(ep02.Name, false)
+					expectedTruthTable.SetAllFrom(ep03.Name, false)
+					expectedTruthTable.SetAllTo(ep03.Name, false)
+					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+
 				})
 			})
 		})
@@ -341,10 +428,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var ntpProductionPolicy, ntpDevelopmentPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier1, ntpProductionSelector)
+				ntpProductionPolicy = newPolicy("ntp-production-policy", tier2, ntpProductionSelector)
 				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: productionCidr})
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier1, ntpDevelopmentSelector)
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier2, ntpDevelopmentSelector)
 				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: developmentCidr})
 
 				Expect(e2eEnv.SetupObjects(ctx, ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
@@ -466,7 +553,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			BeforeEach(func() {
 				// allow traffic from groupA to groupB
-				groupPolicy = newPolicy("group-policy", tier1, groupA)
+				groupPolicy = newPolicy("group-policy", tier2, groupA)
 				addEngressRule(groupPolicy, "TCP", tcpPort, groupB)
 				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
 			})

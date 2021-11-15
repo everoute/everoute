@@ -165,7 +165,7 @@ func assertHasGlobalPolicyRule(ctx context.Context, ruleType, direction, action,
 		Expect(k8sClient.List(ctx, &policyRuleList, client.HasLabels([]string{constants.IsGlobalPolicyRuleLabel}))).Should(Succeed())
 
 		for _, rule := range policyRuleList.Items {
-			if constants.Tier1 == rule.Spec.Tier &&
+			if constants.Tier2 == rule.Spec.Tier &&
 				ruleType == string(rule.Spec.RuleType) &&
 				direction == string(rule.Spec.Direction) &&
 				action == string(rule.Spec.Action) &&

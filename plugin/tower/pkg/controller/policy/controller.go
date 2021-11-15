@@ -46,6 +46,8 @@ import (
 const (
 	SecurityPolicyPrefix             = "tower.sp-"
 	IsolationPolicyPrefix            = "tower.ip-"
+	IsolationPolicyIngressPrefix     = "tower.ip.ingress-"
+	IsolationPolicyEgressPrefix      = "tower.ip.egress-"
 	SecurityPolicyCommunicablePrefix = "tower.sp.communicable-"
 
 	vmIndex              = "vmIndex"
@@ -276,9 +278,14 @@ func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) 
 func (c *Controller) isolationPolicyIndexFunc(obj interface{}) ([]string, error) {
 	policy := obj.(*v1alpha1.SecurityPolicy)
 
-	if strings.HasPrefix(policy.GetName(), IsolationPolicyPrefix) {
-		isolationPolicyKey := strings.TrimPrefix(policy.GetName(), IsolationPolicyPrefix)
-		return []string{isolationPolicyKey}, nil
+	if strings.HasPrefix(policy.GetName(), strings.TrimSuffix(IsolationPolicyPrefix, "-")) {
+		if strings.HasPrefix(policy.GetName(), IsolationPolicyIngressPrefix) {
+			return []string{strings.TrimPrefix(policy.GetName(), IsolationPolicyIngressPrefix)}, nil
+		}
+		if strings.HasPrefix(policy.GetName(), IsolationPolicyEgressPrefix) {
+			return []string{strings.TrimPrefix(policy.GetName(), IsolationPolicyEgressPrefix)}, nil
+		}
+		return []string{strings.TrimPrefix(policy.GetName(), IsolationPolicyPrefix)}, nil
 	}
 
 	return nil, nil
@@ -604,7 +611,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:          constants.Tier1,
+			Tier:          constants.Tier2,
 			SymmetricMode: true,
 			AppliedTo:     applyToPeers,
 			IngressRules:  ingress,
@@ -639,32 +646,83 @@ func (c *Controller) parseIsolationPolicy(isolationPolicy *schema.IsolationPolic
 		return nil, nil
 	}
 
-	policy := v1alpha1.SecurityPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      IsolationPolicyPrefix + isolationPolicy.GetID(),
-			Namespace: c.namespace,
-		},
-		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:          constants.Tier0,
-			SymmetricMode: true,
-			AppliedTo:     applyToPeers,
-			PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-		},
-	}
+	var isolationPolices []v1alpha1.SecurityPolicy
 
 	switch isolationPolicy.Mode {
 	case schema.IsolationModeAll:
 		// IsolationModeAll should not create ingress or egress rule
+		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
+			schema.IsolationModeAll, applyToPeers, nil, nil)...)
 	case schema.IsolationModePartial:
 		ingress, egress, err := c.parseNetworkPolicyRules(isolationPolicy.Ingress, isolationPolicy.Egress)
 		if err != nil {
 			return nil, err
 		}
-		policy.Spec.IngressRules = ingress
-		policy.Spec.EgressRules = egress
+		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
+			schema.IsolationModePartial, applyToPeers, ingress, egress)...)
 	}
 
-	return []v1alpha1.SecurityPolicy{policy}, nil
+	return isolationPolices, nil
+}
+
+func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMode, applyToPeers []v1alpha1.ApplyToPeer,
+	ingress, egress []v1alpha1.Rule) []v1alpha1.SecurityPolicy {
+	var isolationPolices []v1alpha1.SecurityPolicy
+	switch mode {
+	case schema.IsolationModeAll:
+		policy := v1alpha1.SecurityPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      IsolationPolicyPrefix + id,
+				Namespace: c.namespace,
+			},
+			Spec: v1alpha1.SecurityPolicySpec{
+				SymmetricMode: true,
+				Tier:          constants.Tier0,
+				AppliedTo:     applyToPeers,
+				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			},
+		}
+		isolationPolices = append(isolationPolices, policy)
+	case schema.IsolationModePartial:
+		// separate partial policy into ingress and egress policy
+		ingressPolicy := v1alpha1.SecurityPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      IsolationPolicyIngressPrefix + id,
+				Namespace: c.namespace,
+			},
+			Spec: v1alpha1.SecurityPolicySpec{
+				SymmetricMode: true,
+				AppliedTo:     applyToPeers,
+				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+				IngressRules:  ingress,
+				Tier:          constants.Tier1,
+			},
+		}
+		if len(ingress) == 0 {
+			ingressPolicy.Spec.Tier = constants.Tier0
+		}
+		isolationPolices = append(isolationPolices, ingressPolicy)
+
+		egressPolicy := v1alpha1.SecurityPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      IsolationPolicyEgressPrefix + id,
+				Namespace: c.namespace,
+			},
+			Spec: v1alpha1.SecurityPolicySpec{
+				SymmetricMode: true,
+				AppliedTo:     applyToPeers,
+				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+				EgressRules:   egress,
+				Tier:          constants.Tier1,
+			},
+		}
+		if len(egress) == 0 {
+			egressPolicy.Spec.Tier = constants.Tier0
+		}
+		isolationPolices = append(isolationPolices, egressPolicy)
+	}
+
+	return isolationPolices
 }
 
 func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
@@ -681,7 +739,7 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier: constants.Tier1,
+			Tier: constants.Tier2,
 			AppliedTo: []v1alpha1.ApplyToPeer{{
 				EndpointSelector: endpointSelector,
 			}},
