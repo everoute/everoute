@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -196,8 +197,13 @@ func getSecurityPolicyPort(networkPolicyPort []networkingv1.NetworkPolicyPort) [
 	var securityPolicyPort []v1alpha1.SecurityPolicyPort
 	for _, port := range networkPolicyPort {
 		newPort := v1alpha1.SecurityPolicyPort{
-			Protocol:  v1alpha1.Protocol(*port.Protocol),
-			PortRange: port.Port.String(),
+			Protocol: v1alpha1.Protocol(*port.Protocol),
+		}
+		if port.Port == nil {
+			newPort.PortRange = ""
+		} else if port.Port.Type == intstr.Int {
+			newPort.PortRange = port.Port.String()
+			// TODO: support named port
 		}
 		// handle port range for Kubernetes v1.22+
 		/*
