@@ -206,7 +206,7 @@ func (monitor *AgentMonitor) startOvsdbMonitor() error {
 	}
 	requests := map[string]ovsdb.MonitorRequest{
 		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
-		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids"}},
+		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error"}},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
 	}
@@ -553,20 +553,25 @@ func (monitor *AgentMonitor) fetchPortLocked(uuid ovsdb.UUID, bridgeName string)
 	}
 
 	for _, uuid := range listUUID(ovsPort.Fields["interfaces"]) {
-		iface, err := monitor.fetchInterfaceLocked(uuid, bridgeName)
-		if err != nil {
-			return nil, err
+		iface := monitor.fetchInterfaceLocked(uuid, bridgeName)
+		if iface != nil {
+			port.Interfaces = append(port.Interfaces, *iface)
 		}
-		port.Interfaces = append(port.Interfaces, *iface)
 	}
 
 	return port, nil
 }
 
-func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName string) (*agentv1alpha1.OVSInterface, error) {
+func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName string) *agentv1alpha1.OVSInterface {
 	ovsIface, ok := monitor.ovsdbCache["Interface"][uuid.GoUuid]
 	if !ok {
-		return nil, fmt.Errorf("ovs interface %s not found in cache", uuid)
+		klog.V(4).Infof("could not find interface %+v in cache", ovsIface)
+		return nil
+	}
+	// ignore interface will errors
+	if ifHasError(ovsIface.Fields["error"]) {
+		klog.V(4).Infof("errors occur in interface %+v", ovsIface)
+		return nil
 	}
 
 	iface := agentv1alpha1.OVSInterface{
@@ -596,7 +601,7 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName st
 		iface.IPs = monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
 	}
 
-	return &iface, nil
+	return &iface
 }
 
 func (monitor *AgentMonitor) fetchBridgeLocked(uuid ovsdb.UUID) (*agentv1alpha1.OVSBridge, error) {
@@ -618,6 +623,17 @@ func (monitor *AgentMonitor) fetchBridgeLocked(uuid ovsdb.UUID) (*agentv1alpha1.
 	}
 
 	return bridge, nil
+}
+
+func ifHasError(ovsIf interface{}) bool {
+	value, ok := ovsIf.(string)
+	if !ok {
+		return false
+	}
+	if ok && value == "" {
+		return false
+	}
+	return true
 }
 
 func listUUID(uuidList interface{}) []ovsdb.UUID {
