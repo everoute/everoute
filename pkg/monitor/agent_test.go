@@ -22,12 +22,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	ovsdb "github.com/contiv/libovsdb"
 	. "github.com/onsi/gomega"
+	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -85,7 +87,9 @@ func TestAgentMonitor(t *testing.T) {
 	RegisterTestingT(t)
 
 	brName := string(uuid.NewUUID())
-	portName := string(uuid.NewUUID())
+	fakeportName := string(uuid.NewUUID())
+	portName := "if-" + strings.Split(string(uuid.NewUUID()), "-")[0]
+	portPeerName := "if-" + strings.Split(string(uuid.NewUUID()), "-")[0]
 	ifaceName := portName
 	externalIDs := map[string]string{"everoute.agent.monitor.externalID.name": "everoute.agent.monitor.externalID.value"}
 
@@ -100,12 +104,39 @@ func TestAgentMonitor(t *testing.T) {
 	})
 
 	t.Logf("create new port %s", portName)
+	Expect(createVethPair(portName, portPeerName)).Should(Succeed())
 	Expect(createPort(ovsClient, brName, portName)).Should(Succeed())
 
 	t.Run("monitor should create new port", func(t *testing.T) {
 		Eventually(func() error {
 			_, err := getPort(k8sClient, brName, portName)
 			return err
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Logf("create new fake port %s", fakeportName)
+	Expect(createPort(ovsClient, brName, fakeportName)).Should(Succeed())
+
+	t.Run("monitor should create new port", func(t *testing.T) {
+		Eventually(func() error {
+			_, err := getPort(k8sClient, brName, fakeportName)
+			return err
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("interface with error should not appear in agentInfo", func(t *testing.T) {
+		Eventually(func() error {
+			agentInfo, _ := monitor.getAgentInfo()
+			for _, br := range agentInfo.OVSInfo.Bridges {
+				for _, port := range br.Ports {
+					for _, iface := range port.Interfaces {
+						if iface.Name == fakeportName {
+							return fmt.Errorf("error")
+						}
+					}
+				}
+			}
+			return nil
 		}, timeout, interval).Should(Succeed())
 	})
 
@@ -303,6 +334,16 @@ func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ov
 	}
 
 	return intfUUID, intfOperations
+}
+
+func createVethPair(vethName, peerName string) error {
+	veth := &netlink.Veth{
+		LinkAttrs: netlink.LinkAttrs{Name: vethName, TxQLen: 0},
+		PeerName:  peerName}
+	if err := netlink.LinkAdd(veth); err != nil {
+		return err
+	}
+	return nil
 }
 
 func createOvsPort(bridgeName, portName string, interfaces []Iface, vlanTag uint) error {

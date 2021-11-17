@@ -52,6 +52,7 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)
 	flag.Parse()
+	defer klog.Flush()
 
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
