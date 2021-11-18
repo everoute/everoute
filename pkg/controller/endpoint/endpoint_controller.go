@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -256,9 +257,21 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		// if no match iface found, return empty status
 		return &securityv1alpha1.EndpointStatus{}, nil
 	default:
-		// use the first iface status as endpoint status
+		// combine all ifaces status into endpoint status
+		ipsets := sets.NewString()
+		for _, item := range ifaces {
+			if len(item.(*iface).ips) != 0 {
+				for _, ip := range item.(*iface).ips {
+					ipsets.Insert(ip.String())
+				}
+			}
+		}
+		var ips []types.IPAddress
+		for _, ip := range ipsets.List() {
+			ips = append(ips, types.IPAddress(ip))
+		}
 		return &securityv1alpha1.EndpointStatus{
-			IPs:        append([]types.IPAddress{}, ifaces[0].(*iface).ips...),
+			IPs:        ips,
 			MacAddress: ifaces[0].(*iface).mac,
 		}, nil
 	}
