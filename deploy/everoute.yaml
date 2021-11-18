@@ -516,7 +516,35 @@ spec:
     singular: policyrule
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.direction
+      name: Direction
+      type: string
+    - jsonPath: .spec.ruleType
+      name: RuleType
+      type: string
+    - jsonPath: .spec.tier
+      name: Tier
+      type: string
+    - jsonPath: .spec.srcIPAddr
+      name: SrcIPAddr
+      type: string
+    - jsonPath: .spec.dstIPAddr
+      name: DstIPAddr
+      type: string
+    - jsonPath: .spec.ipProtocol
+      name: IPProtocol
+      type: string
+    - jsonPath: .spec.dstPort
+      name: DstPort
+      type: string
+    - jsonPath: .spec.dstPortMask
+      name: DstPortMask
+      type: string
+    - jsonPath: .spec.action
+      name: Action
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: PolicyRule
