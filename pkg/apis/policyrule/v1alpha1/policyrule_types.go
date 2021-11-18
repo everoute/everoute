@@ -25,6 +25,15 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Direction",type="string",JSONPath=".spec.direction"
+// +kubebuilder:printcolumn:name="RuleType",type="string",JSONPath=".spec.ruleType"
+// +kubebuilder:printcolumn:name="Tier",type="string",JSONPath=".spec.tier"
+// +kubebuilder:printcolumn:name="SrcIPAddr",type="string",JSONPath=".spec.srcIPAddr"
+// +kubebuilder:printcolumn:name="DstIPAddr",type="string",JSONPath=".spec.dstIPAddr"
+// +kubebuilder:printcolumn:name="IPProtocol",type="string",JSONPath=".spec.ipProtocol"
+// +kubebuilder:printcolumn:name="DstPort",type="string",JSONPath=".spec.dstPort"
+// +kubebuilder:printcolumn:name="DstPortMask",type="string",JSONPath=".spec.dstPortMask"
+// +kubebuilder:printcolumn:name="Action",type="string",JSONPath=".spec.action"
 
 // PolicyRule
 // +k8s:openapi-gen=true
