@@ -28,10 +28,11 @@ const (
 	OwnerPolicyLabelKey              = "label.everoute.io/ownerpolicy"
 	IsGlobalPolicyRuleLabel          = "label.everoute.io/isglobalpolicy"
 
-	// Tier0 used for isolation policy
+	// Tier0 used for isolation policy and forensic one side drop
 	Tier0 = "tier0"
-	// Tier1 used for security policy and global policy
+	// Tier1 used for forensic policy
 	Tier1 = "tier1"
+	// Tier2 used for security policy and global policy
 	Tier2 = "tier2"
 
 	SecurityPolicyByEndpointIndex      = "SecurityPolicyByEndpointIndex"
