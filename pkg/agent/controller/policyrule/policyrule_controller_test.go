@@ -24,8 +24,8 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -134,10 +134,10 @@ func newFakeReconciler(datapathManager *datapath.DpManager, initObjs ...runtime.
 	_ = networkpolicyv1alpha1.AddToScheme(scheme)
 
 	return &PolicyRuleReconciler{
-		Client:              fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
-		Scheme:              scheme,
-		DatapathManager:     datapathManager,
-		flowKeyReferenceMap: make(map[string]sets.String),
+		Client:                fakeclient.NewFakeClientWithScheme(scheme, initObjs...),
+		Scheme:                scheme,
+		DatapathManager:       datapathManager,
+		flowKeyReferenceCache: cache.NewThreadSafeStore(cache.Indexers{}, cache.Indices{}),
 	}
 }
 

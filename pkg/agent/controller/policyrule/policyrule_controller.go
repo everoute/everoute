@@ -20,12 +20,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,8 +45,7 @@ type PolicyRuleReconciler struct {
 	Scheme          *runtime.Scheme
 	DatapathManager *datapath.DpManager
 
-	flowKeyReferenceMapLock sync.RWMutex
-	flowKeyReferenceMap     map[string]sets.String // Map flowKey to policyRule names
+	flowKeyReferenceCache cache.ThreadSafeStore // cache flowKey to policyRule name
 }
 
 func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -55,7 +53,7 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("can't setup with nil manager")
 	}
 
-	r.flowKeyReferenceMap = make(map[string]sets.String)
+	r.flowKeyReferenceCache = cache.NewThreadSafeStore(cache.Indexers{}, cache.Indices{})
 
 	c, err := controller.New("policyrule-controller", mgr, controller.Options{
 		Reconciler: r,
@@ -131,39 +129,25 @@ func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue
 }
 
 func (r *PolicyRuleReconciler) processPolicyRuleDelete(ruleName string) {
-	r.flowKeyReferenceMapLock.Lock()
-	defer r.flowKeyReferenceMapLock.Unlock()
-
 	var flowKey = flowKeyFromRuleName(ruleName)
-	if r.flowKeyReferenceMap[flowKey] == nil {
-		// already deleted
+
+	if _, exist := r.flowKeyReferenceCache.Get(flowKey); !exist {
 		return
 	}
 
-	r.flowKeyReferenceMap[flowKey].Delete(ruleName)
-
-	if r.flowKeyReferenceMap[flowKey].Len() == 0 {
-		delete(r.flowKeyReferenceMap, flowKey)
-
-		klog.Infof("remove rule %s from datapath", flowKey)
-		r.deletePolicyRuleFromDatapath(flowKey)
-	}
+	r.flowKeyReferenceCache.Delete(flowKey)
+	klog.Infof("remove rule %s from datapath", flowKey)
+	r.deletePolicyRuleFromDatapath(flowKey)
 }
 
 func (r *PolicyRuleReconciler) processPolicyRuleAdd(policyRule *networkpolicyv1alpha1.PolicyRule) {
-	r.flowKeyReferenceMapLock.Lock()
-	defer r.flowKeyReferenceMapLock.Unlock()
-
 	var flowKey = flowKeyFromRuleName(policyRule.Name)
 
-	if r.flowKeyReferenceMap[flowKey] == nil {
-		r.flowKeyReferenceMap[flowKey] = sets.NewString()
-
+	if _, exist := r.flowKeyReferenceCache.Get(flowKey); !exist {
 		klog.Infof("add rule %s to datapath", flowKey)
 		r.addPolicyRuleToDatapath(flowKey, &policyRule.Spec)
 	}
-
-	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
+	r.flowKeyReferenceCache.Add(flowKey, policyRule.Name)
 }
 
 func (r *PolicyRuleReconciler) deletePolicyRuleFromDatapath(flowKey string) {
