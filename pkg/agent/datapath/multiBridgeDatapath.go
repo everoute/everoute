@@ -299,9 +299,10 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	var randID string
-	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+	var randID, randOvsBr string
+	for vdsID, ovsbrName := range datapathManager.datapathConfig.ManagedVDSMap {
 		randID = vdsID
+		randOvsBr = ovsbrName
 		break
 	}
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[randID][LOCAL_BRIDGE_KEYWORD])
@@ -354,7 +355,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		}(vdsID)
 	}
 
-	VswitchdUnixSock := fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, randID, ovsVswitchdUnixDomainSockSuffix)
+	VswitchdUnixSock := fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, randOvsBr, ovsVswitchdUnixDomainSockSuffix)
 	go watchFile(VswitchdUnixSock, stopChan, datapathManager.flowReplayChan)
 	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
 
