@@ -299,28 +299,21 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	var randID, randOvsBr string
-	for vdsID, ovsbrName := range datapathManager.datapathConfig.ManagedVDSMap {
-		randID = vdsID
-		randOvsBr = ovsbrName
-		break
-	}
-	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[randID][LOCAL_BRIDGE_KEYWORD])
-	if err != nil {
-		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
-	}
-
-	// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+		if err != nil {
+			log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
+		}
+
+		// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
 		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-	}
 
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+		// update cookie
+		cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
 
-	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
 		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
 		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
 		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
@@ -330,6 +323,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
 			LOCAL_TO_POLICY_PORT); err != nil {
 			log.Fatalf("Failed to set local to policy port with no flood port mode, %v", err)
@@ -355,6 +349,11 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		}(vdsID)
 	}
 
+	var randOvsBr string
+	for _, ovsbr := range datapathManager.datapathConfig.ManagedVDSMap {
+		randOvsBr = ovsbr
+		break
+	}
 	VswitchdUnixSock := fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, randOvsBr, ovsVswitchdUnixDomainSockSuffix)
 	go watchFile(VswitchdUnixSock, stopChan, datapathManager.flowReplayChan)
 	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
