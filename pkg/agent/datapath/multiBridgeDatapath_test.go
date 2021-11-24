@@ -60,6 +60,12 @@ var (
 		BridgeName: "ovsbr0",
 		VlanID:     uint16(1),
 	}
+	newep1 = &Endpoint{
+		PortNo:     uint32(12),
+		MacAddrStr: "00:00:aa:aa:aa:aa",
+		BridgeName: "ovsbr0",
+		VlanID:     uint16(1),
+	}
 
 	rule1 = &EveroutePolicyRule{
 		RuleID:     "rule1",
@@ -126,11 +132,21 @@ func testLocalEndpoint(t *testing.T) {
 			t.Errorf("Failed to learning local endpoint ip address")
 		}
 
-		if err := datapathManager.RemoveLocalEndpoint(ep1); err != nil {
-			t.Errorf("Failed to remove local endpoint %v, error: %v", ep1, err)
+		if err := datapathManager.UpdateLocalEndpoint(newep1, ep1); err != nil {
+			t.Errorf("Failed to udpate local endpoint: from %v to %v, error: %v", ep1, newep1, err)
 		}
 		if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ep1.BridgeName, ep1.PortNo)); ep != nil {
-			t.Errorf("Failed to remove local endpoint, endpoint %v in cache", ep1)
+			t.Errorf("Failed to update local endpoint, failed to delete old endpoint %v", ep1)
+		}
+		if newep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", newep1.BridgeName, newep1.PortNo)); newep == nil {
+			t.Errorf("Failed to update local endpoint, failed to add new endpoint %v", ep1)
+		}
+
+		if err := datapathManager.RemoveLocalEndpoint(newep1); err != nil {
+			t.Errorf("Failed to remove local endpoint %v, error: %v", newep1, err)
+		}
+		if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", newep1.BridgeName, newep1.PortNo)); ep != nil {
+			t.Errorf("Failed to remove local endpoint, endpoint %v in cache", newep1)
 		}
 	})
 }
