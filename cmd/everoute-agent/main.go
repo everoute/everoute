@@ -107,6 +107,12 @@ func main() {
 				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", endpoint, err)
 			}
 		},
+		LocalEndpointUpdateFunc: func(newEndpoint, oldEndpoint datapath.Endpoint) {
+			err := datapathManager.UpdateLocalEndpoint(&newEndpoint, &oldEndpoint)
+			if err != nil {
+				klog.Errorf("Failed to update local endpoint from %v to %v, error: %v", oldEndpoint, newEndpoint, err)
+			}
+		},
 	})
 	go agentmonitor.Run(stopChan)
 

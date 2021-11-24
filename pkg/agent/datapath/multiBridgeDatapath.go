@@ -573,7 +573,43 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (datapathManager *DpManager) UpdateLocalEndpoint() {
+func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *Endpoint) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+	var err error
+
+	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
+		if ovsbrname == newEndpoint.BridgeName {
+			oldEP, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, oldEndpoint.PortNo))
+			if oldEP == nil {
+				return fmt.Errorf("old local endpoint: %v not found", oldEP)
+			}
+			ep := oldEP.(*Endpoint)
+			// NOTE copy ip addr cached in oldEP to newEndpoint can skip ip address learning operation
+			learnedIP := make(net.IP, len(ep.IPAddr))
+			copy(learnedIP, ep.IPAddr)
+			newEndpoint.IPAddr = learnedIP
+
+			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
+			if err != nil {
+				return fmt.Errorf("failed to remove old local endpoint %v from vds %v : bridge %v, error: %v", oldEndpoint.MacAddrStr, vdsID, ovsbrname, err)
+			}
+			datapathManager.localEndpointDB.Remove(fmt.Sprintf("%s-%d", ovsbrname, oldEndpoint.PortNo))
+
+			if newEP, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, newEndpoint.PortNo)); newEP != nil {
+				return fmt.Errorf("new local endpoint: %v already exits", newEP)
+			}
+			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
+			if err != nil {
+				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", newEndpoint.MacAddrStr, vdsID, ovsbrname, err)
+			}
+
+			datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", ovsbrname, newEndpoint.PortNo), newEndpoint)
+			break
+		}
+	}
+
+	return nil
 }
 
 func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error {

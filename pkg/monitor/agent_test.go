@@ -723,6 +723,13 @@ func startAgentMonitor(k8sClient client.Client) (*AgentMonitor, chan struct{}, c
 
 			delete(localEndpointMap, endpoint.PortNo)
 		},
+		LocalEndpointUpdateFunc: func(newEndpoint, oldEndpoint datapath.Endpoint) {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
+
+			delete(localEndpointMap, oldEndpoint.PortNo)
+			localEndpointMap[newEndpoint.PortNo], _ = net.ParseMAC(newEndpoint.MacAddrStr)
+		},
 	})
 
 	stopChan := make(chan struct{})

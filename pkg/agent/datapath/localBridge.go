@@ -138,16 +138,10 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	switch t := pkt.Data.(type) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
-		ofPortUpdatedPort, ipAddrUpdatedPort := l.filterUpdatedLocalEndpointOfPort(arpIn, inPort)
 
 		// Don't add endpoint from received arp pkt event. We just add local endpoint from control-plane
 		// Already exists endpoint
-
-		if ofPortUpdatedPort != nil {
-			l.localEndpointOfPortUpdate(*ofPortUpdatedPort, inPort, arpIn)
-		}
-
-		if ipAddrUpdatedPort != nil {
+		if ipAddrUpdatedPort := l.filterUpdatedLocalEndpointOfPort(arpIn, inPort); ipAddrUpdatedPort != nil {
 			l.localEndpointIPAddrUpdate(*ipAddrUpdatedPort, inPort, arpIn)
 		}
 
@@ -158,44 +152,21 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	}
 }
 
-func (l *LocalBridge) filterUpdatedLocalEndpointOfPort(arpIn protocol.ARP, inPort uint32) (*uint32, *uint32) {
+func (l *LocalBridge) filterUpdatedLocalEndpointOfPort(arpIn protocol.ARP, inPort uint32) *uint32 {
 	var ofPort uint32
 
 	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
 		endpoint := endpointObj.Val.(*Endpoint)
 
-		if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.PortNo != inPort {
-			ofPort = endpoint.PortNo
-
-			return &ofPort, nil
-		}
-
 		if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.PortNo == inPort &&
 			!endpoint.IPAddr.Equal(arpIn.IPSrc) {
 			ofPort = endpoint.PortNo
 
-			return nil, &ofPort
+			return &ofPort
 		}
 	}
 
-	return nil, nil
-}
-
-func (l *LocalBridge) localEndpointOfPortUpdate(ofPortUpdatedPort uint32, inPort uint32, arpIn protocol.ARP) {
-	endpointObj, _ := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, ofPortUpdatedPort))
-	if endpointObj == nil {
-		log.Errorf("OfPort %d on bridge %s related Endpoint was not found", ofPortUpdatedPort, l.name)
-		return
-	}
-	endpoint := endpointObj.(*Endpoint)
-
-	log.Infof("Update localOfPort's endpointInfo from %d : %v to %d : %v", ofPortUpdatedPort,
-		endpoint.IPAddr, inPort, arpIn.IPSrc)
-
-	l.notifyLocalEndpointInfoUpdate(arpIn, ofPortUpdatedPort, true)
-
-	l.updateLocalEndpointInfoEntry(arpIn, inPort)
-	l.notifyLocalEndpointInfoUpdate(arpIn, inPort, false)
+	return nil
 }
 
 func (l *LocalBridge) localEndpointIPAddrUpdate(ipAddrUpdatedPort uint32, inPort uint32, arpIn protocol.ARP) {
