@@ -381,7 +381,7 @@ func toCrdEndpoint(endpoint *model.Endpoint, resourceVersion string) *v1alpha1.E
 
 	securityEp.Spec = v1alpha1.EndpointSpec{
 		Reference: v1alpha1.EndpointReference{
-			ExternalIDName:  "external_uuid",
+			ExternalIDName:  "iface-id",
 			ExternalIDValue: fmt.Sprintf("uuid-%s", endpoint.Status.LocalID),
 		},
 	}

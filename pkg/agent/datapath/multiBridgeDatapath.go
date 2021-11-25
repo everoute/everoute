@@ -142,8 +142,8 @@ type DpManager struct {
 	OvsdbDriverMap map[string]map[string]*ovsdbDriver.OvsDriver // map vds to bridge ovsdbDriver map
 	ControllerMap  map[string]map[string]*ofctrl.Controller
 
-	localEndpointDB           cmap.ConcurrentMap       // list of local endpoint map
-	ofPortIPAddressUpdateChan chan map[string][]net.IP // map bridgename-ofport to endpoint ips
+	localEndpointDB           cmap.ConcurrentMap     // list of local endpoint map
+	ofPortIPAddressUpdateChan chan map[string]net.IP // map bridgename-ofport to endpoint ips
 	datapathConfig            *Config
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
 	flowReplayChan            chan struct{}
@@ -210,7 +210,7 @@ type RoundInfo struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string][]net.IP) *DpManager {
+func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)

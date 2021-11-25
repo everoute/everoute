@@ -87,12 +87,12 @@ type BondConfig struct {
 }
 
 type OVSInterface struct {
-	Name        string            `json:"name,omitempty"`
-	ExternalIDs map[string]string `json:"externalIDs,omitempty"`
-	Type        string            `json:"type,omitempty"`
-	Ofport      int32             `json:"ofport,omitempty"`
-	Mac         string            `json:"mac,omitempty"`
-	IPs         []types.IPAddress `json:"ips,omitempty"`
+	Name        string                          `json:"name,omitempty"`
+	ExternalIDs map[string]string               `json:"externalIDs,omitempty"`
+	Type        string                          `json:"type,omitempty"`
+	Ofport      int32                           `json:"ofport,omitempty"`
+	Mac         string                          `json:"mac,omitempty"`
+	IPMap       map[types.IPAddress]metav1.Time `json:"ipmap,omitempty"`
 }
 
 type AgentConditionType string

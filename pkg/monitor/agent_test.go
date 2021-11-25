@@ -17,7 +17,6 @@ limitations under the License.
 package monitor
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -31,7 +30,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,7 +62,7 @@ var (
 	agentName                  string
 	monitor                    *AgentMonitor
 	stopChan                   chan struct{}
-	ofPortIPAddressMonitorChan chan map[string][]net.IP
+	ofPortIPAddressMonitorChan chan map[string]net.IP
 	localEndpointLock          sync.RWMutex
 	localEndpointMap           map[uint32]net.HardwareAddr
 )
@@ -181,34 +182,6 @@ func TestAgentMonitor(t *testing.T) {
 	})
 }
 
-func TestAgentMonitorRestart(t *testing.T) {
-	RegisterTestingT(t)
-	brName := string(uuid.NewUUID())
-
-	t.Logf("create new bridge %s", brName)
-	Expect(createBridge(ovsClient, brName)).Should(Succeed())
-
-	var ofport int32 = 10
-	var ipAddr = []types.IPAddress{"10.10.56.32"}
-
-	t.Logf("stop agent %s monitor", agentName)
-	close(stopChan)
-
-	t.Logf("set ofport %d IPAddr %v to agentInfo", ofport, ipAddr)
-	Expect(setOfportIPAddr(k8sClient, brName, ofport, ipAddr)).Should(Succeed())
-
-	t.Logf("rerun agent %s monitor", agentName)
-	monitor, stopChan, ofPortIPAddressMonitorChan = startAgentMonitor(k8sClient)
-
-	t.Run("monitor should rebuild mapping of ofport to ipAddr", func(t *testing.T) {
-		Eventually(func() []types.IPAddress {
-			monitor.ipCacheLock.RLock()
-			defer monitor.ipCacheLock.RUnlock()
-			return monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofport)]
-		}, timeout, interval).Should(Equal(ipAddr))
-	})
-}
-
 func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	RegisterTestingT(t)
 	brName := string(uuid.NewUUID())
@@ -217,44 +190,31 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	Expect(createBridge(ovsClient, brName)).Should(Succeed())
 
 	var ofPort1 uint32 = 1
-	var ofPort2 uint32 = 2
-	var ipAddr1 = []net.IP{net.ParseIP("10.10.10.1")}
-	var ipAddr2 = []net.IP{net.ParseIP("10.10.10.2")}
+	var ipAddr1 = net.ParseIP("10.10.10.1")
+	var ipAddr2 = net.ParseIP("10.10.10.2")
 
 	t.Logf("Add OfPort %d, IpAddress %v.", ofPort1, ipAddr1)
 	Expect(addOfPortIPAddress(brName, ofPort1, ipAddr1, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should learning ofPort to IpAddress mapping.", func(t *testing.T) {
-		Eventually(func() string {
+		Eventually(func() bool {
 			monitor.ipCacheLock.RLock()
 			defer monitor.ipCacheLock.RUnlock()
-			ipAddrs := monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort1)]
-			return ofPortInfoToString(ipAddrs)
-		}, timeout, interval).Should(Equal(ipInfoToString(ipAddr1)))
+			ipSet := toIPSet(monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort1)])
+			return ipSet.Has(ipAddr1.String())
+		}, timeout, interval).Should(Equal(true))
 	})
 
-	t.Logf("Update ovsPort related OfPort from %d to %d.", ofPort1, ofPort2)
-	Expect(updateOfPort(brName, ofPort1, ofPort2, ofPortIPAddressMonitorChan)).Should(Succeed())
-
-	t.Run("Monitor should update Learned OfPort to IpAddress mapping.", func(t *testing.T) {
-		Eventually(func() string {
-			monitor.ipCacheLock.RLock()
-			defer monitor.ipCacheLock.RUnlock()
-			ipAddrs := monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort2)]
-			return ofPortInfoToString(ipAddrs)
-		}, timeout, interval).Should(Equal(ipInfoToString(ipAddr1)))
-	})
-
-	t.Logf("Update ovsPort related IpAddress from %v to %v.", ipAddr1, ipAddr2)
-	Expect(updateIPAddress(brName, ofPort2, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
+	t.Logf("Add another ovsPort related IpAddress %v.", ipAddr2)
+	Expect(updateIPAddress(brName, ofPort1, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
 
 	t.Run("Monitor should update learned OfPort to IpAddress mapping.", func(t *testing.T) {
-		Eventually(func() string {
+		Eventually(func() bool {
 			monitor.ipCacheLock.RLock()
 			defer monitor.ipCacheLock.RUnlock()
-			ipAddrs := monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort2)]
-			return ofPortInfoToString(ipAddrs)
-		}, timeout, interval).Should(Equal(ipInfoToString(ipAddr2)))
+			ipSet := toIPSet(monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort1)])
+			return ipSet.Has(ipAddr2.String())
+		}, timeout, interval).Should(Equal(true))
 	})
 }
 
@@ -418,57 +378,20 @@ func updateInterface(client *ovsdb.OvsdbClient, ifaceName string, externalIDs ma
 	return err
 }
 
-func ofPortInfoToString(ips []types.IPAddress) string {
-	var buffer bytes.Buffer
-	for _, ip := range ips {
-		buffer.WriteString(ip.String())
-	}
-	return buffer.String()
-}
-
-func ipInfoToString(ips []net.IP) string {
-	var buffer bytes.Buffer
-	for _, ip := range ips {
-		buffer.WriteString(ip.String())
-	}
-	return buffer.String()
-}
-
-func addOfPortIPAddress(brName string, ofPort uint32, ipAddr []net.IP, ofPortIPAddressMonitorChan chan map[string][]net.IP) error {
-	ofPortInfo := map[string][]net.IP{fmt.Sprintf("%s-%d", brName, ofPort): ipAddr}
+func addOfPortIPAddress(brName string, ofPort uint32, ipAddr net.IP, ofPortIPAddressMonitorChan chan map[string]net.IP) error {
+	ofPortInfo := map[string]net.IP{fmt.Sprintf("%s-%d", brName, ofPort): ipAddr}
 	ofPortIPAddressMonitorChan <- ofPortInfo
 	return nil
 }
 
-func updateOfPort(brName string, oldOfPort uint32, newOfPort uint32, ofPortIPAddressMonitorChan chan map[string][]net.IP) error {
-	monitor.ipCacheLock.RLock()
-	defer monitor.ipCacheLock.RUnlock()
-
-	if _, ok := monitor.ipCache[fmt.Sprintf("%s-%d", brName, oldOfPort)]; !ok {
-		return fmt.Errorf("error when get ipCache, port: %d ", oldOfPort)
-	}
-	oldOfPortInfo := map[string][]net.IP{
-		fmt.Sprintf("%s-%d", brName, oldOfPort): {},
-	}
-	ofPortIPAddressMonitorChan <- oldOfPortInfo
-
-	ipAddr := monitor.ipCache[fmt.Sprintf("%s-%d", brName, oldOfPort)]
-	newOfPortInfo := map[string][]net.IP{
-		fmt.Sprintf("%s-%d", brName, newOfPort): {net.ParseIP(ipAddr[0].String())},
-	}
-	ofPortIPAddressMonitorChan <- newOfPortInfo
-
-	return nil
-}
-
-func updateIPAddress(brName string, ofPort uint32, newIPAddr []net.IP, ofPortIPAddressMonitorChan chan map[string][]net.IP) error {
+func updateIPAddress(brName string, ofPort uint32, newIPAddr net.IP, ofPortIPAddressMonitorChan chan map[string]net.IP) error {
 	monitor.ipCacheLock.RLock()
 	defer monitor.ipCacheLock.RUnlock()
 
 	if _, ok := monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort)]; !ok {
 		return fmt.Errorf("error when get ofportcache, port: %d", ofPort)
 	}
-	ofPortInfo := map[string][]net.IP{
+	ofPortInfo := map[string]net.IP{
 		fmt.Sprintf("%s-%d", brName, ofPort): newIPAddr,
 	}
 	ofPortIPAddressMonitorChan <- ofPortInfo
@@ -701,8 +624,8 @@ func isNotFoundError(err error) bool {
 	}
 }
 
-func startAgentMonitor(k8sClient client.Client) (*AgentMonitor, chan struct{}, chan map[string][]net.IP) {
-	ofPortIPAddressMonitorChan = make(chan map[string][]net.IP, 1024)
+func startAgentMonitor(k8sClient client.Client) (*AgentMonitor, chan struct{}, chan map[string]net.IP) {
+	ofPortIPAddressMonitorChan = make(chan map[string]net.IP, 1024)
 	localEndpointMap = make(map[uint32]net.HardwareAddr)
 
 	monitor, err := NewAgentMonitor(k8sClient, ofPortIPAddressMonitorChan)
@@ -753,7 +676,9 @@ func setOfportIPAddr(k8sClient client.Client, brName string, ofport int32, ipAdd
 							Interfaces: []agentv1alpha1.OVSInterface{
 								{
 									Ofport: ofport,
-									IPs:    ipAddr,
+									IPMap: map[types.IPAddress]metav1.Time{
+										ipAddr[0]: {},
+									},
 								},
 							},
 						},
@@ -783,4 +708,13 @@ func setOfportIPAddr(k8sClient client.Client, brName string, ofport int32, ipAdd
 	}
 
 	return nil
+}
+
+func toIPSet(ipmap map[types.IPAddress]metav1.Time) sets.String {
+	ipSet := sets.NewString()
+	for ip := range ipmap {
+		ipSet.Insert(ip.String())
+	}
+
+	return ipSet
 }

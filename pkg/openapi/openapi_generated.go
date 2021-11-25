@@ -637,14 +637,14 @@ func schema_pkg_apis_agent_v1alpha1_OVSInterface(ref common.ReferenceCallback) c
 							Format: "",
 						},
 					},
-					"ips": {
+					"ipmap": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
+										Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 									},
 								},
 							},
@@ -653,6 +653,8 @@ func schema_pkg_apis_agent_v1alpha1_OVSInterface(ref common.ReferenceCallback) c
 				},
 			},
 		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 

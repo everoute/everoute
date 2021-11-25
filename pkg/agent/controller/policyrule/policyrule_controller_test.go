@@ -110,7 +110,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	ofPortUpdateChan := make(chan map[string][]net.IP, 100)
+	ofPortUpdateChan := make(chan map[string]net.IP, 100)
 
 	if err := datapath.ExcuteCommand(datapath.SetupBridgeChain, "ovsbr1"); err != nil {
 		klog.Fatalf("Failed to setup bridgechain, error: %v", err)

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -53,8 +54,9 @@ type EndpointReconciler struct {
 }
 
 const (
-	externalIDIndex = "externalIDIndex"
-	agentIndex      = "agentIndex"
+	externalIDIndex       = "externalIDIndex"
+	agentIndex            = "agentIndex"
+	endpointExternalIDKey = "iface-id"
 )
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
@@ -163,11 +165,11 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
 				iface := &iface{
-					agentName:   agentInfo.Name,
-					name:        ovsIface.Name,
-					externalIDs: ovsIface.ExternalIDs,
-					mac:         ovsIface.Mac,
-					ips:         ovsIface.IPs,
+					agentName:           agentInfo.Name,
+					name:                ovsIface.Name,
+					externalIDs:         ovsIface.ExternalIDs,
+					mac:                 ovsIface.Mac,
+					ipLastUpdateTimeMap: ovsIface.IPMap,
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -196,17 +198,18 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
 				iface := &iface{
-					agentName:   newAgentInfo.Name,
-					name:        ovsIface.Name,
-					externalIDs: ovsIface.ExternalIDs,
-					mac:         ovsIface.Mac,
-					ips:         ovsIface.IPs,
+					agentName:           newAgentInfo.Name,
+					name:                ovsIface.Name,
+					externalIDs:         ovsIface.ExternalIDs,
+					mac:                 ovsIface.Mac,
+					ipLastUpdateTimeMap: ovsIface.IPMap,
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
 		}
 	}
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
+	r.updateCachedAgentInfo(newAgentInfo, q)
 }
 
 func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
@@ -227,6 +230,69 @@ func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.Ra
 	for _, iface := range ifaces {
 		_ = r.ifaceCache.Delete(iface)
 	}
+}
+
+func (r *EndpointReconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.AgentInfo, q workqueue.RateLimitingInterface) {
+	ctx := context.Background()
+	updateAgentInfoList := r.toUpdatedAgentInfo(agentInfo)
+
+	for _, ai := range updateAgentInfoList {
+		if err := r.Client.Update(ctx, ai); err != nil {
+			klog.Errorf("couldn't update agentInfo %v to apiserver, error %v", ai, err)
+		}
+	}
+}
+
+func (r *EndpointReconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.AgentInfo) []*agentv1alpha1.AgentInfo {
+	var agentInfoList agentv1alpha1.AgentInfoList
+	var updatedAgentInfoes []*agentv1alpha1.AgentInfo
+	_ = r.List(context.Background(), &agentInfoList)
+
+	for _, agentInfo := range agentInfoList.Items {
+		var isAgentInfoUpdated bool = false
+		var updatedAgentInfo agentv1alpha1.AgentInfo
+		for i, bridge := range agentInfo.OVSInfo.Bridges {
+			for j, port := range bridge.Ports {
+				for k, ovsIface := range port.Interfaces {
+					ipNeedDelete := r.getDeletedIP(agentInfo.Name, ovsIface, newAgentInfo)
+					if ipNeedDelete.Len() == 0 {
+						continue
+					}
+
+					for ip := range ovsIface.IPMap {
+						if ipNeedDelete.Has(ip.String()) {
+							delete(agentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap, ip)
+						}
+					}
+					isAgentInfoUpdated = true
+				}
+			}
+		}
+		if isAgentInfoUpdated {
+			agentInfo.DeepCopyInto(&updatedAgentInfo)
+			updatedAgentInfoes = append(updatedAgentInfoes, &updatedAgentInfo)
+		}
+	}
+
+	return updatedAgentInfoes
+}
+
+func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.String {
+	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, ovsIface := range port.Interfaces {
+				if agentInfo.Name == agentName && ovsIface.Name == ovsInterface.Name {
+					continue
+				}
+				ipNeedDelete := toIPStringSet(ovsIface.IPMap).Intersection(toIPStringSet(ovsInterface.IPMap))
+				if ipNeedDelete.Len() != 0 {
+					return ipNeedDelete
+				}
+			}
+		}
+	}
+
+	return sets.String{}
 }
 
 // If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
@@ -260,8 +326,8 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		// combine all ifaces status into endpoint status
 		ipsets := sets.NewString()
 		for _, item := range ifaces {
-			if len(item.(*iface).ips) != 0 {
-				for _, ip := range item.(*iface).ips {
+			if len(item.(*iface).ipLastUpdateTimeMap) != 0 {
+				for ip := range item.(*iface).ipLastUpdateTimeMap {
 					ipsets.Insert(ip.String())
 				}
 			}
@@ -298,9 +364,9 @@ type iface struct {
 	agentName string
 	name      string
 
-	externalIDs map[string]string
-	mac         string
-	ips         []types.IPAddress
+	externalIDs         map[string]string
+	mac                 string
+	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
 }
 
 func (i *iface) String() string {
@@ -328,4 +394,13 @@ func externalIDIndexFunc(obj interface{}) ([]string, error) {
 		}.String())
 	}
 	return externalIDs, nil
+}
+
+func toIPStringSet(ipMap map[types.IPAddress]metav1.Time) sets.String {
+	ipStringSet := sets.NewString()
+	for ip := range ipMap {
+		ipStringSet.Insert(ip.String())
+	}
+
+	return ipStringSet
 }

@@ -26,9 +26,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/contiv/libOpenflow/openflow13"
-	"github.com/contiv/libOpenflow/protocol"
-	"github.com/contiv/ofnet/ofctrl"
 	. "github.com/onsi/gomega"
 )
 
@@ -53,8 +50,7 @@ var (
 	ovsBridgeList   = []string{"ovsbr0", "ovsbr0-policy", "ovsbr0-cls", "ovsbr0-uplink"}
 	defaultFlowList []string
 
-	ep1IP = "10.0.1.11"
-	ep1   = &Endpoint{
+	ep1 = &Endpoint{
 		PortNo:     uint32(11),
 		MacAddrStr: "00:00:aa:aa:aa:aa",
 		BridgeName: "ovsbr0",
@@ -88,7 +84,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	ipAddressChan := make(chan map[string][]net.IP, 100)
+	ipAddressChan := make(chan map[string]net.IP, 100)
 	if err := ExcuteCommand(SetupBridgeChain, "ovsbr0"); err != nil {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
@@ -122,14 +118,6 @@ func testLocalEndpoint(t *testing.T) {
 		}
 		if ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ep1.BridgeName, ep1.PortNo)); ep == nil {
 			t.Errorf("Failed to add local endpoint, endpoint %v not found", ep1)
-		}
-
-		localBridge := datapathManager.BridgeChainMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD].(*LocalBridge)
-		injectArpReq(localBridge, ep1.PortNo, ep1.VlanID, ep1.MacAddrStr, "", ep1IP, "10.0.1.12")
-
-		ep, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ep1.BridgeName, ep1.PortNo))
-		if ep.(*Endpoint).IPAddr.String() != ep1IP {
-			t.Errorf("Failed to learning local endpoint ip address")
 		}
 
 		if err := datapathManager.UpdateLocalEndpoint(newep1, ep1); err != nil {
@@ -216,34 +204,6 @@ func testFlowReplay(t *testing.T) {
 			return flowValidator([]string{rule1Flow})
 		}, timeout, interval).Should(Succeed())
 	})
-}
-
-// injectArpReq injects an ARP request into ofnet
-func injectArpReq(bridge *LocalBridge, inPort uint32, vlan uint16, macSrc, macDst, ipSrc, ipDst string) {
-	if macDst == "" {
-		macDst = "ff:ff:ff:ff:ff:ff"
-	}
-
-	// inject an ARP request from ep1 for ep2
-	arpReq := openflow13.NewPacketIn()
-	arpReq.Match.Type = openflow13.MatchType_OXM
-	arpReq.Match.AddField(*openflow13.NewInPortField(inPort))
-	arpReq.Data = *protocol.NewEthernet()
-	arpReq.Data.Ethertype = protocol.ARP_MSG
-	arpReq.Data.HWDst, _ = net.ParseMAC(macDst)
-	arpReq.Data.HWSrc, _ = net.ParseMAC(macSrc)
-	if vlan != 0 {
-		arpReq.Data.VLANID.VID = vlan
-	}
-	arpPkt, _ := protocol.NewARP(protocol.Type_Request)
-	arpPkt.HWSrc, _ = net.ParseMAC(macSrc)
-	arpPkt.IPSrc = net.ParseIP(ipSrc)
-	arpPkt.HWDst, _ = net.ParseMAC("00:00:00:00:00:00")
-	arpPkt.IPDst = net.ParseIP(ipDst)
-
-	arpReq.Data.Data = arpPkt
-	pkt := ofctrl.PacketIn(*arpReq)
-	bridge.PacketRcvd(bridge.OfSwitch, &pkt)
 }
 
 func flowValidator(expectedFlows []string) error {

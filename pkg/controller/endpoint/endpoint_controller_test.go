@@ -69,12 +69,15 @@ var (
 								{
 									Name: "iface1",
 									ExternalIDs: map[string]string{
-										"idk1": "idv1",
-										"idk2": "idv2",
-										"idk3": "idv3",
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep01",
 									},
 									Mac: ovsPortStatusA.MacAddress,
-									IPs: ovsPortStatusA.IPs,
+									IPMap: map[types.IPAddress]v1.Time{
+										ovsPortStatusA.IPs[0]: {},
+									},
 								},
 							},
 						},
@@ -104,12 +107,89 @@ var (
 								{
 									Name: "iface1",
 									ExternalIDs: map[string]string{
-										"idk1": "idv1",
-										"idk2": "idv2",
-										"idk3": "idv3",
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep01",
 									},
 									Mac: ovsPortStatusB.MacAddress,
-									IPs: ovsPortStatusB.IPs,
+									IPMap: map[types.IPAddress]v1.Time{
+										ovsPortStatusB.IPs[0]: {},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	fakeAgentInfoC = &agentv1alpha1.AgentInfo{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "AgentInfo",
+			APIVersion: "agent.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeAgentInfoC",
+		},
+		Hostname: "node02",
+		OVSInfo: agentv1alpha1.OVSInfo{
+			Version: "x.x.x",
+			Bridges: []agentv1alpha1.OVSBridge{
+				{
+					Name: "bri01",
+					Ports: []agentv1alpha1.OVSPort{
+						{
+							Name: "endpoint02",
+							Interfaces: []agentv1alpha1.OVSInterface{
+								{
+									Name: "iface2",
+									ExternalIDs: map[string]string{
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep01",
+									},
+									Mac:   ovsPortStatusA.MacAddress,
+									IPMap: map[types.IPAddress]v1.Time{},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	updatedfakeAgentInfoC = &agentv1alpha1.AgentInfo{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "AgentInfo",
+			APIVersion: "agent.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeAgentInfoC",
+		},
+		Hostname: "node02",
+		OVSInfo: agentv1alpha1.OVSInfo{
+			Version: "x.x.x",
+			Bridges: []agentv1alpha1.OVSBridge{
+				{
+					Name: "bri01",
+					Ports: []agentv1alpha1.OVSPort{
+						{
+							Name: "endpoint02",
+							Interfaces: []agentv1alpha1.OVSInterface{
+								{
+									Name: "iface2",
+									ExternalIDs: map[string]string{
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep01",
+									},
+									Mac: ovsPortStatusA.MacAddress,
+									IPMap: map[types.IPAddress]v1.Time{
+										ovsPortStatusA.IPs[0]: {},
+									},
 								},
 							},
 						},
@@ -128,8 +208,23 @@ var (
 		},
 		Spec: securityv1alpha1.EndpointSpec{
 			Reference: securityv1alpha1.EndpointReference{
-				ExternalIDName:  "idk1",
-				ExternalIDValue: "idv1",
+				ExternalIDName:  endpointExternalIDKey,
+				ExternalIDValue: "ep01",
+			},
+		},
+	}
+	fakeEndpointC = &securityv1alpha1.Endpoint{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Endpoint",
+			APIVersion: "security.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeEndpointC",
+		},
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  endpointExternalIDKey,
+				ExternalIDValue: "ep01",
 			},
 		},
 	}
@@ -171,8 +266,18 @@ func getFakeEndpoint(c client.Client, name string) securityv1alpha1.Endpoint {
 	_ = c.Get(context.Background(), k8stypes.NamespacedName{Name: name}, &endpoint)
 	return endpoint
 }
+func getFakeAgentInfo(c client.Client, name string) agentv1alpha1.AgentInfo {
+	agentinfo := agentv1alpha1.AgentInfo{}
+	_ = c.Get(context.Background(), k8stypes.NamespacedName{Name: name}, &agentinfo)
+	return agentinfo
+}
 
-func TestProcessAgentInfo(t *testing.T) {
+func TestEndpointController(t *testing.T) {
+	testProcessAgentinfo(t)
+	testInterfaceIPUpdate(t)
+}
+
+func testProcessAgentinfo(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	r := newFakeReconciler(fakeAgentInfoB, fakeEndpointA)
 
@@ -246,6 +351,51 @@ func TestProcessAgentInfo(t *testing.T) {
 		ifaces := r.ifaceCache.ListKeys()
 		if len(ifaces) != 0 {
 			t.Errorf("expect cache should be empty after delete agentinfo %s", fakeAgentInfoA.Name)
+		}
+	})
+}
+
+func testInterfaceIPUpdate(t *testing.T) {
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	r := newFakeReconciler(fakeAgentInfoA, fakeAgentInfoC, fakeEndpointA, fakeEndpointC)
+	t.Run("interface ipset update", func(t *testing.T) {
+		// agentinfo added event when controller start.
+		r.addEndpoint(event.CreateEvent{
+			Meta:   fakeEndpointA.GetObjectMeta(),
+			Object: fakeEndpointA,
+		}, queue)
+		r.addAgentInfo(event.CreateEvent{
+			Meta:   fakeAgentInfoA.GetObjectMeta(),
+			Object: fakeAgentInfoA,
+		}, queue)
+
+		r.addEndpoint(event.CreateEvent{
+			Meta:   fakeEndpointC.GetObjectMeta(),
+			Object: fakeEndpointC,
+		}, queue)
+		r.addAgentInfo(event.CreateEvent{
+			Meta:   fakeAgentInfoC.GetObjectMeta(),
+			Object: fakeAgentInfoC,
+		}, queue)
+		// process new agentinfo create request from queue
+		if err := processQueue(r, queue); err != nil {
+			t.Errorf("failed to process add agentinfo request")
+		}
+
+		r.updateAgentInfo(event.UpdateEvent{
+			MetaOld:   fakeAgentInfoC.GetObjectMeta(),
+			ObjectOld: fakeAgentInfoC,
+			MetaNew:   updatedfakeAgentInfoC.GetObjectMeta(),
+			ObjectNew: updatedfakeAgentInfoC,
+		}, queue)
+		// process new agentinfo create request from queue
+		if err := processQueue(r, queue); err != nil {
+			t.Errorf("failed to process add agentinfo request")
+		}
+
+		agentInfoA := getFakeAgentInfo(r.Client, fakeAgentInfoA.Name)
+		if len(agentInfoA.OVSInfo.Bridges[0].Ports[0].Interfaces[0].IPMap) != 0 {
+			t.Errorf("failed to get udpate agentinfo")
 		}
 	})
 }

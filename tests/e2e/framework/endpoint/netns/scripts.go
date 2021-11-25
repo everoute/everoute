@@ -42,7 +42,7 @@ const (
 		vethName="veth-${netns}"
 		portName=${vethName}
 		vethPeerName="vethpeer-${netns}"
-		portExternalIDName="external_uuid"
+		portExternalIDName="iface-id"
 		portExternalIDValue="uuid-${netns}"
 
 		ip netns add ${netns}
