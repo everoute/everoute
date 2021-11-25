@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -50,7 +51,10 @@ func getAgentInfos() []*agentv1alpha1.AgentInfo {
 				Interfaces: []agentv1alpha1.OVSInterface{{
 					ExternalIDs: map[string]string{id: id},
 					Mac:         "mac:address",
-					IPs:         []types.IPAddress{"192.168.2.2", "192.168.1.1"},
+					IPMap: map[types.IPAddress]metav1.Time{
+						types.IPAddress("192.168.2.2"): {},
+						types.IPAddress("192.168.1.1"): {},
+					},
 				}},
 			})
 		}

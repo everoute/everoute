@@ -22,6 +22,7 @@ package v1alpha1
 
 import (
 	types "github.com/everoute/everoute/pkg/types"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -181,10 +182,12 @@ func (in *OVSInterface) DeepCopyInto(out *OVSInterface) {
 			(*out)[key] = val
 		}
 	}
-	if in.IPs != nil {
-		in, out := &in.IPs, &out.IPs
-		*out = make([]types.IPAddress, len(*in))
-		copy(*out, *in)
+	if in.IPMap != nil {
+		in, out := &in.IPMap, &out.IPMap
+		*out = make(map[types.IPAddress]v1.Time, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
+		}
 	}
 	return
 }

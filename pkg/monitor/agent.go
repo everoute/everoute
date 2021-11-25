@@ -104,8 +104,8 @@ type AgentMonitor struct {
 	cacheLock                  sync.RWMutex
 	ovsdbCache                 map[string]map[string]ovsdb.Row
 	ipCacheLock                sync.RWMutex
-	ipCache                    map[string][]types.IPAddress
-	ofPortIPAddressMonitorChan chan map[string][]net.IP
+	ipCache                    map[string]map[types.IPAddress]metav1.Time
+	ofPortIPAddressMonitorChan chan map[string]net.IP
 
 	ovsdbEventHandler              ovsdbEventHandler
 	localEndpointHardwareAddrLock  sync.RWMutex
@@ -116,13 +116,13 @@ type AgentMonitor struct {
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[string][]net.IP) (*AgentMonitor, error) {
+func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[string]net.IP) (*AgentMonitor, error) {
 	monitor := &AgentMonitor{
 		k8sClient:                      client,
 		cacheLock:                      sync.RWMutex{},
 		ipCacheLock:                    sync.RWMutex{},
 		ovsdbCache:                     make(map[string]map[string]ovsdb.Row),
-		ipCache:                        make(map[string][]types.IPAddress),
+		ipCache:                        make(map[string]map[types.IPAddress]metav1.Time),
 		ofPortIPAddressMonitorChan:     ofPortIPAddressMonitorChan,
 		localEndpointHardwareAddrLock:  sync.RWMutex{},
 		localEndpointHardwareAddrCache: sets.NewString(),
@@ -154,12 +154,6 @@ func (monitor *AgentMonitor) Run(stopChan <-chan struct{}) {
 	defer klog.Infof("shutting down agent %s monitor", monitor.Name())
 
 	var err error
-
-	err = monitor.rebuildOfportCache()
-	if err != nil {
-		klog.Fatalf("unable rebuild ofport cache from apiserver: %s", err)
-	}
-
 	err = monitor.startOvsdbMonitor()
 	if err != nil {
 		klog.Fatalf("unable start ovsdb monitor: %s", err)
@@ -170,7 +164,7 @@ func (monitor *AgentMonitor) Run(stopChan <-chan struct{}) {
 	<-stopChan
 }
 
-func (monitor *AgentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[string][]net.IP, stopChan <-chan struct{}) {
+func (monitor *AgentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[string]net.IP, stopChan <-chan struct{}) {
 	for {
 		select {
 		case localEndpointInfo := <-ofPortIPAddressMonitorChan:
@@ -181,22 +175,17 @@ func (monitor *AgentMonitor) HandleOfPortIPAddressUpdate(ofPortIPAddressMonitorC
 	}
 }
 
-func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string][]net.IP) {
+func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]net.IP) {
 	monitor.ipCacheLock.Lock()
 	defer monitor.ipCacheLock.Unlock()
 
-	for bridgePort, ips := range localEndpointInfo {
-		// OfPort already updated, flush deprecated ipCache entry related with port
-		if len(ips) == 0 {
-			delete(monitor.ipCache, bridgePort)
-			break
+	for bridgePort, ip := range localEndpointInfo {
+		if _, ok := monitor.ipCache[bridgePort]; !ok {
+			monitor.ipCache[bridgePort] = make(map[types.IPAddress]metav1.Time)
 		}
-
-		var ipAddrs []types.IPAddress
-		for _, ip := range ips {
-			ipAddrs = append(ipAddrs, types.IPAddress(ip.String()))
+		monitor.ipCache[bridgePort] = map[types.IPAddress]metav1.Time{
+			types.IPAddress(ip.String()): metav1.NewTime(time.Now()),
 		}
-		monitor.ipCache[bridgePort] = ipAddrs
 	}
 
 	monitor.syncQueue.Add(monitor.Name())
@@ -289,9 +278,9 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't get agentinfo: %s", err)
 	}
 
-	agentInfoOld := &agentv1alpha1.AgentInfo{}
+	cpAgentInfo := &agentv1alpha1.AgentInfo{}
 
-	err = monitor.k8sClient.Get(ctx, k8stypes.NamespacedName{Name: agentName}, agentInfoOld)
+	err = monitor.k8sClient.Get(ctx, k8stypes.NamespacedName{Name: agentName}, cpAgentInfo)
 	if errors.IsNotFound(err) {
 		if err = monitor.k8sClient.Create(ctx, agentInfo); err != nil {
 			return fmt.Errorf("couldn't create agent %s agentinfo: %s", agentName, err)
@@ -303,13 +292,35 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
 	}
 
-	agentInfo.ObjectMeta = agentInfoOld.ObjectMeta
+	monitor.mergeAgentInfo(agentInfo, cpAgentInfo)
+	agentInfo.ObjectMeta = cpAgentInfo.ObjectMeta
 	err = monitor.k8sClient.Update(ctx, agentInfo)
 	if err != nil {
 		return fmt.Errorf("couldn't update agent %s agentinfo: %s", agentName, err)
 	}
 
 	return nil
+}
+
+func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1alpha1.AgentInfo) {
+	for i, ovsBr := range localAgentInfo.OVSInfo.Bridges {
+		for j, port := range ovsBr.Ports {
+			for k, intf := range port.Interfaces {
+				matchIntf := getCpIntf(ovsBr.Name, intf, cpAgentInfo)
+				if matchIntf == nil {
+					continue
+				}
+				for key, value := range matchIntf.IPMap {
+					if intf.IPMap == nil {
+						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap = make(map[types.IPAddress]metav1.Time)
+					}
+					if _, ok := intf.IPMap[key]; !ok {
+						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap[key] = value
+					}
+				}
+			}
+		}
+	}
 }
 
 func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
@@ -349,41 +360,6 @@ func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 	agentInfo.Conditions = []agentv1alpha1.AgentCondition{agentHealthCondition}
 
 	return agentInfo, nil
-}
-
-// when agent restart, mapping of ofport to IPaddr lost, rebuild from agentInfo
-func (monitor *AgentMonitor) rebuildOfportCache() error {
-	klog.Infof("rebuild ofport cache from agentInfo")
-
-	var ctx = context.Background()
-	var agentInfo agentv1alpha1.AgentInfo
-
-	err := monitor.k8sClient.Get(ctx, k8stypes.NamespacedName{Name: monitor.Name()}, &agentInfo)
-	if err != nil {
-		// ignore NotFoundError, agentInfo hasn't been created yet
-		return client.IgnoreNotFound(err)
-	}
-
-	monitor.ipCacheLock.Lock()
-	defer monitor.ipCacheLock.Unlock()
-
-	for _, bridge := range agentInfo.OVSInfo.Bridges {
-		for _, port := range bridge.Ports {
-			for _, iface := range port.Interfaces {
-				if iface.Ofport < 0 || len(iface.IPs) == 0 {
-					// skip if interface has empty IPaddr
-					continue
-				}
-				if _, ok := monitor.ipCache[fmt.Sprintf("%s-%d", bridge.Name, iface.Ofport)]; ok {
-					// skip if monitor has learned ofport IPaddr
-					continue
-				}
-				monitor.ipCache[fmt.Sprintf("%s-%d", bridge.Name, iface.Ofport)] = iface.IPs
-			}
-		}
-	}
-
-	return nil
 }
 
 func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
@@ -634,9 +610,11 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName st
 		iface.Ofport = int32(ofport)
 		monitor.ipCacheLock.Lock()
 		defer monitor.ipCacheLock.Unlock()
-		iface.IPs = monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
+		iface.IPMap = monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
 	}
 
+	// clear ip address set once we write it to local agentinfo.
+	monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)] = make(map[types.IPAddress]metav1.Time)
 	return &iface
 }
 
@@ -707,4 +685,23 @@ func readOrGenerateAgentName() (string, error) {
 	}
 
 	return name, nil
+}
+
+func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAgentInfo *agentv1alpha1.AgentInfo) *agentv1alpha1.OVSInterface {
+	var matchInterface agentv1alpha1.OVSInterface
+	for _, ovsBr := range cpAgentInfo.OVSInfo.Bridges {
+		if ovsBr.Name != bridgeName {
+			continue
+		}
+		for _, port := range ovsBr.Ports {
+			for _, intf := range port.Interfaces {
+				if intf.Ofport == newInterface.Ofport {
+					intf.DeepCopyInto(&matchInterface)
+					return &matchInterface
+				}
+			}
+		}
+	}
+
+	return nil
 }

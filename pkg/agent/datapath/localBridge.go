@@ -139,12 +139,7 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
 
-		// Don't add endpoint from received arp pkt event. We just add local endpoint from control-plane
-		// Already exists endpoint
-		if ipAddrUpdatedPort := l.filterUpdatedLocalEndpointOfPort(arpIn, inPort); ipAddrUpdatedPort != nil {
-			l.localEndpointIPAddrUpdate(*ipAddrUpdatedPort, inPort, arpIn)
-		}
-
+		l.processLocalEndpointUpdate(arpIn, inPort)
 		// NOTE output to local-to-policy-patch port
 		l.arpOutput(pkt, inPort, uint32(LOCAL_TO_POLICY_PORT))
 	default:
@@ -152,70 +147,19 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	}
 }
 
-func (l *LocalBridge) filterUpdatedLocalEndpointOfPort(arpIn protocol.ARP, inPort uint32) *uint32 {
-	var ofPort uint32
-
+func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
 	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
 		endpoint := endpointObj.Val.(*Endpoint)
-
-		if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.PortNo == inPort &&
-			!endpoint.IPAddr.Equal(arpIn.IPSrc) {
-			ofPort = endpoint.PortNo
-
-			return &ofPort
+		if endpoint.PortNo == inPort {
+			l.notifyLocalEndpointUpdate(arpIn, inPort)
 		}
 	}
-
-	return nil
 }
 
-func (l *LocalBridge) localEndpointIPAddrUpdate(ipAddrUpdatedPort uint32, inPort uint32, arpIn protocol.ARP) {
-	endpointObj, _ := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, ipAddrUpdatedPort))
-	if endpointObj == nil {
-		log.Errorf("OfPort: %d related Endpoint was not found", ipAddrUpdatedPort)
-		return
-	}
-
-	endpoint := endpointObj.(*Endpoint)
-	log.Infof("Update ip address of local endpoint with ofPort %d from %v to %v.", ipAddrUpdatedPort,
-		endpoint.IPAddr, arpIn.IPSrc)
-
-	l.updateLocalEndpointInfoEntry(arpIn, inPort)
-	l.notifyLocalEndpointInfoUpdate(arpIn, inPort, false)
-}
-
-func (l *LocalBridge) notifyLocalEndpointInfoUpdate(arpIn protocol.ARP, ofPort uint32, isDelete bool) {
-	updatedOfPortInfo := make(map[string][]net.IP)
-	if isDelete {
-		updatedOfPortInfo[fmt.Sprintf("%s-%d", l.name, ofPort)] = []net.IP{}
-	} else {
-		updatedOfPortInfo[fmt.Sprintf("%s-%d", l.name, ofPort)] = []net.IP{arpIn.IPSrc}
-	}
+func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
+	updatedOfPortInfo := make(map[string]net.IP)
+	updatedOfPortInfo[fmt.Sprintf("%s-%d", l.name, ofPort)] = arpIn.IPSrc
 	l.datapathManager.ofPortIPAddressUpdateChan <- updatedOfPortInfo
-}
-
-func (l *LocalBridge) updateLocalEndpointInfoEntry(arpIn protocol.ARP, ofPort uint32) {
-	endpointObj, _ := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, ofPort))
-	if endpointObj == nil {
-		err := fmt.Errorf("Endpoint not found for port %d", ofPort)
-		log.Error(err)
-		return
-	}
-
-	endpoint := endpointObj.(*Endpoint)
-
-	// Update endpoint ip in localEndpointDb
-	learnedIP := make(net.IP, len(arpIn.IPSrc))
-	copy(learnedIP, arpIn.IPSrc)
-	ep := &Endpoint{
-		IPAddr:     learnedIP,
-		MacAddrStr: endpoint.MacAddrStr,
-		VlanID:     endpoint.VlanID,
-		PortNo:     ofPort,
-		BridgeName: l.name,
-	}
-
-	l.datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", l.name, ofPort), ep)
 }
 
 func (l *LocalBridge) arpOutput(pkt protocol.Ethernet, inPort uint32, outputPort uint32) {

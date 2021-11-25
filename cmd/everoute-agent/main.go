@@ -56,7 +56,7 @@ func main() {
 
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
-	ofPortIPAddrMoniotorChan := make(chan map[string][]net.IP, 1024)
+	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
 
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig, err := getDatapathConfig()
