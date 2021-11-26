@@ -13,7 +13,7 @@ and security service for virtualization platform and Kubernetes platform, it
 leverages [Open vSwitch](https://www.openvswitchd.org/) as the networking data
 plane.
 
-Everoute mainly focuses the networking and security controlling, it can be
+Everoute mainly focuses on the networking and security controlling, it can be
 integrated with Kubernetes cloud native platform, virtualization platform,
 private cloud, public cloud and even hybrid cloud easily.
 
@@ -23,7 +23,7 @@ Everoute is based on SDN (Software Defined Network) methodology, decouples
 the control plane and data plane, and uses software programming to control the
 software network and security services.
 
-All the Everoute related services are deployed as Kubernetes Pod, and easy
+All the Everoute related services are deployed as Kubernetes Pod, and are easy
 to deploy and use.
 
 <p align='center'>
@@ -32,7 +32,7 @@ to deploy and use.
 
 Everoute contains four main parts:
 
-* **Everoute Central Controller **: Everoute central controller consists of
+* **Everoute Central Controller**: Everoute central controller consists of
 control service, API Server and etcd, it leverages the cloud native
 architecture, all the services are deployed as container Pod. The Everoute
 Central Controller leverages the [Kube API Server](https://github.com/kubernetes/apiserver)
