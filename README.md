@@ -14,7 +14,7 @@ leverages [Open vSwitch](https://www.openvswitchd.org/) as the networking data
 plane.
 
 Everoute mainly focuses the networking and security controlling, it can be
-integrated with virtualization platform, Kubernetes cloud native platform,
+integrated with Kubernetes cloud native platform, virtualization platform,
 private cloud, public cloud and even hybrid cloud easily.
 
 ## Architecture
@@ -43,13 +43,14 @@ management, according the resources type, security policy and discovered IP
 address to generate the network transimit policy rules.
 
 * **Everoute Distributed Agent**: The Everoute Agent is deployed in each
-hypervisor host or K8s node, it focuses on the IP address discovery and policy
-rule deployment to the data plane.
+K8s worker node or hypervisor host, the Agent is mainly responsible for the
+coordinated processing of controller and data plane, it focuses on IP address
+discovery and policy rule deployment to the data plane.
 
 * **Everoute Datapath**: Everoute leverages the Open vSwitch as it's network
-datapath, all the network functions implemented by the Open vSwitch, Everoute
-uses Open vSwitch openflow mode to control the network forwarding and security
-rules.
+data plane, Everoute leverages it to implement virtual network forwarding, Pod
+networking and security features. Everoute uses Open vSwitch openflow mode to
+control the network forwarding and security rules.
 
 * **3rd party plugins**: Everoute provides a plugin framework to integrate
 with 3rd party platforms, such as [SmartX](https://www.smartx.com) -
