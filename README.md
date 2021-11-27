@@ -10,10 +10,10 @@ Everoute is a Cloud Native network and security solution both for legacy
 virtualization platform and [Kubernetes](https://kubernetes.io) native network
 and security. Everoute focus on network Layer3 and Layer4 to provide networking
 and security service for virtualization platform and Kubernetes platform, it
-leverages [Open vSwitch](https://www.openvswitchd.org/) as the networking data
+leverages [Open vSwitch](https://www.openvswitchd.org) as the networking data
 plane.
 
-Everoute mainly focuses on the networking and security controlling, it can be
+Everoute mainly focuses on the networking and security control, it can be
 integrated with Kubernetes cloud native platform, virtualization platform,
 private cloud, public cloud and even hybrid cloud easily.
 
@@ -65,11 +65,11 @@ SmartX virtualization platform [SMTX OS](https://www.smartx.com/smtx-os).
 
 * **Kubernetes Platform**: For the Kubernetes platform, Everoute provides
 the native K8s CNI network plug-in. The Everoute CNI supports Pod connection
-management, networkPolicy, cluster service and NodePort etc. Details please
+management, Network Policies, cluster service and NodePort etc. Details please
 refer to [Everoute CNI](https://github.com/everoute/everoute/blob/dev/docs/cni/README.md) 
 
 * **Virtualization Platform**: [SMTX OS](https://www.smartx.com/smtx-os)
-is [SmartX](https://www.smartx.com/) native virtualization platform.
+is [SmartX](https://www.smartx.com) native virtualization platform.
 Everoute can be intergated with SMTX OS through the
 [CloudTower](https://www.smartx.com/cloud-tower) plugin to provide the
 Micro-Segmentation service.
@@ -86,7 +86,7 @@ service enhancement etc.
 * Some function enhancement and performance improvement of the control plane
 and data plane.
 * Service Function Chain: to support integrated with 3rd party services such
-as AV, IPS, IDS etc.
+as AV, IPS, IDS, traffic monitor etc.
 
 ## License
 
