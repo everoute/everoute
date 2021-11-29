@@ -5,7 +5,6 @@ go 1.15
 require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
-	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
@@ -47,6 +46,6 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20211110005808-f017308f5d24
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20211129103953-0575da3b6f76
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 )
