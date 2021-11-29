@@ -105,8 +105,11 @@ func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError
 
 	// List and replace all objects in store
 	query, err := r.client.Query(r.queryRequest())
-	if err != nil || len(query.Errors) != 0 {
-		return query.Errors, err
+	if err != nil {
+		return nil, err
+	}
+	if len(query.Errors) != 0 {
+		return query.Errors, nil
 	}
 
 	err = r.syncWith(utils.LookupJSONRaw(query.Data, r.expectType.ListName()))
