@@ -137,6 +137,7 @@ type Bridge interface {
 }
 
 type DpManager struct {
+	DpManagerMutex sync.Mutex
 	BridgeChainMap map[string]map[string]Bridge                 // map vds to bridge instance map
 	OvsdbDriverMap map[string]map[string]*ovsdbDriver.OvsDriver // map vds to bridge ovsdbDriver map
 	ControllerMap  map[string]map[string]*ofctrl.Controller
@@ -223,63 +224,15 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
 
-	var vdsCount int = 0
-	// vdsID equals to ovsbrname
+	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
-		// initialize vds bridge chain
-		localBridge := NewLocalBridge(ovsbrname, datapathManager)
-		policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
-		clsBridge := NewClsBridge(ovsbrname, datapathManager)
-		uplinkBridge := NewUplinkBridge(ovsbrname, datapathManager)
-		vdsBridgeMap := make(map[string]Bridge)
-		vdsBridgeMap[LOCAL_BRIDGE_KEYWORD] = localBridge
-		vdsBridgeMap[POLICY_BRIDGE_KEYWORD] = policyBridge
-		vdsBridgeMap[CLS_BRIDGE_KEYWORD] = clsBridge
-		vdsBridgeMap[UPLINK_BRIDGE_KEYWORD] = uplinkBridge
-		datapathManager.BridgeChainMap[vdsID] = vdsBridgeMap
-
-		// initialize of controller
-		vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-		vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewController(localBridge)
-		vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewController(policyBridge)
-		vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewController(clsBridge)
-		vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewController(uplinkBridge)
-		datapathManager.ControllerMap[vdsID] = vdsOfControllerMap
-
-		go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Listen("0")
-		go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Listen("0")
-		go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Listen("0")
-		go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Listen("0")
-
-		// initialize ovsdbDriver
-		vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
-		vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(localBridge.name)
-		vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(policyBridge.name)
-		vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(clsBridge.name)
-		vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD] = ovsdbDriver.NewOvsDriverForExistBridge(uplinkBridge.name)
-		datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
-
-		// setbridge work with openflow10 ~ openflow13
-		protocols := map[string][]string{
-			"protocols": {
-				openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
-			},
-		}
-		if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-			log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
-		}
-		if err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-			log.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
-		}
-		if err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-			log.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
-		}
-		if err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-			log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
-		}
-
-		vdsCount++
+		wg.Add(1)
+		go func(vdsID, ovsbrname string) {
+			defer wg.Done()
+			NewVDSForConfig(datapathManager, vdsID, ovsbrname)
+		}(vdsID, ovsbrname)
 	}
+	wg.Wait()
 
 	datapathManager.ofPortIPAddressUpdateChan = ofPortIPAddressUpdateChan
 
@@ -299,55 +252,15 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		datapathManager.WaitForBridgeConnected()
 	}
 
+	var wg sync.WaitGroup
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-		if err != nil {
-			log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
-		}
-
-		// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
-		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-
-		// update cookie
-		cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
-
-		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
-		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
-
-		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
-		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
-
-		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
-			LOCAL_TO_POLICY_PORT); err != nil {
-			log.Fatalf("Failed to set local to policy port with no flood port mode, %v", err)
-		}
-
-		// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
-		// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
-		// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
-		// non-determined.
-		// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
+		wg.Add(1)
 		go func(vdsID string) {
-			time.Sleep(time.Second * 15)
-
-			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-			datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-
-			err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-			if err != nil {
-				log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
-			}
+			defer wg.Done()
+			InitializeVDS(datapathManager, vdsID, stopChan)
 		}(vdsID)
 	}
+	wg.Wait()
 
 	var randOvsBr string
 	for _, ovsbr := range datapathManager.datapathConfig.ManagedVDSMap {
@@ -372,6 +285,129 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			}
 		}
 	}()
+}
+
+func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
+	// initialize vds bridge chain
+	localBridge := NewLocalBridge(ovsbrname, datapathManager)
+	policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
+	clsBridge := NewClsBridge(ovsbrname, datapathManager)
+	uplinkBridge := NewUplinkBridge(ovsbrname, datapathManager)
+	vdsBridgeMap := make(map[string]Bridge)
+	vdsBridgeMap[LOCAL_BRIDGE_KEYWORD] = localBridge
+	vdsBridgeMap[POLICY_BRIDGE_KEYWORD] = policyBridge
+	vdsBridgeMap[CLS_BRIDGE_KEYWORD] = clsBridge
+	vdsBridgeMap[UPLINK_BRIDGE_KEYWORD] = uplinkBridge
+
+	// initialize of controller
+	vdsOfControllerMap := make(map[string]*ofctrl.Controller)
+	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewController(localBridge)
+	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewController(policyBridge)
+	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewController(clsBridge)
+	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewController(uplinkBridge)
+
+	go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Listen("0")
+	go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Listen("0")
+	go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Listen("0")
+	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Listen("0")
+
+	// initialize ovsdbDriver
+	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
+	bridgeSuffixToNameMap := map[string]string{
+		LOCAL_BRIDGE_KEYWORD:  localBridge.name,
+		POLICY_BRIDGE_KEYWORD: policyBridge.name,
+		CLS_BRIDGE_KEYWORD:    clsBridge.name,
+		UPLINK_BRIDGE_KEYWORD: uplinkBridge.name,
+	}
+	var wg sync.WaitGroup
+	var vdsOvsdbDriverMapMutex sync.RWMutex
+	for suffix, brName := range bridgeSuffixToNameMap {
+		wg.Add(1)
+		go func(suffix, brName string, vdsOvsdbDriverMap map[string]*ovsdbDriver.OvsDriver) {
+			defer wg.Done()
+			vdsOvsdbDriverMapMutex.Lock()
+			vdsOvsdbDriverMap[suffix] = ovsdbDriver.NewOvsDriver(brName)
+			vdsOvsdbDriverMapMutex.Unlock()
+		}(suffix, brName, vdsOvsdbDriverMap)
+	}
+	wg.Wait()
+
+	// datapathManager config: write once, read many times, only agent initialize procedure would write this map,
+	// thus lock it while write
+	datapathManager.DpManagerMutex.Lock()
+	datapathManager.BridgeChainMap[vdsID] = vdsBridgeMap
+	datapathManager.ControllerMap[vdsID] = vdsOfControllerMap
+	datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
+	datapathManager.DpManagerMutex.Unlock()
+
+	// setbridge work with openflow10 ~ openflow13
+	protocols := map[string][]string{
+		"protocols": {
+			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+		},
+	}
+	if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+	}
+	if err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+		log.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
+	}
+	if err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+		log.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
+	}
+	if err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
+		log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
+	}
+}
+
+func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan struct{}) {
+	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+	if err != nil {
+		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
+	}
+
+	// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
+	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+
+	// update cookie
+	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+
+	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
+	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
+	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
+	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
+
+	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInit()
+	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
+	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
+	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+
+	if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
+		LOCAL_TO_POLICY_PORT); err != nil {
+		log.Fatalf("Failed to set local to policy port with no flood port mode, %v", err)
+	}
+
+	// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
+	// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
+	// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
+	// non-determined.
+	// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
+	go func(vdsID string) {
+		time.Sleep(time.Second * 15)
+
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+
+		err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+		if err != nil {
+			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
+		}
+	}(vdsID)
 }
 
 func (datapathManager *DpManager) replayFlows() error {
