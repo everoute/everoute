@@ -836,7 +836,7 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 	for _, port := range rule.Ports {
 		portRange := ""
 		if port.Port != nil {
-			portRange = *port.Port
+			portRange = strings.ReplaceAll(*port.Port, " ", "")
 		}
 		policyPorts = append(policyPorts, v1alpha1.SecurityPolicyPort{
 			Protocol:  v1alpha1.Protocol(port.Protocol),
