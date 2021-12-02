@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/client-go/util/keyutil"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -76,7 +77,9 @@ func main() {
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	config := ctrl.GetConfigOrDie()
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
+	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                  clientsetscheme.Scheme,
 		MetricsBindAddress:      metricsAddr,
 		Port:                    serverPort,
