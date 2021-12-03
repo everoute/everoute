@@ -659,7 +659,7 @@ func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (l *LocalBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*ofctrl.Flow, error) {
+func (l *LocalBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error) {
 	return nil, nil
 }
 

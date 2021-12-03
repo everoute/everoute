@@ -396,7 +396,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table,
 	return policyTable, nextTable, nil
 }
 
-func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*ofctrl.Flow, error) {
+func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error) {
 	var ipDa *net.IP = nil
 	var ipDaMask *net.IP = nil
 	var ipSa *net.IP = nil
@@ -474,8 +474,11 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		log.Errorf("Unknown action in rule {%+v}", rule)
 		return nil, errors.New("unknown action in rule")
 	}
-
-	return ruleFlow, nil
+	return &FlowEntry{
+		Table:    policyTable,
+		Priority: ruleFlow.Match.Priority,
+		FlowID:   ruleFlow.FlowID,
+	}, nil
 }
 
 func (p *PolicyBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
