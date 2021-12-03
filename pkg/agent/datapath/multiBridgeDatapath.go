@@ -117,7 +117,7 @@ type Bridge interface {
 
 	AddSFCRule() error
 	RemoveSFCRule() error
-	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*ofctrl.Flow, error)
+	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error)
 	RemoveMicroSegmentRule(rule *EveroutePolicyRule) error
 
 	IsSwitchConnected() bool
@@ -195,11 +195,17 @@ type EveroutePolicyRule struct {
 	Action      string // rule action: 'accept' or 'deny'
 }
 
+type FlowEntry struct {
+	Table    *ofctrl.Table
+	Priority uint16
+	FlowID   uint64
+}
+
 type EveroutePolicyRuleEntry struct {
 	EveroutePolicyRule *EveroutePolicyRule
 	Direction          uint8
 	Tier               uint8
-	RuleFlowMap        map[string]*ofctrl.Flow
+	RuleFlowMap        map[string]*FlowEntry
 }
 
 type RoundInfo struct {
@@ -496,13 +502,13 @@ func (datapathManager *DpManager) ReplayMicroSegmentFlow() error {
 	for ruleID, erPolicyRuleEntry := range datapathManager.Rules {
 		for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 			// Add new policy rule flow to datapath
-			ruleFlow, err := bridgeChain["policy"].AddMicroSegmentRule(erPolicyRuleEntry.EveroutePolicyRule,
+			flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(erPolicyRuleEntry.EveroutePolicyRule,
 				erPolicyRuleEntry.Direction, erPolicyRuleEntry.Tier)
 			if err != nil {
 				return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain["policy"], err)
 			}
 			// udpate new policy rule flow to datapath flow cache
-			datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = ruleFlow
+			datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = flowEntry
 		}
 	}
 
@@ -690,14 +696,14 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	}
 
 	log.Infof("Received AddRule: %+v", rule)
-	ruleFlowMap := make(map[string]*ofctrl.Flow)
+	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
-		ruleFlow, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier)
+		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier)
 		if err != nil {
 			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
 		}
-		ruleFlowMap[vdsID] = ruleFlow
+		ruleFlowMap[vdsID] = flowEntry
 	}
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
@@ -721,8 +727,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(rule *EveroutePolicyR
 		if pRule == nil {
 			return fmt.Errorf("rule %v not found when deleting", rule)
 		}
-
-		err := pRule.RuleFlowMap[vdsID].Delete()
+		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
 			return fmt.Errorf("failed to delete flow for rule: %+v. Err: %v", rule, err)
 		}
