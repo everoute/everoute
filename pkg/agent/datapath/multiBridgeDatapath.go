@@ -326,7 +326,7 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 		go func(suffix, brName string, vdsOvsdbDriverMap map[string]*ovsdbDriver.OvsDriver) {
 			defer wg.Done()
 			vdsOvsdbDriverMapMutex.Lock()
-			vdsOvsdbDriverMap[suffix] = ovsdbDriver.NewOvsDriver(brName)
+			vdsOvsdbDriverMap[suffix] = ovsdbDriver.NewOvsDriverForExistBridge(brName)
 			vdsOvsdbDriverMapMutex.Unlock()
 		}(suffix, brName, vdsOvsdbDriverMap)
 	}
