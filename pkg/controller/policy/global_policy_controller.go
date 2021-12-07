@@ -107,7 +107,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType rulev1alpha1.RuleType, rule
 		DstIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}
-	ingressRule.Name = fmt.Sprintf("global-%s", cache.HashName(32, ingressRule.Spec))
+	ingressRule.Name = fmt.Sprintf("global-%s", cache.GenerateFlowKey(&ingressRule.Spec))
 	ingressRule.Labels = defaultLabels
 
 	egressRule.Spec = rulev1alpha1.PolicyRuleSpec{
@@ -117,7 +117,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType rulev1alpha1.RuleType, rule
 		SrcIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}
-	egressRule.Name = fmt.Sprintf("global-%s", cache.HashName(32, egressRule.Spec))
+	egressRule.Name = fmt.Sprintf("global-%s", cache.GenerateFlowKey(&egressRule.Spec))
 	egressRule.Labels = defaultLabels
 
 	return []rulev1alpha1.PolicyRule{ingressRule, egressRule}
