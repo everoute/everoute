@@ -136,3 +136,7 @@ func (u *UplinkBridge) AddSFCRule() error {
 func (u *UplinkBridge) RemoveSFCRule() error {
 	return nil
 }
+
+func (u *UplinkBridge) BridgeInitCNI() {
+
+}

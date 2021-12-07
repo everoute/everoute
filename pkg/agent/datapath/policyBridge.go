@@ -500,3 +500,7 @@ func (p *PolicyBridge) AddSFCRule() error {
 func (p *PolicyBridge) RemoveSFCRule() error {
 	return nil
 }
+
+func (p *PolicyBridge) BridgeInitCNI() {
+
+}

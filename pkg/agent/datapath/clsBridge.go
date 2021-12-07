@@ -343,3 +343,7 @@ func (c *ClsBridge) AddSFCRule() error {
 func (c *ClsBridge) RemoveSFCRule() error {
 	return nil
 }
+
+func (c *ClsBridge) BridgeInitCNI() {
+
+}
