@@ -19,7 +19,6 @@ func Base64Encode(message []byte) []byte {
 }
 
 func EncodeNamespacedName(namespacedName coretypes.NamespacedName) string {
-	klog.Info(namespacedName)
 	if namespacedName.String() == "/" || namespacedName.String() == "" {
 		klog.Error("Could not encode empty namespacedName")
 		return ""
