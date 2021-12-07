@@ -140,7 +140,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Namespace: strings.Split(rule.RuleID, "/")[1],
 	})
 
-	flowKey := HashName(32, policyRule.Spec)
+	flowKey := GenerateFlowKey(&policyRule.Spec)
 
 	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
 	policyRule.Labels = map[string]string{
@@ -266,4 +266,12 @@ func genRuleName(policyName, ruleName, flowKey string) string {
 	}
 
 	return fmt.Sprintf("%s-%s", prefix, suffix)
+}
+
+func GenerateFlowKey(ruleSpec *policyv1alpha1.PolicyRuleSpec) string {
+	policyRuleSpec := ruleSpec.DeepCopy()
+	// We consider PolicyRule with the same spec but different action as the same flow.
+	// Some we remove the action to generate FlowKey here.
+	policyRuleSpec.Action = ""
+	return HashName(32, policyRuleSpec)
 }
