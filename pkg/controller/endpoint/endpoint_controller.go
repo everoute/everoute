@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
@@ -54,9 +56,12 @@ type EndpointReconciler struct {
 }
 
 const (
-	externalIDIndex       = "externalIDIndex"
-	agentIndex            = "agentIndex"
-	endpointExternalIDKey = "iface-id"
+	externalIDIndex              = "externalIDIndex"
+	agentIndex                   = "agentIndex"
+	endpointExternalIDKey        = "iface-id"
+	k8sEndpointExternalIDKey     = "pod-uuid"
+	ifaceIPAddrTimeout       int = 1800
+	IfaceIPAddrCleanInterval int = 5
 )
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
@@ -129,6 +134,14 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	err = c.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.Funcs{
 		CreateFunc: r.addEndpoint,
 	})
+	if err != nil {
+		return err
+	}
+
+	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
+		r.agentInfoCleaner(ifaceIPAddrTimeout, stopChan)
+		return nil
+	}))
 	if err != nil {
 		return err
 	}
@@ -310,6 +323,83 @@ func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alph
 	}
 }
 
+func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout int, stopChan <-chan struct{}) {
+	timer := time.NewTicker(time.Duration(IfaceIPAddrCleanInterval) * time.Second)
+
+	for {
+		select {
+		case <-timer.C:
+			r.cleanExpiredIPFromAgentInfo(ipAddrTimeout)
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout int) {
+	r.ifaceCacheLock.RLock()
+
+	expiredIPMap := make(map[string][]string)
+	ifaces := r.ifaceCache.List()
+	for _, cacheIface := range ifaces {
+		ifaceID := getEndpointIfaceIDFromIfaceCache(cacheIface.(*iface))
+		if ifaceID == "" {
+			continue
+		}
+		expiredIPs := computeInterfaceExpiredIPs(ipAddrTimeout, cacheIface.(*iface))
+		if len(expiredIPs) != 0 {
+			expiredIPMap[ifaceID] = expiredIPs
+		}
+	}
+	r.ifaceCacheLock.RUnlock()
+
+	if len(expiredIPMap) != 0 {
+		r.updateExpiredIface(expiredIPMap)
+	}
+}
+
+func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string) {
+	var agentInfoList agentv1alpha1.AgentInfoList
+	var updateAgentInfoList []*agentv1alpha1.AgentInfo
+	ctx := context.Background()
+	_ = r.Client.List(ctx, &agentInfoList)
+
+	for _, agentInfo := range agentInfoList.Items {
+		var isAgentInfoUpdated bool = false
+		var updateAgentInfo agentv1alpha1.AgentInfo
+		for i, bridge := range agentInfo.OVSInfo.Bridges {
+			for j, port := range bridge.Ports {
+				for k, ovsIface := range port.Interfaces {
+					ifaceID := getEndpointIfaceIDFromOvsIface(ovsIface)
+					if ifaceID == "" {
+						continue
+					}
+					expiredIPs, ok := expiredIPMap[ifaceID]
+					if !ok {
+						continue
+					}
+					for _, ip := range expiredIPs {
+						delete(agentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap, types.IPAddress(ip))
+					}
+					isAgentInfoUpdated = true
+				}
+			}
+		}
+		if isAgentInfoUpdated {
+			agentInfo.DeepCopyInto(&updateAgentInfo)
+			updateAgentInfoList = append(updateAgentInfoList, &updateAgentInfo)
+		}
+	}
+
+	for _, ai := range updateAgentInfoList {
+		err := r.Client.Update(ctx, ai)
+		if err != nil {
+			klog.Errorf("couldn't update agentInfo: %s", err)
+			return
+		}
+	}
+}
+
 func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
@@ -358,6 +448,48 @@ func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 		Name:  ep.Spec.Reference.ExternalIDName,
 		Value: ep.Spec.Reference.ExternalIDValue,
 	}
+}
+
+func computeInterfaceExpiredIPs(timeout int, iface *iface) []string {
+	var expiredIPs []string
+	for ip, t := range iface.ipLastUpdateTimeMap {
+		expireTime := t.Add(time.Duration(timeout) * time.Second)
+		if time.Now().After(expireTime) {
+			expiredIPs = append(expiredIPs, ip.String())
+		}
+	}
+
+	return expiredIPs
+}
+
+func getEndpointIfaceIDFromIfaceCache(iface *iface) string {
+	// if normal vm endpoint attached to interface: endpointId k-v pair is
+	// endpointExternalIDKey : endpointID
+	if ifaceID, ok := iface.externalIDs[endpointExternalIDKey]; ok {
+		return ifaceID
+	}
+	// if k8s endpoint attached to interface: endpointID k-v pair is
+	// k8sEndpointExternalIDKey : endpointID
+	if ifaceID, ok := iface.externalIDs[k8sEndpointExternalIDKey]; ok {
+		return ifaceID
+	}
+
+	return ""
+}
+
+func getEndpointIfaceIDFromOvsIface(ovsIface agentv1alpha1.OVSInterface) string {
+	// if normal vm endpoint attached to interface: endpointID k-v pair is
+	// endpointExternalIDKey: endpointID
+	if ifaceID, ok := ovsIface.ExternalIDs[endpointExternalIDKey]; ok {
+		return ifaceID
+	}
+	// if k8s endpoint attached to interface: endpointID k-v pair is
+	// k8sEndpointExternalIDKey : endpointID
+	if ifaceID, ok := ovsIface.ExternalIDs[k8sEndpointExternalIDKey]; ok {
+		return ifaceID
+	}
+
+	return ""
 }
 
 type iface struct {
