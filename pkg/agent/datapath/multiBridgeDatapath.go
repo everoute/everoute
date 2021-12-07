@@ -706,8 +706,6 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, oldRule)
 			return nil
 		}
-
-		return fmt.Errorf("different rule %v and %v with same ruleID", oldRule, rule)
 	}
 
 	log.Infof("Received AddRule: %+v", rule)
