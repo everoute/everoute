@@ -66,6 +66,7 @@ func main() {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	datapathManager.InitializeDatapath(stopChan)
 
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
@@ -88,7 +89,7 @@ func main() {
 		go cniServer.Run(stopChan)
 	}
 
-	datapathManager.InitializeDatapath(stopChan)
+	datapathManager.InitializeCNI()
 
 	if err = startManager(mgr, datapathManager, stopChan); err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)

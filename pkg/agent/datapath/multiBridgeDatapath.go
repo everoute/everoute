@@ -110,6 +110,8 @@ type Bridge interface {
 	BridgeInit()
 	BridgeReset()
 
+	BridgeInitCNI()
+
 	AddLocalEndpoint(endpoint *Endpoint) error
 	RemoveLocalEndpoint(endpoint *Endpoint) error
 	AddVNFInstance() error
@@ -293,6 +295,18 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	}()
 }
 
+func (datapathManager *DpManager) InitializeCNI() {
+	var wg sync.WaitGroup
+	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+		wg.Add(1)
+		go func(vdsID string) {
+			defer wg.Done()
+			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInitCNI()
+		}(vdsID)
+	}
+	wg.Wait()
+}
+
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -429,7 +443,7 @@ func (datapathManager *DpManager) replayFlows() error {
 
 	// replay basic connectivity flow
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID]["local"])
+		roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 		if err != nil {
 			return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
 		}
@@ -444,6 +458,7 @@ func (datapathManager *DpManager) replayFlows() error {
 		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInitCNI()
 	}
 
 	// replay local endpoint flow
@@ -486,7 +501,7 @@ func (datapathManager *DpManager) ReplayLocalEndpointFlow() error {
 				continue
 			}
 
-			err := datapathManager.BridgeChainMap[vdsID]["local"].AddLocalEndpoint(endpoint)
+			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}

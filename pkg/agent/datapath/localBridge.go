@@ -201,7 +201,11 @@ func (l *LocalBridge) BridgeInit() {
 	if err := l.initFromLocalRedirectTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 	}
+}
+
+func (l *LocalBridge) BridgeInitCNI() {
 	if l.datapathManager.AgentInfo.EnableCNI {
+		sw := l.OfSwitch
 		if err := l.initCniRelatedFlow(sw); err != nil {
 			log.Fatalf("Failed to init cni related flows, error: %v", err)
 		}
