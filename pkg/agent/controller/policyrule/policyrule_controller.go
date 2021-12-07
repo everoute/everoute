@@ -67,6 +67,7 @@ func (r *PolicyRuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := c.Watch(&source.Kind{Type: &networkpolicyv1alpha1.PolicyRule{}}, &handler.Funcs{
 		CreateFunc: r.addPolicyRule,
 		DeleteFunc: r.deletePolicyRule,
+		UpdateFunc: r.updatePolicyRule,
 	}); err != nil {
 		return err
 	}
@@ -115,18 +116,36 @@ func (r *PolicyRuleReconciler) addPolicyRule(e event.CreateEvent, q workqueue.Ra
 func (r *PolicyRuleReconciler) deletePolicyRule(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	_, ok := e.Object.(*networkpolicyv1alpha1.PolicyRule)
 	if !ok {
-		klog.Errorf("addPolicyRule receive event %v with error object", e)
+		klog.Errorf("deletePolicyRule receive event %v with error object", e)
 		return
 	}
 
 	if e.Meta == nil {
-		klog.Errorf("AddPolicyRule received with no metadata event: %v", e)
+		klog.Errorf("DeletePolicyRule received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Namespace: e.Meta.GetNamespace(),
 		Name:      e.Meta.GetName(),
+	}})
+}
+
+func (r *PolicyRuleReconciler) updatePolicyRule(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	_, ok := e.ObjectNew.(*networkpolicyv1alpha1.PolicyRule)
+	if !ok {
+		klog.Errorf("updatePolicyRule receive event %v with error object", e)
+		return
+	}
+
+	if e.MetaNew == nil {
+		klog.Errorf("UpdatePolicyRule received with no metadata event: %v", e)
+		return
+	}
+
+	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+		Namespace: e.MetaNew.GetNamespace(),
+		Name:      e.MetaNew.GetName(),
 	}})
 }
 
@@ -158,10 +177,9 @@ func (r *PolicyRuleReconciler) processPolicyRuleAdd(policyRule *networkpolicyv1a
 
 	if r.flowKeyReferenceMap[flowKey] == nil {
 		r.flowKeyReferenceMap[flowKey] = sets.NewString()
-
-		klog.Infof("add rule %s to datapath", flowKey)
-		r.addPolicyRuleToDatapath(flowKey, &policyRule.Spec)
 	}
+	klog.Infof("add rule %s to datapath", flowKey)
+	r.addPolicyRuleToDatapath(flowKey, &policyRule.Spec)
 
 	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
 }
