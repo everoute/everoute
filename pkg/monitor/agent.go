@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	typeuuid "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -109,7 +108,7 @@ type AgentMonitor struct {
 
 	ovsdbEventHandler              ovsdbEventHandler
 	localEndpointHardwareAddrLock  sync.RWMutex
-	localEndpointHardwareAddrCache sets.String
+	localEndpointHardwareAddrCache map[string]uint32
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
@@ -125,7 +124,7 @@ func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[s
 		ipCache:                        make(map[string]map[types.IPAddress]metav1.Time),
 		ofPortIPAddressMonitorChan:     ofPortIPAddressMonitorChan,
 		localEndpointHardwareAddrLock:  sync.RWMutex{},
-		localEndpointHardwareAddrCache: sets.NewString(),
+		localEndpointHardwareAddrCache: make(map[string]uint32),
 		syncQueue:                      workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 	}
 
@@ -224,8 +223,6 @@ func (monitor *AgentMonitor) interfaceToEndpoint(ofport uint32, interfaceName, m
 	var portUUID string
 	var vlanID uint16
 
-	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
 	for uuid, port := range monitor.ovsdbCache["Port"] {
 		if port.Fields["name"].(string) == interfaceName {
 			portUUID = uuid
@@ -362,7 +359,7 @@ func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 	return agentInfo, nil
 }
 
-func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+func (monitor *AgentMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	if rowupdate.New.Fields["external_ids"] == nil {
 		return nil, nil
 	}
@@ -373,78 +370,89 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 		return nil, nil
 	}
 
-	monitor.localEndpointHardwareAddrLock.Lock()
-	defer monitor.localEndpointHardwareAddrLock.Unlock()
-	if monitor.localEndpointHardwareAddrCache.Has(newExternalIds[LocalEndpointIdentity].(string)) {
-		newOfPort, ok := rowupdate.New.Fields["ofport"].(float64)
-		if !ok {
-			klog.Errorf("Parsing added ofPort error: ofPort not found")
-			return nil, nil
-		}
-		oldOfPort, ok := rowupdate.Old.Fields["ofport"].(float64)
-		if !ok {
-			klog.Errorf("Parsing added ofPort error: ofPort not found")
-			return nil, nil
-		}
-
-		if newOfPort <= 0 || oldOfPort <= 0 {
-			return nil, nil
-		}
-
-		macAddr, err := net.ParseMAC(newExternalIds["attached-mac"].(string))
-		if err != nil {
-			klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
-			return nil, nil
-		}
-		// interface udpate is triggerd by some other fileds except that ofport field
-		if newOfPort == oldOfPort {
-			return nil, nil
-		}
-
-		newEndpoint := monitor.interfaceToEndpoint(uint32(newOfPort), rowupdate.New.Fields["name"].(string), macAddr.String())
-		oldEndpoint := monitor.interfaceToEndpoint(uint32(oldOfPort), rowupdate.Old.Fields["name"].(string), macAddr.String())
-		return newEndpoint, oldEndpoint
+	empty := ovsdb.Row{}
+	if reflect.DeepEqual(rowupdate.Old, empty) {
+		return monitor.filterEndpointAdded(rowupdate), nil
 	}
 
-	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
+	if rowupdate.Old.Fields["external_ids"] == nil {
+		return monitor.filterEndpointAdded(rowupdate), nil
+	}
+
+	return monitor.filterEndpointUpdated(rowupdate)
+}
+
+func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+
+	newOfPort, ok := rowupdate.New.Fields["ofport"].(float64)
+	if !ok {
+		klog.Errorf("Parsing added ofPort error: ofPort not found")
+		return nil, nil
+	}
+	oldOfPort, ok := rowupdate.Old.Fields["ofport"].(float64)
 	if !ok {
 		klog.Errorf("Parsing added ofPort error: ofPort not found")
 		return nil, nil
 	}
 
-	if ofPort < 0 {
-		klog.Errorf("Parsing added ofport error: invalid local endpoint ofPort %f", ofPort)
+	if newOfPort <= 0 || oldOfPort <= 0 {
 		return nil, nil
 	}
-
-	if ofPort == 0 {
-		// OfPort in initializing status
-		return nil, nil
-	}
-	ofport := uint32(ofPort)
 
 	macAddr, err := net.ParseMAC(newExternalIds["attached-mac"].(string))
 	if err != nil {
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil, nil
 	}
+	// interface udpate is triggerd by some other fileds except that ofport field
+	if newOfPort == oldOfPort {
+		return nil, nil
+	}
 
-	monitor.localEndpointHardwareAddrCache.Insert(newExternalIds[LocalEndpointIdentity].(string))
-	newEndpoint := monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds["attached-mac"].(string))
-
-	return newEndpoint, nil
+	newEndpoint := monitor.interfaceToEndpoint(uint32(newOfPort), rowupdate.New.Fields["name"].(string), macAddr.String())
+	oldEndpoint := monitor.interfaceToEndpoint(uint32(oldOfPort), rowupdate.Old.Fields["name"].(string), macAddr.String())
+	return newEndpoint, oldEndpoint
 }
 
-func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
-	if rowupdate.Old.Fields["external_ids"] == nil {
+func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
+	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	if _, ok := monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)]; ok {
+		return nil
+	}
+	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
+	if !ok {
+		klog.Errorf("Parsing added ofPort error: ofPort not found")
 		return nil
 	}
 
+	if ofPort <= 0 {
+		// Parsing added ofport error: invalid local endpoint ofPort. In OfPort initializing status
+		return nil
+	}
+	ofport := uint32(ofPort)
+
+	macAddr, err := net.ParseMAC(newExternalIds["attached-mac"].(string))
+	if err != nil {
+		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
+		return nil
+	}
+	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(ofPort)
+
+	return monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds[LocalEndpointIdentity].(string))
+}
+
+func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
+	var ofport uint32
+	if rowupdate.Old.Fields["external_ids"] == nil {
+		return nil
+	}
 	oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+
 	monitor.localEndpointHardwareAddrLock.Lock()
 	defer monitor.localEndpointHardwareAddrLock.Unlock()
 	if _, ok := oldExternalIds[LocalEndpointIdentity]; ok {
-		if !monitor.localEndpointHardwareAddrCache.Has(oldExternalIds[LocalEndpointIdentity].(string)) {
+		if _, ok := monitor.localEndpointHardwareAddrCache[oldExternalIds[LocalEndpointIdentity].(string)]; !ok {
 			return nil
 		}
 
@@ -454,14 +462,14 @@ func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 			return nil
 		}
 		if ofPort <= 0 {
-			klog.Errorf("Parsing deleted ofPort error: invalid local endpoint ofport %f ", ofPort)
-			return nil
+			ofport = monitor.localEndpointHardwareAddrCache[oldExternalIds[LocalEndpointIdentity].(string)]
+		} else {
+			ofport = uint32(ofPort)
 		}
-		ofport := uint32(ofPort)
 
-		monitor.localEndpointHardwareAddrCache.Delete(oldExternalIds[LocalEndpointIdentity].(string))
+		delete(monitor.localEndpointHardwareAddrCache, oldExternalIds[LocalEndpointIdentity].(string))
 
-		endpoint := monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds["attached-mac"].(string))
+		endpoint := monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds[LocalEndpointIdentity].(string))
 		return endpoint
 	}
 
@@ -469,7 +477,7 @@ func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 }
 
 func (monitor *AgentMonitor) processEndpointUpdate(rowupdate ovsdb.RowUpdate) {
-	newEndpoint, oldEndpoint := monitor.filterEndpointUpdated(rowupdate)
+	newEndpoint, oldEndpoint := monitor.filterEndpoint(rowupdate)
 	if newEndpoint != nil && oldEndpoint != nil {
 		go monitor.ovsdbEventHandler.UpdateLocalEndpoint(*newEndpoint, *oldEndpoint)
 	} else if newEndpoint != nil {
@@ -496,13 +504,13 @@ func (monitor *AgentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 			empty := ovsdb.Row{}
 			if !reflect.DeepEqual(row.New, empty) {
 				if table == "Interface" {
-					go monitor.processEndpointUpdate(row)
+					monitor.processEndpointUpdate(row)
 				}
 
 				monitor.ovsdbCache[table][uuid] = row.New
 			} else {
 				if table == "Interface" {
-					go monitor.processEndpointDel(row)
+					monitor.processEndpointDel(row)
 				}
 
 				delete(monitor.ovsdbCache[table], uuid)
