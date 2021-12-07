@@ -10,12 +10,12 @@ Everoute is a cloud-native networking and security solution.
 It works with OSI Network Model's Layer3/4. It leverages [Open vSwitch](https://www.openvswitchd.org)
 as the networking data plane.
 
-Everoute provides network and security service for the following platforms:
+Everoute provides network and security services for the following platforms:
 * Kubernetes cloud-native platform
 * Private Cloud
 * Public Cloud
 * Hybrid Cloud
-* Legacy Virtualization data center
+* Legacy virtualized data center
 
 It can be intergated within these platforms easily.
 
@@ -26,8 +26,7 @@ It decouples the control plane and data plane, and utilizes software programming
 to control the software network and security services.
 
 All the Everoute related services are deployed as Kubernetes Pod, which makes
-these services easy to deploy and manage.
-to deploy and use.
+these services easy to be deployed and managed.
 
 <p align='center'>
 <img src="docs/assets/everoute_arch.svg.png" width="550" alt="Everoute Architecture">
@@ -37,13 +36,13 @@ Everoute contains four main parts:
 
 * **Everoute Central Controller**: The Everoute central controller consists of
 control service, API Server and etcd, it leverages the cloud-native
-architecture, so all the services are deployed as container Pods. The Everoute
+architecture, so all the services are deployed as containers. The Everoute
 Central Controller provides the controller cluster management and data persistence
 based on the [Kube API Server](https://github.com/kubernetes/apiserver)
 and [etcd](https://etcd.io). Everoute supports controllers' high availability
 and scalability through cluster.
-The controller service's main task is to manage network and security policies.
-The process generated network transimit policy rules according to resource types,
+The main task of control service is to manage network and security policies.
+It generates network transimit policy rules according to resource types,
 security policies and discovered IP addresses.
 
 * **Everoute Distributed Agent**: The Everoute Agent is deployed in each
