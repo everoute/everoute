@@ -17,12 +17,12 @@ const (
 	INPUT_TABLE               = 0
 	CT_STATE_TABLE            = 1
 	DIRECTION_SELECTION_TABLE = 10
-	EGRESS_TIER1_TABLE        = 20
-	EGRESS_TIER2_TABLE        = 25
-	EGRESS_TIER3_TABLE        = 30
-	INGRESS_TIER1_TABLE       = 50
-	INGRESS_TIER2_TABLE       = 55
-	INGRESS_TIER3_TABLE       = 60
+	EGRESS_TIER0_TABLE        = 20
+	EGRESS_TIER1_TABLE        = 25
+	EGRESS_TIER2_TABLE        = 30
+	INGRESS_TIER0_TABLE       = 50
+	INGRESS_TIER1_TABLE       = 55
+	INGRESS_TIER2_TABLE       = 60
 	CT_COMMIT_TABLE           = 70
 	SFC_POLICY_TABLE          = 80
 	POLICY_FORWARDING_TABLE   = 90
@@ -36,12 +36,12 @@ type PolicyBridge struct {
 	inputTable              *ofctrl.Table
 	ctStateTable            *ofctrl.Table
 	directionSelectionTable *ofctrl.Table
+	egressTier0PolicyTable  *ofctrl.Table
 	egressTier1PolicyTable  *ofctrl.Table
 	egressTier2PolicyTable  *ofctrl.Table
-	egressTier3PolicyTable  *ofctrl.Table
+	ingressTier0PolicyTable *ofctrl.Table
 	ingressTier1PolicyTable *ofctrl.Table
 	ingressTier2PolicyTable *ofctrl.Table
-	ingressTier3PolicyTable *ofctrl.Table
 	ctCommitTable           *ofctrl.Table
 	sfcPolicyTable          *ofctrl.Table
 	policyForwardingTable   *ofctrl.Table
@@ -110,12 +110,12 @@ func (p *PolicyBridge) BridgeInit() {
 	p.inputTable = sw.DefaultTable()
 	p.ctStateTable, _ = sw.NewTable(CT_STATE_TABLE)
 	p.directionSelectionTable, _ = sw.NewTable(DIRECTION_SELECTION_TABLE)
+	p.ingressTier0PolicyTable, _ = sw.NewTable(INGRESS_TIER0_TABLE)
 	p.ingressTier1PolicyTable, _ = sw.NewTable(INGRESS_TIER1_TABLE)
 	p.ingressTier2PolicyTable, _ = sw.NewTable(INGRESS_TIER2_TABLE)
-	p.ingressTier3PolicyTable, _ = sw.NewTable(INGRESS_TIER3_TABLE)
+	p.egressTier0PolicyTable, _ = sw.NewTable(EGRESS_TIER0_TABLE)
 	p.egressTier1PolicyTable, _ = sw.NewTable(EGRESS_TIER1_TABLE)
 	p.egressTier2PolicyTable, _ = sw.NewTable(EGRESS_TIER2_TABLE)
-	p.egressTier3PolicyTable, _ = sw.NewTable(EGRESS_TIER3_TABLE)
 	p.ctCommitTable, _ = sw.NewTable(CT_COMMIT_TABLE)
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
@@ -142,14 +142,14 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(POLICY_TO_LOCAL_PORT),
 	})
-	if err := fromLocalToEgressFlow.Next(p.egressTier1PolicyTable); err != nil {
+	if err := fromLocalToEgressFlow.Next(p.egressTier0PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(POLICY_TO_CLS_PORT),
 	})
-	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
+	if err := fromUpstreamToIngressFlow.Next(p.ingressTier0PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
 	}
 
@@ -258,19 +258,19 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 
 func (p *PolicyBridge) initPolicyTable() error {
 	// egress policy table
-	egressTier1DefaultFlow, _ := p.egressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
+	egressTier1DefaultFlow, _ := p.egressTier0PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := egressTier1DefaultFlow.Next(p.egressTier2PolicyTable); err != nil {
+	if err := egressTier1DefaultFlow.Next(p.egressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install egress tier1 default flow, error: %v", err)
 	}
-	egressTier2DefaultFlow, _ := p.egressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
+	egressTier2DefaultFlow, _ := p.egressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := egressTier2DefaultFlow.Next(p.egressTier3PolicyTable); err != nil {
+	if err := egressTier2DefaultFlow.Next(p.egressTier2PolicyTable); err != nil {
 		return fmt.Errorf("failed to install egress tier2 default flow, error: %v", err)
 	}
-	egressTier3DefaultFlow, _ := p.egressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
+	egressTier3DefaultFlow, _ := p.egressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := egressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
@@ -278,19 +278,19 @@ func (p *PolicyBridge) initPolicyTable() error {
 	}
 
 	// ingress policy table
-	ingressTier1DefaultFlow, _ := p.ingressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
+	ingressTier1DefaultFlow, _ := p.ingressTier0PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ingressTier1DefaultFlow.Next(p.ingressTier2PolicyTable); err != nil {
+	if err := ingressTier1DefaultFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier1 default flow, error: %v", err)
 	}
-	ingressTier2DefaultFlow, _ := p.ingressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
+	ingressTier2DefaultFlow, _ := p.ingressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ingressTier2DefaultFlow.Next(p.ingressTier3PolicyTable); err != nil {
+	if err := ingressTier2DefaultFlow.Next(p.ingressTier2PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
 	}
-	ingressTier3DefaultFlow, _ := p.ingressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
+	ingressTier3DefaultFlow, _ := p.ingressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := ingressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
@@ -366,13 +366,13 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table,
 	case POLICY_DIRECTION_OUT:
 		switch tier {
 		case POLICY_TIER0:
+			policyTable = p.egressTier0PolicyTable
+			nextTable = p.egressTier1PolicyTable
+		case POLICY_TIER1:
 			policyTable = p.egressTier1PolicyTable
 			nextTable = p.ctCommitTable
-		case POLICY_TIER1:
-			policyTable = p.egressTier2PolicyTable
-			nextTable = p.egressTier3PolicyTable
 		case POLICY_TIER2:
-			policyTable = p.egressTier3PolicyTable
+			policyTable = p.egressTier2PolicyTable
 			nextTable = p.ctCommitTable
 		default:
 			return nil, nil, errors.New("unknow policy tier")
@@ -380,13 +380,13 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table,
 	case POLICY_DIRECTION_IN:
 		switch tier {
 		case POLICY_TIER0:
+			policyTable = p.ingressTier0PolicyTable
+			nextTable = p.ingressTier1PolicyTable
+		case POLICY_TIER1:
 			policyTable = p.ingressTier1PolicyTable
 			nextTable = p.ctCommitTable
-		case POLICY_TIER1:
-			policyTable = p.ingressTier2PolicyTable
-			nextTable = p.ingressTier3PolicyTable
 		case POLICY_TIER2:
-			policyTable = p.ingressTier3PolicyTable
+			policyTable = p.ingressTier2PolicyTable
 			nextTable = p.ctCommitTable
 		default:
 			return nil, nil, errors.New("unknow policy tier")

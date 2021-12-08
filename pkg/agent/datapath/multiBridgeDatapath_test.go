@@ -78,7 +78,7 @@ var (
 		Action:     "deny",
 	}
 
-	rule1Flow           = "table=50, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 actions=goto_table:70"
+	rule1Flow           = "table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 actions=goto_table:70"
 	ep1VlanInputFlow    = "table=0, priority=200,in_port=11 actions=load:0x1->NXM_OF_VLAN_TCI[0..11],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 )
@@ -175,8 +175,8 @@ func testFlowReplay(t *testing.T) {
 	}
 	t.Run("add ER policy rule", func(t *testing.T) {
 		Eventually(func() error {
-			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER0)
-			return datapathManager.AddEveroutePolicyRule(rule1, POLICY_DIRECTION_IN, POLICY_TIER0)
+			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER2)
+			return datapathManager.AddEveroutePolicyRule(rule1, POLICY_DIRECTION_IN, POLICY_TIER2)
 		}, timeout, interval).Should(Succeed())
 	})
 
