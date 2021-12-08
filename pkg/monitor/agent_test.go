@@ -202,7 +202,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 			defer monitor.ipCacheLock.RUnlock()
 			ipSet := toIPSet(monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort1)])
 			return ipSet.Has(ipAddr1.String())
-		}, timeout, interval).Should(Equal(true))
+		}, timeout, interval).Should(Equal(false))
 	})
 
 	t.Logf("Add another ovsPort related IpAddress %v.", ipAddr2)
@@ -214,7 +214,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 			defer monitor.ipCacheLock.RUnlock()
 			ipSet := toIPSet(monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort1)])
 			return ipSet.Has(ipAddr2.String())
-		}, timeout, interval).Should(Equal(true))
+		}, timeout, interval).Should(Equal(false))
 	})
 }
 
@@ -388,9 +388,6 @@ func updateIPAddress(brName string, ofPort uint32, newIPAddr net.IP, ofPortIPAdd
 	monitor.ipCacheLock.RLock()
 	defer monitor.ipCacheLock.RUnlock()
 
-	if _, ok := monitor.ipCache[fmt.Sprintf("%s-%d", brName, ofPort)]; !ok {
-		return fmt.Errorf("error when get ofportcache, port: %d", ofPort)
-	}
 	ofPortInfo := map[string]net.IP{
 		fmt.Sprintf("%s-%d", brName, ofPort): newIPAddr,
 	}
