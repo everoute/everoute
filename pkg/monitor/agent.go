@@ -291,10 +291,16 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
 	}
 
+	monitor.ipCacheLock.Lock()
+	defer monitor.ipCacheLock.Unlock()
+	roundIPCache := monitor.ipCache
+	monitor.ipCache = make(map[string]map[types.IPAddress]metav1.Time)
+
 	monitor.mergeAgentInfo(agentInfo, cpAgentInfo)
 	agentInfo.ObjectMeta = cpAgentInfo.ObjectMeta
 	err = monitor.k8sClient.Update(ctx, agentInfo)
 	if err != nil {
+		monitor.ipCache = roundIPCache
 		return fmt.Errorf("couldn't update agent %s agentinfo: %s", agentName, err)
 	}
 
