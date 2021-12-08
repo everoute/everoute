@@ -213,9 +213,9 @@ func getTableIds(tier string) (*int, *int, *int, *int, error) {
 		ingressNextTableID = 70
 	case "tier1":
 		egressTableID = 25
-		egressNextTableID = 30
+		egressNextTableID = 70
 		ingressTableID = 55
-		ingressNextTableID = 60
+		ingressNextTableID = 70
 	case "tier2":
 		egressTableID = 30
 		egressNextTableID = 70
