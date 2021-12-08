@@ -287,16 +287,22 @@ func (r *PolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	_ = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
+	err = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
 		constants.SecurityPolicyByEndpointGroupIndex,
 		EndpointGroupIndexSecurityPolicyFunc,
 	)
+	if err != nil {
+		return err
+	}
 
 	// register endpoint index for securityPolicy
-	_ = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
+	err = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
 		constants.SecurityPolicyByEndpointIndex,
 		EndpointIndexSecurityPolicyFunc,
 	)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
