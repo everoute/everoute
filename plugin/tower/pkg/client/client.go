@@ -259,10 +259,16 @@ func (c *Client) httpClient() *http.Client {
 
 // lookReadMessage loop read message from conn until read error or get signal from stopChan
 func lookReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan chan struct{}) {
-	defer close(respChan)
+	// we close the connection before return
+	// goroutines read from the connection would get an error
 	defer conn.Close()
 
+	// we start a new goroutine to handle WebSocket response
+	// make sure when stopChan close, we can return immediately
 	go func() {
+		// to make sure no data race happens, we should close respChan
+		// and write to respChan in the same goroutine
+		defer close(respChan)
 		for {
 			resp := readConnResponse(conn)
 			select {
@@ -283,6 +289,7 @@ func lookReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan ch
 	<-stopChan
 }
 
+// readConnResponse would block until message from the connection or the connection closed
 func readConnResponse(conn *websocket.Conn) Response {
 	var msg Message
 	var resp Response
