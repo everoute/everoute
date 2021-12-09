@@ -415,9 +415,8 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	if newOfPort == oldOfPort {
 		return nil, nil
 	}
-
-	monitor.localEndpointHardwareAddrCacheLock.RLock()
-	defer monitor.localEndpointHardwareAddrCacheLock.RUnlock()
+	monitor.localEndpointHardwareAddrCacheLock.Lock()
+	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(newOfPort)
 
 	newEndpoint := monitor.interfaceToEndpoint(uint32(newOfPort), rowupdate.New.Fields["name"].(string), macAddr.String())
@@ -427,8 +426,8 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 
 func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-	monitor.localEndpointHardwareAddrCacheLock.RLock()
-	defer monitor.localEndpointHardwareAddrCacheLock.RUnlock()
+	monitor.localEndpointHardwareAddrCacheLock.Lock()
+	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 
 	if _, ok := monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)]; ok {
 		return nil
@@ -461,8 +460,8 @@ func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 	}
 	oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 
-	monitor.localEndpointHardwareAddrCacheLock.RLock()
-	defer monitor.localEndpointHardwareAddrCacheLock.RUnlock()
+	monitor.localEndpointHardwareAddrCacheLock.Lock()
+	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 	if _, ok := oldExternalIds[LocalEndpointIdentity]; ok {
 		if _, ok := monitor.localEndpointHardwareAddrCache[oldExternalIds[LocalEndpointIdentity].(string)]; !ok {
 			return nil
