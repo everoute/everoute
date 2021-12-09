@@ -528,7 +528,9 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_ARP,
 	})
-	if err := fromLocalArpRedirectFlow.Next(sw.SendToController()); err != nil {
+	sendToControllerAct := fromLocalArpRedirectFlow.NewControllerAction(sw.ControllerID, 0)
+	_ = fromLocalArpRedirectFlow.SendToController(sendToControllerAct)
+	if err := fromLocalArpRedirectFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install from local arp redirect flow, error: %v", err)
 	}
 
