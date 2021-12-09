@@ -32,14 +32,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	"github.com/everoute/everoute/pkg/controller/policy/cache"
 )
 
 // GroupGenerateReconcile generate EndpointGroups by SecurityPolicy selector.
-func (r *PolicyReconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, error) {
 	policyList := securityv1alpha1.SecurityPolicyList{}
 	var endpointGroupExist bool
 
@@ -92,7 +92,7 @@ func (r *PolicyReconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result
 	return ctrl.Result{}, nil
 }
 
-func (r *PolicyReconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	policy := e.Object.(*securityv1alpha1.SecurityPolicy)
 
 	for _, group := range EndpointGroupIndexSecurityPolicyFunc(policy) {
@@ -103,7 +103,7 @@ func (r *PolicyReconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.Ra
 	}
 }
 
-func (r *PolicyReconciler) updateSecurityPolicy(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) updateSecurityPolicy(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	policyNew := e.ObjectNew.(*securityv1alpha1.SecurityPolicy)
 	policyOld := e.ObjectOld.(*securityv1alpha1.SecurityPolicy)
 
@@ -116,7 +116,7 @@ func (r *PolicyReconciler) updateSecurityPolicy(e event.UpdateEvent, q workqueue
 	}
 }
 
-func (r *PolicyReconciler) deleteSecurityPolicy(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) deleteSecurityPolicy(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	policy := e.Object.(*securityv1alpha1.SecurityPolicy)
 
 	for _, group := range EndpointGroupIndexSecurityPolicyFunc(policy) {
@@ -127,7 +127,7 @@ func (r *PolicyReconciler) deleteSecurityPolicy(e event.DeleteEvent, q workqueue
 	}
 }
 
-func (r *PolicyReconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1alpha1.SecurityPolicy, groupName string) *groupv1alpha1.EndpointGroup {
+func (r *Reconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1alpha1.SecurityPolicy, groupName string) *groupv1alpha1.EndpointGroup {
 	for _, appliedTo := range policy.Spec.AppliedTo {
 		group := appliedAsEndpointGroup(policy.GetNamespace(), appliedTo)
 		if group != nil && group.GetName() == groupName {
@@ -137,7 +137,7 @@ func (r *PolicyReconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1
 
 	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
 		for _, peer := range append(rule.From, rule.To...) {
-			group := peerAsEndpointGroup(policy.GetNamespace(), peer)
+			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
 			if group != nil && group.GetName() == groupName {
 				return group
 			}
@@ -161,7 +161,7 @@ func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
 
 	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
 		for _, peer := range append(rule.From, rule.To...) {
-			group := peerAsEndpointGroup(policy.GetNamespace(), peer)
+			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
 			if group != nil {
 				groupSet.Insert(group.GetName())
 			}
@@ -171,7 +171,7 @@ func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
 	return groupSet.List()
 }
 
-func peerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyPeer) *groupv1alpha1.EndpointGroup {
+func PeerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyPeer) *groupv1alpha1.EndpointGroup {
 	if peer.EndpointSelector == nil && peer.NamespaceSelector == nil {
 		return nil
 	}
@@ -205,11 +205,11 @@ func peerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyP
 }
 
 func appliedAsEndpointGroup(namespace string, applied securityv1alpha1.ApplyToPeer) *groupv1alpha1.EndpointGroup {
-	securityPolicyPeer := appliedAsSecurityPeer(namespace, applied)
-	return peerAsEndpointGroup(namespace, securityPolicyPeer)
+	securityPolicyPeer := AppliedAsSecurityPeer(namespace, applied)
+	return PeerAsEndpointGroup(namespace, securityPolicyPeer)
 }
 
-func appliedAsSecurityPeer(namespace string, applied securityv1alpha1.ApplyToPeer) securityv1alpha1.SecurityPolicyPeer {
+func AppliedAsSecurityPeer(namespace string, applied securityv1alpha1.ApplyToPeer) securityv1alpha1.SecurityPolicyPeer {
 	securityPolicyPeer := securityv1alpha1.SecurityPolicyPeer{
 		EndpointSelector: applied.EndpointSelector,
 	}

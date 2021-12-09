@@ -18,6 +18,7 @@ package cases
 
 import (
 	"fmt"
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"net"
 	"strings"
 
@@ -25,10 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 
+	policyagent "github.com/everoute/everoute/pkg/agent/controller/policy"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
-	"github.com/everoute/everoute/pkg/controller/policy/cache"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
 
@@ -68,7 +68,7 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 			ingressIPs = append(ingressIPs, m.getPeerIPs(&rule.From[index])...)
 		}
 
-		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
+		rulePorts, err := policyagent.FlattenPorts(rule.Ports)
 		if err != nil {
 			klog.Fatalf("failed to flatten ports: %s", err)
 		}
@@ -80,7 +80,7 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 			egressIPs = append(egressIPs, m.getPeerIPs(&rule.To[index])...)
 		}
 
-		rulePorts, err := policyctrl.FlattenPorts(rule.Ports)
+		rulePorts, err := policyagent.FlattenPorts(rule.Ports)
 		if err != nil {
 			klog.Fatalf("failed to flatten ports: %s", err)
 		}

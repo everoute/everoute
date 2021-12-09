@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	policyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -51,9 +50,9 @@ var _ = Describe("PolicyController", func() {
 		})
 
 		It("should flatten golbal policy to rules", func() {
-			assertGlobalPolicyRulesNum(ctx, 2)
-			assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Ingress", "Allow", "", "")
-			assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Egress", "Allow", "", "")
+			assertGlobalPolicyRulesNum(2)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Allow", "", "")
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Allow", "", "")
 		})
 
 		When("update GlobalPolicy to default drop", func() {
@@ -66,9 +65,9 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("should flatten golbal policy to rules", func() {
-				assertGlobalPolicyRulesNum(ctx, 2)
-				assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Ingress", "Drop", "", "")
-				assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Egress", "Drop", "", "")
+				assertGlobalPolicyRulesNum(2)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
 			})
 		})
 		When("delete GlobalPolicy", func() {
@@ -78,7 +77,7 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("should delete all global rules", func() {
-				assertGlobalPolicyRulesNum(ctx, 0)
+				assertGlobalPolicyRulesNum(0)
 			})
 		})
 	})
@@ -95,11 +94,11 @@ var _ = Describe("PolicyController", func() {
 		})
 
 		It("should flatten golbal policy to rules", func() {
-			assertGlobalPolicyRulesNum(ctx, 4)
-			assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Ingress", "Drop", "", "")
-			assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Egress", "Drop", "", "")
-			assertHasGlobalPolicyRule(ctx, "NormalRule", "Ingress", "Allow", "", whitelist)
-			assertHasGlobalPolicyRule(ctx, "NormalRule", "Egress", "Allow", whitelist, "")
+			assertGlobalPolicyRulesNum(4)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
+			assertHasGlobalPolicyRule("NormalRule", "Ingress", "Allow", "", whitelist)
+			assertHasGlobalPolicyRule("NormalRule", "Egress", "Allow", whitelist, "")
 		})
 
 		When("update GlobalPolicy whitelist", func() {
@@ -116,11 +115,11 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("should flatten golbal policy to rules", func() {
-				assertGlobalPolicyRulesNum(ctx, 4)
-				assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Ingress", "Drop", "", "")
-				assertHasGlobalPolicyRule(ctx, "GlobalDefaultRule", "Egress", "Drop", "", "")
-				assertHasGlobalPolicyRule(ctx, "NormalRule", "Ingress", "Allow", "", newWhitelist)
-				assertHasGlobalPolicyRule(ctx, "NormalRule", "Egress", "Allow", newWhitelist, "")
+				assertGlobalPolicyRulesNum(4)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
+				assertHasGlobalPolicyRule("NormalRule", "Ingress", "Allow", "", newWhitelist)
+				assertHasGlobalPolicyRule("NormalRule", "Egress", "Allow", newWhitelist, "")
 			})
 		})
 		When("delete GlobalPolicy", func() {
@@ -130,7 +129,7 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("should delete all global rules", func() {
-				assertGlobalPolicyRulesNum(ctx, 0)
+				assertGlobalPolicyRulesNum(0)
 			})
 		})
 	})
@@ -151,18 +150,25 @@ func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whi
 	return &policy
 }
 
-func assertGlobalPolicyRulesNum(ctx context.Context, numOfPolicyRules int) {
+func getGlobalRuleFromCache() policyv1alpha1.PolicyRuleList {
+	policyRuleList := policyv1alpha1.PolicyRuleList{}
+	globalRules := globalRuleCacheLister.List()
+	for _, rule := range globalRules {
+		policyRuleList.Items = append(policyRuleList.Items, rule.(policyv1alpha1.PolicyRule))
+	}
+	return policyRuleList
+}
+
+func assertGlobalPolicyRulesNum(numOfPolicyRules int) {
 	Eventually(func() int {
-		policyRuleList := policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.HasLabels([]string{constants.IsGlobalPolicyRuleLabel}))).Should(Succeed())
+		policyRuleList := getGlobalRuleFromCache()
 		return len(policyRuleList.Items)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }
 
-func assertHasGlobalPolicyRule(ctx context.Context, ruleType, direction, action, srcCidr, dstCidr string) {
+func assertHasGlobalPolicyRule(ruleType, direction, action, srcCidr, dstCidr string) {
 	Eventually(func() bool {
-		var policyRuleList = policyv1alpha1.PolicyRuleList{}
-		Expect(k8sClient.List(ctx, &policyRuleList, client.HasLabels([]string{constants.IsGlobalPolicyRuleLabel}))).Should(Succeed())
+		policyRuleList := getGlobalRuleFromCache()
 
 		for _, rule := range policyRuleList.Items {
 			if constants.Tier2 == rule.Spec.Tier &&

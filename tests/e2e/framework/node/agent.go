@@ -19,8 +19,6 @@ package node
 import (
 	"fmt"
 	"strings"
-
-	"k8s.io/klog"
 )
 
 type Agent struct {
@@ -66,8 +64,6 @@ func (n *Agent) DumpFlow() ([]string, error) {
 			flowList = append(flowList, fstr)
 		}
 	}
-
-	klog.Infof("dump flow from agent %s: %+v", n.Name, flowList)
 
 	return flowList, nil
 }

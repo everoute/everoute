@@ -20,33 +20,29 @@ import (
 	"flag"
 	"net"
 
-	"github.com/everoute/everoute/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/cniserver"
-	"github.com/everoute/everoute/pkg/agent/controller/policyrule"
+	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
-	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
-	networkpolicyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
+	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/monitor"
 )
 
 var (
-	scheme      = runtime.NewScheme()
 	enableCNI   bool
 	metricsAddr string
 )
 
 func init() {
-	_ = networkpolicyv1alpha1.AddToScheme(scheme)
-	_ = agentv1alpha1.AddToScheme(scheme)
-	_ = corev1.AddToScheme(scheme)
+	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
@@ -71,7 +67,7 @@ func main() {
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
-		Scheme:             scheme,
+		Scheme:             clientsetscheme.Scheme,
 		MetricsBindAddress: metricsAddr,
 		Port:               9443,
 	})
@@ -126,14 +122,13 @@ func main() {
 
 func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
 	var err error
-	// NetworkPolicy controller: watch policyRule crud and update flow
-	if err = (&policyrule.PolicyRuleReconciler{
+	// Policy controller: watch policy related resource and update
+	if err = (&policy.Reconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
 		DatapathManager: datapathManager,
 	}).SetupWithManager(mgr); err != nil {
-		klog.Errorf("unable to create policyrule controller: %s", err.Error())
-		return err
+		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
 
 	if enableCNI {

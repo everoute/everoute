@@ -1852,14 +1852,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - policyrule.everoute.io
-  resources:
-  - policyrules
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
     - ""
   resources:
     - pods
@@ -1872,6 +1864,26 @@ rules:
     - get
     - list
     - watch
+- apiGroups:
+    - group.everoute.io
+  resources:
+    - groupmembers
+    - groupmemberspatches
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - security.everoute.io
+  resources:
+    - securitypolicies
+    - endpoints
+    - globalpolicies
+  verbs:
+    - get
+    - list
+    - watch
+    - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -2028,20 +2040,6 @@ rules:
   - list
   - watch
   - create
-- apiGroups:
-  - policyrule.everoute.io
-  resources:
-  - policyrules
-  - policyrules/status
-  verbs:
-  - patch
-  - create
-  - update
-  - delete
-  - deletecollection
-  - get
-  - list
-  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
