@@ -18,14 +18,6 @@ rules:
   - list
   - watch
 - apiGroups:
-  - policyrule.everoute.io
-  resources:
-  - policyrules
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
     - ""
   resources:
     - pods
@@ -38,3 +30,23 @@ rules:
     - get
     - list
     - watch
+- apiGroups:
+    - group.everoute.io
+  resources:
+    - groupmembers
+    - groupmemberspatches
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - security.everoute.io
+  resources:
+    - securitypolicies
+    - endpoints
+    - globalpolicies
+  verbs:
+    - get
+    - list
+    - watch
+    - create

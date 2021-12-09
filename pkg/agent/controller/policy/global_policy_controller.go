@@ -22,39 +22,54 @@ import (
 
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	rulev1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	"github.com/everoute/everoute/pkg/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
-func (r *PolicyReconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
 	var newPolicyRule, oldPolicyRule rulev1alpha1.PolicyRuleList
 
-	err := r.ReadClient.List(context.Background(), &oldPolicyRule, client.HasLabels{
-		constants.IsGlobalPolicyRuleLabel,
-	})
-	if err != nil {
-		klog.Errorf("unable list global PolicyRules: %s", err)
-		return ctrl.Result{}, err
+	oldPolicyRuleList := r.globalRuleCache.List()
+	for _, rule := range oldPolicyRuleList {
+		oldPolicyRule.Items = append(oldPolicyRule.Items, rule.(rulev1alpha1.PolicyRule))
 	}
 
-	newPolicyRule, err = r.calculateExpectGlobalPolicyRules()
+	newPolicyRule, err := r.calculateExpectGlobalPolicyRules()
 	if err != nil {
 		klog.Errorf("unable calculate global PolicyRules: %s", err)
 		return ctrl.Result{}, err
 	}
+	if err := r.updateGlobalPolicyCache(oldPolicyRule, newPolicyRule); err != nil {
+		klog.Errorf("unable update global PolicyRules cache: %s", err)
+		return ctrl.Result{}, err
+	}
 
-	r.syncPolicyRulesUntilSuccess(context.Background(), oldPolicyRule, newPolicyRule)
+	r.syncPolicyRulesUntilSuccess(oldPolicyRule, newPolicyRule)
 	return ctrl.Result{}, nil
 }
 
-func (r *PolicyReconciler) calculateExpectGlobalPolicyRules() (rulev1alpha1.PolicyRuleList, error) {
+func (r *Reconciler) updateGlobalPolicyCache(oldRule, newRule rulev1alpha1.PolicyRuleList) error {
+	for _, rule := range oldRule.Items {
+		if err := r.globalRuleCache.Delete(rule); err != nil {
+			return err
+		}
+	}
+
+	for _, rule := range newRule.Items {
+		if err := r.globalRuleCache.Add(rule); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Reconciler) calculateExpectGlobalPolicyRules() (rulev1alpha1.PolicyRuleList, error) {
 	policyList := securityv1alpha1.GlobalPolicyList{}
 	err := r.List(context.Background(), &policyList)
 	if err != nil {

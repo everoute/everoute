@@ -34,11 +34,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
+	nameutil "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/pkg/constants"
-	nameutil "github.com/everoute/everoute/pkg/controller/policy/cache"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )

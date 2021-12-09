@@ -17,9 +17,11 @@ limitations under the License.
 package policy_test
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,21 +31,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
+	"github.com/everoute/everoute/pkg/agent/controller/policy"
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
-	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	k8sClient          client.Client // You'll be using this client in your tests.
-	testEnv            *envtest.Environment
-	useExistingCluster bool
+	k8sClient             client.Client // You'll be using this client in your tests.
+	testEnv               *envtest.Environment
+	ruleCacheLister       informer.Lister
+	globalRuleCacheLister informer.Lister
+	useExistingCluster    bool
 )
 
 const (
 	RunTestWithExistingCluster = "TESTING_WITH_EXISTING_CLUSTER"
+	brName                     = "bridgeUT"
 )
 
 func TestPolicyController(t *testing.T) {
@@ -56,7 +63,8 @@ var _ = BeforeSuite(func() {
 		By("testing with existing cluster")
 		useExistingCluster = true
 	}
-
+	// Wait for policyrule test initialize DpManager, and then start flow relay test, avoid connection reset error
+	time.Sleep(time.Second * 30)
 	/*
 		First, the envtest cluster is configured to read CRDs from the CRD directory Kubebuilder scaffolds for you.
 	*/
@@ -64,7 +72,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		UseExistingCluster: &useExistingCluster,
 		CRDInstallOptions: envtest.CRDInstallOptions{
-			Paths:           []string{filepath.Join("..", "..", "..", "deploy", "crds")},
+			Paths:           []string{filepath.Join("..", "..", "..", "..", "deploy", "crds")},
 			CleanUpAfterUse: true,
 		},
 	}
@@ -103,15 +111,29 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
-	policyController := &policyctrl.Reconciler{
-		Client:     k8sManager.GetClient(),
-		Scheme:     k8sManager.GetScheme(),
-		ReadClient: k8sManager.GetAPIReader(),
+	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, brName)).ToNot(HaveOccurred())
+
+	stopCh := ctrl.SetupSignalHandler()
+	updateChan := make(chan map[string]net.IP, 10)
+	datapathManager := datapath.NewDatapathManager(&datapath.Config{ManagedVDSMap: map[string]string{
+		brName: brName,
+	}}, updateChan)
+	datapathManager.InitializeDatapath(stopCh)
+
+	policyController := &policy.Reconciler{
+		Client:          k8sManager.GetClient(),
+		Scheme:          k8sManager.GetScheme(),
+		DatapathManager: datapathManager,
 	}
 	err = (policyController).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
+	ruleCacheLister = policyController.GetCompleteRuleLister()
+	Expect(ruleCacheLister).ShouldNot(BeNil())
+
+	globalRuleCacheLister = policyController.GetGlobalRuleLister()
+	Expect(globalRuleCacheLister).ShouldNot(BeNil())
+
 	go func() {
 		err = k8sManager.Start(stopCh)
 		Expect(err).ToNot(HaveOccurred())
@@ -126,4 +148,6 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, brName)).NotTo(HaveOccurred())
+
 })

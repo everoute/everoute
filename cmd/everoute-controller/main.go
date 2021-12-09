@@ -44,7 +44,7 @@ import (
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
 	"github.com/everoute/everoute/pkg/controller/k8s"
-	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
+	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/webhook"
 	towerplugin "github.com/everoute/everoute/plugin/tower/pkg/register"
 	"github.com/everoute/everoute/third_party/cert"
@@ -117,7 +117,7 @@ func main() {
 		klog.Fatalf("unable to create group controller: %s", err.Error())
 	}
 
-	if err = (&policyctrl.PolicyReconciler{
+	if err = (&ctrlpolicy.Reconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		ReadClient: mgr.GetAPIReader(),

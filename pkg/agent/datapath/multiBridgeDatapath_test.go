@@ -106,8 +106,6 @@ func TestDpManager(t *testing.T) {
 
 	testLocalEndpoint(t)
 	testERPolicyRule(t)
-	// Wait for policyrule test initialize DpManager, and then start flow relay test, avoid connection reset error
-	time.Sleep(time.Second * 5)
 	testFlowReplay(t)
 }
 

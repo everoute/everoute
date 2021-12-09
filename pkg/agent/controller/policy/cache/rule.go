@@ -231,6 +231,17 @@ func ruleKeyFunc(obj interface{}) (string, error) {
 	return obj.(*CompleteRule).RuleID, nil
 }
 
+func globalRuleKeyFunc(obj interface{}) (string, error) {
+	return obj.(policyv1alpha1.PolicyRule).ObjectMeta.Name, nil
+}
+
+func NewGlobalRuleCache() cache.Indexer {
+	return cache.NewIndexer(
+		globalRuleKeyFunc,
+		cache.Indexers{},
+	)
+}
+
 func groupIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
 	srcGroups := sets.StringKeySet(rule.SrcGroups)
