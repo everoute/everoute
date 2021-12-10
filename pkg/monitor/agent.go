@@ -426,12 +426,13 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 
 func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-	monitor.localEndpointHardwareAddrCacheLock.Lock()
-	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 
+	monitor.localEndpointHardwareAddrCacheLock.RLock()
 	if _, ok := monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)]; ok {
 		return nil
 	}
+	monitor.localEndpointHardwareAddrCacheLock.RUnlock()
+
 	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
 	if !ok {
 		return nil
@@ -448,7 +449,9 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil
 	}
+	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(ofPort)
+	monitor.localEndpointHardwareAddrCacheLock.Unlock()
 
 	return monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds[LocalEndpointIdentity].(string))
 }
