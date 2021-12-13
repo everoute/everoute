@@ -165,15 +165,15 @@ func (f *sharedInformerFactory) EverouteCluster() cache.SharedIndexInformer {
 
 func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration) cache.SharedIndexInformer {
 	var newReflectorFunc = NewReflectorBuilder(c)
-	return informer.NewSharedIndexInformer(newReflectorFunc, obj, towerObjectKey, resyncPeriod, cache.Indexers{})
+	return informer.NewSharedIndexInformer(newReflectorFunc, obj, TowerObjectKey, resyncPeriod, cache.Indexers{})
 }
 
-func towerObjectKey(obj interface{}) (string, error) {
+func TowerObjectKey(obj interface{}) (string, error) {
 	if d, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		return d.Key, nil
 	}
 	resource, ok := obj.(schema.Object)
-	if ok {
+	if ok && !reflect.ValueOf(resource).IsNil() {
 		return resource.GetID(), nil
 	}
 	return "", fmt.Errorf("unsupport resource type %s, object: %v", obj, obj)

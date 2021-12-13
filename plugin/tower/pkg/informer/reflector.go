@@ -26,6 +26,7 @@ import (
 
 	"github.com/gertd/go-pluralize"
 	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog"
@@ -90,6 +91,7 @@ func (r *reflector) LastSyncResourceVersion() string {
 
 func (r *reflector) reflectWorker(stopCh <-chan struct{}) func() {
 	return func() {
+		defer runtime.HandleCrash()
 		r.watchErrorHandler(r.listAndWatch(stopCh))
 	}
 }
