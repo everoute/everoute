@@ -51,7 +51,9 @@ type LocalBridge struct {
 	// Table 0
 	fromLocalEndpointFlow map[uint32]*ofctrl.Flow // map local endpoint interface ofport to its fromLocalEndpointFlow
 	// Table 5
-	localToLocalBUMFlow map[uint32]*ofctrl.Flow
+	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
+	learnedIPAddressMapMutex sync.RWMutex
+	learnedIPAddressMap      map[string]time.Time
 
 	localSwitchStatusMuxtex sync.RWMutex
 	isLocalSwitchConnected  bool
@@ -63,6 +65,7 @@ func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 	localBridge.datapathManager = datapathManager
 	localBridge.fromLocalEndpointFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
+	localBridge.learnedIPAddressMap = make(map[string]time.Time)
 
 	return localBridge
 }
@@ -139,7 +142,11 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
 
-		l.processLocalEndpointUpdate(arpIn, inPort)
+		l.learnedIPAddressMapMutex.Lock()
+		defer l.learnedIPAddressMapMutex.Unlock()
+		if _, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]; !ok {
+			l.processLocalEndpointUpdate(arpIn, inPort)
+		}
 		// NOTE output to local-to-policy-patch port
 		l.arpOutput(pkt, inPort, uint32(LOCAL_TO_POLICY_PORT))
 	default:
@@ -147,13 +154,38 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	}
 }
 
-func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
-	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
-		endpoint := endpointObj.Val.(*Endpoint)
-		if endpoint.PortNo == inPort {
-			l.notifyLocalEndpointUpdate(arpIn, inPort)
+func (l *LocalBridge) cleanLocalIPAddressCacheWorker(cycle, timeout int, stopChan <-chan struct{}) {
+	ticker := time.NewTicker(time.Duration(cycle) * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			l.cleanLocalIPAddressCache(timeout)
+		case <-stopChan:
+			return
 		}
 	}
+}
+
+func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
+	l.learnedIPAddressMapMutex.Lock()
+	defer l.learnedIPAddressMapMutex.Unlock()
+	for ip, t := range l.learnedIPAddressMap {
+		ipExpiredTime := t.Add(time.Duration(timeout) * time.Second)
+		if time.Now().After(ipExpiredTime) {
+			delete(l.learnedIPAddressMap, ip)
+		}
+	}
+}
+
+func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
+	_, ok := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, inPort))
+	if !ok {
+		log.Errorf("Endpoint with ofport %v was not added to bridge %v", inPort, l.name)
+		return
+	}
+
+	l.notifyLocalEndpointUpdate(arpIn, inPort)
+	l.learnedIPAddressMap[arpIn.IPSrc.String()] = time.Now()
 }
 
 func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
