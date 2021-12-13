@@ -130,41 +130,6 @@ func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{Requeue: requeue}, nil
 }
 
-func (r *Reconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, error) {
-	var endpoint securityv1alpha1.Endpoint
-	var ctx = context.Background()
-	var err error
-
-	r.reconcilerLock.Lock()
-	defer r.reconcilerLock.Unlock()
-
-	err = r.Get(ctx, req.NamespacedName, &endpoint)
-	if client.IgnoreNotFound(err) != nil {
-		klog.Errorf("unable to fetch endpoint %s: %s", req.Name, err.Error())
-		return ctrl.Result{}, err
-	}
-
-	endpointIndexValue := k8stypes.NamespacedName{
-		Namespace: endpoint.GetNamespace(),
-		Name:      endpoint.GetName(),
-	}.String()
-
-	securityPolicyList := securityv1alpha1.SecurityPolicyList{}
-	err = r.List(ctx, &securityPolicyList, client.MatchingFields{constants.SecurityPolicyByEndpointIndex: endpointIndexValue})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	for index := range securityPolicyList.Items {
-		_, err = r.processPolicyUpdate(&securityPolicyList.Items[index])
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	return ctrl.Result{}, nil
-}
-
 // GetCompleteRuleLister return cache.CompleteRule lister, used for debug or testing
 func (r *Reconciler) GetCompleteRuleLister() informer.Lister {
 	return r.ruleCache
@@ -181,7 +146,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	var err error
-	var policyController, patchController, endpointController, globalPolicyController controller.Controller
+	var policyController, patchController, globalPolicyController controller.Controller
 
 	// ignore not empty ruleCache for future cache inject
 	if r.ruleCache == nil {
@@ -237,17 +202,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if endpointController, err = controller.New("endpoint-controller", mgr, controller.Options{
-		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
-		Reconciler:              reconcile.Func(r.ReconcileEndpoint),
-	}); err != nil {
-		return err
-	}
-
-	if err = endpointController.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
 	if globalPolicyController, err = controller.New("global-policy-controller", mgr, controller.Options{
 		// Serial handle GlobalPolicy event
 		MaxConcurrentReconciles: 1,
@@ -257,14 +211,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err = globalPolicyController.Watch(&source.Kind{Type: &securityv1alpha1.GlobalPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
-	// register endpoint index for securityPolicy
-	if err = mgr.GetFieldIndexer().IndexField(context.Background(), &securityv1alpha1.SecurityPolicy{},
-		constants.SecurityPolicyByEndpointIndex,
-		EndpointIndexSecurityPolicyFunc,
-	); err != nil {
 		return err
 	}
 
@@ -475,17 +421,6 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 
 	for _, peer := range peers {
 		switch {
-		case peer.Endpoint != nil:
-			var endpoint securityv1alpha1.Endpoint
-			err := r.Get(context.Background(), k8stypes.NamespacedName{Name: peer.Endpoint.Name, Namespace: peer.Endpoint.Namespace}, &endpoint)
-			if client.IgnoreNotFound(err) != nil {
-				klog.Errorf("Failed to get endpoint: %v, error: %v", peer.Endpoint, err)
-				return nil, nil, err
-			}
-
-			for _, ip := range endpoint.Status.IPs {
-				ipBlocks[policycache.GetIPCidr(ip)]++
-			}
 		case peer.IPBlock != nil:
 			ipNets, err := utils.ParseIPBlock(peer.IPBlock)
 			if err != nil {
@@ -495,7 +430,7 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 			for _, ipNet := range ipNets {
 				ipBlocks[ipNet.String()]++
 			}
-		case peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
+		case peer.Endpoint != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
 			group := ctrlpolicy.PeerAsEndpointGroup(namespace, peer).GetName()
 			revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
 			if !exist {

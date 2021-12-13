@@ -311,6 +311,14 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 	endpointNamespaceLabels = endpointNamespace.Labels
 
 	for _, group := range groupList.Items {
+		// if endpoint set, match endpoint name and namespace
+		if group.Spec.Endpoint != nil {
+			if group.Spec.Endpoint.Name == endpoint.Name && group.Spec.Endpoint.Namespace == endpoint.Namespace {
+				groupNameSet.Insert(group.Name)
+				continue
+			}
+		}
+
 		// if namespace set, matched endpoint must in the namespace
 		if group.Spec.Namespace != nil && endpoint.GetNamespace() != *group.Spec.Namespace {
 			continue
@@ -519,6 +527,14 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 				matchedNamespaces = append(matchedNamespaces, namespace.GetName())
 			}
 		}
+	}
+
+	if group.Spec.Endpoint != nil {
+		var endpoint securityv1alpha1.Endpoint
+		if err := r.Get(ctx, k8stypes.NamespacedName{Name: group.Spec.Endpoint.Name, Namespace: group.Spec.Endpoint.Namespace}, &endpoint); err != nil {
+			return nil, fmt.Errorf("invalid endpoint: %s, err: %s", group.Spec.Endpoint, err)
+		}
+		matchedEndpoints = append(matchedEndpoints, endpoint)
 	}
 
 	for _, namespace := range matchedNamespaces {

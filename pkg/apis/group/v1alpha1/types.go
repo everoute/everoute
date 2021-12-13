@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -108,6 +109,11 @@ type EndpointGroup struct {
 	Spec EndpointGroupSpec `json:"spec"`
 }
 
+type EndpointNamespacedName struct {
+	Name      string `json:"name"`
+	NameSpace string `json:"namespace"`
+}
+
 // EndpointGroupSpec defines the desired state for EndpointGroup.
 type EndpointGroupSpec struct {
 	// EndpointSelector selects endpoints. This field follows standard label
@@ -138,6 +144,8 @@ type EndpointGroupSpec struct {
 	// If this field is set then the NamespaceSelector field cannot be set.
 	// +optional
 	Namespace *string `json:"namespace,omitempty"`
+
+	Endpoint *v1alpha1.NamespacedName `json:"endpoint,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
