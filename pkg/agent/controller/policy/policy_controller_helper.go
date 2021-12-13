@@ -21,8 +21,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -140,31 +138,6 @@ func posToMask(pos int) uint16 {
 	}
 
 	return ret
-}
-
-func EndpointIndexSecurityPolicyFunc(o runtime.Object) []string {
-	policy := o.(*securityv1alpha1.SecurityPolicy)
-	referencedEndpoints := []string{}
-
-	for _, peer := range policy.Spec.AppliedTo {
-		if peer.Endpoint != nil {
-			ep := k8stypes.NamespacedName{
-				Namespace: policy.GetNamespace(),
-				Name:      *peer.Endpoint,
-			}
-			referencedEndpoints = append(referencedEndpoints, ep.String())
-		}
-	}
-
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		for _, peer := range append(rule.From, rule.To...) {
-			if peer.Endpoint != nil {
-				referencedEndpoints = append(referencedEndpoints, peer.Endpoint.String())
-			}
-		}
-	}
-
-	return referencedEndpoints
 }
 
 func calPortRangeMask(begin uint16, end uint16, protocol securityv1alpha1.Protocol) []policycache.RulePort {

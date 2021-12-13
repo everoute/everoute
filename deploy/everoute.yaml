@@ -162,6 +162,21 @@ spec:
           spec:
             description: EndpointGroupSpec defines the desired state for EndpointGroup.
             properties:
+              endpoint:
+                description: NamespacedName contains information to specify an object.
+                properties:
+                  name:
+                    description: Name is unique within a namespace to reference a
+                      resource.
+                    type: string
+                  namespace:
+                    description: Namespace defines the space within which the resource
+                      name must be unique.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
               endpointSelector:
                 description: "EndpointSelector selects endpoints. This field follows
                   standard label selector semantics; if present but empty, it selects

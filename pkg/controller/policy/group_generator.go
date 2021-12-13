@@ -172,7 +172,7 @@ func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
 }
 
 func PeerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyPeer) *groupv1alpha1.EndpointGroup {
-	if peer.EndpointSelector == nil && peer.NamespaceSelector == nil {
+	if peer.EndpointSelector == nil && peer.NamespaceSelector == nil && peer.Endpoint == nil {
 		return nil
 	}
 
@@ -197,6 +197,10 @@ func PeerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyP
 			EndpointSelector: peer.EndpointSelector,
 			Namespace:        &namespace,
 		}
+	}
+
+	if peer.Endpoint != nil {
+		group.Spec.Endpoint = peer.Endpoint.DeepCopy()
 	}
 
 	group.Name = GenerateGroupName(&group.Spec)

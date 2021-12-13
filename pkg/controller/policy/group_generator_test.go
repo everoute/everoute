@@ -78,7 +78,7 @@ var _ = Describe("GroupGenerator", func() {
 		})
 		It("should create EndpointGroup used by SecurityPolicy", func() {
 			assertEndpointGroupNum(ctx, 1)
-			assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
+			assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
 		})
 
 		When("update SecurityPolicy applied to another EndpointSelector", func() {
@@ -96,7 +96,7 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 1)
-				assertHasEndpointGroup(ctx, newEndpointSelector, nil, &namespace)
+				assertHasEndpointGroup(ctx, newEndpointSelector, nil, &namespace, nil)
 				assertNoEndpointGroup(ctx, endpointSelector, nil, &namespace)
 			})
 		})
@@ -114,8 +114,13 @@ var _ = Describe("GroupGenerator", func() {
 				By(fmt.Sprintf("update SecurityPolicy to %+v", updatePolicy))
 				Expect(k8sClient.Patch(ctx, updatePolicy, client.MergeFrom(policy))).Should(Succeed())
 			})
-			It("should delete all EndpointGroup", func() {
-				assertEndpointGroupNum(ctx, 0)
+			It("should update EndpointGroup", func() {
+				assertEndpointGroupNum(ctx, 1)
+				assertHasEndpointGroup(ctx, nil, nil, &namespace,
+					&securityv1alpha1.NamespacedName{
+						Namespace: namespace,
+						Name:      appliedEndpoint,
+					})
 			})
 		})
 
@@ -138,8 +143,8 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 2)
-				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
-				assertHasEndpointGroup(ctx, peerEndpointSelector, namespaceSelector, nil)
+				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
+				assertHasEndpointGroup(ctx, peerEndpointSelector, namespaceSelector, nil, nil)
 			})
 		})
 
@@ -160,8 +165,8 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 2)
-				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
-				assertHasEndpointGroup(ctx, new(metav1.LabelSelector), namespaceSelector, nil)
+				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
+				assertHasEndpointGroup(ctx, new(metav1.LabelSelector), namespaceSelector, nil, nil)
 			})
 		})
 
@@ -182,8 +187,8 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 2)
-				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
-				assertHasEndpointGroup(ctx, peerEndpointSelector, nil, &namespace)
+				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
+				assertHasEndpointGroup(ctx, peerEndpointSelector, nil, &namespace, nil)
 			})
 		})
 
@@ -211,7 +216,12 @@ var _ = Describe("GroupGenerator", func() {
 			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
 		})
 		It("should not create any EndpointGroup", func() {
-			assertEndpointGroupNum(ctx, 0)
+			assertEndpointGroupNum(ctx, 1)
+			assertHasEndpointGroup(ctx, nil, nil, &namespace,
+				&securityv1alpha1.NamespacedName{
+					Namespace: namespace,
+					Name:      endpoint,
+				})
 		})
 
 		When("update SecurityPolicy applied to an EndpointSelector", func() {
@@ -229,7 +239,7 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 1)
-				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
+				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
 			})
 		})
 	})
@@ -249,7 +259,7 @@ var _ = Describe("GroupGenerator", func() {
 		})
 		It("should create EndpointGroup used by SecurityPolicy", func() {
 			assertEndpointGroupNum(ctx, 1)
-			assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
+			assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
 		})
 
 		When("delete one of the SecurityPolicy", func() {
@@ -259,7 +269,7 @@ var _ = Describe("GroupGenerator", func() {
 			})
 			It("EndpointGroup used by SecurityPolicy should not delete", func() {
 				assertEndpointGroupNum(ctx, 1)
-				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace)
+				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
 			})
 		})
 
@@ -302,7 +312,8 @@ func newRandomSelector() *metav1.LabelSelector {
 	}
 }
 
-func assertHasEndpointGroup(ctx context.Context, endpointSelector, namespaceSelector *metav1.LabelSelector, namespace *string) {
+func assertHasEndpointGroup(ctx context.Context, endpointSelector, namespaceSelector *metav1.LabelSelector,
+	namespace *string, endpoint *securityv1alpha1.NamespacedName) {
 	Eventually(func() bool {
 		groupList := groupv1alpha1.EndpointGroupList{}
 		Expect(k8sClient.List(ctx, &groupList)).Should(Succeed())
@@ -312,6 +323,7 @@ func assertHasEndpointGroup(ctx context.Context, endpointSelector, namespaceSele
 				EndpointSelector:  endpointSelector,
 				NamespaceSelector: namespaceSelector,
 				Namespace:         namespace,
+				Endpoint:          endpoint,
 			}) {
 				return true
 			}
