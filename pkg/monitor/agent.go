@@ -264,7 +264,11 @@ func (monitor *AgentMonitor) syncAgentInfoWorker() {
 
 	if err := monitor.syncAgentInfo(); err != nil {
 		monitor.syncQueue.AddAfter(monitor.Name(), time.Second)
-		klog.Errorf("couldn't to sync agentinfo %s: %s", monitor.Name(), err)
+		if errors.IsConflict(err) {
+			klog.V(4).Infof("conflict update agentinfo %s: %s", monitor.Name(), err)
+		} else {
+			klog.Errorf("sync agentinfo %s: %s", monitor.Name(), err)
+		}
 	}
 }
 
@@ -301,7 +305,7 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 	err = monitor.k8sClient.Update(ctx, agentInfo)
 	if err != nil {
 		monitor.ipCache = roundIPCache
-		return fmt.Errorf("couldn't update agent %s agentinfo: %s", agentName, err)
+		return err
 	}
 
 	return nil
