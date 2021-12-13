@@ -107,6 +107,9 @@ const (
 	openflowProtorolVersion11 string = "OpenFlow11"
 	openflowProtorolVersion12 string = "OpenFlow12"
 	openflowProtorolVersion13 string = "OpenFlow13"
+
+	IPAddressTimeout             = 60
+	IPAddressCacheUpdateInterval = 5
 )
 
 type Bridge interface {
@@ -418,6 +421,9 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan str
 	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+
+	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
+		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
 
 	if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
 		LOCAL_TO_POLICY_PORT); err != nil {
