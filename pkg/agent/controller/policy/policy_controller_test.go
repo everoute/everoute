@@ -36,7 +36,6 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	policyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
@@ -960,15 +959,15 @@ func assertHasPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 
 		var tier = policy.Spec.Tier
 
-		for _, rule := range policyRuleList.Items {
-			if tier == rule.Spec.Tier &&
-				direction == string(rule.Spec.Direction) &&
-				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIPAddr &&
-				srcPort == rule.Spec.SrcPort &&
-				dstCidr == rule.Spec.DstIPAddr &&
-				dstPort == rule.Spec.DstPort &&
-				protocol == rule.Spec.IPProtocol {
+		for _, rule := range policyRuleList {
+			if tier == rule.Tier &&
+				direction == string(rule.Direction) &&
+				action == string(rule.Action) &&
+				srcCidr == rule.SrcIPAddr &&
+				srcPort == rule.SrcPort &&
+				dstCidr == rule.DstIPAddr &&
+				dstPort == rule.DstPort &&
+				protocol == rule.IPProtocol {
 				return true
 			}
 		}
@@ -982,17 +981,17 @@ func assertHasPolicyRuleWithPortRange(policy *securityv1alpha1.SecurityPolicy,
 		var policyRuleList = getRuleByPolicy(policy)
 		var tier = policy.Spec.Tier
 
-		for _, rule := range policyRuleList.Items {
-			if tier == rule.Spec.Tier &&
-				direction == string(rule.Spec.Direction) &&
-				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIPAddr &&
-				srcPort == rule.Spec.SrcPort &&
-				srcPortMask == rule.Spec.SrcPortMask &&
-				dstCidr == rule.Spec.DstIPAddr &&
-				dstPort == rule.Spec.DstPort &&
-				dstPortMask == rule.Spec.DstPortMask &&
-				protocol == rule.Spec.IPProtocol {
+		for _, rule := range policyRuleList {
+			if tier == rule.Tier &&
+				direction == string(rule.Direction) &&
+				action == string(rule.Action) &&
+				srcCidr == rule.SrcIPAddr &&
+				srcPort == rule.SrcPort &&
+				srcPortMask == rule.SrcPortMask &&
+				dstCidr == rule.DstIPAddr &&
+				dstPort == rule.DstPort &&
+				dstPortMask == rule.DstPortMask &&
+				protocol == rule.IPProtocol {
 				return true
 			}
 		}
@@ -1008,15 +1007,15 @@ func assertNoPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 
 		var tier = policy.Spec.Tier
 
-		for _, rule := range policyRuleList.Items {
-			if tier == rule.Spec.Tier &&
-				direction == string(rule.Spec.Direction) &&
-				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIPAddr &&
-				srcPort == rule.Spec.SrcPort &&
-				dstCidr == rule.Spec.DstIPAddr &&
-				dstPort == rule.Spec.DstPort &&
-				protocol == rule.Spec.IPProtocol {
+		for _, rule := range policyRuleList {
+			if tier == rule.Tier &&
+				direction == string(rule.Direction) &&
+				action == string(rule.Action) &&
+				srcCidr == rule.SrcIPAddr &&
+				srcPort == rule.SrcPort &&
+				dstCidr == rule.DstIPAddr &&
+				dstPort == rule.DstPort &&
+				protocol == rule.IPProtocol {
 				return true
 			}
 		}
@@ -1024,11 +1023,11 @@ func assertNoPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 	}, timeout, interval).Should(BeFalse())
 }
 
-func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) policyv1alpha1.PolicyRuleList {
-	policyRuleList := policyv1alpha1.PolicyRuleList{}
+func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule {
+	var policyRuleList []cache.PolicyRule
 	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Name+"/"+policy.Namespace)
 	for _, completeRule := range completeRules {
-		policyRuleList.Items = append(policyRuleList.Items, completeRule.(*cache.CompleteRule).ListRules().Items...)
+		policyRuleList = append(policyRuleList, completeRule.(*cache.CompleteRule).ListRules()...)
 	}
 	return policyRuleList
 }
@@ -1036,7 +1035,7 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) policyv1alpha1.Pol
 func assertPolicyRulesNum(policy *securityv1alpha1.SecurityPolicy, numOfPolicyRules int) {
 	Eventually(func() int {
 		policyRuleList := getRuleByPolicy(policy)
-		return len(policyRuleList.Items)
+		return len(policyRuleList)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }
 

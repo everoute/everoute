@@ -19,13 +19,13 @@ package policy_test
 import (
 	"context"
 	"fmt"
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	policyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -150,11 +150,11 @@ func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whi
 	return &policy
 }
 
-func getGlobalRuleFromCache() policyv1alpha1.PolicyRuleList {
-	policyRuleList := policyv1alpha1.PolicyRuleList{}
+func getGlobalRuleFromCache() []cache.PolicyRule {
+	var policyRuleList []cache.PolicyRule
 	globalRules := globalRuleCacheLister.List()
 	for _, rule := range globalRules {
-		policyRuleList.Items = append(policyRuleList.Items, rule.(policyv1alpha1.PolicyRule))
+		policyRuleList = append(policyRuleList, rule.(cache.PolicyRule))
 	}
 	return policyRuleList
 }
@@ -162,7 +162,7 @@ func getGlobalRuleFromCache() policyv1alpha1.PolicyRuleList {
 func assertGlobalPolicyRulesNum(numOfPolicyRules int) {
 	Eventually(func() int {
 		policyRuleList := getGlobalRuleFromCache()
-		return len(policyRuleList.Items)
+		return len(policyRuleList)
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }
 
@@ -170,13 +170,13 @@ func assertHasGlobalPolicyRule(ruleType, direction, action, srcCidr, dstCidr str
 	Eventually(func() bool {
 		policyRuleList := getGlobalRuleFromCache()
 
-		for _, rule := range policyRuleList.Items {
-			if constants.Tier2 == rule.Spec.Tier &&
-				ruleType == string(rule.Spec.RuleType) &&
-				direction == string(rule.Spec.Direction) &&
-				action == string(rule.Spec.Action) &&
-				srcCidr == rule.Spec.SrcIPAddr &&
-				dstCidr == rule.Spec.DstIPAddr {
+		for _, rule := range policyRuleList {
+			if constants.Tier2 == rule.Tier &&
+				ruleType == string(rule.RuleType) &&
+				direction == string(rule.Direction) &&
+				action == string(rule.Action) &&
+				srcCidr == rule.SrcIPAddr &&
+				dstCidr == rule.DstIPAddr {
 				return true
 			}
 		}

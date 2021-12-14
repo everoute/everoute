@@ -21,7 +21,6 @@ package scheme
 import (
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	policyrulev1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +35,6 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	agentv1alpha1.AddToScheme,
 	groupv1alpha1.AddToScheme,
-	policyrulev1alpha1.AddToScheme,
 	securityv1alpha1.AddToScheme,
 }
 

@@ -40,7 +40,6 @@ import (
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	policyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
@@ -237,7 +236,7 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
 	for _, completeRule := range completeRules {
 		// remove policy in datapath
-		for _, rule := range completeRule.(*policycache.CompleteRule).ListRules().Items {
+		for _, rule := range completeRule.(*policycache.CompleteRule).ListRules() {
 			r.processPolicyRuleDelete(rule.Name)
 		}
 		// remove policy completeRules from cache
@@ -248,11 +247,11 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 }
 
 func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
-	var oldRuleList = policyv1alpha1.PolicyRuleList{}
+	var oldRuleList []policycache.PolicyRule
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
 	for _, completeRule := range completeRules {
-		oldRuleList.Items = append(oldRuleList.Items, completeRule.(*policycache.CompleteRule).ListRules().Items...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
 	}
 
 	newRuleList, err := r.calculateExpectedPolicyRules(policy)
@@ -271,8 +270,8 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.SecurityPolicy) (policyv1alpha1.PolicyRuleList, error) {
-	var policyRuleList = policyv1alpha1.PolicyRuleList{}
+func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, error) {
+	var policyRuleList []policycache.PolicyRule
 
 	completeRules, err := r.completePolicy(policy)
 	if err != nil {
@@ -287,7 +286,7 @@ func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.Secur
 
 	for _, completeRule := range completeRules {
 		_ = r.ruleCache.Add(completeRule)
-		policyRuleList.Items = append(policyRuleList.Items, completeRule.ListRules().Items...)
+		policyRuleList = append(policyRuleList, completeRule.ListRules()...)
 	}
 
 	return policyRuleList, nil
@@ -312,8 +311,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			ingressRule := &policycache.CompleteRule{
 				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "ingress", rule.Name),
 				Tier:          policy.Spec.Tier,
-				Action:        policyv1alpha1.RuleActionAllow,
-				Direction:     policyv1alpha1.RuleDirectionIn,
+				Action:        policycache.RuleActionAllow,
+				Direction:     policycache.RuleDirectionIn,
 				SymmetricMode: policy.Spec.SymmetricMode,
 				DstGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
 				DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
@@ -346,8 +345,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 		defaultIngressRule := &policycache.CompleteRule{
 			RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "ingress"),
 			Tier:              policy.Spec.Tier,
-			Action:            policyv1alpha1.RuleActionDrop,
-			Direction:         policyv1alpha1.RuleDirectionIn,
+			Action:            policycache.RuleActionDrop,
+			Direction:         policycache.RuleDirectionIn,
 			SymmetricMode:     false, // never generate symmetric rule for default rule
 			DefaultPolicyRule: true,
 			DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
@@ -364,8 +363,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			egressRule := &policycache.CompleteRule{
 				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "egress", rule.Name),
 				Tier:          policy.Spec.Tier,
-				Action:        policyv1alpha1.RuleActionAllow,
-				Direction:     policyv1alpha1.RuleDirectionOut,
+				Action:        policycache.RuleActionAllow,
+				Direction:     policycache.RuleDirectionOut,
 				SymmetricMode: policy.Spec.SymmetricMode,
 				SrcGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
 				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
@@ -398,8 +397,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 		defaultEgressRule := &policycache.CompleteRule{
 			RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "egress"),
 			Tier:              policy.Spec.Tier,
-			Action:            policyv1alpha1.RuleActionDrop,
-			Direction:         policyv1alpha1.RuleDirectionOut,
+			Action:            policycache.RuleActionDrop,
+			Direction:         policycache.RuleDirectionOut,
 			SymmetricMode:     false, // never generate symmetric rule for default rule
 			DefaultPolicyRule: true,
 			SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
@@ -449,30 +448,30 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 	return groups, ipBlocks, nil
 }
 
-func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList policyv1alpha1.PolicyRuleList) {
+func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList []policycache.PolicyRule) {
 	r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
 }
 
-func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList policyv1alpha1.PolicyRuleList) {
-	newRuleMap := toRuleMap(newRuleList.Items)
-	oldRuleMap := toRuleMap(oldRuleList.Items)
+func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList []policycache.PolicyRule) {
+	newRuleMap := toRuleMap(newRuleList)
+	oldRuleMap := toRuleMap(oldRuleList)
 	allRuleSet := sets.StringKeySet(newRuleMap).Union(sets.StringKeySet(oldRuleMap))
 
 	for ruleName := range allRuleSet {
 		oldRule, oldExist := oldRuleMap[ruleName]
 		newRule, newExist := newRuleMap[ruleName]
 
-		if ruleIsSame(newRule, oldRule) {
+		if oldExist && newExist && oldRule.Name == newRule.Name {
 			continue
 		}
 
 		if oldExist {
-			klog.Infof("remove policyRule: %v", oldRule.Spec)
+			klog.Infof("remove policyRule: %v", oldRule)
 			r.processPolicyRuleDelete(oldRule.Name)
 		}
 
 		if newExist {
-			klog.Infof("create policyRule: %v", newRule.Spec)
+			klog.Infof("create policyRule: %v", newRule)
 			r.processPolicyRuleAdd(newRule)
 		}
 	}
@@ -498,7 +497,7 @@ func (r *Reconciler) processPolicyRuleDelete(ruleName string) {
 	}
 }
 
-func (r *Reconciler) processPolicyRuleAdd(policyRule *policyv1alpha1.PolicyRule) {
+func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) {
 	r.flowKeyReferenceMapLock.Lock()
 	defer r.flowKeyReferenceMapLock.Unlock()
 
@@ -508,7 +507,7 @@ func (r *Reconciler) processPolicyRuleAdd(policyRule *policyv1alpha1.PolicyRule)
 		r.flowKeyReferenceMap[flowKey] = sets.NewString()
 	}
 	klog.Infof("add rule %s to datapath", flowKey)
-	r.addPolicyRuleToDatapath(flowKey, &policyRule.Spec)
+	r.addPolicyRuleToDatapath(flowKey, policyRule)
 
 	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
 }
@@ -526,7 +525,7 @@ func (r *Reconciler) deletePolicyRuleFromDatapath(flowKey string) {
 	}
 }
 
-func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policyv1alpha1.PolicyRuleSpec) {
+func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) {
 	// Process PolicyRule: convert it to everoutePolicyRule, filter illegal PolicyRule; install everoutePolicyRule flow
 	var err error
 	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)

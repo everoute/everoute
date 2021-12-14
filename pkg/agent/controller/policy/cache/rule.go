@@ -27,10 +27,42 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/cache"
 
-	policyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
 )
+
+type RuleType string
+type RuleAction string
+type RuleDirection string
+
+const (
+	RuleTypeGlobalDefaultRule RuleType = "GlobalDefaultRule"
+	RuleTypeDefaultRule       RuleType = "DefaultRule"
+	RuleTypeNormalRule        RuleType = "NormalRule"
+
+	RuleActionAllow RuleAction = "Allow"
+	RuleActionDrop  RuleAction = "Drop"
+
+	RuleDirectionIn  RuleDirection = "Ingress"
+	RuleDirectionOut RuleDirection = "Egress"
+)
+
+type PolicyRule struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+
+	Direction   RuleDirection `json:"direction"`
+	RuleType    RuleType      `json:"ruleType"`
+	Tier        string        `json:"tier,omitempty"`
+	SrcIPAddr   string        `json:"srcIPAddr,omitempty"`
+	DstIPAddr   string        `json:"dstIPAddr,omitempty"`
+	IPProtocol  string        `json:"ipProtocol"`
+	SrcPort     uint16        `json:"srcPort,omitempty"`
+	DstPort     uint16        `json:"dstPort,omitempty"`
+	SrcPortMask uint16        `json:"srcPortMask,omitempty"`
+	DstPortMask uint16        `json:"dstPortMask,omitempty"`
+	TCPFlags    string        `json:"tcpFlags"`
+	Action      RuleAction    `json:"action"`
+}
 
 type CompleteRule struct {
 	lock sync.RWMutex
@@ -39,8 +71,8 @@ type CompleteRule struct {
 	RuleID string
 
 	Tier      string
-	Action    policyv1alpha1.RuleAction
-	Direction policyv1alpha1.RuleDirection
+	Action    RuleAction
+	Direction RuleDirection
 
 	// SymmetricMode will ignore direction, generate both ingress and egress rule
 	SymmetricMode bool
@@ -82,7 +114,7 @@ type RulePort struct {
 }
 
 // ListRules return a list of security.everoute.io/v1alpha1 PolicyRule
-func (rule *CompleteRule) ListRules() policyv1alpha1.PolicyRuleList {
+func (rule *CompleteRule) ListRules() []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
@@ -92,18 +124,18 @@ func (rule *CompleteRule) ListRules() policyv1alpha1.PolicyRuleList {
 	return rule.generateRuleList(srcIPBlocks, dstIPBlocks, rule.Ports)
 }
 
-func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, ports []RulePort) policyv1alpha1.PolicyRuleList {
-	var policyRuleList policyv1alpha1.PolicyRuleList
+func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, ports []RulePort) []PolicyRule {
+	var policyRuleList []PolicyRule
 
 	for _, srcIPBlock := range srcIPBlocks {
 		for _, dstIPBlock := range dstIPBlocks {
 			for _, port := range ports {
 				if rule.SymmetricMode {
 					// SymmetricMode will ignore rule direction, create both ingress and egress
-					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, policyv1alpha1.RuleDirectionIn, port))
-					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, policyv1alpha1.RuleDirectionOut, port))
+					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, RuleDirectionIn, port))
+					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, RuleDirectionOut, port))
 				} else {
-					policyRuleList.Items = append(policyRuleList.Items, rule.generateRule(srcIPBlock, dstIPBlock, rule.Direction, port))
+					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, rule.Direction, port))
 				}
 			}
 		}
@@ -112,26 +144,24 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, po
 	return policyRuleList
 }
 
-func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction policyv1alpha1.RuleDirection, port RulePort) policyv1alpha1.PolicyRule {
-	var ruleType policyv1alpha1.RuleType = policyv1alpha1.RuleTypeNormalRule
+func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort) PolicyRule {
+	var ruleType RuleType = RuleTypeNormalRule
 	if rule.DefaultPolicyRule {
-		ruleType = policyv1alpha1.RuleTypeDefaultRule
+		ruleType = RuleTypeDefaultRule
 	}
 
-	policyRule := policyv1alpha1.PolicyRule{
-		Spec: policyv1alpha1.PolicyRuleSpec{
-			Direction:   direction,
-			RuleType:    ruleType,
-			Tier:        rule.Tier,
-			SrcIPAddr:   srcIPBlock,
-			DstIPAddr:   dstIPBlock,
-			IPProtocol:  string(port.Protocol),
-			SrcPort:     port.SrcPort,
-			DstPort:     port.DstPort,
-			SrcPortMask: port.SrcPortMask,
-			DstPortMask: port.DstPortMask,
-			Action:      rule.Action,
-		},
+	policyRule := PolicyRule{
+		Direction:   direction,
+		RuleType:    ruleType,
+		Tier:        rule.Tier,
+		SrcIPAddr:   srcIPBlock,
+		DstIPAddr:   dstIPBlock,
+		IPProtocol:  string(port.Protocol),
+		SrcPort:     port.SrcPort,
+		DstPort:     port.DstPort,
+		SrcPortMask: port.SrcPortMask,
+		DstPortMask: port.DstPortMask,
+		Action:      rule.Action,
 	}
 
 	ruleName := strings.Split(rule.RuleID, "/")[2]
@@ -140,20 +170,14 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Namespace: strings.Split(rule.RuleID, "/")[1],
 	})
 
-	flowKey := GenerateFlowKey(&policyRule.Spec)
+	flowKey := GenerateFlowKey(policyRule)
 
 	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
-	policyRule.Labels = map[string]string{
-		constants.OwnerPolicyLabelKey: utils.EncodeNamespacedName(k8stypes.NamespacedName{
-			Name:      strings.Split(rule.RuleID, "/")[0],
-			Namespace: strings.Split(rule.RuleID, "/")[1],
-		}),
-	}
 
 	return policyRule
 }
 
-func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleList, oldPolicyRuleList policyv1alpha1.PolicyRuleList) {
+func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleList, oldPolicyRuleList []PolicyRule) {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
@@ -165,10 +189,10 @@ func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleL
 		srcAddIPs, srcDelIPs = applyCountMap(srcIPs, patch.Add, patch.Del)
 
 		addRules := rule.generateRuleList(srcAddIPs, sets.StringKeySet(dstIPs).UnsortedList(), rule.Ports)
-		newPolicyRuleList.Items = append(newPolicyRuleList.Items, addRules.Items...)
+		newPolicyRuleList = append(newPolicyRuleList, addRules...)
 
 		delRules := rule.generateRuleList(srcDelIPs, sets.StringKeySet(dstIPs).UnsortedList(), rule.Ports)
-		oldPolicyRuleList.Items = append(oldPolicyRuleList.Items, delRules.Items...)
+		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
 	}
 
 	revision, exist = rule.DstGroups[patch.GroupName]
@@ -176,10 +200,10 @@ func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleL
 		dstAddIPs, dstDelIPs = applyCountMap(dstIPs, patch.Add, patch.Del)
 
 		addRules := rule.generateRuleList(sets.StringKeySet(srcIPs).UnsortedList(), dstAddIPs, rule.Ports)
-		newPolicyRuleList.Items = append(newPolicyRuleList.Items, addRules.Items...)
+		newPolicyRuleList = append(newPolicyRuleList, addRules...)
 
 		delRules := rule.generateRuleList(sets.StringKeySet(srcIPs).UnsortedList(), dstDelIPs, rule.Ports)
-		oldPolicyRuleList.Items = append(oldPolicyRuleList.Items, delRules.Items...)
+		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
 	}
 
 	return
@@ -232,7 +256,7 @@ func ruleKeyFunc(obj interface{}) (string, error) {
 }
 
 func globalRuleKeyFunc(obj interface{}) (string, error) {
-	return obj.(policyv1alpha1.PolicyRule).ObjectMeta.Name, nil
+	return obj.(PolicyRule).Name, nil
 }
 
 func NewGlobalRuleCache() cache.Indexer {
@@ -279,10 +303,9 @@ func genRuleName(policyName, ruleName, flowKey string) string {
 	return fmt.Sprintf("%s-%s", prefix, suffix)
 }
 
-func GenerateFlowKey(ruleSpec *policyv1alpha1.PolicyRuleSpec) string {
-	policyRuleSpec := ruleSpec.DeepCopy()
+func GenerateFlowKey(rule PolicyRule) string {
 	// We consider PolicyRule with the same spec but different action as the same flow.
 	// Some we remove the action to generate FlowKey here.
-	policyRuleSpec.Action = ""
-	return HashName(32, policyRuleSpec)
+	rule.Action = ""
+	return HashName(32, rule)
 }

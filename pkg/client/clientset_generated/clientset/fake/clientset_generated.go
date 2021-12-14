@@ -24,8 +24,6 @@ import (
 	fakeagentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1/fake"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
 	fakegroupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1/fake"
-	policyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
-	fakepolicyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1/fake"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	fakesecurityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -90,11 +88,6 @@ func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {
 // GroupV1alpha1 retrieves the GroupV1alpha1Client
 func (c *Clientset) GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface {
 	return &fakegroupv1alpha1.FakeGroupV1alpha1{Fake: &c.Fake}
-}
-
-// PolicyruleV1alpha1 retrieves the PolicyruleV1alpha1Client
-func (c *Clientset) PolicyruleV1alpha1() policyrulev1alpha1.PolicyruleV1alpha1Interface {
-	return &fakepolicyrulev1alpha1.FakePolicyruleV1alpha1{Fake: &c.Fake}
 }
 
 // SecurityV1alpha1 retrieves the SecurityV1alpha1Client

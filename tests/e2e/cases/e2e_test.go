@@ -32,7 +32,6 @@ import (
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	policyrulev1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/tests/e2e/framework"
 )
@@ -97,7 +96,6 @@ func E2eFail(message string, callerSkip ...int) {
 		&groupv1alpha1.EndpointGroupList{},
 		&groupv1alpha1.GroupMembersList{},
 		&groupv1alpha1.GroupMembersPatchList{},
-		&policyrulev1alpha1.PolicyRuleList{},
 	)
 
 	// Final call ginkgo Fail

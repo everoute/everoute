@@ -25,20 +25,19 @@ import (
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
-	networkpolicyv1alpha1 "github.com/everoute/everoute/pkg/apis/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
-func toEveroutePolicyRule(ruleID string, rule *networkpolicyv1alpha1.PolicyRuleSpec) *datapath.EveroutePolicyRule {
+func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath.EveroutePolicyRule {
 	ipProtoNo := protocolToInt(rule.IPProtocol)
 	ruleAction := getRuleAction(rule.Action)
 
 	var rulePriority int
 	switch rule.RuleType {
-	case networkpolicyv1alpha1.RuleTypeDefaultRule:
+	case policycache.RuleTypeDefaultRule:
 		rulePriority = constants.DefaultPolicyRulePriority
-	case networkpolicyv1alpha1.RuleTypeGlobalDefaultRule:
+	case policycache.RuleTypeGlobalDefaultRule:
 		rulePriority = constants.GlobalDefaultPolicyRulePriority
 	default:
 		rulePriority = constants.NormalPolicyRulePriority
@@ -77,12 +76,12 @@ func protocolToInt(ipProtocol string) uint8 {
 	return protoNo
 }
 
-func getRuleAction(ruleAction networkpolicyv1alpha1.RuleAction) string {
+func getRuleAction(ruleAction policycache.RuleAction) string {
 	var action string
 	switch ruleAction {
-	case networkpolicyv1alpha1.RuleActionAllow:
+	case policycache.RuleActionAllow:
 		action = "allow"
-	case networkpolicyv1alpha1.RuleActionDrop:
+	case policycache.RuleActionDrop:
 		action = "deny"
 	default:
 		klog.Fatalf("unsupport ruleAction %s in policyrule.", ruleAction)
@@ -91,12 +90,12 @@ func getRuleAction(ruleAction networkpolicyv1alpha1.RuleAction) string {
 	return action
 }
 
-func getRuleDirection(ruleDir networkpolicyv1alpha1.RuleDirection) uint8 {
+func getRuleDirection(ruleDir policycache.RuleDirection) uint8 {
 	var direction uint8
 	switch ruleDir {
-	case networkpolicyv1alpha1.RuleDirectionOut:
+	case policycache.RuleDirectionOut:
 		direction = 0
-	case networkpolicyv1alpha1.RuleDirectionIn:
+	case policycache.RuleDirectionIn:
 		direction = 1
 	default:
 		klog.Fatalf("unsupport ruleDirection %s in policyRule.", ruleDir)
@@ -124,11 +123,6 @@ func flowKeyFromRuleName(ruleName string) string {
 	// rule name format like: policyname-rulename-namehash-flowkey
 	keys := strings.Split(ruleName, "-")
 	return keys[len(keys)-1]
-}
-
-func ruleIsSame(r1, r2 *networkpolicyv1alpha1.PolicyRule) bool {
-	return r1 != nil && r2 != nil &&
-		r1.Name == r2.Name && r1.Spec == r2.Spec
 }
 
 func posToMask(pos int) uint16 {
@@ -256,8 +250,8 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 	return rulePortList, nil
 }
 
-func toRuleMap(ruleList []networkpolicyv1alpha1.PolicyRule) map[string]*networkpolicyv1alpha1.PolicyRule {
-	var ruleMap = make(map[string]*networkpolicyv1alpha1.PolicyRule, len(ruleList))
+func toRuleMap(ruleList []policycache.PolicyRule) map[string]*policycache.PolicyRule {
+	var ruleMap = make(map[string]*policycache.PolicyRule, len(ruleList))
 	for item, rule := range ruleList {
 		ruleMap[rule.Name] = &ruleList[item]
 	}

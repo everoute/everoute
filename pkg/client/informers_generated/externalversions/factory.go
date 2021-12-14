@@ -27,7 +27,6 @@ import (
 	agent "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent"
 	group "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/group"
 	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
-	policyrule "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/policyrule"
 	security "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/security"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -177,7 +176,6 @@ type SharedInformerFactory interface {
 
 	Agent() agent.Interface
 	Group() group.Interface
-	Policyrule() policyrule.Interface
 	Security() security.Interface
 }
 
@@ -187,10 +185,6 @@ func (f *sharedInformerFactory) Agent() agent.Interface {
 
 func (f *sharedInformerFactory) Group() group.Interface {
 	return group.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Policyrule() policyrule.Interface {
-	return policyrule.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Security() security.Interface {
