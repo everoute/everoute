@@ -23,7 +23,6 @@ import (
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
-	policyrulev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/policyrule/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -34,7 +33,6 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface
 	GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface
-	PolicyruleV1alpha1() policyrulev1alpha1.PolicyruleV1alpha1Interface
 	SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interface
 }
 
@@ -42,10 +40,9 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	agentV1alpha1      *agentv1alpha1.AgentV1alpha1Client
-	groupV1alpha1      *groupv1alpha1.GroupV1alpha1Client
-	policyruleV1alpha1 *policyrulev1alpha1.PolicyruleV1alpha1Client
-	securityV1alpha1   *securityv1alpha1.SecurityV1alpha1Client
+	agentV1alpha1    *agentv1alpha1.AgentV1alpha1Client
+	groupV1alpha1    *groupv1alpha1.GroupV1alpha1Client
+	securityV1alpha1 *securityv1alpha1.SecurityV1alpha1Client
 }
 
 // AgentV1alpha1 retrieves the AgentV1alpha1Client
@@ -56,11 +53,6 @@ func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {
 // GroupV1alpha1 retrieves the GroupV1alpha1Client
 func (c *Clientset) GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface {
 	return c.groupV1alpha1
-}
-
-// PolicyruleV1alpha1 retrieves the PolicyruleV1alpha1Client
-func (c *Clientset) PolicyruleV1alpha1() policyrulev1alpha1.PolicyruleV1alpha1Interface {
-	return c.policyruleV1alpha1
 }
 
 // SecurityV1alpha1 retrieves the SecurityV1alpha1Client
@@ -97,10 +89,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.policyruleV1alpha1, err = policyrulev1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 	cs.securityV1alpha1, err = securityv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -119,7 +107,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.agentV1alpha1 = agentv1alpha1.NewForConfigOrDie(c)
 	cs.groupV1alpha1 = groupv1alpha1.NewForConfigOrDie(c)
-	cs.policyruleV1alpha1 = policyrulev1alpha1.NewForConfigOrDie(c)
 	cs.securityV1alpha1 = securityv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
@@ -131,7 +118,6 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.agentV1alpha1 = agentv1alpha1.New(c)
 	cs.groupV1alpha1 = groupv1alpha1.New(c)
-	cs.policyruleV1alpha1 = policyrulev1alpha1.New(c)
 	cs.securityV1alpha1 = securityv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

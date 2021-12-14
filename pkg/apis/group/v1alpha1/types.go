@@ -109,11 +109,6 @@ type EndpointGroup struct {
 	Spec EndpointGroupSpec `json:"spec"`
 }
 
-type EndpointNamespacedName struct {
-	Name      string `json:"name"`
-	NameSpace string `json:"namespace"`
-}
-
 // EndpointGroupSpec defines the desired state for EndpointGroup.
 type EndpointGroupSpec struct {
 	// EndpointSelector selects endpoints. This field follows standard label
