@@ -5,7 +5,7 @@ all: codegen manifests bin
 
 bin: controller agent cni
 
-images: image generate
+images: image image-generate
 
 image:
 	docker build -f build/images/release/Dockerfile -t everoute/release .
