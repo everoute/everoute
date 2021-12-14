@@ -1805,6 +1805,9 @@ spec:
               mountPath: /var/run/openvswitch/
             - name: host-proc
               mountPath: /host/proc/
+            - name: host-netns
+              mountPath: /host/var/run/netns/
+              mountPropagation: HostToContainer
             - name: cni-bin
               mountPath: /opt/cni/bin/
             - name: everoute-ipam
@@ -1844,6 +1847,9 @@ spec:
         - hostPath:
             path: /proc
           name: host-proc
+        - hostPath:
+            path: /var/run/netns
+          name: host-netns
         - hostPath:
             path: /lib/modules
           name: host-lib-modules
