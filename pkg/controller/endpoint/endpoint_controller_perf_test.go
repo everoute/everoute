@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -65,6 +66,13 @@ func getAgentInfos() []*agentv1alpha1.AgentInfo {
 		ai := agentv1alpha1.AgentInfo{}
 		ai.Name = fmt.Sprintf("agentinfo%d", i)
 		ai.OVSInfo.Bridges = []agentv1alpha1.OVSBridge{getRandomBridge()}
+		ai.Conditions = []agentv1alpha1.AgentCondition{
+			{
+				Type:              agentv1alpha1.AgentHealthy,
+				Status:            corev1.ConditionTrue,
+				LastHeartbeatTime: metav1.NewTime(time.Now()),
+			},
+		}
 		agentinfos = append(agentinfos, &ai)
 	}
 
