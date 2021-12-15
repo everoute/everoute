@@ -107,7 +107,7 @@ func dumpAndPrintResource(splitLine string, resources ...runtime.Object) {
 		err := e2eEnv.KubeClient().List(ctx, resource)
 		if err == nil {
 			raw, _ := json.Marshal(resource)
-			fmt.Printf("%sDump %T:\n%s\n\n", resource, splitLine, string(raw))
+			fmt.Printf("%sDump %T:\n%s\n\n", splitLine, resource, string(raw))
 		}
 	}
 }
