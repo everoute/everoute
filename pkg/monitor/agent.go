@@ -46,6 +46,7 @@ import (
 const (
 	AgentNameConfigPath   = "/var/lib/everoute/agent/name"
 	LocalEndpointIdentity = "attached-mac"
+	AgentInfoSyncInterval = 5
 )
 
 type ovsdbEventHandler interface {
@@ -160,6 +161,7 @@ func (monitor *AgentMonitor) Run(stopChan <-chan struct{}) {
 	go monitor.HandleOfPortIPAddressUpdate(monitor.ofPortIPAddressMonitorChan, stopChan)
 
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
+	go monitor.periodicallySyncAgentInfo(AgentInfoSyncInterval, stopChan)
 	<-stopChan
 }
 
@@ -188,6 +190,18 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]
 	}
 
 	monitor.syncQueue.Add(monitor.Name())
+}
+
+func (monitor *AgentMonitor) periodicallySyncAgentInfo(cycle int, stopChan <-chan struct{}) {
+	ticker := time.NewTicker(time.Duration(cycle) * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			monitor.syncQueue.Add(monitor.Name())
+		case <-stopChan:
+			return
+		}
+	}
 }
 
 func (monitor *AgentMonitor) startOvsdbMonitor() error {

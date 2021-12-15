@@ -19,7 +19,9 @@ package endpoint
 import (
 	"context"
 	"testing"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -85,6 +87,13 @@ var (
 				},
 			},
 		},
+		Conditions: []agentv1alpha1.AgentCondition{
+			{
+				Type:              agentv1alpha1.AgentHealthy,
+				Status:            corev1.ConditionTrue,
+				LastHeartbeatTime: v1.NewTime(time.Now()),
+			},
+		},
 	}
 	fakeAgentInfoB = &agentv1alpha1.AgentInfo{
 		TypeMeta: v1.TypeMeta{
@@ -123,6 +132,13 @@ var (
 				},
 			},
 		},
+		Conditions: []agentv1alpha1.AgentCondition{
+			{
+				Type:              agentv1alpha1.AgentHealthy,
+				Status:            corev1.ConditionTrue,
+				LastHeartbeatTime: v1.NewTime(time.Now()),
+			},
+		},
 	}
 	fakeAgentInfoC = &agentv1alpha1.AgentInfo{
 		TypeMeta: v1.TypeMeta{
@@ -157,6 +173,13 @@ var (
 						},
 					},
 				},
+			},
+		},
+		Conditions: []agentv1alpha1.AgentCondition{
+			{
+				Type:              agentv1alpha1.AgentHealthy,
+				Status:            corev1.ConditionTrue,
+				LastHeartbeatTime: v1.NewTime(time.Now()),
 			},
 		},
 	}
@@ -195,6 +218,13 @@ var (
 						},
 					},
 				},
+			},
+		},
+		Conditions: []agentv1alpha1.AgentCondition{
+			{
+				Type:              agentv1alpha1.AgentHealthy,
+				Status:            corev1.ConditionTrue,
+				LastHeartbeatTime: v1.NewTime(time.Now()),
 			},
 		},
 	}

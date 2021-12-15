@@ -177,9 +177,12 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
+				t := metav1.Time{}
+				agentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
 				iface := &iface{
 					agentName:           agentInfo.Name,
 					name:                ovsIface.Name,
+					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
 					ipLastUpdateTimeMap: ovsIface.IPMap,
@@ -210,9 +213,12 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 	for _, bridge := range newAgentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
+				t := metav1.Time{}
+				newAgentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
 				iface := &iface{
 					agentName:           newAgentInfo.Name,
 					name:                ovsIface.Name,
+					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
 					ipLastUpdateTimeMap: ovsIface.IPMap,
@@ -454,7 +460,7 @@ func computeInterfaceExpiredIPs(timeout int, iface *iface) []string {
 	var expiredIPs []string
 	for ip, t := range iface.ipLastUpdateTimeMap {
 		expireTime := t.Add(time.Duration(timeout) * time.Second)
-		if time.Now().After(expireTime) {
+		if iface.agentTime.After(expireTime) {
 			expiredIPs = append(expiredIPs, ip.String())
 		}
 	}
@@ -495,6 +501,7 @@ func getEndpointIfaceIDFromOvsIface(ovsIface agentv1alpha1.OVSInterface) string 
 type iface struct {
 	agentName string
 	name      string
+	agentTime metav1.Time
 
 	externalIDs         map[string]string
 	mac                 string
