@@ -243,11 +243,10 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
 		wg.Add(1)
-		ctrlIDs := datapathManager.generateControllerIDSets()
-		go func(vdsID, ovsbrname string, ctrlIDs []uint16) {
+		go func(vdsID, ovsbrname string) {
 			defer wg.Done()
-			NewVDSForConfig(datapathManager, vdsID, ovsbrname, ctrlIDs)
-		}(vdsID, ovsbrname, ctrlIDs)
+			NewVDSForConfig(datapathManager, vdsID, ovsbrname)
+		}(vdsID, ovsbrname)
 	}
 	wg.Wait()
 
@@ -308,23 +307,26 @@ func (datapathManager *DpManager) InitializeCNI() {
 	wg.Wait()
 }
 
-func (datapathManager *DpManager) generateControllerIDSets() []uint16 {
-	var ctrlIDs []uint16
+func (datapathManager *DpManager) GenerateControllerID() uint16 {
+	datapathManager.DpManagerMutex.Lock()
+	defer datapathManager.DpManagerMutex.Unlock()
+
+	var ctrlID uint16
 	for {
-		var ctrlID uint16
-		_ = binary.Read(rand.Reader, binary.LittleEndian, &ctrlID)
+		err := binary.Read(rand.Reader, binary.LittleEndian, &ctrlID)
+		if err != nil {
+			log.Infof("get random ID from rand.Reader: %s", err)
+			continue
+		}
 		if datapathManager.controllerIDSets.Has(strconv.Itoa(int(ctrlID))) {
 			continue
 		}
 		datapathManager.controllerIDSets.Insert(strconv.Itoa(int(ctrlID)))
-		ctrlIDs = append(ctrlIDs, ctrlID)
-		if datapathManager.controllerIDSets.Len() == 4 {
-			return ctrlIDs
-		}
+		return ctrlID
 	}
 }
 
-func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string, ctrlIDs []uint16) {
+func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
 	policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
@@ -338,10 +340,10 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string, ctrlID
 
 	// initialize of controller
 	vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, ctrlIDs[0])
-	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, ctrlIDs[1])
-	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, ctrlIDs[2])
-	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, ctrlIDs[3])
+	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, datapathManager.GenerateControllerID())
+	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, datapathManager.GenerateControllerID())
+	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, datapathManager.GenerateControllerID())
+	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, datapathManager.GenerateControllerID())
 
 	// initialize ovsdbDriver
 	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
