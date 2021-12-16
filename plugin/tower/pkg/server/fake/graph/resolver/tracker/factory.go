@@ -86,6 +86,10 @@ func (f *Factory) User() *Tracker {
 	return f.TrackerFor(&model.User{}, userNameFunc, 0)
 }
 
+func (f *Factory) SystemEndpoints() *Tracker {
+	return f.TrackerFor(&schema.SystemEndpoints{}, nil, 0)
+}
+
 func (f *Factory) ResetAll() {
 	f.lock.Lock()
 	defer f.lock.Unlock()

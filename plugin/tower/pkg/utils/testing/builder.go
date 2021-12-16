@@ -215,6 +215,17 @@ func NewEverouteCluster(erClusterID string, defaultAction schema.GlobalPolicyAct
 	}
 }
 
+func NewSystemEndpoints(endpointNum int) *schema.SystemEndpoints {
+	systemEndpoints := &schema.SystemEndpoints{IPPortEndpoints: make([]schema.IPPortSystemEndpoint, 0, endpointNum)}
+	for i := 0; i < endpointNum; i++ {
+		systemEndpoints.IPPortEndpoints = append(
+			systemEndpoints.IPPortEndpoints,
+			schema.IPPortSystemEndpoint{IP: NewRandomIP().String()},
+		)
+	}
+	return systemEndpoints
+}
+
 func NewRandomIP() net.IP {
 	return net.ParseIP(
 		fmt.Sprintf("%d.%d.%d.%d",

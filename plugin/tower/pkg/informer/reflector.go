@@ -32,6 +32,7 @@ import (
 	klog "k8s.io/klog"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	"github.com/everoute/everoute/plugin/tower/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/third_party/forked/client-go/informer"
 )
@@ -155,7 +156,7 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	var event client.MutationEvent
 	var newObj = reflect.New(r.expectType.Type)
 
-	err := json.Unmarshal(raw, &event)
+	err := unmarshalEvent(r.expectType.Type, raw, &event)
 	if err != nil {
 		return fmt.Errorf("unable marshal %s into event %T", string(raw), event)
 	}
@@ -223,7 +224,7 @@ func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error
 func (r *reflector) syncWith(raw json.RawMessage) error {
 	list := reflect.New(reflect.SliceOf(r.expectType.Type))
 
-	err := json.Unmarshal(raw, list.Interface())
+	err := unmarshalSlice(r.expectType.Type, raw, list.Interface())
 	if err != nil {
 		return fmt.Errorf("unable marshal %s into slices of %s", string(raw), r.expectType.TypeName())
 	}
@@ -281,10 +282,16 @@ func (r *reflector) queryRequest() *client.Request {
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {
-	request := &client.Request{
+	// todo: we made a special handle for systemEndpoints, this should not happen.
+	// we need a serializer to no difference handle them.
+	if r.expectType.Type == reflect.TypeOf(&schema.SystemEndpoints{}) {
+		return &client.Request{
+			Query: fmt.Sprintf("subscription {%s %s}", r.expectType.TypeName(), r.expectType.QueryFields()),
+		}
+	}
+	return &client.Request{
 		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields()),
 	}
-	return request
 }
 
 type gqlType struct {
@@ -318,4 +325,32 @@ func (t *gqlType) ListName() string {
 // QueryFields return the type fields as gql query fields.
 func (t *gqlType) QueryFields() string {
 	return utils.GqlTypeMarshal(t, true)
+}
+
+func unmarshalEvent(originObjectType reflect.Type, raw json.RawMessage, event *client.MutationEvent) error {
+	// todo: we made a special handle for systemEndpoints, this should not happen.
+	// we need a serializer to no difference handle them.
+	if originObjectType == reflect.TypeOf(&schema.SystemEndpoints{}) {
+		event.Mutation = client.UpdateEvent
+		event.Node = raw
+		return nil
+	}
+	return json.Unmarshal(raw, event)
+}
+
+func unmarshalSlice(originObjectType reflect.Type, raw json.RawMessage, slice interface{}) error {
+	// todo: we made a special handle for systemEndpoints, this should not happen.
+	// we need a serializer to no difference handle them.
+	if originObjectType == reflect.TypeOf(&schema.SystemEndpoints{}) {
+		var systemEndpoint schema.SystemEndpoints
+		if err := json.Unmarshal(raw, &systemEndpoint); err != nil {
+			return err
+		}
+		if reflect.ValueOf(systemEndpoint).IsZero() {
+			return nil
+		}
+		*slice.(*[]*schema.SystemEndpoints) = []*schema.SystemEndpoints{&systemEndpoint}
+		return nil
+	}
+	return json.Unmarshal(raw, slice)
 }

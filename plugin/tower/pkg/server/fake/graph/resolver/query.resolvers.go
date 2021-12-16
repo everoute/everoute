@@ -84,6 +84,14 @@ func (r *queryResolver) Hosts(ctx context.Context) ([]schema.Host, error) {
 	return hosts, nil
 }
 
+func (r *queryResolver) SystemEndpoints(ctx context.Context) (*schema.SystemEndpoints, error) {
+	systemEndpointsList := r.TrackerFactory().SystemEndpoints().List()
+	if len(systemEndpointsList) == 0 {
+		return nil, nil
+	}
+	return systemEndpointsList[0].(*schema.SystemEndpoints), nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -244,6 +252,30 @@ func (r *subscriptionResolver) Host(ctx context.Context) (<-chan *model.HostEven
 	}()
 
 	return hostEventCh, nil
+}
+
+func (r *subscriptionResolver) SystemEndpoints(ctx context.Context) (<-chan *schema.SystemEndpoints, error) {
+	var systemEndpointsCh = make(chan *schema.SystemEndpoints, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().SystemEndpoints().Watch()
+		defer stopWatch()
+		defer close(systemEndpointsCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				systemEndpointsCh <- event.Object.(*schema.SystemEndpoints)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return systemEndpointsCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
