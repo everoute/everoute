@@ -531,10 +531,14 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 
 	if group.Spec.Endpoint != nil {
 		var endpoint securityv1alpha1.Endpoint
-		if err := r.Get(ctx, k8stypes.NamespacedName{Name: group.Spec.Endpoint.Name, Namespace: group.Spec.Endpoint.Namespace}, &endpoint); err != nil {
-			return nil, fmt.Errorf("invalid endpoint: %s, err: %s", group.Spec.Endpoint, err)
+		err := r.Get(ctx, k8stypes.NamespacedName{Name: group.Spec.Endpoint.Name, Namespace: group.Spec.Endpoint.Namespace}, &endpoint)
+		// ignore non-existent endpoint
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to get endpoint: %s, err: %s", group.Spec.Endpoint, err)
 		}
-		matchedEndpoints = append(matchedEndpoints, endpoint)
+		if err == nil {
+			matchedEndpoints = append(matchedEndpoints, endpoint)
+		}
 	}
 
 	for _, namespace := range matchedNamespaces {
