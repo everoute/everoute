@@ -53,8 +53,8 @@ type SecurityPolicySpec struct {
 	// Defaults to false.
 	SymmetricMode bool `json:"symmetricMode,omitempty"`
 
-	// Selects the endpoints to which this SecurityPolicy object applies. This field
-	// must not empty.
+	// Selects the endpoints to which this SecurityPolicy object applies.
+	// Empty or nil means select all endpoints
 	AppliedTo []ApplyToPeer `json:"appliedTo"`
 
 	// List of ingress rules to be applied to the selected endpoints. If this field
@@ -66,6 +66,10 @@ type SecurityPolicySpec struct {
 	// is empty then this SecurityPolicy limits all outgoing traffic.
 	// +optional
 	EgressRules []Rule `json:"egressRules,omitempty"`
+
+	// DisableDefaultRule will generate default DROP rule for policy
+	// +kubebuilder:default=false
+	DisableDefaultRule bool `json:"disableDefaultRule"`
 
 	// List of rule types that the Security relates to.
 	// Valid options are "Ingress", "Egress", or "Ingress,Egress".
@@ -238,6 +242,20 @@ type Endpoint struct {
 	Status EndpointStatus `json:"status,omitempty"`
 }
 
+// EndpointType defines network protocols supported for SecurityPolicy.
+// +kubebuilder:validation:Enum=vm;pod;static
+// +kubebuilder:default="vm"
+type EndpointType string
+
+const (
+	// EndpointVM is the Endpoint for VM.
+	EndpointVM EndpointType = "vm"
+	// EndpointPod is the Endpoint for Pod.
+	EndpointPod EndpointType = "pod"
+	// EndpointStatic is the Endpoint for Static IP.
+	EndpointStatic EndpointType = "static"
+)
+
 // EndpointSpec provides the specification of an Endpoint
 type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
@@ -246,6 +264,9 @@ type EndpointSpec struct {
 	// Reference of an endpoint, also the external_id of an ovs interface.
 	// We map between endpoint and ovs interface use the Reference.
 	Reference EndpointReference `json:"reference"`
+
+	// Type is the type of Endpoint
+	Type EndpointType `json:"type"`
 }
 
 // EndpointReference uniquely identifies an endpoint

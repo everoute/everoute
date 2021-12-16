@@ -306,6 +306,11 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 		return nil, err
 	}
 
+	// if apply to is nil or empty, all all ips
+	if len(policy.Spec.AppliedTo) == 0 {
+		appliedIPBlocks = map[string]int{"": 1}
+	}
+
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRule := &policycache.CompleteRule{
@@ -342,20 +347,21 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			completeRules = append(completeRules, ingressRule)
 		}
 
-		defaultIngressRule := &policycache.CompleteRule{
-			RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "ingress"),
-			Tier:              policy.Spec.Tier,
-			Action:            policycache.RuleActionDrop,
-			Direction:         policycache.RuleDirectionIn,
-			SymmetricMode:     false, // never generate symmetric rule for default rule
-			DefaultPolicyRule: true,
-			DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-			DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
-			SrcIPBlocks:       map[string]int{"": 1},      // matches all source IP
-			Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+		if !policy.Spec.DisableDefaultRule {
+			defaultIngressRule := &policycache.CompleteRule{
+				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "ingress"),
+				Tier:              policy.Spec.Tier,
+				Action:            policycache.RuleActionDrop,
+				Direction:         policycache.RuleDirectionIn,
+				SymmetricMode:     false, // never generate symmetric rule for default rule
+				DefaultPolicyRule: true,
+				DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+				DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				SrcIPBlocks:       map[string]int{"": 1},      // matches all source IP
+				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+			}
+			completeRules = append(completeRules, defaultIngressRule)
 		}
-
-		completeRules = append(completeRules, defaultIngressRule)
 	}
 
 	if egressEnabled {
@@ -394,20 +400,21 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			completeRules = append(completeRules, egressRule)
 		}
 
-		defaultEgressRule := &policycache.CompleteRule{
-			RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "egress"),
-			Tier:              policy.Spec.Tier,
-			Action:            policycache.RuleActionDrop,
-			Direction:         policycache.RuleDirectionOut,
-			SymmetricMode:     false, // never generate symmetric rule for default rule
-			DefaultPolicyRule: true,
-			SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-			SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
-			DstIPBlocks:       map[string]int{"": 1},      // matches all destination IP
-			Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+		if !policy.Spec.DisableDefaultRule {
+			defaultEgressRule := &policycache.CompleteRule{
+				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "egress"),
+				Tier:              policy.Spec.Tier,
+				Action:            policycache.RuleActionDrop,
+				Direction:         policycache.RuleDirectionOut,
+				SymmetricMode:     false, // never generate symmetric rule for default rule
+				DefaultPolicyRule: true,
+				SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+				SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				DstIPBlocks:       map[string]int{"": 1},      // matches all destination IP
+				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+			}
+			completeRules = append(completeRules, defaultEgressRule)
 		}
-
-		completeRules = append(completeRules, defaultEgressRule)
 	}
 
 	return completeRules, nil

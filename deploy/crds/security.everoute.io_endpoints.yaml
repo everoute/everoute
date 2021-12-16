@@ -66,12 +66,20 @@ spec:
                 - externalIDName
                 - externalIDValue
                 type: object
+              type:
+                description: Type is the type of Endpoint
+                enum:
+                - vm
+                - pod
+                - static
+                type: string
               vid:
                 description: VID describe the endpoint in which VLAN
                 format: int32
                 type: integer
             required:
             - reference
+            - type
             - vid
             type: object
           status:

@@ -392,6 +392,7 @@ func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labe
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
 	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID
+	ep.Spec.Type = v1alpha1.EndpointVM
 
 	return !reflect.DeepEqual(ep, epCopy)
 }

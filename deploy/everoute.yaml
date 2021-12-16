@@ -578,12 +578,20 @@ spec:
                 - externalIDName
                 - externalIDValue
                 type: object
+              type:
+                description: Type is the type of Endpoint
+                enum:
+                - vm
+                - pod
+                - static
+                type: string
               vid:
                 description: VID describe the endpoint in which VLAN
                 format: int32
                 type: integer
             required:
             - reference
+            - type
             - vid
             type: object
           status:
@@ -750,7 +758,7 @@ spec:
             properties:
               appliedTo:
                 description: Selects the endpoints to which this SecurityPolicy object
-                  applies. This field must not empty.
+                  applies. Empty or nil means select all endpoints
                 items:
                   description: ApplyToPeer describes sets of endpoints which this
                     SecurityPolicy object applies At least one field (Endpoint or
@@ -816,6 +824,11 @@ spec:
                       type: object
                   type: object
                 type: array
+              disableDefaultRule:
+                default: false
+                description: DisableDefaultRule will generate default DROP rule for
+                  policy
+                type: boolean
               egressRules:
                 description: List of egress rules to be applied to the selected endpoints.
                   If this field is empty then this SecurityPolicy limits all outgoing
@@ -1565,6 +1578,7 @@ spec:
                 type: string
             required:
             - appliedTo
+            - disableDefaultRule
             - tier
             type: object
         required:

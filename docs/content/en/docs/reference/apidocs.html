@@ -100,6 +100,19 @@ EndpointReference
 We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>type</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointType">
+EndpointType
+</a>
+</em>
+</td>
+<td>
+<p>Type is the type of Endpoint</p>
+</td>
+</tr>
 </table>
 </td>
 </tr>
@@ -280,8 +293,8 @@ Defaults to false.</p>
 </em>
 </td>
 <td>
-<p>Selects the endpoints to which this SecurityPolicy object applies. This field
-must not empty.</p>
+<p>Selects the endpoints to which this SecurityPolicy object applies.
+Empty or nil means select all endpoints</p>
 </td>
 </tr>
 <tr>
@@ -312,6 +325,17 @@ is empty then this SecurityPolicy does not allow any traffic.</p>
 <em>(Optional)</em>
 <p>List of egress rules to be applied to the selected endpoints. If this field
 is empty then this SecurityPolicy limits all outgoing traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>disableDefaultRule</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>DisableDefaultRule will generate default DROP rule for policy</p>
 </td>
 </tr>
 <tr>
@@ -472,6 +496,19 @@ EndpointReference
 We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>type</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointType">
+EndpointType
+</a>
+</em>
+</td>
+<td>
+<p>Type is the type of Endpoint</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.EndpointStatus">EndpointStatus
@@ -514,6 +551,34 @@ string
 </td>
 </tr>
 </tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.EndpointType">EndpointType
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec</a>)
+</p>
+<p>EndpointType defines network protocols supported for SecurityPolicy.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;pod&#34;</p></td>
+<td><p>EndpointPod is the Endpoint for Pod.</p>
+</td>
+</tr><tr>
+<td><p>&#34;static&#34;</p></td>
+<td><p>EndpointStatic is the Endpoint for Static IP.</p>
+</td>
+</tr><tr>
+<td><p>&#34;vm&#34;</p></td>
+<td><p>EndpointVM is the Endpoint for VM.</p>
+</td>
+</tr></tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.GlobalDefaultAction">GlobalDefaultAction
 (<code>string</code> alias)</h3>
@@ -913,8 +978,8 @@ Defaults to false.</p>
 </em>
 </td>
 <td>
-<p>Selects the endpoints to which this SecurityPolicy object applies. This field
-must not empty.</p>
+<p>Selects the endpoints to which this SecurityPolicy object applies.
+Empty or nil means select all endpoints</p>
 </td>
 </tr>
 <tr>
@@ -945,6 +1010,17 @@ is empty then this SecurityPolicy does not allow any traffic.</p>
 <em>(Optional)</em>
 <p>List of egress rules to be applied to the selected endpoints. If this field
 is empty then this SecurityPolicy limits all outgoing traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>disableDefaultRule</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>DisableDefaultRule will generate default DROP rule for policy</p>
 </td>
 </tr>
 <tr>

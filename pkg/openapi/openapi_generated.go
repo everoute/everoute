@@ -1343,8 +1343,15 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference"),
 						},
 					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type is the type of Endpoint",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"vid", "reference"},
+				Required: []string{"vid", "reference", "type"},
 			},
 		},
 		Dependencies: []string{
@@ -1775,7 +1782,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"appliedTo": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selects the endpoints to which this SecurityPolicy object applies. This field must not empty.",
+							Description: "Selects the endpoints to which this SecurityPolicy object applies. Empty or nil means select all endpoints",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1812,6 +1819,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 							},
 						},
 					},
+					"disableDefaultRule": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisableDefaultRule will generate default DROP rule for policy",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"policyTypes": {
 						SchemaProps: spec.SchemaProps{
 							Description: "List of rule types that the Security relates to. Valid options are \"Ingress\", \"Egress\", or \"Ingress,Egress\". If this field is not specified, it will default based on the existence of Ingress or Egress rules; policies that contain an Egress section are assumed to affect Egress, and all policies (whether or not they contain an Ingress section) are assumed to affect Ingress. If you want to write an egress-only policy, you must explicitly specify policyTypes [ \"Egress\" ]. Likewise, if you want to write a policy that specifies that no egress is allowed, you must specify a policyTypes value that include \"Egress\" (since such a policy would not include an Egress section and would otherwise default to just [ \"Ingress\" ]).",
@@ -1827,7 +1841,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"tier", "appliedTo"},
+				Required: []string{"tier", "appliedTo", "disableDefaultRule"},
 			},
 		},
 		Dependencies: []string{
