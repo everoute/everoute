@@ -74,3 +74,24 @@ const (
 	NetworkPolicyRuleTypeIPBlock  NetworkPolicyRuleType = "IP_BLOCK"
 	NetworkPolicyRuleTypeSelector NetworkPolicyRuleType = "SELECTOR"
 )
+
+// SystemEndpoints contains all internal system endpoints
+type SystemEndpoints struct {
+	IDEndpoints     []IDSystemEndpoint     `json:"id_endpoints,omitempty"`
+	IPPortEndpoints []IPPortSystemEndpoint `json:"ip_port_endpoints,omitempty"`
+}
+
+// GetID implements Object
+// systemEndpoints has only one instance, we use "systemEndpoints" as its ID
+func (*SystemEndpoints) GetID() string {
+	return "systemEndpoints"
+}
+
+type IDSystemEndpoint struct {
+	VMID string `json:"vm_id"`
+}
+
+type IPPortSystemEndpoint struct {
+	IP   string `json:"ip"`
+	Port *int   `json:"port,omitempty"`
+}

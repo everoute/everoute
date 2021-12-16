@@ -76,6 +76,15 @@ type ComplexityRoot struct {
 		PreviousValues func(childComplexity int) int
 	}
 
+	IDSystemEndpoint struct {
+		VMID func(childComplexity int) int
+	}
+
+	IPPortSystemEndpoint struct {
+		IP   func(childComplexity int) int
+		Port func(childComplexity int) int
+	}
+
 	IsolationPolicy struct {
 		Egress          func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
@@ -134,6 +143,7 @@ type ComplexityRoot struct {
 		IsolationPolicies func(childComplexity int) int
 		Labels            func(childComplexity int) int
 		SecurityPolicies  func(childComplexity int) int
+		SystemEndpoints   func(childComplexity int) int
 		Vms               func(childComplexity int) int
 	}
 
@@ -162,7 +172,13 @@ type ComplexityRoot struct {
 		IsolationPolicy func(childComplexity int) int
 		Label           func(childComplexity int) int
 		SecurityPolicy  func(childComplexity int) int
+		SystemEndpoints func(childComplexity int) int
 		VM              func(childComplexity int) int
+	}
+
+	SystemEndpoints struct {
+		IDEndpoints     func(childComplexity int) int
+		IPPortEndpoints func(childComplexity int) int
 	}
 
 	VM struct {
@@ -211,6 +227,7 @@ type QueryResolver interface {
 	IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error)
 	EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error)
 	Hosts(ctx context.Context) ([]schema.Host, error)
+	SystemEndpoints(ctx context.Context) (*schema.SystemEndpoints, error)
 }
 type SubscriptionResolver interface {
 	VM(ctx context.Context) (<-chan *model.VMEvent, error)
@@ -219,6 +236,7 @@ type SubscriptionResolver interface {
 	IsolationPolicy(ctx context.Context) (<-chan *model.IsolationPolicyEvent, error)
 	EverouteCluster(ctx context.Context) (<-chan *model.EverouteClusterEvent, error)
 	Host(ctx context.Context) (<-chan *model.HostEvent, error)
+	SystemEndpoints(ctx context.Context) (<-chan *schema.SystemEndpoints, error)
 }
 
 type executableSchema struct {
@@ -333,6 +351,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.HostEvent.PreviousValues(childComplexity), true
+
+	case "IDSystemEndpoint.vm_id":
+		if e.complexity.IDSystemEndpoint.VMID == nil {
+			break
+		}
+
+		return e.complexity.IDSystemEndpoint.VMID(childComplexity), true
+
+	case "IPPortSystemEndpoint.ip":
+		if e.complexity.IPPortSystemEndpoint.IP == nil {
+			break
+		}
+
+		return e.complexity.IPPortSystemEndpoint.IP(childComplexity), true
+
+	case "IPPortSystemEndpoint.port":
+		if e.complexity.IPPortSystemEndpoint.Port == nil {
+			break
+		}
+
+		return e.complexity.IPPortSystemEndpoint.Port(childComplexity), true
 
 	case "IsolationPolicy.egress":
 		if e.complexity.IsolationPolicy.Egress == nil {
@@ -549,6 +588,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.SecurityPolicies(childComplexity), true
 
+	case "Query.systemEndpoints":
+		if e.complexity.Query.SystemEndpoints == nil {
+			break
+		}
+
+		return e.complexity.Query.SystemEndpoints(childComplexity), true
+
 	case "Query.vms":
 		if e.complexity.Query.Vms == nil {
 			break
@@ -661,12 +707,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.SecurityPolicy(childComplexity), true
 
+	case "Subscription.systemEndpoints":
+		if e.complexity.Subscription.SystemEndpoints == nil {
+			break
+		}
+
+		return e.complexity.Subscription.SystemEndpoints(childComplexity), true
+
 	case "Subscription.vm":
 		if e.complexity.Subscription.VM == nil {
 			break
 		}
 
 		return e.complexity.Subscription.VM(childComplexity), true
+
+	case "SystemEndpoints.id_endpoints":
+		if e.complexity.SystemEndpoints.IDEndpoints == nil {
+			break
+		}
+
+		return e.complexity.SystemEndpoints.IDEndpoints(childComplexity), true
+
+	case "SystemEndpoints.ip_port_endpoints":
+		if e.complexity.SystemEndpoints.IPPortEndpoints == nil {
+			break
+		}
+
+		return e.complexity.SystemEndpoints.IPPortEndpoints(childComplexity), true
 
 	case "VM.description":
 		if e.complexity.VM.Description == nil {
@@ -897,6 +964,7 @@ type Query {
     isolationPolicies: [IsolationPolicy!]!
     everouteClusters: [EverouteCluster!]!
     hosts: [Host!]!
+    systemEndpoints: SystemEndpoints
 }
 
 # mock tower subscribe vm and label
@@ -907,6 +975,7 @@ type Subscription {
     isolationPolicy: IsolationPolicyEvent!
     everouteCluster: EverouteClusterEvent!
     host: HostEvent!
+    systemEndpoints: SystemEndpoints!
 }
 
 # mock tower user login
@@ -1024,6 +1093,20 @@ enum NetworkPolicyRuleType {
     ALL
     IP_BLOCK
     SELECTOR
+}
+
+type SystemEndpoints {
+    id_endpoints: [IDSystemEndpoint!]
+    ip_port_endpoints: [IPPortSystemEndpoint!]
+}
+
+type IDSystemEndpoint {
+    vm_id: String!
+}
+
+type IPPortSystemEndpoint {
+    ip: String!
+    port: Int
 }
 `, BuiltIn: false},
 	{Name: "../../schema/types.graphqls", Input: `type VM {
@@ -1656,6 +1739,108 @@ func (ec *executionContext) _HostEvent_previousValues(ctx context.Context, field
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
 	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IDSystemEndpoint_vm_id(ctx context.Context, field graphql.CollectedField, obj *schema.IDSystemEndpoint) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IDSystemEndpoint",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VMID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IPPortSystemEndpoint_ip(ctx context.Context, field graphql.CollectedField, obj *schema.IPPortSystemEndpoint) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IPPortSystemEndpoint",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IP, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _IPPortSystemEndpoint_port(ctx context.Context, field graphql.CollectedField, obj *schema.IPPortSystemEndpoint) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IPPortSystemEndpoint",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Port, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicy_id(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
@@ -2720,6 +2905,38 @@ func (ec *executionContext) _Query_hosts(ctx context.Context, field graphql.Coll
 	return ec.marshalNHost2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐHostᚄ(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_systemEndpoints(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().SystemEndpoints(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.SystemEndpoints)
+	fc.Result = res
+	return ec.marshalOSystemEndpoints2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3400,6 +3617,115 @@ func (ec *executionContext) _Subscription_host(ctx context.Context, field graphq
 			w.Write([]byte{'}'})
 		})
 	}
+}
+
+func (ec *executionContext) _Subscription_systemEndpoints(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().SystemEndpoints(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *schema.SystemEndpoints)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNSystemEndpoints2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _SystemEndpoints_id_endpoints(ctx context.Context, field graphql.CollectedField, obj *schema.SystemEndpoints) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SystemEndpoints",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IDEndpoints, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.IDSystemEndpoint)
+	fc.Result = res
+	return ec.marshalOIDSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpointᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SystemEndpoints_ip_port_endpoints(ctx context.Context, field graphql.CollectedField, obj *schema.SystemEndpoints) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SystemEndpoints",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IPPortEndpoints, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.IPPortSystemEndpoint)
+	fc.Result = res
+	return ec.marshalOIPPortSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIPPortSystemEndpointᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VM_id(ctx context.Context, field graphql.CollectedField, obj *schema.VM) (ret graphql.Marshaler) {
@@ -5383,6 +5709,62 @@ func (ec *executionContext) _HostEvent(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var iDSystemEndpointImplementors = []string{"IDSystemEndpoint"}
+
+func (ec *executionContext) _IDSystemEndpoint(ctx context.Context, sel ast.SelectionSet, obj *schema.IDSystemEndpoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, iDSystemEndpointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IDSystemEndpoint")
+		case "vm_id":
+			out.Values[i] = ec._IDSystemEndpoint_vm_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var iPPortSystemEndpointImplementors = []string{"IPPortSystemEndpoint"}
+
+func (ec *executionContext) _IPPortSystemEndpoint(ctx context.Context, sel ast.SelectionSet, obj *schema.IPPortSystemEndpoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, iPPortSystemEndpointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IPPortSystemEndpoint")
+		case "ip":
+			out.Values[i] = ec._IPPortSystemEndpoint_ip(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "port":
+			out.Values[i] = ec._IPPortSystemEndpoint_port(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var isolationPolicyImplementors = []string{"IsolationPolicy"}
 
 func (ec *executionContext) _IsolationPolicy(ctx context.Context, sel ast.SelectionSet, obj *schema.IsolationPolicy) graphql.Marshaler {
@@ -5788,6 +6170,17 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "systemEndpoints":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_systemEndpoints(ctx, field)
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
@@ -5935,9 +6328,37 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_everouteCluster(ctx, fields[0])
 	case "host":
 		return ec._Subscription_host(ctx, fields[0])
+	case "systemEndpoints":
+		return ec._Subscription_systemEndpoints(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var systemEndpointsImplementors = []string{"SystemEndpoints"}
+
+func (ec *executionContext) _SystemEndpoints(ctx context.Context, sel ast.SelectionSet, obj *schema.SystemEndpoints) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, systemEndpointsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SystemEndpoints")
+		case "id_endpoints":
+			out.Values[i] = ec._SystemEndpoints_id_endpoints(ctx, field, obj)
+		case "ip_port_endpoints":
+			out.Values[i] = ec._SystemEndpoints_ip_port_endpoints(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
 }
 
 var vMImplementors = []string{"VM"}
@@ -6584,6 +7005,14 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) marshalNIDSystemEndpoint2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpoint(ctx context.Context, sel ast.SelectionSet, v schema.IDSystemEndpoint) graphql.Marshaler {
+	return ec._IDSystemEndpoint(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIPPortSystemEndpoint2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIPPortSystemEndpoint(ctx context.Context, sel ast.SelectionSet, v schema.IPPortSystemEndpoint) graphql.Marshaler {
+	return ec._IPPortSystemEndpoint(ctx, sel, &v)
+}
+
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
 	res, err := graphql.UnmarshalInt(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -6992,6 +7421,20 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) marshalNSystemEndpoints2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx context.Context, sel ast.SelectionSet, v schema.SystemEndpoints) graphql.Marshaler {
+	return ec._SystemEndpoints(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSystemEndpoints2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx context.Context, sel ast.SelectionSet, v *schema.SystemEndpoints) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._SystemEndpoints(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNUserSource2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐUserSource(ctx context.Context, v interface{}) (model.UserSource, error) {
 	var res model.UserSource
 	err := res.UnmarshalGQL(v)
@@ -7340,6 +7783,101 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
+func (ec *executionContext) marshalOIDSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpointᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IDSystemEndpoint) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIDSystemEndpoint2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpoint(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalOIPPortSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIPPortSystemEndpointᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IPPortSystemEndpoint) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIPPortSystemEndpoint2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIPPortSystemEndpoint(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return graphql.MarshalInt(*v)
+}
+
 func (ec *executionContext) marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRule) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -7489,6 +8027,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 		return graphql.Null
 	}
 	return graphql.MarshalString(*v)
+}
+
+func (ec *executionContext) marshalOSystemEndpoints2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx context.Context, sel ast.SelectionSet, v *schema.SystemEndpoints) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SystemEndpoints(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOVM2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.VM) graphql.Marshaler {

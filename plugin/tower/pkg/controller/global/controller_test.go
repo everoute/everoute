@@ -58,7 +58,7 @@ var _ = Describe("GlobalPolicyController", func() {
 		})
 		It("should create default global policy", func() {
 			assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionAllow)
-			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 		})
 
 		When("update everoute cluster to default drop", func() {
@@ -69,7 +69,7 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 			It("should update default global policy", func() {
 				assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionDrop)
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 			})
 		})
 
@@ -93,7 +93,7 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 
 			It("should add cluster hosts management ip to whitelist", func() {
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03})
+				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03}, nil)
 			})
 
 			When("add new host to the elf cluster", func() {
@@ -105,7 +105,7 @@ var _ = Describe("GlobalPolicyController", func() {
 					server.TrackerFactory().Host().CreateOrUpdate(host04)
 				})
 				It("should add new host management ip to whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03, host04})
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03, host04}, nil)
 				})
 			})
 			When("remove host from the elf cluster", func() {
@@ -115,7 +115,7 @@ var _ = Describe("GlobalPolicyController", func() {
 					Expect(err).Should(Succeed())
 				})
 				It("should remove host management ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02})
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02}, nil)
 				})
 			})
 			When("disassociate the elf cluster", func() {
@@ -125,7 +125,7 @@ var _ = Describe("GlobalPolicyController", func() {
 					server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
 				})
 				It("should remove elf cluster hosts management ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 				})
 			})
 		})
@@ -139,7 +139,7 @@ var _ = Describe("GlobalPolicyController", func() {
 				server.TrackerFactory().EverouteCluster().CreateOrUpdate(randomERCluster)
 			})
 			It("should add controllers ip to whitelist", func() {
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil)
+				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil, nil)
 			})
 
 			When("add new controller to the everoute cluster", func() {
@@ -152,7 +152,7 @@ var _ = Describe("GlobalPolicyController", func() {
 					server.TrackerFactory().EverouteCluster().CreateOrUpdate(randomERCluster)
 				})
 				It("should add new controller ip th whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil)
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil, nil)
 				})
 			})
 
@@ -162,8 +162,46 @@ var _ = Describe("GlobalPolicyController", func() {
 					err := server.TrackerFactory().EverouteCluster().Delete(randomERCluster.ID)
 					Expect(err).Should(Succeed())
 				})
+				It("should remove all endpoints from whitelist", func() {
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
+				})
+			})
+		})
+
+		When("create systemEndpoints", func() {
+			var randomSystemEndpoints *schema.SystemEndpoints
+
+			BeforeEach(func() {
+				randomSystemEndpoints = NewSystemEndpoints(4)
+				By(fmt.Sprintf("create random systemEndpoints %+v", randomSystemEndpoints))
+				server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+			})
+			It("should add endpoints to whitelist", func() {
+				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
+			})
+
+			When("add new endpoint to systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints = append(
+						randomSystemEndpoints.IPPortEndpoints,
+						schema.IPPortSystemEndpoint{IP: NewRandomIP().String()},
+					)
+					By(fmt.Sprintf("update systemEndpoints to %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
+				It("should add new endpoints th whitelist", func() {
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
+				})
+			})
+
+			When("remove all endpoint for the systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints = nil
+					By(fmt.Sprintf("remove all endpoint from systemEndpoints: %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
 				It("should delete controllers ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
 				})
 			})
 		})
@@ -179,7 +217,7 @@ var _ = Describe("GlobalPolicyController", func() {
 		})
 		It("should create default global policy", func() {
 			assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionDrop)
-			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 		})
 
 		When("update everoute cluster to default allow", func() {
@@ -190,7 +228,7 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 			It("should update default global policy", func() {
 				assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionAllow)
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil)
+				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 			})
 		})
 	})
@@ -225,7 +263,7 @@ func assertMatchDefaultAction(ctx context.Context, defaultAction v1alpha1.Global
 	}, timeout, interval).Should(BeTrue())
 }
 
-func assertMatchWhiteList(ctx context.Context, erClusters []*schema.EverouteCluster, hosts []*schema.Host) {
+func assertMatchWhiteList(ctx context.Context, erClusters []*schema.EverouteCluster, hosts []*schema.Host, systemEndpoints *schema.SystemEndpoints) {
 	var whiteList = sets.NewString()
 
 	for _, erCluster := range erClusters {
@@ -235,6 +273,11 @@ func assertMatchWhiteList(ctx context.Context, erClusters []*schema.EverouteClus
 	}
 	for _, host := range hosts {
 		whiteList.Insert(fmt.Sprintf("%s/32", host.ManagementIP))
+	}
+	if systemEndpoints != nil {
+		for _, ipPortEndpoint := range systemEndpoints.IPPortEndpoints {
+			whiteList.Insert(fmt.Sprintf("%s/32", ipPortEndpoint.IP))
+		}
 	}
 
 	Eventually(func() bool {

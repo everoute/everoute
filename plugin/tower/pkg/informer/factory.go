@@ -50,6 +50,8 @@ type SharedInformerFactory interface {
 	Host() cache.SharedIndexInformer
 	// EverouteCluster return informer for &schema.EverouteCluster{}
 	EverouteCluster() cache.SharedIndexInformer
+	// SystemEndpoints return informer for &schema.SystemEndpoints{}
+	SystemEndpoints() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -129,6 +131,11 @@ func (f *sharedInformerFactory) SecurityPolicy() cache.SharedIndexInformer {
 // IsolationPolicy implements SharedInformerFactory.IsolationPolicy
 func (f *sharedInformerFactory) IsolationPolicy() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.IsolationPolicy{})
+}
+
+// SystemEndpoints implements SharedInformerFactory.SystemEndpoints
+func (f *sharedInformerFactory) SystemEndpoints() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.SystemEndpoints{})
 }
 
 // InformerFor implements SharedInformerFactory.InformerFor

@@ -48,3 +48,17 @@ enum NetworkPolicyRuleType {
     IP_BLOCK
     SELECTOR
 }
+
+type SystemEndpoints {
+    id_endpoints: [IDSystemEndpoint!]
+    ip_port_endpoints: [IPPortSystemEndpoint!]
+}
+
+type IDSystemEndpoint {
+    vm_id: String!
+}
+
+type IPPortSystemEndpoint {
+    ip: String!
+    port: Int
+}

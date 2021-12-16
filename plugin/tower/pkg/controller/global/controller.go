@@ -63,6 +63,10 @@ type Controller struct {
 	globalPolicyLister         informer.Lister
 	globalPolicyInformerSynced cache.InformerSynced
 
+	systemEndpointInformer       cache.SharedIndexInformer
+	systemEndpointLister         informer.Lister
+	systemEndpointInformerSynced cache.InformerSynced
+
 	reconcileQueue workqueue.RateLimitingInterface
 }
 
@@ -77,6 +81,7 @@ func New(
 	globalPolicyInformer := crdFactory.Security().V1alpha1().GlobalPolicies().Informer()
 	hostInformer := towerFactory.Host()
 	erClusterInformer := towerFactory.EverouteCluster()
+	systemEndpointInformer := towerFactory.SystemEndpoints()
 
 	c := &Controller{
 		name:                          "GlobalPolicyController",
@@ -91,6 +96,9 @@ func New(
 		globalPolicyInformer:          globalPolicyInformer,
 		globalPolicyLister:            globalPolicyInformer.GetIndexer(),
 		globalPolicyInformerSynced:    globalPolicyInformer.HasSynced,
+		systemEndpointInformer:        systemEndpointInformer,
+		systemEndpointLister:          systemEndpointInformer.GetIndexer(),
+		systemEndpointInformerSynced:  systemEndpointInformer.HasSynced,
 		reconcileQueue:                workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
@@ -121,6 +129,15 @@ func New(
 		resyncPeriod,
 	)
 
+	systemEndpointInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleSystemEndpoints,
+			UpdateFunc: c.updateSystemEndpoints,
+			DeleteFunc: c.handleSystemEndpoints,
+		},
+		resyncPeriod,
+	)
+
 	_ = erClusterInformer.AddIndexers(cache.Indexers{
 		elfClusterIndex: c.elfClusterIndexFunc,
 	})
@@ -141,6 +158,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		c.globalPolicyInformerSynced,
 		c.hostInformerSynced,
 		c.everouteClusterInformerSynced,
+		c.systemEndpointInformerSynced,
 	) {
 		return
 	}
@@ -208,6 +226,20 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 	// handle controller instance ip changes
 	if !reflect.DeepEqual(newERCluster.ControllerInstances, oldERCluster.ControllerInstances) {
 		c.handleEverouteCluster(newERCluster)
+	}
+}
+
+func (c *Controller) handleSystemEndpoints(_ interface{}) {
+	c.reconcileQueue.Add(DefaultGlobalPolicyName)
+}
+
+func (c *Controller) updateSystemEndpoints(old, new interface{}) {
+	oldSystemEndpoints := old.(*schema.SystemEndpoints)
+	newSystemEndpoints := new.(*schema.SystemEndpoints)
+
+	// handle systemEndpoints IP changes
+	if !reflect.DeepEqual(newSystemEndpoints, oldSystemEndpoints) {
+		c.handleSystemEndpoints(newSystemEndpoints)
 	}
 }
 
@@ -312,6 +344,15 @@ func (c *Controller) getCurrentGlobalPolicySpec() v1alpha1.GlobalPolicySpec {
 		for _, ins := range erCluster.(*schema.EverouteCluster).ControllerInstances {
 			globalPolicySpec.Whitelist = append(globalPolicySpec.Whitelist, networkingv1.IPBlock{
 				CIDR: fmt.Sprintf("%s/32", ins.IPAddr),
+			})
+		}
+	}
+
+	// add all system endpoints to whitelist
+	for _, systemEndpoints := range c.systemEndpointLister.List() {
+		for _, ipPortEndpoint := range systemEndpoints.(*schema.SystemEndpoints).IPPortEndpoints {
+			globalPolicySpec.Whitelist = append(globalPolicySpec.Whitelist, networkingv1.IPBlock{
+				CIDR: fmt.Sprintf("%s/32", ipPortEndpoint.IP),
 			})
 		}
 	}

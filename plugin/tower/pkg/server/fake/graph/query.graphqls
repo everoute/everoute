@@ -6,6 +6,7 @@ type Query {
     isolationPolicies: [IsolationPolicy!]!
     everouteClusters: [EverouteCluster!]!
     hosts: [Host!]!
+    systemEndpoints: SystemEndpoints
 }
 
 # mock tower subscribe vm and label
@@ -16,6 +17,7 @@ type Subscription {
     isolationPolicy: IsolationPolicyEvent!
     everouteCluster: EverouteClusterEvent!
     host: HostEvent!
+    systemEndpoints: SystemEndpoints!
 }
 
 # mock tower user login
