@@ -20,7 +20,7 @@ generate: codegen gqlgen protopb manifests yaml apidocs-gen
 
 docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu $$(id -u):$$(id -g) -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
