@@ -92,6 +92,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			Name:      endpointName,
 			Namespace: req.Namespace,
 		})
+		endpoint.Spec.Type = v1alpha1.EndpointDynamic
 		endpoint.ObjectMeta.Labels = map[string]string{}
 		for key, value := range pod.ObjectMeta.Labels {
 			endpoint.ObjectMeta.Labels[key] = value

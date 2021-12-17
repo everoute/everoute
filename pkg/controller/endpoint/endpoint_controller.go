@@ -79,6 +79,11 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Only update status for dynamic endpoint
+	if endpoint.Spec.Type != securityv1alpha1.EndpointDynamic {
+		return ctrl.Result{}, nil
+	}
+
 	// Fetch enpoint status from agentinfo.
 	expectStatus, err := r.fetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
 	if err != nil {

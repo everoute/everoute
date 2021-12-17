@@ -60,12 +60,19 @@ spec:
                     description: ExternalIDName of an endpoint.
                     type: string
                   externalIDValue:
-                    description: ExternalIDValue of an endpint.
+                    description: ExternalIDValue of an endpoint.
                     type: string
                 required:
                 - externalIDName
                 - externalIDValue
                 type: object
+              type:
+                default: dynamic
+                description: Type of this Endpoint
+                enum:
+                - dynamic
+                - static
+                type: string
               vid:
                 description: VID describe the endpoint in which VLAN
                 format: int32

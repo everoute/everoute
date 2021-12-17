@@ -241,6 +241,7 @@ var (
 				ExternalIDName:  endpointExternalIDKey,
 				ExternalIDValue: "ep01",
 			},
+			Type: securityv1alpha1.EndpointDynamic,
 		},
 	}
 	fakeEndpointC = &securityv1alpha1.Endpoint{
@@ -256,6 +257,27 @@ var (
 				ExternalIDName:  endpointExternalIDKey,
 				ExternalIDValue: "ep01",
 			},
+			Type: securityv1alpha1.EndpointDynamic,
+		},
+	}
+	fakeEndpointD = &securityv1alpha1.Endpoint{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Endpoint",
+			APIVersion: "security.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeEndpointD",
+		},
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  endpointExternalIDKey,
+				ExternalIDValue: "ep04",
+			},
+			Type: securityv1alpha1.EndpointStatic,
+		},
+		Status: securityv1alpha1.EndpointStatus{
+			MacAddress: rand.String(10),
+			IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
 		},
 	}
 )
@@ -280,7 +302,8 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 
 // processQueue use reconciler r process item in workqueue q, simulate processing events.
 func processQueue(r reconcile.Reconciler, q workqueue.RateLimitingInterface) error {
-	for i := 0; i < q.Len(); i++ {
+	qLen := q.Len()
+	for i := 0; i < qLen; i++ {
 		request, _ := q.Get()
 		if _, err := r.Reconcile(request.(ctrl.Request)); err != nil {
 			return err
@@ -309,7 +332,7 @@ func TestEndpointController(t *testing.T) {
 
 func testProcessAgentinfo(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	r := newFakeReconciler(fakeAgentInfoB, fakeEndpointA)
+	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointD)
 
 	t.Run("agentinfo-added", func(t *testing.T) {
 		// Fake: endpoint added and agentinfo added event when controller start.
@@ -317,6 +340,13 @@ func testProcessAgentinfo(t *testing.T) {
 			Meta:   fakeEndpointA.GetObjectMeta(),
 			Object: fakeEndpointA,
 		}, queue)
+
+		r.addEndpoint(event.CreateEvent{
+			Meta:   fakeEndpointD.GetObjectMeta(),
+			Object: fakeEndpointD,
+		}, queue)
+
+		_ = r.Client.Update(context.Background(), fakeEndpointD)
 
 		r.addAgentInfo(event.CreateEvent{
 			Meta:   fakeAgentInfoA.GetObjectMeta(),
@@ -328,7 +358,12 @@ func testProcessAgentinfo(t *testing.T) {
 			t.Errorf("failed to process add agentinfo request")
 		}
 
-		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
+		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointD.Name).Status
+		if !EqualEndpointStatus(endpointStatus, fakeEndpointD.Status) {
+			t.Errorf("endpoint status should not change, get %v, want %v", endpointStatus, fakeEndpointD.Status)
+		}
+
+		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
 		if !EqualEndpointStatus(ovsPortStatusA, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
 		}
