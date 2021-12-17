@@ -20,12 +20,15 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/contiv/ofnet/ofctrl/dperror"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -45,6 +48,10 @@ import (
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
+)
+
+const (
+	SyncPolicyRuleTimeout = 10
 )
 
 type Reconciler struct {
@@ -472,39 +479,56 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 			continue
 		}
 
+		// If datapath return error with ofSwitch disconnected error number, we should sync this rule until success or timeout.
+		// SyncPolicyRuleTimeout is larger than ofSwitch maxRetry timeout, it's guarantee policyrule sync routine is active until
+		// ofSwitch connection maxRetry timeout
 		if oldExist {
 			klog.Infof("remove policyRule: %v", oldRule)
-			r.processPolicyRuleDelete(oldRule.Name)
+			_ = wait.PollImmediate(1*time.Second, time.Duration(SyncPolicyRuleTimeout)*time.Second, func() (do bool, err error) {
+				if errorCode, _ := dperror.DecodeError(r.processPolicyRuleDelete(oldRule.Name)); errorCode == dperror.SwitchDisconnectedError.Code {
+					return false, nil
+				}
+				return true, nil
+			})
 		}
 
 		if newExist {
 			klog.Infof("create policyRule: %v", newRule)
-			r.processPolicyRuleAdd(newRule)
+
+			_ = wait.PollImmediate(1*time.Second, time.Duration(SyncPolicyRuleTimeout)*time.Second, func() (do bool, err error) {
+				if errorCode, _ := dperror.DecodeError(r.processPolicyRuleAdd(newRule)); errorCode == dperror.SwitchDisconnectedError.Code {
+					return false, nil
+				}
+				return true, nil
+			})
 		}
 	}
 }
 
-func (r *Reconciler) processPolicyRuleDelete(ruleName string) {
+func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {
 	r.flowKeyReferenceMapLock.Lock()
 	defer r.flowKeyReferenceMapLock.Unlock()
 
 	var flowKey = flowKeyFromRuleName(ruleName)
 	if r.flowKeyReferenceMap[flowKey] == nil {
 		// already deleted
-		return
+		return nil
+	}
+
+	klog.Infof("remove rule %s from datapath", flowKey)
+	if err := r.deletePolicyRuleFromDatapath(flowKey); err != nil {
+		return err
 	}
 
 	r.flowKeyReferenceMap[flowKey].Delete(ruleName)
-
 	if r.flowKeyReferenceMap[flowKey].Len() == 0 {
 		delete(r.flowKeyReferenceMap, flowKey)
-
-		klog.Infof("remove rule %s from datapath", flowKey)
-		r.deletePolicyRuleFromDatapath(flowKey)
 	}
+
+	return nil
 }
 
-func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) {
+func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) error {
 	r.flowKeyReferenceMapLock.Lock()
 	defer r.flowKeyReferenceMapLock.Unlock()
 
@@ -514,34 +538,27 @@ func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) {
 		r.flowKeyReferenceMap[flowKey] = sets.NewString()
 	}
 	klog.Infof("add rule %s to datapath", flowKey)
-	r.addPolicyRuleToDatapath(flowKey, policyRule)
+	if err := r.addPolicyRuleToDatapath(flowKey, policyRule); err != nil {
+		return err
+	}
 
 	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
+	return nil
 }
 
-func (r *Reconciler) deletePolicyRuleFromDatapath(flowKey string) {
-	var err error
+func (r *Reconciler) deletePolicyRuleFromDatapath(flowKey string) error {
 	ERPolicyRule := &datapath.EveroutePolicyRule{
 		RuleID: flowKey,
 	}
 
-	err = r.DatapathManager.RemoveEveroutePolicyRule(ERPolicyRule)
-	if err != nil {
-		// Update policyRule enforce status for statistics and display. TODO
-		klog.Fatalf("del EveroutePolicyRule %v failed,", ERPolicyRule)
-	}
+	return r.DatapathManager.RemoveEveroutePolicyRule(ERPolicyRule)
 }
 
-func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) {
+func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) error {
 	// Process PolicyRule: convert it to everoutePolicyRule, filter illegal PolicyRule; install everoutePolicyRule flow
-	var err error
 	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
-	err = r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, ruleDirection, ruleTier)
-	if err != nil {
-		// Update policyRule enforce status for statistics and display. TODO
-		klog.Fatalf("add everoutePolicyRule %v failed,", everoutePolicyRule)
-	}
+	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, ruleDirection, ruleTier)
 }

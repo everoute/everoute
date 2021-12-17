@@ -592,6 +592,9 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.IsBridgesConnected() {
+		datapathManager.WaitForBridgeConnected()
+	}
 
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
@@ -600,12 +603,16 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 				return nil
 			}
 
+			// For endpoint event, first, we add it to local endpoint db, keep local endpointDB is consistent with
+			// ovsdb interface table.
+			// if it's failed to add endpoint flow, replayVDSFlow routine would rebuild local endpoint flow according to
+			// current localEndpointDB
+			datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo), endpoint)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}
 
-			datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo), endpoint)
 			break
 		}
 	}
@@ -616,6 +623,9 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *Endpoint) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.IsBridgesConnected() {
+		datapathManager.WaitForBridgeConnected()
+	}
 	var err error
 
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
@@ -630,21 +640,21 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 			copy(learnedIP, ep.IPAddr)
 			newEndpoint.IPAddr = learnedIP
 
+			datapathManager.localEndpointDB.Remove(fmt.Sprintf("%s-%d", ovsbrname, oldEndpoint.PortNo))
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
 			if err != nil {
 				return fmt.Errorf("failed to remove old local endpoint %v from vds %v : bridge %v, error: %v", oldEndpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}
-			datapathManager.localEndpointDB.Remove(fmt.Sprintf("%s-%d", ovsbrname, oldEndpoint.PortNo))
 
 			if newEP, _ := datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", ovsbrname, newEndpoint.PortNo)); newEP != nil {
 				return fmt.Errorf("new local endpoint: %v already exits", newEP)
 			}
+			datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", ovsbrname, newEndpoint.PortNo), newEndpoint)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", newEndpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}
 
-			datapathManager.localEndpointDB.Set(fmt.Sprintf("%s-%d", ovsbrname, newEndpoint.PortNo), newEndpoint)
 			break
 		}
 	}
@@ -655,6 +665,9 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.IsBridgesConnected() {
+		datapathManager.WaitForBridgeConnected()
+	}
 
 	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
 		if ovsbrname != endpoint.BridgeName {
@@ -665,12 +678,13 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 			return fmt.Errorf("Endpoint not found for %v-%v", ovsbrname, endpoint.PortNo)
 		}
 
+		// Same as addLocalEndpoint routine, keep datapath endpointDB is consistent with ovsdb
+		datapathManager.localEndpointDB.Remove(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo))
 		err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
 		if err != nil {
 			return fmt.Errorf("failed to remove local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 		}
 
-		datapathManager.localEndpointDB.Remove(fmt.Sprintf("%s-%d", ovsbrname, endpoint.PortNo))
 		break
 	}
 
@@ -678,10 +692,13 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 }
 
 func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, direction uint8, tier uint8) error {
-	// check if we already have the rule
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.IsBridgesConnected() {
+		datapathManager.WaitForBridgeConnected()
+	}
 
+	// check if we already have the rule
 	if _, ok := datapathManager.Rules[rule.RuleID]; ok {
 		oldRule := datapathManager.Rules[rule.RuleID].EveroutePolicyRule
 
@@ -697,7 +714,8 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier)
 		if err != nil {
-			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
+			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
+			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry
 	}
@@ -717,6 +735,9 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 func (datapathManager *DpManager) RemoveEveroutePolicyRule(rule *EveroutePolicyRule) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.IsBridgesConnected() {
+		datapathManager.WaitForBridgeConnected()
+	}
 
 	for vdsID := range datapathManager.BridgeChainMap {
 		pRule := datapathManager.Rules[rule.RuleID]
@@ -725,7 +746,8 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(rule *EveroutePolicyR
 		}
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
-			return fmt.Errorf("failed to delete flow for rule: %+v. Err: %v", rule, err)
+			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", rule, err)
+			return err
 		}
 	}
 
