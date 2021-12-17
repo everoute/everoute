@@ -100,6 +100,19 @@ EndpointReference
 We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>type</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointType">
+EndpointType
+</a>
+</em>
+</td>
+<td>
+<p>Type of this Endpoint</p>
+</td>
+</tr>
 </table>
 </td>
 </tr>
@@ -427,7 +440,7 @@ string
 </em>
 </td>
 <td>
-<p>ExternalIDValue of an endpint.</p>
+<p>ExternalIDValue of an endpoint.</p>
 </td>
 </tr>
 </tbody>
@@ -472,6 +485,19 @@ EndpointReference
 We map between endpoint and ovs interface use the Reference.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>type</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.EndpointType">
+EndpointType
+</a>
+</em>
+</td>
+<td>
+<p>Type of this Endpoint</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.EndpointStatus">EndpointStatus
@@ -514,6 +540,30 @@ string
 </td>
 </tr>
 </tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.EndpointType">EndpointType
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec</a>)
+</p>
+<p>EndpointType defines network protocols supported for SecurityPolicy.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;dynamic&#34;</p></td>
+<td><p>EndpointDynamic is the Endpoint for Dynamic IP.</p>
+</td>
+</tr><tr>
+<td><p>&#34;static&#34;</p></td>
+<td><p>EndpointStatic is the Endpoint for Static IP.</p>
+</td>
+</tr></tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.GlobalDefaultAction">GlobalDefaultAction
 (<code>string</code> alias)</h3>

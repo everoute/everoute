@@ -1311,7 +1311,7 @@ func schema_pkg_apis_security_v1alpha1_EndpointReference(ref common.ReferenceCal
 					},
 					"externalIDValue": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ExternalIDValue of an endpint.",
+							Description: "ExternalIDValue of an endpoint.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1341,6 +1341,13 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 						SchemaProps: spec.SchemaProps{
 							Description: "Reference of an endpoint, also the external_id of an ovs interface. We map between endpoint and ovs interface use the Reference.",
 							Ref:         ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference"),
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type of this Endpoint",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

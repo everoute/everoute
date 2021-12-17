@@ -238,6 +238,17 @@ type Endpoint struct {
 	Status EndpointStatus `json:"status,omitempty"`
 }
 
+// EndpointType defines network protocols supported for SecurityPolicy.
+// +kubebuilder:validation:Enum=dynamic;static
+type EndpointType string
+
+const (
+	// EndpointDynamic is the Endpoint for Dynamic IP.
+	EndpointDynamic EndpointType = "dynamic"
+	// EndpointStatic is the Endpoint for Static IP.
+	EndpointStatic EndpointType = "static"
+)
+
 // EndpointSpec provides the specification of an Endpoint
 type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
@@ -246,6 +257,10 @@ type EndpointSpec struct {
 	// Reference of an endpoint, also the external_id of an ovs interface.
 	// We map between endpoint and ovs interface use the Reference.
 	Reference EndpointReference `json:"reference"`
+
+	// Type of this Endpoint
+	// +kubebuilder:default="dynamic"
+	Type EndpointType `json:"type,omitempty"`
 }
 
 // EndpointReference uniquely identifies an endpoint
@@ -253,7 +268,7 @@ type EndpointReference struct {
 	// ExternalIDName of an endpoint.
 	ExternalIDName string `json:"externalIDName"`
 
-	// ExternalIDValue of an endpint.
+	// ExternalIDValue of an endpoint.
 	ExternalIDValue string `json:"externalIDValue"`
 }
 
