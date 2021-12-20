@@ -1793,7 +1793,6 @@ rules:
     - security.everoute.io
   resources:
     - securitypolicies
-    - endpoints
     - globalpolicies
   verbs:
     - get
