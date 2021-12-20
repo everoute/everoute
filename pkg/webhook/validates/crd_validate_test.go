@@ -353,9 +353,9 @@ var _ = Describe("CRD Validate", func() {
 				policy = securityPolicyIngress.DeepCopy()
 			})
 
-			It("Create policy with nil applied to should not allowed", func() {
+			It("Create policy with nil applied to should allowed", func() {
 				policy.Spec.AppliedTo = nil
-				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 			})
 			It("Create policy with empty applied to peers should not allowed", func() {
 				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{}

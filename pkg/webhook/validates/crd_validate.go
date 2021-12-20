@@ -348,10 +348,6 @@ func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.Securi
 }
 
 func (v *securityPolicyValidator) validateAppliedTo(appliedTo []securityv1alpha1.ApplyToPeer) error {
-	if len(appliedTo) == 0 {
-		return fmt.Errorf("appliedTo must not empty")
-	}
-
 	for _, peer := range appliedTo {
 		if peer.Endpoint == nil && peer.EndpointSelector == nil {
 			return fmt.Errorf("must specific one of Endpoint or EndpointSelector")
