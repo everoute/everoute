@@ -823,6 +823,14 @@ spec:
                       type: object
                   type: object
                 type: array
+              defaultRule:
+                default: drop
+                description: DefaultRule will generate default rule for policy
+                enum:
+                - drop
+                - allow
+                - none
+                type: string
               egressRules:
                 description: List of egress rules to be applied to the selected endpoints.
                   If this field is empty then this SecurityPolicy limits all outgoing
