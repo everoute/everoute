@@ -1812,6 +1812,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 							},
 						},
 					},
+					"defaultRule": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DefaultRule will generate default rule for policy",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"policyTypes": {
 						SchemaProps: spec.SchemaProps{
 							Description: "List of rule types that the Security relates to. Valid options are \"Ingress\", \"Egress\", or \"Ingress,Egress\". If this field is not specified, it will default based on the existence of Ingress or Egress rules; policies that contain an Egress section are assumed to affect Egress, and all policies (whether or not they contain an Ingress section) are assumed to affect Ingress. If you want to write an egress-only policy, you must explicitly specify policyTypes [ \"Egress\" ]. Likewise, if you want to write a policy that specifies that no egress is allowed, you must specify a policyTypes value that include \"Egress\" (since such a policy would not include an Egress section and would otherwise default to just [ \"Ingress\" ]).",

@@ -43,6 +43,19 @@ type SecurityPolicy struct {
 	Spec SecurityPolicySpec `json:"spec"`
 }
 
+// DefaultRuleType defines default rule type inSecurityPolicy.
+// +kubebuilder:validation:Enum=drop;allow;none
+type DefaultRuleType string
+
+const (
+	// DefaultRuleDrop will generate default drop for SecurityPolicy.
+	DefaultRuleDrop DefaultRuleType = "drop"
+	// DefaultRuleAllow will generate default allow for SecurityPolicy.
+	DefaultRuleAllow DefaultRuleType = "allow"
+	// DefaultRuleNone will not generate default rule for SecurityPolicy.
+	DefaultRuleNone DefaultRuleType = "none"
+)
+
 // SecurityPolicySpec provides the specification of a SecurityPolicy
 type SecurityPolicySpec struct {
 	// Tier specifies the tier to which this SecurityPolicy belongs to.
@@ -66,6 +79,10 @@ type SecurityPolicySpec struct {
 	// is empty then this SecurityPolicy limits all outgoing traffic.
 	// +optional
 	EgressRules []Rule `json:"egressRules,omitempty"`
+
+	// DefaultRule will generate default rule for policy
+	// +kubebuilder:default=drop
+	DefaultRule DefaultRuleType `json:"defaultRule,omitempty"`
 
 	// List of rule types that the Security relates to.
 	// Valid options are "Ingress", "Egress", or "Ingress,Egress".

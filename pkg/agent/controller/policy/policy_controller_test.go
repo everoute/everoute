@@ -601,6 +601,29 @@ var _ = Describe("PolicyController", func() {
 
 			})
 		})
+		When("create a simple policy without drop", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+				policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
+				By(fmt.Sprintf("create policy %s without drop", policy.Name))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should not have default rules", func() {
+				assertPolicyRulesNum(policy, 1)
+
+				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertNoPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+
+				// Only egress specified, ingress rule should not generate
+				assertNoPolicyRule(policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertNoPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+
+			})
+		})
 
 		When("create a sample policy with no PolicyTypes specified", func() {
 			var policy *securityv1alpha1.SecurityPolicy

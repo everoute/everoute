@@ -316,6 +316,19 @@ is empty then this SecurityPolicy limits all outgoing traffic.</p>
 </tr>
 <tr>
 <td>
+<code>defaultRule</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.DefaultRuleType">
+DefaultRuleType
+</a>
+</em>
+</td>
+<td>
+<p>DefaultRule will generate default rule for policy</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>policyTypes</code><br/>
 <em>
 <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#policytype-v1-networking">
@@ -392,6 +405,34 @@ If this field is set then neither of the other fields can be.</p>
 </td>
 </tr>
 </tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.DefaultRuleType">DefaultRuleType
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec</a>)
+</p>
+<p>DefaultRuleType defines default rule type inSecurityPolicy.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;allow&#34;</p></td>
+<td><p>DefaultRuleAllow will generate default allow for SecurityPolicy.</p>
+</td>
+</tr><tr>
+<td><p>&#34;drop&#34;</p></td>
+<td><p>DefaultRuleDrop will generate default drop for SecurityPolicy.</p>
+</td>
+</tr><tr>
+<td><p>&#34;none&#34;</p></td>
+<td><p>DefaultRuleNone will not generate default rule for SecurityPolicy.</p>
+</td>
+</tr></tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.EndpointReference">EndpointReference
 </h3>
@@ -945,6 +986,19 @@ is empty then this SecurityPolicy does not allow any traffic.</p>
 <em>(Optional)</em>
 <p>List of egress rules to be applied to the selected endpoints. If this field
 is empty then this SecurityPolicy limits all outgoing traffic.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>defaultRule</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.DefaultRuleType">
+DefaultRuleType
+</a>
+</em>
+</td>
+<td>
+<p>DefaultRule will generate default rule for policy</p>
 </td>
 </tr>
 <tr>
