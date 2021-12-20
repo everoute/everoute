@@ -306,6 +306,11 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 		return nil, err
 	}
 
+	// if apply to is nil or empty, add all ips
+	if len(policy.Spec.AppliedTo) == 0 {
+		appliedIPBlocks = map[string]int{"": 1}
+	}
+
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRule := &policycache.CompleteRule{

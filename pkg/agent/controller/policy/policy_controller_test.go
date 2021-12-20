@@ -172,6 +172,33 @@ var _ = Describe("PolicyController", func() {
 					0, 0, "192.168.1.1/32", 0, 0, "TCP")
 
 			})
+			When("set applyTo empty", func() {
+				var testPolicy *securityv1alpha1.SecurityPolicy
+
+				BeforeEach(func() {
+					testPolicy = policy.DeepCopy()
+					testPolicy.Spec.AppliedTo = []securityv1alpha1.ApplyToPeer{}
+
+					By(fmt.Sprintf("update policy %s with empty applyTo", testPolicy.Name))
+					mustUpdatePolicy(ctx, testPolicy)
+				})
+
+				It("should apply to all endpoints", func() {
+					assertPolicyRulesNum(testPolicy, 4)
+					assertCompleteRuleNum(4)
+
+					assertHasPolicyRuleWithPortRange(testPolicy, "Ingress", "Allow", "192.168.2.1/32",
+						0, 0, "", 0, 0, "TCP")
+					assertHasPolicyRuleWithPortRange(testPolicy, "Ingress", "Drop", "",
+						0, 0, "", 0, 0, "")
+
+					assertHasPolicyRuleWithPortRange(testPolicy, "Egress", "Allow", "",
+						0, 0, "192.168.3.1/32", 80, 0xffff, "UDP")
+					assertHasPolicyRuleWithPortRange(testPolicy, "Egress", "Drop", "",
+						0, 0, "", 0, 0, "")
+				})
+			})
+
 		})
 
 		When("create a sample policy with ingress and egress", func() {

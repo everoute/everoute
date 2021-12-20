@@ -1782,7 +1782,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"appliedTo": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selects the endpoints to which this SecurityPolicy object applies. This field must not empty.",
+							Description: "Selects the endpoints to which this SecurityPolicy object applies. Empty or nil means select all endpoints",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

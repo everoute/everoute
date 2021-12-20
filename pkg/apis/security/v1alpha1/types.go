@@ -66,8 +66,8 @@ type SecurityPolicySpec struct {
 	// Defaults to false.
 	SymmetricMode bool `json:"symmetricMode,omitempty"`
 
-	// Selects the endpoints to which this SecurityPolicy object applies. This field
-	// must not empty.
+	// Selects the endpoints to which this SecurityPolicy object applies.
+	// Empty or nil means select all endpoints
 	AppliedTo []ApplyToPeer `json:"appliedTo"`
 
 	// List of ingress rules to be applied to the selected endpoints. If this field
