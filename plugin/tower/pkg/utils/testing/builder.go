@@ -220,7 +220,10 @@ func NewSystemEndpoints(endpointNum int) *schema.SystemEndpoints {
 	for i := 0; i < endpointNum; i++ {
 		systemEndpoints.IPPortEndpoints = append(
 			systemEndpoints.IPPortEndpoints,
-			schema.IPPortSystemEndpoint{IP: NewRandomIP().String()},
+			schema.IPPortSystemEndpoint{
+				Key: rand.String(24),
+				IP:  NewRandomIP().String(),
+			},
 		)
 	}
 	return systemEndpoints

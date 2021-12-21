@@ -55,10 +55,12 @@ type SystemEndpoints {
 }
 
 type IDSystemEndpoint {
+    key: String!
     vm_id: String!
 }
 
 type IPPortSystemEndpoint {
+    key: String!
     ip: String!
     port: Int
 }
