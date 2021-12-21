@@ -22,13 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/contiv/ofnet/ofctrl/dperror"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -48,10 +47,6 @@ import (
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
-)
-
-const (
-	SyncPolicyRuleTimeout = 10
 )
 
 type Reconciler struct {
@@ -239,16 +234,17 @@ func (r *Reconciler) addPatch(e event.CreateEvent, q workqueue.RateLimitingInter
 }
 
 func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error {
+	var oldRuleList []policycache.PolicyRule
+
 	// retrieve policy completeRules from cache
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
 	for _, completeRule := range completeRules {
-		// remove policy in datapath
-		for _, rule := range completeRule.(*policycache.CompleteRule).ListRules() {
-			r.processPolicyRuleDelete(rule.Name)
-		}
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
+		// start a force full synchronization of policyrule
 		// remove policy completeRules from cache
 		_ = r.ruleCache.Delete(completeRule)
 	}
+	r.syncPolicyRulesUntilSuccess(oldRuleList, nil)
 
 	return nil
 }
@@ -463,46 +459,48 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 }
 
 func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList []policycache.PolicyRule) {
-	r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
+	var err = r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
+	var rateLimiter = workqueue.NewItemExponentialFailureRateLimiter(time.Microsecond, time.Second)
+
+	for err != nil {
+		duration := rateLimiter.When("next-sync")
+		klog.Errorf("failed to sync policyRules, next sync after %s: %s", duration, err)
+		time.Sleep(duration)
+
+		err = r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
+	}
 }
 
-func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList []policycache.PolicyRule) {
-	newRuleMap := toRuleMap(newRuleList)
-	oldRuleMap := toRuleMap(oldRuleList)
-	allRuleSet := sets.StringKeySet(newRuleMap).Union(sets.StringKeySet(oldRuleMap))
+func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList []policycache.PolicyRule) error {
+	var (
+		errList    []error
+		newRuleMap = toRuleMap(newRuleList)
+		oldRuleMap = toRuleMap(oldRuleList)
+		allRuleSet = sets.StringKeySet(newRuleMap).Union(sets.StringKeySet(oldRuleMap))
+	)
 
 	for ruleName := range allRuleSet {
 		oldRule, oldExist := oldRuleMap[ruleName]
 		newRule, newExist := newRuleMap[ruleName]
 
-		if oldExist && newExist && oldRule.Name == newRule.Name {
-			continue
-		}
-
-		// If datapath return error with ofSwitch disconnected error number, we should sync this rule until success or timeout.
-		// SyncPolicyRuleTimeout is larger than ofSwitch maxRetry timeout, it's guarantee policyrule sync routine is active until
-		// ofSwitch connection maxRetry timeout
-		if oldExist {
-			klog.Infof("remove policyRule: %v", oldRule)
-			_ = wait.PollImmediate(1*time.Second, time.Duration(SyncPolicyRuleTimeout)*time.Second, func() (do bool, err error) {
-				if errorCode, _ := dperror.DecodeError(r.processPolicyRuleDelete(oldRule.Name)); errorCode == dperror.SwitchDisconnectedError.Code {
-					return false, nil
-				}
-				return true, nil
-			})
-		}
-
 		if newExist {
+			if oldExist && ruleIsSame(oldRule, newRule) {
+				continue
+			}
 			klog.Infof("create policyRule: %v", newRule)
+			errList = append(errList,
+				r.processPolicyRuleAdd(newRule),
+			)
 
-			_ = wait.PollImmediate(1*time.Second, time.Duration(SyncPolicyRuleTimeout)*time.Second, func() (do bool, err error) {
-				if errorCode, _ := dperror.DecodeError(r.processPolicyRuleAdd(newRule)); errorCode == dperror.SwitchDisconnectedError.Code {
-					return false, nil
-				}
-				return true, nil
-			})
+		} else if oldExist {
+			klog.Infof("remove policyRule: %v", oldRule)
+			errList = append(errList,
+				r.processPolicyRuleDelete(oldRule.Name),
+			)
 		}
 	}
+
+	return errors.NewAggregate(errList)
 }
 
 func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {

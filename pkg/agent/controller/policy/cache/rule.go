@@ -47,9 +47,10 @@ const (
 )
 
 type PolicyRule struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name   string     `json:"name"`
+	Action RuleAction `json:"action"`
 
+	// match fields
 	Direction   RuleDirection `json:"direction"`
 	RuleType    RuleType      `json:"ruleType"`
 	Tier        string        `json:"tier,omitempty"`
@@ -60,8 +61,6 @@ type PolicyRule struct {
 	DstPort     uint16        `json:"dstPort,omitempty"`
 	SrcPortMask uint16        `json:"srcPortMask,omitempty"`
 	DstPortMask uint16        `json:"dstPortMask,omitempty"`
-	TCPFlags    string        `json:"tcpFlags"`
-	Action      RuleAction    `json:"action"`
 }
 
 type CompleteRule struct {
@@ -170,6 +169,8 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Namespace: strings.Split(rule.RuleID, "/")[1],
 	})
 
+	// todo: it is not appropriate to calculate the flowkey here
+	// we should get flowkey when add flow to datapath
 	flowKey := GenerateFlowKey(policyRule)
 
 	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
@@ -304,6 +305,8 @@ func genRuleName(policyName, ruleName, flowKey string) string {
 }
 
 func GenerateFlowKey(rule PolicyRule) string {
+	// ignore rule.Name and rule.Namespace from generate flowkey
+	rule.Name = ""
 	// We consider PolicyRule with the same spec but different action as the same flow.
 	// Some we remove the action to generate FlowKey here.
 	rule.Action = ""
