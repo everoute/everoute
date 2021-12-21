@@ -88,10 +88,12 @@ func (*SystemEndpoints) GetID() string {
 }
 
 type IDSystemEndpoint struct {
+	Key  string `json:"key"`
 	VMID string `json:"vm_id"`
 }
 
 type IPPortSystemEndpoint struct {
+	Key  string `json:"key"`
 	IP   string `json:"ip"`
 	Port *int   `json:"port,omitempty"`
 }

@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
@@ -199,6 +200,64 @@ var _ = Describe("EndpointController", func() {
 	})
 })
 
+var _ = Describe("SystemEndpointController", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+	AfterEach(func() {
+		server.TrackerFactory().ResetAll()
+		err := crdClient.SecurityV1alpha1().Endpoints(namespace).DeleteCollection(ctx,
+			metav1.DeleteOptions{},
+			metav1.ListOptions{},
+		)
+		Expect(err).Should(Succeed())
+	})
+
+	Context("generate endpoint", func() {
+		When("create systemEndpoints", func() {
+			var randomSystemEndpoints *schema.SystemEndpoints
+
+			BeforeEach(func() {
+				randomSystemEndpoints = NewSystemEndpoints(2)
+				By(fmt.Sprintf("create random systemEndpoints %+v", randomSystemEndpoints))
+				server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+			})
+			It("should create endpoints", func() {
+				assertEndpointsNum(ctx, 2)
+				assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[0].IP)
+				assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[1].IP)
+			})
+
+			When("update systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints[0] = schema.IPPortSystemEndpoint{IP: NewRandomIP().String()}
+					By(fmt.Sprintf("update systemEndpoints to %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
+				It("should update related endpoints", func() {
+					assertEndpointsNum(ctx, 2)
+					assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[0].IP)
+					assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[1].IP)
+				})
+			})
+
+			When("remove all endpoint for the systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints = nil
+					By(fmt.Sprintf("remove all endpoint from systemEndpoints: %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
+				It("should delete endpoints", func() {
+					assertEndpointsNum(ctx, 0)
+				})
+			})
+		})
+	})
+
+})
+
 func TestValidKubernetesLabel(t *testing.T) {
 	testCases := []struct {
 		labelKey    string
@@ -263,6 +322,21 @@ func assertHasEndpoint(ctx context.Context, epName string, labels map[string]str
 				reflect.DeepEqual(endpoint.GetLabels(), labels) &&
 				endpoint.Spec.Reference.ExternalIDName == controller.ExternalIDName &&
 				endpoint.Spec.Reference.ExternalIDValue == externalIDValue {
+				return true
+			}
+		}
+		return false
+	}, timeout, interval).Should(BeTrue())
+}
+
+func assertHasStaticEndpoint(ctx context.Context, ip string) {
+	Eventually(func() bool {
+		endpointList, err := crdClient.SecurityV1alpha1().Endpoints(namespace).List(ctx, metav1.ListOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		for _, endpoint := range endpointList.Items {
+			if endpoint.Status.IPs[0].String() == ip &&
+				endpoint.Spec.Type == v1alpha1.EndpointStatic {
 				return true
 			}
 		}

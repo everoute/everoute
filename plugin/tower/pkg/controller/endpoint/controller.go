@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	kubeerror "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
@@ -58,16 +60,33 @@ type Controller struct {
 	endpointLister         informer.Lister
 	endpointInformerSynced cache.InformerSynced
 
+	systemEndpointInformer       cache.SharedIndexInformer
+	systemEndpointLister         informer.Lister
+	systemEndpointInformerSynced cache.InformerSynced
+
+	everouteClusterInformer       cache.SharedIndexInformer
+	everouteClusterLister         informer.Lister
+	everouteClusterInformerSynced cache.InformerSynced
+
 	// endpointQueue contains endpoint to process. The element in queue
 	// is endpoint name. And we use vnic ID as endpoint name.
 	endpointQueue workqueue.RateLimitingInterface
+
+	staticEndpointQueue workqueue.RateLimitingInterface
 }
 
 const (
 	vnicIndex = "vnicIndex"
 	vmIndex   = "vmIndex"
 
-	ExternalIDName = "iface-id"
+	ExternalIDName         = "iface-id"
+	DefaultExternalIDValue = "default-externalID-value"
+
+	DynamicEndpointPrefix    = "tower.ep.dynamic"
+	StaticEndpointPrefix     = "tower.ep.static"
+	VMEndpointPrefix         = "tower.ep.dynamic.vm-"
+	ControllerEndpointPrefix = "tower.ep.static.ctrl-"
+	SystemEndpointPrefix     = "tower.ep.static.sys-"
 )
 
 // New creates a new instance of controller.
@@ -81,6 +100,8 @@ func New(
 	vmInformer := towerFactory.VM()
 	labelInformer := towerFactory.Label()
 	endpointInforer := crdFactory.Security().V1alpha1().Endpoints().Informer()
+	systemEndpointInformer := towerFactory.SystemEndpoints()
+	erClusterInformer := towerFactory.EverouteCluster()
 
 	c := &Controller{
 		name:                   "EndpointController",
@@ -96,6 +117,14 @@ func New(
 		endpointLister:         endpointInforer.GetIndexer(),
 		endpointInformerSynced: endpointInforer.HasSynced,
 		endpointQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		systemEndpointInformer:        systemEndpointInformer,
+		systemEndpointLister:          systemEndpointInformer.GetIndexer(),
+		systemEndpointInformerSynced:  systemEndpointInformer.HasSynced,
+		everouteClusterInformer:       erClusterInformer,
+		everouteClusterLister:         erClusterInformer.GetIndexer(),
+		everouteClusterInformerSynced: erClusterInformer.HasSynced,
+		staticEndpointQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
 	// ignore error, error only when informer has already started
@@ -137,6 +166,24 @@ func New(
 		resyncPeriod,
 	)
 
+	systemEndpointInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.addSystemEndpoints,
+			UpdateFunc: c.updateSystemEndpoints,
+			DeleteFunc: c.deleteSystemEndpoints,
+		},
+		resyncPeriod,
+	)
+
+	erClusterInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.addEverouteCluster,
+			UpdateFunc: c.updateEverouteCluster,
+			DeleteFunc: c.deleteEverouteCluster,
+		},
+		resyncPeriod,
+	)
+
 	return c
 }
 
@@ -145,12 +192,18 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	defer runtime.HandleCrash()
 	defer c.endpointQueue.ShutDown()
 
-	if !cache.WaitForNamedCacheSync(c.name, stopCh, c.vmInformerSynced, c.labelInformerSynced, c.endpointInformerSynced) {
+	if !cache.WaitForNamedCacheSync(c.name, stopCh,
+		c.vmInformerSynced,
+		c.labelInformerSynced,
+		c.endpointInformerSynced,
+		c.systemEndpointInformerSynced,
+		c.everouteClusterInformerSynced) {
 		return
 	}
 
 	for i := uint(0); i < workers; i++ {
 		go wait.Until(c.syncEndpointWorker, time.Second, stopCh)
+		go wait.Until(c.syncStaticEndpointWorker, time.Second, stopCh)
 	}
 
 	<-stopCh
@@ -245,12 +298,20 @@ func (c *Controller) enqueueVMNics(vm *schema.VM) {
 
 func (c *Controller) addEndpoint(new interface{}) {
 	obj := new.(*v1alpha1.Endpoint)
-	c.endpointQueue.Add(obj.GetName())
+	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
+		c.staticEndpointQueue.Add(obj.GetName())
+	} else {
+		c.endpointQueue.Add(obj.GetName())
+	}
 }
 
 func (c *Controller) updateEndpoint(old interface{}, new interface{}) {
-	newEp := new.(*v1alpha1.Endpoint)
-	c.endpointQueue.Add(newEp.GetName())
+	obj := new.(*v1alpha1.Endpoint)
+	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
+		c.staticEndpointQueue.Add(obj.GetName())
+	} else {
+		c.endpointQueue.Add(obj.GetName())
+	}
 }
 
 func (c *Controller) deleteEndpoint(old interface{}) {
@@ -258,7 +319,116 @@ func (c *Controller) deleteEndpoint(old interface{}) {
 		old = d.Obj
 	}
 	obj := old.(*v1alpha1.Endpoint)
-	c.endpointQueue.Add(obj.GetName())
+	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
+		c.staticEndpointQueue.Add(obj.GetName())
+	} else {
+		c.endpointQueue.Add(obj.GetName())
+	}
+}
+
+func (c *Controller) addEverouteCluster(new interface{}) {
+	cluster := new.(*schema.EverouteCluster)
+	for _, controller := range cluster.ControllerInstances {
+		c.staticEndpointQueue.Add(c.getCtrlEndpointName(cluster.ID, controller))
+	}
+}
+
+func (c *Controller) deleteEverouteCluster(old interface{}) {
+	if d, ok := old.(cache.DeletedFinalStateUnknown); ok {
+		old = d.Obj
+	}
+	cluster := old.(*schema.EverouteCluster)
+	for _, ctrl := range cluster.ControllerInstances {
+		if ctrl.IPAddr != "" {
+			c.staticEndpointQueue.Add(c.getCtrlEndpointName(cluster.ID, ctrl))
+		}
+	}
+}
+
+func (c *Controller) updateEverouteCluster(old, new interface{}) {
+	oldEverouteCluster := old.(*schema.EverouteCluster)
+	newEverouteCluster := new.(*schema.EverouteCluster)
+
+	for _, ctrl := range oldEverouteCluster.ControllerInstances {
+		c.staticEndpointQueue.Add(c.getCtrlEndpointName(oldEverouteCluster.ID, ctrl))
+	}
+	for _, ctrl := range newEverouteCluster.ControllerInstances {
+		c.staticEndpointQueue.Add(c.getCtrlEndpointName(newEverouteCluster.ID, ctrl))
+	}
+}
+
+func (c *Controller) addSystemEndpoints(new interface{}) {
+	for _, ip := range new.(*schema.SystemEndpoints).IPPortEndpoints {
+		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+	}
+}
+
+func (c *Controller) deleteSystemEndpoints(old interface{}) {
+	if d, ok := old.(cache.DeletedFinalStateUnknown); ok {
+		old = d.Obj
+	}
+	for _, ip := range old.(*schema.SystemEndpoints).IPPortEndpoints {
+		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+	}
+}
+
+func (c *Controller) updateSystemEndpoints(old, new interface{}) {
+	oldSystemEndpoints := old.(*schema.SystemEndpoints)
+	newSystemEndpoints := new.(*schema.SystemEndpoints)
+
+	for _, ip := range oldSystemEndpoints.IPPortEndpoints {
+		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+	}
+	for _, ip := range newSystemEndpoints.IPPortEndpoints {
+		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+	}
+}
+
+func (c *Controller) getStaticEndpoint(key string) *v1alpha1.Endpoint {
+	ipAddr := c.getStaticIP(key)
+	if ipAddr == "" {
+		return nil
+	}
+	return &v1alpha1.Endpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      key,
+			Namespace: c.namespace,
+		},
+		Spec: v1alpha1.EndpointSpec{
+			VID: 0,
+			Reference: v1alpha1.EndpointReference{
+				ExternalIDName:  ExternalIDName,
+				ExternalIDValue: DefaultExternalIDValue,
+			},
+			Type: v1alpha1.EndpointStatic,
+		},
+		Status: v1alpha1.EndpointStatus{
+			IPs: []types.IPAddress{
+				types.IPAddress(ipAddr),
+			},
+		},
+	}
+}
+
+func (c *Controller) syncStaticEndpointWorker() {
+	for {
+		key, quit := c.staticEndpointQueue.Get()
+		if quit {
+			return
+		}
+
+		err := c.syncStaticEndpoint(key.(string))
+		if err != nil {
+			c.staticEndpointQueue.Done(key)
+			c.staticEndpointQueue.AddRateLimited(key)
+			klog.Errorf("got error while sync static endpoint %s: %s", key.(string), err)
+			continue
+		}
+
+		// stop the rate limiter from tracking the key
+		c.staticEndpointQueue.Done(key)
+		c.staticEndpointQueue.Forget(key)
+	}
 }
 
 func (c *Controller) syncEndpointWorker() {
@@ -282,8 +452,19 @@ func (c *Controller) syncEndpointWorker() {
 	}
 }
 
-// syncEndpoint finds vnic and endpoint by the key, and create/update/delete
-// endpoint according to the state of vnic.
+func (c *Controller) syncStaticEndpoint(key string) error {
+	ip := c.getStaticIP(key)
+	if ip == "" {
+		err := c.processEndpointDelete(key)
+		if err != nil {
+			return err
+		}
+	}
+	return c.processStaticEndpointUpdate(key)
+}
+
+// syncEndpoint process create/update/delete event for endpoint
+// handle endpoint from vNic or system endpoint
 func (c *Controller) syncEndpoint(key string) error {
 	vms, err := c.vmLister.ByIndex(vnicIndex, key)
 	if err != nil {
@@ -295,7 +476,7 @@ func (c *Controller) syncEndpoint(key string) error {
 		// delete this endpoint
 		return c.processEndpointDelete(key)
 	case 1:
-		// create or update endpoint
+		// create or update endpoint from vNic
 		return c.processEndpointUpdate(vms[0].(*schema.VM), key)
 	default:
 		return fmt.Errorf("got multiple vms %+v for vnic %s", vms, key)
@@ -358,6 +539,69 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 	return nil
 }
 
+func (c *Controller) processStaticEndpointUpdate(key string) error {
+	endpoint := c.getStaticEndpoint(key)
+	if endpoint == nil {
+		return c.processEndpointDelete(key)
+	}
+
+	obj, exists, err := c.endpointLister.GetByKey(fmt.Sprintf("%s/%s", c.namespace, key))
+	if err != nil {
+		return fmt.Errorf("get endpoint receive error: %s", err)
+	}
+
+	if !exists {
+		klog.Infof("will add endpoint from static ip: %+v", endpoint)
+		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Create(context.Background(), endpoint, metav1.CreateOptions{})
+		if err != nil {
+			if kubeerror.IsAlreadyExists(err) {
+				return nil
+			}
+			return fmt.Errorf("create endpoint receive error: %s", err)
+		}
+		// trigger endpoint update
+		c.staticEndpointQueue.Add(key)
+		return nil
+	}
+
+	ep := obj.(*v1alpha1.Endpoint).DeepCopy()
+	if !reflect.DeepEqual(ep.Status, endpoint.Status) {
+		klog.Infof("will update endpoint from %+v to %+v", ep, endpoint)
+		ep.Status = endpoint.Status
+		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Update(context.Background(), ep, metav1.UpdateOptions{})
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) getStaticIP(key string) string {
+	if strings.HasPrefix(key, ControllerEndpointPrefix) {
+		clusterList := c.everouteClusterLister.List()
+		if len(clusterList) == 0 {
+			return ""
+		}
+		cluster := clusterList[0].(*schema.EverouteCluster)
+		for _, ctrl := range cluster.ControllerInstances {
+			if c.getCtrlEndpointName(cluster.ID, ctrl) == strings.TrimPrefix(key, ControllerEndpointPrefix) {
+				return ctrl.IPAddr
+			}
+		}
+	} else if strings.HasPrefix(key, SystemEndpointPrefix) {
+		endpoints := c.systemEndpointLister.List()
+		if len(endpoints) == 0 {
+			return ""
+		}
+		for _, ipPortEndpoint := range endpoints[0].(*schema.SystemEndpoints).IPPortEndpoints {
+			if ipPortEndpoint.Key == strings.TrimPrefix(key, SystemEndpointPrefix) {
+				return ipPortEndpoint.IP
+			}
+		}
+	}
+
+	return ""
+}
+
 func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
 	labels, err := c.labelLister.ByIndex(vmIndex, vmID)
 	if err != nil {
@@ -380,6 +624,14 @@ func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
 	}
 
 	return labelsMap, nil
+}
+
+func (c *Controller) getCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance) string {
+	return StaticEndpointPrefix + cluster + "-" + ctrl.IPAddr
+}
+
+func (c *Controller) getSystemEndpointName(key string) string {
+	return SystemEndpointPrefix + key
 }
 
 // set endpoint return false if endpoint not changes
