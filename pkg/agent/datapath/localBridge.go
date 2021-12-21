@@ -558,7 +558,8 @@ func (l *LocalBridge) initFromLocalL2LearningTable() error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 	})
 
-	fromLocalLearnAction := ofctrl.NewLearnAction(L2_FORWARDING_TABLE, MID_MATCH_FLOW_PRIORITY+3, 0, 0, 0, 0, 0)
+	fromLocalLearnAction := ofctrl.NewLearnAction(L2_FORWARDING_TABLE, MID_MATCH_FLOW_PRIORITY+3,
+		LocalBridgeL2ForwardingTableIdleTimeout, LocalBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
 	if err := l.InitFromLocalLearnAction(fromLocalLearnAction); err != nil {
 		return fmt.Errorf("failed to initialize from local learn action, error: %v", err)
 	}
