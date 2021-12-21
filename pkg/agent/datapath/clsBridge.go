@@ -149,7 +149,8 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 		InputPort: uint32(CLS_TO_POLICY_PORT),
 	})
 
-	fromLocalLearnAction := ofctrl.NewLearnAction(CLSBRIDGE_FORWARDING_TABLE_ID, NORMAL_MATCH_FLOW_PRIORITY, 10, 10, 0, 0, 0)
+	fromLocalLearnAction := ofctrl.NewLearnAction(CLSBRIDGE_FORWARDING_TABLE_ID, NORMAL_MATCH_FLOW_PRIORITY,
+		ClsBridgeL2ForwardingTableIdleTimeout, ClsBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
 	err := c.InitVlanMacLearningAction(fromLocalLearnAction, "nxm_nx_reg0", 16, uint16(CLS_TO_POLICY_PORT))
 	if err != nil {
 		return fmt.Errorf("failed to add from local learning flow, error: %v", err)
@@ -174,7 +175,8 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(CLS_TO_UPLINK_PORT),
 	})
-	fromUplinkLearnAction := ofctrl.NewLearnAction(uint8(CLSBRIDGE_FORWARDING_TABLE_ID), NORMAL_MATCH_FLOW_PRIORITY, 10, 10, 0, 0, 0)
+	fromUplinkLearnAction := ofctrl.NewLearnAction(uint8(CLSBRIDGE_FORWARDING_TABLE_ID), NORMAL_MATCH_FLOW_PRIORITY,
+		ClsBridgeL2ForwardingTableIdleTimeout, ClsBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
 	err = c.InitVlanMacLearningAction(fromUplinkLearnAction, "nxm_nx_reg0", 16, CLS_TO_UPLINK_PORT)
 	if err != nil {
 		return fmt.Errorf("failed to add from uplink learning flow, error: %v", err)

@@ -108,9 +108,13 @@ const (
 	openflowProtorolVersion12 string = "OpenFlow12"
 	openflowProtorolVersion13 string = "OpenFlow13"
 
-	IPAddressTimeout               = 60
-	IPAddressCacheUpdateInterval   = 5
-	MaxIPAddressLearningFrenquency = 5
+	IPAddressTimeout                        = 60
+	IPAddressCacheUpdateInterval            = 5
+	LocalBridgeL2ForwardingTableHardTimeout = 300
+	LocalBridgeL2ForwardingTableIdleTimeout = 300
+	ClsBridgeL2ForwardingTableHardTimeout   = 300
+	ClsBridgeL2ForwardingTableIdleTimeout   = 300
+	MaxIPAddressLearningFrenquency          = 5
 )
 
 type Bridge interface {
