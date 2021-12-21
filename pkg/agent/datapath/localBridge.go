@@ -53,10 +53,15 @@ type LocalBridge struct {
 	// Table 5
 	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
 	learnedIPAddressMapMutex sync.RWMutex
-	learnedIPAddressMap      map[string]time.Time
+	learnedIPAddressMap      map[string]IPAddressReference
 
 	localSwitchStatusMuxtex sync.RWMutex
 	isLocalSwitchConnected  bool
+}
+
+type IPAddressReference struct {
+	lastUpdateTime time.Time
+	updateTimes    int
 }
 
 func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
@@ -65,7 +70,7 @@ func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 	localBridge.datapathManager = datapathManager
 	localBridge.fromLocalEndpointFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
-	localBridge.learnedIPAddressMap = make(map[string]time.Time)
+	localBridge.learnedIPAddressMap = make(map[string]IPAddressReference)
 
 	return localBridge
 }
@@ -144,7 +149,10 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 
 		l.learnedIPAddressMapMutex.Lock()
 		defer l.learnedIPAddressMapMutex.Unlock()
-		if _, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]; !ok {
+		ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
+		if !ok {
+			l.processLocalEndpointUpdate(arpIn, inPort)
+		} else if ok && ipReference.updateTimes > 0 {
 			l.processLocalEndpointUpdate(arpIn, inPort)
 		}
 		// NOTE output to local-to-policy-patch port
@@ -170,7 +178,7 @@ func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
 	l.learnedIPAddressMapMutex.Lock()
 	defer l.learnedIPAddressMapMutex.Unlock()
 	for ip, t := range l.learnedIPAddressMap {
-		ipExpiredTime := t.Add(time.Duration(timeout) * time.Second)
+		ipExpiredTime := t.lastUpdateTime.Add(time.Duration(timeout) * time.Second)
 		if time.Now().After(ipExpiredTime) {
 			delete(l.learnedIPAddressMap, ip)
 		}
@@ -185,7 +193,18 @@ func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint
 	}
 
 	l.notifyLocalEndpointUpdate(arpIn, inPort)
-	l.learnedIPAddressMap[arpIn.IPSrc.String()] = time.Now()
+	ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
+	if !ok {
+		l.learnedIPAddressMap[arpIn.IPSrc.String()] = IPAddressReference{
+			lastUpdateTime: time.Now(),
+			updateTimes:    MaxIPAddressLearningFrenquency,
+		}
+	} else {
+		l.learnedIPAddressMap[arpIn.IPSrc.String()] = IPAddressReference{
+			lastUpdateTime: ipReference.lastUpdateTime,
+			updateTimes:    ipReference.updateTimes - 1,
+		}
+	}
 }
 
 func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
