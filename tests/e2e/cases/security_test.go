@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -643,6 +644,27 @@ var _ = Describe("GlobalPolicy", func() {
 					expectedTruthTable := securityModel.NewEmptyTruthTable(false)
 					expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
 					expectedTruthTable.Set(endpointB.Name, endpointA.Name, true)
+					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+				})
+			})
+
+			When("update global policy to default allow", func() {
+				BeforeEach(func() {
+					By("wait for global policy add to datapath")
+					time.Sleep(5 * time.Second)
+
+					By("update global policy to default allow")
+					updateGlobalPolicy := globalPolicy.DeepCopy()
+					updateGlobalPolicy.Spec.DefaultAction = securityv1alpha1.GlobalDefaultActionAllow
+					Expect(e2eEnv.KubeClient().Patch(ctx, updateGlobalPolicy, client.MergeFrom(globalPolicy))).Should(Succeed())
+				})
+
+				It("should allow all traffics between endpoints", func() {
+					securityModel := &SecurityModel{
+						Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+					}
+					By("verify reachable between endpoints")
+					expectedTruthTable := securityModel.NewEmptyTruthTable(true)
 					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 				})
 			})

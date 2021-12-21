@@ -18,6 +18,7 @@ package policy
 
 import (
 	"fmt"
+	"reflect"
 	"runtime/debug"
 	"strings"
 
@@ -123,6 +124,10 @@ func flowKeyFromRuleName(ruleName string) string {
 	// rule name format like: policyname-rulename-namehash-flowkey
 	keys := strings.Split(ruleName, "-")
 	return keys[len(keys)-1]
+}
+
+func ruleIsSame(r1, r2 *policycache.PolicyRule) bool {
+	return r1 != nil && r2 != nil && reflect.DeepEqual(r1, r2)
 }
 
 func posToMask(pos int) uint16 {
