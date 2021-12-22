@@ -127,6 +127,8 @@ func TestAgentMonitor(t *testing.T) {
 
 	t.Run("interface with error should not appear in agentInfo", func(t *testing.T) {
 		Eventually(func() error {
+			monitor.ipCacheLock.RLock()
+			defer monitor.ipCacheLock.RUnlock()
 			agentInfo, _ := monitor.getAgentInfo()
 			for _, br := range agentInfo.OVSInfo.Bridges {
 				for _, port := range br.Ports {
