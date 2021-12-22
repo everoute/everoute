@@ -84,9 +84,9 @@ const (
 
 	DynamicEndpointPrefix    = "tower.ep.dynamic"
 	StaticEndpointPrefix     = "tower.ep.static"
-	VMEndpointPrefix         = "tower.ep.dynamic.vm-"
-	ControllerEndpointPrefix = "tower.ep.static.ctrl-"
-	SystemEndpointPrefix     = "tower.ep.static.sys-"
+	VMEndpointPrefix         = DynamicEndpointPrefix + ".vm-"
+	ControllerEndpointPrefix = StaticEndpointPrefix + ".ctrl-"
+	SystemEndpointPrefix     = StaticEndpointPrefix + ".sys-"
 )
 
 // New creates a new instance of controller.
@@ -607,7 +607,7 @@ func (c *Controller) getStaticIP(key string) string {
 		}
 		cluster := clusterList[0].(*schema.EverouteCluster)
 		for _, ctrl := range cluster.ControllerInstances {
-			if c.getCtrlEndpointName(cluster.ID, ctrl) == strings.TrimPrefix(key, ControllerEndpointPrefix) {
+			if c.getCtrlEndpointName(cluster.ID, ctrl) == key {
 				return ctrl.IPAddr
 			}
 		}
@@ -617,7 +617,7 @@ func (c *Controller) getStaticIP(key string) string {
 			return ""
 		}
 		for _, ipPortEndpoint := range endpoints[0].(*schema.SystemEndpoints).IPPortEndpoints {
-			if ipPortEndpoint.Key == strings.TrimPrefix(key, SystemEndpointPrefix) {
+			if c.getSystemEndpointName(ipPortEndpoint.Key) == key {
 				return ipPortEndpoint.IP
 			}
 		}
