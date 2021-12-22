@@ -330,7 +330,7 @@ func (c *Controller) addEverouteCluster(new interface{}) {
 	cluster := new.(*schema.EverouteCluster)
 	for _, controller := range cluster.ControllerInstances {
 		if validation.IsValidIP(controller.IPAddr) == nil {
-			c.staticEndpointQueue.Add(c.getCtrlEndpointName(cluster.ID, controller))
+			c.staticEndpointQueue.Add(GetCtrlEndpointName(cluster.ID, controller))
 		} else {
 			klog.Infof("invalid controller ip address %s in enveroute cluster %s", controller.IPAddr, cluster.ID)
 		}
@@ -344,7 +344,7 @@ func (c *Controller) deleteEverouteCluster(old interface{}) {
 	cluster := old.(*schema.EverouteCluster)
 	for _, ctrl := range cluster.ControllerInstances {
 		if ctrl.IPAddr != "" {
-			c.staticEndpointQueue.Add(c.getCtrlEndpointName(cluster.ID, ctrl))
+			c.staticEndpointQueue.Add(GetCtrlEndpointName(cluster.ID, ctrl))
 		}
 	}
 }
@@ -358,11 +358,11 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 	}
 
 	for _, ctrl := range oldEverouteCluster.ControllerInstances {
-		c.staticEndpointQueue.Add(c.getCtrlEndpointName(oldEverouteCluster.ID, ctrl))
+		c.staticEndpointQueue.Add(GetCtrlEndpointName(oldEverouteCluster.ID, ctrl))
 	}
 	for _, ctrl := range newEverouteCluster.ControllerInstances {
 		if validation.IsValidIP(ctrl.IPAddr) == nil {
-			c.staticEndpointQueue.Add(c.getCtrlEndpointName(newEverouteCluster.ID, ctrl))
+			c.staticEndpointQueue.Add(GetCtrlEndpointName(newEverouteCluster.ID, ctrl))
 		} else {
 			klog.Infof("invalid controller ip address %s in enveroute cluster %s", ctrl.IPAddr, newEverouteCluster.ID)
 		}
@@ -372,7 +372,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 func (c *Controller) addSystemEndpoints(new interface{}) {
 	for _, ip := range new.(*schema.SystemEndpoints).IPPortEndpoints {
 		if validation.IsValidIP(ip.IP) == nil {
-			c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+			c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 		} else {
 			klog.Infof("invalid ip address %+v in system endpoint", ip)
 		}
@@ -384,7 +384,7 @@ func (c *Controller) deleteSystemEndpoints(old interface{}) {
 		old = d.Obj
 	}
 	for _, ip := range old.(*schema.SystemEndpoints).IPPortEndpoints {
-		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+		c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 	}
 }
 
@@ -397,11 +397,11 @@ func (c *Controller) updateSystemEndpoints(old, new interface{}) {
 	}
 
 	for _, ip := range oldSystemEndpoints.IPPortEndpoints {
-		c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+		c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 	}
 	for _, ip := range newSystemEndpoints.IPPortEndpoints {
 		if validation.IsValidIP(ip.IP) == nil {
-			c.staticEndpointQueue.Add(c.getSystemEndpointName(ip.Key))
+			c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 		} else {
 			klog.Infof("invalid ip address %+v in system endpoint", ip)
 		}
@@ -607,7 +607,7 @@ func (c *Controller) getStaticIP(key string) string {
 		}
 		cluster := clusterList[0].(*schema.EverouteCluster)
 		for _, ctrl := range cluster.ControllerInstances {
-			if c.getCtrlEndpointName(cluster.ID, ctrl) == key {
+			if GetCtrlEndpointName(cluster.ID, ctrl) == key {
 				return ctrl.IPAddr
 			}
 		}
@@ -617,7 +617,7 @@ func (c *Controller) getStaticIP(key string) string {
 			return ""
 		}
 		for _, ipPortEndpoint := range endpoints[0].(*schema.SystemEndpoints).IPPortEndpoints {
-			if c.getSystemEndpointName(ipPortEndpoint.Key) == key {
+			if GetSystemEndpointName(ipPortEndpoint.Key) == key {
 				return ipPortEndpoint.IP
 			}
 		}
@@ -650,11 +650,11 @@ func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
 	return labelsMap, nil
 }
 
-func (c *Controller) getCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance) string {
+func GetCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance) string {
 	return ControllerEndpointPrefix + cluster + "-" + ctrl.IPAddr
 }
 
-func (c *Controller) getSystemEndpointName(key string) string {
+func GetSystemEndpointName(key string) string {
 	return SystemEndpointPrefix + key
 }
 

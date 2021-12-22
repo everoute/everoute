@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"net"
 	"reflect"
 	"strings"
@@ -50,6 +51,9 @@ const (
 	IsolationPolicyEgressPrefix      = "tower.ip.egress-"
 	SecurityPolicyCommunicablePrefix = "tower.sp.communicable-"
 
+	SystemEndpointsPolicyName = "tower.sp.internal-systemEndpoints"
+	ControllerPolicyName      = "tower.sp.internal-controller"
+
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
@@ -61,6 +65,8 @@ const (
 //   1. If origin policy is SecurityPolicy, policy.name = {{SecurityPolicyPrefix}}{{SecurityPolicy.ID}}
 //   2. If origin policy is IsolationPolicy, policy.name = {{IsolationPolicyPrefix}}{{IsolationPolicy.ID}}
 //   3. If policy was generated to make intragroup communicable, policy.name = {{SecurityPolicyCommunicablePrefix}}{{SelectorHash}}-{{SecurityPolicy.ID}}
+//   4. If origin policy is SystemEndpointsPolicy, policy.name = {{SystemEndpointsPolicyName}}
+//   5. If origin policy is ControllerPolicy, policy.name = {{ControllerPolicyName}}
 type Controller struct {
 	// name of this controller
 	name string
@@ -92,8 +98,18 @@ type Controller struct {
 	crdPolicyLister         informer.Lister
 	crdPolicyInformerSynced cache.InformerSynced
 
-	isolationPolicyQueue workqueue.RateLimitingInterface
-	securityPolicyQueue  workqueue.RateLimitingInterface
+	everouteClusterInformer       cache.SharedIndexInformer
+	everouteClusterLister         informer.Lister
+	everouteClusterInformerSynced cache.InformerSynced
+
+	systemEndpointInformer       cache.SharedIndexInformer
+	systemEndpointLister         informer.Lister
+	systemEndpointInformerSynced cache.InformerSynced
+
+	isolationPolicyQueue      workqueue.RateLimitingInterface
+	securityPolicyQueue       workqueue.RateLimitingInterface
+	systemEndpointPolicyQueue workqueue.RateLimitingInterface
+	controllerPolicyQueue     workqueue.RateLimitingInterface
 }
 
 // New creates a new instance of controller.
@@ -111,6 +127,8 @@ func New(
 	labelInformer := towerFactory.Label()
 	securityPolicyInformer := towerFactory.SecurityPolicy()
 	isolationPolicyInformer := towerFactory.IsolationPolicy()
+	erClusterInformer := towerFactory.EverouteCluster()
+	systemEndpointInformer := towerFactory.SystemEndpoints()
 
 	c := &Controller{
 		name:                          "PolicyController",
@@ -132,8 +150,16 @@ func New(
 		crdPolicyInformer:             crdPolicyInformer,
 		crdPolicyLister:               crdPolicyInformer.GetIndexer(),
 		crdPolicyInformerSynced:       crdPolicyInformer.HasSynced,
+		everouteClusterInformer:       erClusterInformer,
+		everouteClusterLister:         erClusterInformer.GetIndexer(),
+		everouteClusterInformerSynced: erClusterInformer.HasSynced,
+		systemEndpointInformer:        systemEndpointInformer,
+		systemEndpointLister:          systemEndpointInformer.GetIndexer(),
+		systemEndpointInformerSynced:  systemEndpointInformer.HasSynced,
 		isolationPolicyQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		securityPolicyQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		systemEndpointPolicyQueue:     workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		controllerPolicyQueue:         workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
 	// when vm's vnics changes, enqueue related IsolationPolicy
@@ -170,6 +196,24 @@ func New(
 			AddFunc:    c.handleIsolationPolicy,
 			UpdateFunc: c.updateIsolationPolicy,
 			DeleteFunc: c.handleIsolationPolicy,
+		},
+		resyncPeriod,
+	)
+
+	erClusterInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleEverouteCluster,
+			UpdateFunc: c.updateEverouteCluster,
+			DeleteFunc: c.handleEverouteCluster,
+		},
+		resyncPeriod,
+	)
+
+	systemEndpointInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleSystemEndpoints,
+			UpdateFunc: c.updateSystemEndpoints,
+			DeleteFunc: c.handleSystemEndpoints,
 		},
 		resyncPeriod,
 	)
@@ -216,6 +260,8 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		c.securityPolicyInformerSynced,
 		c.isolationPolicyInformerSynced,
 		c.crdPolicyInformerSynced,
+		c.everouteClusterInformerSynced,
+		c.systemEndpointInformerSynced,
 	) {
 		return
 	}
@@ -224,6 +270,8 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		go wait.Until(c.syncSecurityPolicyWorker, time.Second, stopCh)
 		go wait.Until(c.syncIsolationPolicyWorker, time.Second, stopCh)
 	}
+	go wait.Until(c.syncSystemEndpointsPolicyWorker, time.Second, stopCh)
+	go wait.Until(c.syncControllerPolicyWorker, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -396,6 +444,14 @@ func (c *Controller) handleCRDPolicy(obj interface{}) {
 	for _, policy := range isolationPolicies {
 		c.isolationPolicyQueue.Add(policy)
 	}
+
+	if obj.(*v1alpha1.SecurityPolicy).Name == SystemEndpointsPolicyName {
+		c.systemEndpointPolicyQueue.Add("")
+	}
+
+	if obj.(*v1alpha1.SecurityPolicy).Name == ControllerPolicyName {
+		c.controllerPolicyQueue.Add("")
+	}
 }
 
 func (c *Controller) updateCRDPolicy(old, new interface{}) {
@@ -406,6 +462,39 @@ func (c *Controller) updateCRDPolicy(old, new interface{}) {
 		return
 	}
 	c.handleCRDPolicy(newPolicy)
+}
+
+func (c *Controller) handleEverouteCluster(_ interface{}) {
+	c.controllerPolicyQueue.Add("")
+}
+
+func (c *Controller) updateEverouteCluster(old, new interface{}) {
+	oldERCluster := old.(*schema.EverouteCluster)
+	newERCluster := new.(*schema.EverouteCluster)
+
+	if newERCluster.ID == c.everouteCluster {
+		c.handleEverouteCluster(newERCluster)
+		return
+	}
+
+	// handle controller instance ip changes
+	if !reflect.DeepEqual(newERCluster.ControllerInstances, oldERCluster.ControllerInstances) {
+		c.handleEverouteCluster(newERCluster)
+	}
+}
+
+func (c *Controller) handleSystemEndpoints(_ interface{}) {
+	c.systemEndpointPolicyQueue.Add("")
+}
+
+func (c *Controller) updateSystemEndpoints(old, new interface{}) {
+	oldSystemEndpoints := old.(*schema.SystemEndpoints)
+	newSystemEndpoints := new.(*schema.SystemEndpoints)
+
+	// handle systemEndpoints IP changes
+	if !reflect.DeepEqual(newSystemEndpoints, oldSystemEndpoints) {
+		c.handleSystemEndpoints(newSystemEndpoints)
+	}
 }
 
 func (c *Controller) syncSecurityPolicyWorker() {
@@ -450,6 +539,48 @@ func (c *Controller) syncIsolationPolicyWorker() {
 	}
 }
 
+func (c *Controller) syncSystemEndpointsPolicyWorker() {
+	for {
+		key, quit := c.systemEndpointPolicyQueue.Get()
+		if quit {
+			return
+		}
+
+		err := c.syncSystemEndpointsPolicy(key.(string))
+		if err != nil {
+			c.systemEndpointPolicyQueue.Done(key)
+			c.systemEndpointPolicyQueue.AddRateLimited(key)
+			klog.Errorf("got error while sync systemEndpointPolicy %s: %s", key.(string), err)
+			continue
+		}
+
+		// stop the rate limiter from tracking the key
+		c.systemEndpointPolicyQueue.Done(key)
+		c.systemEndpointPolicyQueue.Forget(key)
+	}
+}
+
+func (c *Controller) syncControllerPolicyWorker() {
+	for {
+		key, quit := c.controllerPolicyQueue.Get()
+		if quit {
+			return
+		}
+
+		err := c.syncControllerPolicy(key.(string))
+		if err != nil {
+			c.controllerPolicyQueue.Done(key)
+			c.controllerPolicyQueue.AddRateLimited(key)
+			klog.Errorf("got error while sync controllerPolicy %s: %s", key.(string), err)
+			continue
+		}
+
+		// stop the rate limiter from tracking the key
+		c.controllerPolicyQueue.Done(key)
+		c.controllerPolicyQueue.Forget(key)
+	}
+}
+
 // syncSecurityPolicy sync SecurityPoicy to v1alpha1.SecurityPolicy
 func (c *Controller) syncSecurityPolicy(key string) error {
 	policy, exist, err := c.securityPolicyLister.GetByKey(key)
@@ -476,6 +607,46 @@ func (c *Controller) syncIsolationPolicy(key string) error {
 		return c.deleteRelatedPolicies(isolationPolicyIndex, key)
 	}
 	return c.processIsolationPolicyUpdate(policy.(*schema.IsolationPolicy))
+}
+
+// syncSystemEndpointsPolicy sync SystemEndpoints to v1alpha1.SecurityPolicy
+func (c *Controller) syncSystemEndpointsPolicy(key string) error {
+	systemEndpointsList := c.systemEndpointLister.List()
+	switch len(systemEndpointsList) {
+	case 0:
+		err := c.applyPoliciesChanges([]string{SystemEndpointsPolicyName}, nil)
+		if err != nil {
+			klog.Errorf("unable delete systemEndpoints policies %+v: %s", key, err)
+		}
+		return err
+	case 1:
+		policy, _ := c.parseSystemEndpointsPolicy(systemEndpointsList[0].(*schema.SystemEndpoints))
+		err := c.applyPoliciesChanges([]string{SystemEndpointsPolicyName}, []v1alpha1.SecurityPolicy{*policy})
+		if err != nil {
+			klog.Errorf("unable update systemEndpoints policies %+v: %s", key, err)
+		}
+		return err
+	default:
+		return fmt.Errorf("invalid systemEndpoints in cluster, %+v", systemEndpointsList)
+	}
+}
+
+// syncControllerPolicy sync EverouteCluster Controller to v1alpha1.SecurityPolicy
+func (c *Controller) syncControllerPolicy(key string) error {
+	clusterList := c.everouteClusterLister.List()
+
+	var clusters []*schema.EverouteCluster
+	for _, cluster := range clusterList {
+		clusters = append(clusters, cluster.(*schema.EverouteCluster))
+	}
+
+	policy, _ := c.parseControllerPolicy(clusters)
+
+	err := c.applyPoliciesChanges([]string{ControllerPolicyName}, []v1alpha1.SecurityPolicy{*policy})
+	if err != nil {
+		klog.Errorf("unable update systemEndpoints policies %+v: %s", key, err)
+	}
+	return err
 }
 
 func (c *Controller) deleteRelatedPolicies(indexName, key string) error {
@@ -589,6 +760,58 @@ func (c *Controller) applyPoliciesChanges(oldKeys []string, new []v1alpha1.Secur
 	}
 
 	return nil
+}
+
+// parseControllerPolicy convert schema.EverouteCluster to []v1alpha1.SecurityPolicy
+func (c *Controller) parseControllerPolicy(clusters []*schema.EverouteCluster) (*v1alpha1.SecurityPolicy, error) {
+	sp := &v1alpha1.SecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ControllerPolicyName,
+			Namespace: c.namespace,
+		},
+		Spec: v1alpha1.SecurityPolicySpec{
+			Tier:        constants.Tier1,
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+		},
+	}
+	for _, cluster := range clusters {
+		for _, ctrl := range cluster.ControllerInstances {
+			epName := endpoint.GetCtrlEndpointName(cluster.ID, ctrl)
+			sp.Spec.AppliedTo = append(sp.Spec.AppliedTo, v1alpha1.ApplyToPeer{
+				Endpoint: &epName,
+			})
+		}
+	}
+	if len(sp.Spec.AppliedTo) == 0 {
+		return nil, nil
+	}
+
+	return sp, nil
+}
+
+// parseSystemEndpointsPolicy convert schema.SystemEndpoints to []v1alpha1.SecurityPolicy
+func (c *Controller) parseSystemEndpointsPolicy(systemEndpoints *schema.SystemEndpoints) (*v1alpha1.SecurityPolicy, error) {
+	sp := &v1alpha1.SecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SystemEndpointsPolicyName,
+			Namespace: c.namespace,
+		},
+		Spec: v1alpha1.SecurityPolicySpec{
+			Tier:        constants.Tier1,
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+		},
+	}
+	for _, ip := range systemEndpoints.IPPortEndpoints {
+		epName := endpoint.GetSystemEndpointName(ip.Key)
+		sp.Spec.AppliedTo = append(sp.Spec.AppliedTo, v1alpha1.ApplyToPeer{
+			Endpoint: &epName,
+		})
+	}
+	if len(sp.Spec.AppliedTo) == 0 {
+		return nil, nil
+	}
+
+	return sp, nil
 }
 
 // parseSecurityPolicy convert schema.SecurityPolicy to []v1alpha1.SecurityPolicy
