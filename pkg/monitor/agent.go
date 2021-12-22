@@ -331,7 +331,7 @@ func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1
 					continue
 				}
 				for key, value := range matchIntf.IPMap {
-					if intf.IPMap == nil {
+					if localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap == nil {
 						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap = make(map[types.IPAddress]metav1.Time)
 					}
 					if _, ok := intf.IPMap[key]; !ok {
