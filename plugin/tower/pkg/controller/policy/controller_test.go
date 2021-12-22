@@ -33,6 +33,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
 )
@@ -83,7 +84,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should generate expect policies", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 						NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -99,7 +100,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should update policy selector", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelA),
 							NewSecurityPolicyRuleEgress("udp", "123", "", labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -115,7 +116,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should update policy selector value", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 							NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -131,7 +132,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should update policy without ingress", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							nil,
 							NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -147,7 +148,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should update policy without egress", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 							nil,
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -163,12 +164,12 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should generate policy for intragroup", func() {
 						assertPoliciesNum(ctx, 2)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 							NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
-						assertHasPolicy(ctx, constants.Tier2, false, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("", "", "", labelA, labelB),
 							NewSecurityPolicyRuleEgress("", "", "", labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -207,7 +208,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should generate expect policies", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("tcp", "20-80", "192.168.0.0/24"),
 						NewSecurityPolicyRuleEgress("udp", "123", "192.168.0.0/24"),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -227,7 +228,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should update policy ipBlock value", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", newIP+"/32"),
 							NewSecurityPolicyRuleEgress("udp", "123", newIP+"/32"),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -255,7 +256,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should create policy with allow all ports", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("", "", "", labelB, labelC),
 						NewSecurityPolicyRuleEgress("", "", "", labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -282,12 +283,12 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should generate expect policies", func() {
 					assertPoliciesNum(ctx, 2)
-					assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 						NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
-					assertHasPolicy(ctx, constants.Tier2, false, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("", "", "", labelA, labelB),
 						NewSecurityPolicyRuleEgress("", "", "", labelA, labelB),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -302,7 +303,7 @@ var _ = Describe("PolicyController", func() {
 					})
 					It("should delete intragroup policy", func() {
 						assertPoliciesNum(ctx, 1)
-						assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 							NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -330,7 +331,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should create policy allow all traffics", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("", "", ""),
 						NewSecurityPolicyRuleEgress("", "", ""),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -376,7 +377,7 @@ var _ = Describe("PolicyController", func() {
 			})
 			It("should create policy with ingress only", func() {
 				assertPoliciesNum(ctx, 1)
-				assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 					NewSecurityPolicyRuleIngress("tcp", "20-80", "", labelB, labelC),
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -401,7 +402,7 @@ var _ = Describe("PolicyController", func() {
 			})
 			It("should create policy with egress only", func() {
 				assertPoliciesNum(ctx, 1)
-				assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 					nil,
 					NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelC),
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -420,7 +421,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should create policy with no rules", func() {
 				assertPoliciesNum(ctx, 1)
-				assertHasPolicy(ctx, constants.Tier2, true, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 					nil,
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -455,7 +456,7 @@ var _ = Describe("PolicyController", func() {
 
 			It("should generate expect policies", func() {
 				assertPoliciesNum(ctx, 1)
-				assertHasPolicy(ctx, constants.Tier0, true, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier0, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 					nil,
 					nil,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
@@ -473,7 +474,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should update policy applied endpoints", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier0, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier0, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						nil,
 						nil,
 						NewSecurityPolicyApplyPeer(vnicA.GetID()),
@@ -491,7 +492,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should update policy applied endpoints", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier0, true, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier0, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						nil,
 						nil,
 						NewSecurityPolicyApplyPeer(vnicA.GetID()),
@@ -529,12 +530,14 @@ var _ = Describe("PolicyController", func() {
 
 			It("should generate expect policies", func() {
 				assertPoliciesNum(ctx, 2)
-				assertHasPolicy(ctx, constants.Tier0, true, []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+				assertHasPolicy(ctx, constants.Tier0, true, v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 					nil, nil,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
-				assertHasPolicy(ctx, constants.Tier1, true, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+				assertHasPolicy(ctx, constants.Tier1, true, v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 					NewSecurityPolicyRuleIngress("tcp", "22-80", "", labelA, labelC),
 					nil,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
@@ -558,17 +561,124 @@ var _ = Describe("PolicyController", func() {
 
 			It("should generate expect policies", func() {
 				assertPoliciesNum(ctx, 2)
-				assertHasPolicy(ctx, constants.Tier0, true, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+				assertHasPolicy(ctx, constants.Tier0, true, v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 					nil, nil,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
-				assertHasPolicy(ctx, constants.Tier1, true, []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+				assertHasPolicy(ctx, constants.Tier1, true, v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 					nil,
 					NewSecurityPolicyRuleEgress("udp", "123", "", labelA, labelB),
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
+			})
+		})
+	})
+
+	Context("Global Internal Whitelist Policy", func() {
+		When("create systemEndpoints", func() {
+			var randomSystemEndpoints *schema.SystemEndpoints
+
+			BeforeEach(func() {
+				randomSystemEndpoints = NewSystemEndpoints(2)
+				By(fmt.Sprintf("create random systemEndpoints %+v", randomSystemEndpoints))
+				server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+			})
+			It("should create security policy", func() {
+				assertPoliciesNum(ctx, 1)
+				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+					nil, nil,
+					NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[0].Key)),
+					NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[1].Key)),
+				)
+			})
+
+			When("update systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints = append(randomSystemEndpoints.IPPortEndpoints,
+						schema.IPPortSystemEndpoint{
+							IP:  NewRandomIP().String(),
+							Key: rand.String(24),
+						})
+					By(fmt.Sprintf("update systemEndpoints to %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						nil, nil,
+						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[0].Key)),
+						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[1].Key)),
+						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[2].Key)),
+					)
+				})
+			})
+
+			When("remove all endpoint for the systemEndpoints", func() {
+				BeforeEach(func() {
+					randomSystemEndpoints.IPPortEndpoints = nil
+					By(fmt.Sprintf("remove all security policy from systemEndpoints: %+v", randomSystemEndpoints))
+					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
+				})
+				It("should delete security policy", func() {
+					assertPoliciesNum(ctx, 0)
+				})
+			})
+		})
+		When("create EverouteCluster", func() {
+			var cluster *schema.EverouteCluster
+
+			BeforeEach(func() {
+				cluster = NewEverouteCluster(everouteCluster, schema.GlobalPolicyActionAllow)
+				By(fmt.Sprintf("create random everouteCluster %+v", everouteCluster))
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+			})
+			It("should create security policy", func() {
+				assertPoliciesNum(ctx, 1)
+				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+					nil, nil,
+					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[0])),
+					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[1])),
+					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[2])),
+				)
+			})
+
+			When("update everouteCluster", func() {
+				BeforeEach(func() {
+					cluster.ControllerInstances = append(cluster.ControllerInstances, schema.EverouteControllerInstance{
+						IPAddr: NewRandomIP().String(),
+					})
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						nil, nil,
+						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[0])),
+						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[1])),
+						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[2])),
+						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[3])),
+					)
+				})
+			})
+
+			When("remove all endpoint from everouteCluster", func() {
+				BeforeEach(func() {
+					cluster.ControllerInstances = nil
+					By(fmt.Sprintf("remove all security policy from everouteCluster: %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should delete security policy", func() {
+					assertPoliciesNum(ctx, 0)
+				})
 			})
 		})
 	})
@@ -582,13 +692,13 @@ func assertPoliciesNum(ctx context.Context, numOfPolicies int) {
 	}, timeout, interval).Should(Equal(numOfPolicies))
 }
 
-func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, policyTypes []networkingv1.PolicyType,
+func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType, policyTypes []networkingv1.PolicyType,
 	ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) {
 	Eventually(func() bool {
 		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).Should(Succeed())
 		for item := range policyList.Items {
-			if matchPolicy(&policyList.Items[item], tier, symmetricMode, policyTypes, ingress, egress, applyToPeers...) {
+			if matchPolicy(&policyList.Items[item], tier, symmetricMode, defaultRule, policyTypes, ingress, egress, applyToPeers...) {
 				return true
 			}
 		}
@@ -596,7 +706,7 @@ func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, polic
 	}, timeout, interval).Should(BeTrue())
 }
 
-func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode bool, policyTypes []networkingv1.PolicyType,
+func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType, policyTypes []networkingv1.PolicyType,
 	ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) bool {
 	matchAllPolicyTypes := func(policyTypes1 []networkingv1.PolicyType, policyTypes2 []networkingv1.PolicyType) bool {
 		if len(policyTypes1) != len(policyTypes2) {
@@ -637,6 +747,7 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 	return policy.Namespace == namespace &&
 		policy.Spec.Tier == tier &&
 		policy.Spec.SymmetricMode == symmetricMode &&
+		policy.Spec.DefaultRule == defaultRule &&
 		matchAllPolicyTypes(policy.Spec.PolicyTypes, policyTypes) &&
 		matchRules(policy.Spec.IngressRules, ingress) &&
 		matchRules(policy.Spec.EgressRules, egress) &&
