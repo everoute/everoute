@@ -290,6 +290,8 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 	ctx := context.Background()
 	agentName := monitor.Name()
 
+	monitor.ipCacheLock.Lock()
+	defer monitor.ipCacheLock.Unlock()
 	agentInfo, err := monitor.getAgentInfo()
 	if err != nil {
 		return fmt.Errorf("couldn't get agentinfo: %s", err)
@@ -309,18 +311,13 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
 	}
 
-	monitor.ipCacheLock.Lock()
-	defer monitor.ipCacheLock.Unlock()
-	roundIPCache := monitor.ipCache
-	monitor.ipCache = make(map[string]map[types.IPAddress]metav1.Time)
-
 	monitor.mergeAgentInfo(agentInfo, cpAgentInfo)
 	agentInfo.ObjectMeta = cpAgentInfo.ObjectMeta
 	err = monitor.k8sClient.Update(ctx, agentInfo)
 	if err != nil {
-		monitor.ipCache = roundIPCache
 		return err
 	}
+	monitor.ipCache = make(map[string]map[types.IPAddress]metav1.Time)
 
 	return nil
 }
@@ -644,13 +641,9 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName st
 	ofport, ok := ovsIface.Fields["ofport"].(float64)
 	if ok && ofport >= 0 {
 		iface.Ofport = int32(ofport)
-		monitor.ipCacheLock.Lock()
-		defer monitor.ipCacheLock.Unlock()
 		iface.IPMap = monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
 	}
 
-	// clear ip address set once we write it to local agentinfo.
-	monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)] = make(map[types.IPAddress]metav1.Time)
 	return &iface
 }
 
