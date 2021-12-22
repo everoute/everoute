@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
@@ -34,10 +35,11 @@ import (
 )
 
 var (
-	crdClient clientset.Interface
-	server    *fakeserver.Server
-	namespace = metav1.NamespaceDefault
-	stopCh    = make(chan struct{})
+	crdClient       clientset.Interface
+	server          *fakeserver.Server
+	namespace       = metav1.NamespaceDefault
+	stopCh          = make(chan struct{})
+	everouteCluster = rand.String(10)
 )
 
 const (

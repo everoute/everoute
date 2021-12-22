@@ -254,6 +254,46 @@ var _ = Describe("SystemEndpointController", func() {
 				})
 			})
 		})
+		When("create EverouteCluster", func() {
+			var cluster *schema.EverouteCluster
+
+			BeforeEach(func() {
+				cluster = NewEverouteCluster(everouteCluster, schema.GlobalPolicyActionAllow)
+				By(fmt.Sprintf("create random everouteCluster %+v", everouteCluster))
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+			})
+			It("should create endpoints", func() {
+				assertEndpointsNum(ctx, 3)
+				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[0].IPAddr)
+				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[1].IPAddr)
+				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[2].IPAddr)
+			})
+
+			When("update everouteCluster", func() {
+				BeforeEach(func() {
+					cluster.ControllerInstances[0].IPAddr = NewRandomIP().String()
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update related endpoints", func() {
+					assertEndpointsNum(ctx, 3)
+					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[0].IPAddr)
+					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[1].IPAddr)
+					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[2].IPAddr)
+				})
+			})
+
+			When("remove all endpoint from everouteCluster", func() {
+				BeforeEach(func() {
+					cluster.ControllerInstances = nil
+					By(fmt.Sprintf("remove all endpoint from everouteCluster: %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should delete endpoints", func() {
+					assertEndpointsNum(ctx, 0)
+				})
+			})
+		})
 	})
 
 })
