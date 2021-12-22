@@ -138,23 +138,6 @@ var _ = Describe("GlobalPolicyController", func() {
 				By(fmt.Sprintf("create random everoute cluster %+v", randomERCluster))
 				server.TrackerFactory().EverouteCluster().CreateOrUpdate(randomERCluster)
 			})
-			It("should add controllers ip to whitelist", func() {
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil, nil)
-			})
-
-			When("add new controller to the everoute cluster", func() {
-				BeforeEach(func() {
-					randomERCluster.ControllerInstances = append(
-						randomERCluster.ControllerInstances,
-						schema.EverouteControllerInstance{IPAddr: NewRandomIP().String()},
-					)
-					By(fmt.Sprintf("update random everoute cluster %+v", randomERCluster))
-					server.TrackerFactory().EverouteCluster().CreateOrUpdate(randomERCluster)
-				})
-				It("should add new controller ip th whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster, randomERCluster}, nil, nil)
-				})
-			})
 
 			When("remove the everoute cluster", func() {
 				BeforeEach(func() {
@@ -164,44 +147,6 @@ var _ = Describe("GlobalPolicyController", func() {
 				})
 				It("should remove all endpoints from whitelist", func() {
 					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
-				})
-			})
-		})
-
-		When("create systemEndpoints", func() {
-			var randomSystemEndpoints *schema.SystemEndpoints
-
-			BeforeEach(func() {
-				randomSystemEndpoints = NewSystemEndpoints(4)
-				By(fmt.Sprintf("create random systemEndpoints %+v", randomSystemEndpoints))
-				server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
-			})
-			It("should add endpoints to whitelist", func() {
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
-			})
-
-			When("add new endpoint to systemEndpoints", func() {
-				BeforeEach(func() {
-					randomSystemEndpoints.IPPortEndpoints = append(
-						randomSystemEndpoints.IPPortEndpoints,
-						schema.IPPortSystemEndpoint{IP: NewRandomIP().String()},
-					)
-					By(fmt.Sprintf("update systemEndpoints to %+v", randomSystemEndpoints))
-					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
-				})
-				It("should add new endpoints th whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
-				})
-			})
-
-			When("remove all endpoint for the systemEndpoints", func() {
-				BeforeEach(func() {
-					randomSystemEndpoints.IPPortEndpoints = nil
-					By(fmt.Sprintf("remove all endpoint from systemEndpoints: %+v", randomSystemEndpoints))
-					server.TrackerFactory().SystemEndpoints().CreateOrUpdate(randomSystemEndpoints)
-				})
-				It("should delete controllers ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, randomSystemEndpoints)
 				})
 			})
 		})
@@ -266,18 +211,8 @@ func assertMatchDefaultAction(ctx context.Context, defaultAction v1alpha1.Global
 func assertMatchWhiteList(ctx context.Context, erClusters []*schema.EverouteCluster, hosts []*schema.Host, systemEndpoints *schema.SystemEndpoints) {
 	var whiteList = sets.NewString()
 
-	for _, erCluster := range erClusters {
-		for _, ins := range erCluster.ControllerInstances {
-			whiteList.Insert(fmt.Sprintf("%s/32", ins.IPAddr))
-		}
-	}
 	for _, host := range hosts {
 		whiteList.Insert(fmt.Sprintf("%s/32", host.ManagementIP))
-	}
-	if systemEndpoints != nil {
-		for _, ipPortEndpoint := range systemEndpoints.IPPortEndpoints {
-			whiteList.Insert(fmt.Sprintf("%s/32", ipPortEndpoint.IP))
-		}
 	}
 
 	Eventually(func() bool {
