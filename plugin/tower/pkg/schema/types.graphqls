@@ -57,6 +57,13 @@ type EverouteCluster {
     agent_elf_clusters: [ObjectReference!]
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
+    global_whitelist: EverouteClusterWhitelist
+}
+
+type EverouteClusterWhitelist {
+    egress: [NetworkPolicyRule!]
+    enable: Boolean!
+    ingress: [NetworkPolicyRule!]
 }
 
 type EverouteControllerInstance {

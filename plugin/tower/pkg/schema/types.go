@@ -100,6 +100,13 @@ type EverouteCluster struct {
 	AgentELFClusters    []ObjectReference            `json:"agent_elf_clusters"`
 	ControllerInstances []EverouteControllerInstance `json:"controller_instances"`
 	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
+	GlobalWhitelist     EverouteClusterWhitelist     `json:"global_whitelist,omitempty"`
+}
+
+type EverouteClusterWhitelist struct {
+	Egress  []NetworkPolicyRule `json:"egress"`
+	Enable  bool                `json:"enable"`
+	Ingress []NetworkPolicyRule `json:"ingress"`
 }
 
 type EverouteControllerInstance struct {

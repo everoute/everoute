@@ -53,6 +53,7 @@ const (
 
 	SystemEndpointsPolicyName = "tower.sp.internal-systemEndpoints"
 	ControllerPolicyName      = "tower.sp.internal-controller"
+	GlobalWhitelistPolicyName = "tower.sp.global-userWhitelist"
 
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
@@ -106,10 +107,10 @@ type Controller struct {
 	systemEndpointLister         informer.Lister
 	systemEndpointInformerSynced cache.InformerSynced
 
-	isolationPolicyQueue      workqueue.RateLimitingInterface
-	securityPolicyQueue       workqueue.RateLimitingInterface
-	systemEndpointPolicyQueue workqueue.RateLimitingInterface
-	controllerPolicyQueue     workqueue.RateLimitingInterface
+	isolationPolicyQueue       workqueue.RateLimitingInterface
+	securityPolicyQueue        workqueue.RateLimitingInterface
+	systemEndpointPolicyQueue  workqueue.RateLimitingInterface
+	everouteClusterPolicyQueue workqueue.RateLimitingInterface
 }
 
 // New creates a new instance of controller.
@@ -159,7 +160,7 @@ func New(
 		isolationPolicyQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		securityPolicyQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		systemEndpointPolicyQueue:     workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		controllerPolicyQueue:         workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		everouteClusterPolicyQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
 	// when vm's vnics changes, enqueue related IsolationPolicy
@@ -254,7 +255,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	defer c.securityPolicyQueue.ShutDown()
 	defer c.isolationPolicyQueue.ShutDown()
 	defer c.systemEndpointPolicyQueue.ShutDown()
-	defer c.controllerPolicyQueue.ShutDown()
+	defer c.everouteClusterPolicyQueue.ShutDown()
 
 	if !cache.WaitForNamedCacheSync(c.name, stopCh,
 		c.vmInformerSynced,
@@ -271,7 +272,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	for i := uint(0); i < workers; i++ {
 		go wait.Until(c.syncSecurityPolicyWorker, time.Second, stopCh)
 		go wait.Until(c.syncIsolationPolicyWorker, time.Second, stopCh)
-		go wait.Until(c.syncControllerPolicyWorker, time.Second, stopCh)
+		go wait.Until(c.syncEverouteClusterPolicyWorker, time.Second, stopCh)
 	}
 	// only ONE SystemEndpoints in tower
 	go wait.Until(c.syncSystemEndpointsPolicyWorker, time.Second, stopCh)
@@ -453,7 +454,7 @@ func (c *Controller) handleCRDPolicy(obj interface{}) {
 	}
 
 	if obj.(*v1alpha1.SecurityPolicy).Name == ControllerPolicyName {
-		c.controllerPolicyQueue.Add("key")
+		c.everouteClusterPolicyQueue.Add("key")
 	}
 }
 
@@ -468,7 +469,7 @@ func (c *Controller) updateCRDPolicy(old, new interface{}) {
 }
 
 func (c *Controller) handleEverouteCluster(_ interface{}) {
-	c.controllerPolicyQueue.Add("key")
+	c.everouteClusterPolicyQueue.Add("key")
 }
 
 func (c *Controller) updateEverouteCluster(old, new interface{}) {
@@ -563,24 +564,24 @@ func (c *Controller) syncSystemEndpointsPolicyWorker() {
 	}
 }
 
-func (c *Controller) syncControllerPolicyWorker() {
+func (c *Controller) syncEverouteClusterPolicyWorker() {
 	for {
-		key, quit := c.controllerPolicyQueue.Get()
+		key, quit := c.everouteClusterPolicyQueue.Get()
 		if quit {
 			return
 		}
 
-		err := c.syncControllerPolicy(key.(string))
+		err := c.syncEverouteClusterPolicy(key.(string))
 		if err != nil {
-			c.controllerPolicyQueue.Done(key)
-			c.controllerPolicyQueue.AddRateLimited(key)
+			c.everouteClusterPolicyQueue.Done(key)
+			c.everouteClusterPolicyQueue.AddRateLimited(key)
 			klog.Errorf("got error while sync controllerPolicy %s: %s", key.(string), err)
 			continue
 		}
 
 		// stop the rate limiter from tracking the key
-		c.controllerPolicyQueue.Done(key)
-		c.controllerPolicyQueue.Forget(key)
+		c.everouteClusterPolicyQueue.Done(key)
+		c.everouteClusterPolicyQueue.Forget(key)
 	}
 }
 
@@ -634,8 +635,8 @@ func (c *Controller) syncSystemEndpointsPolicy(key string) error {
 	}
 }
 
-// syncControllerPolicy sync EverouteCluster Controller to v1alpha1.SecurityPolicy
-func (c *Controller) syncControllerPolicy(key string) error {
+// syncEverouteClusterPolicy sync EverouteCluster to v1alpha1.SecurityPolicy
+func (c *Controller) syncEverouteClusterPolicy(key string) error {
 	clusterList := c.everouteClusterLister.List()
 
 	var clusters []*schema.EverouteCluster
@@ -643,12 +644,29 @@ func (c *Controller) syncControllerPolicy(key string) error {
 		clusters = append(clusters, cluster.(*schema.EverouteCluster))
 	}
 
-	policy, _ := c.parseControllerPolicy(clusters)
-	err := c.applyPoliciesChanges([]string{c.getControllerPolicyKey()}, policy)
+	// process controller ip whitelist
+	ctrlPolicy, _ := c.parseControllerPolicy(clusters)
+	err := c.applyPoliciesChanges([]string{c.getControllerPolicyKey()}, ctrlPolicy)
 	if err != nil {
-		klog.Errorf("unable update systemEndpoints policies %+v: %s", key, err)
+		return fmt.Errorf("unable update EverouteCluster policies : %s", err)
 	}
-	return err
+
+	// process user-defined global whitelist
+	currentCluster, exist, err := c.everouteClusterLister.GetByKey(c.everouteCluster)
+	if err != nil {
+		return fmt.Errorf("get everouteClustes error: %s", err)
+	}
+	if !exist {
+		return fmt.Errorf("everouteCluste %s not found", c.everouteCluster)
+	}
+
+	whitelistPolicy, _ := c.parseGlobalWhitelistPolicy(currentCluster.(*schema.EverouteCluster))
+	err = c.applyPoliciesChanges([]string{c.getGlobalWhitelistPolicyKey()}, whitelistPolicy)
+	if err != nil {
+		return fmt.Errorf("unable update EverouteCluster policies: %s", err)
+	}
+
+	return nil
 }
 
 func (c *Controller) deleteRelatedPolicies(indexName, key string) error {
@@ -764,7 +782,61 @@ func (c *Controller) applyPoliciesChanges(oldKeys []string, new []v1alpha1.Secur
 	return nil
 }
 
-// parseControllerPolicy convert schema.EverouteCluster to []v1alpha1.SecurityPolicy
+// parseGlobalWhitelistPolicy convert schema.EverouteCluster Whitelist to []v1alpha1.SecurityPolicy
+func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster) ([]v1alpha1.SecurityPolicy, error) {
+	if !cluster.GlobalWhitelist.Enable {
+		return nil, nil
+	}
+
+	if len(cluster.GlobalWhitelist.Ingress) == 0 && len(cluster.GlobalWhitelist.Egress) == 0 {
+		return nil, nil
+	}
+
+	sp := v1alpha1.SecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GlobalWhitelistPolicyName,
+			Namespace: c.namespace,
+		},
+		Spec: v1alpha1.SecurityPolicySpec{
+			Tier:        constants.Tier2,
+			DefaultRule: v1alpha1.DefaultRuleNone,
+		},
+	}
+	// process ingress whitelist
+	if len(cluster.GlobalWhitelist.Ingress) != 0 {
+		sp.Spec.IngressRules = append(sp.Spec.IngressRules, v1alpha1.Rule{
+			Name: "ingress",
+			From: []v1alpha1.SecurityPolicyPeer{},
+		})
+		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeIngress)
+	}
+	for _, rule := range cluster.GlobalWhitelist.Ingress {
+		sp.Spec.IngressRules[0].From = append(sp.Spec.IngressRules[0].From, v1alpha1.SecurityPolicyPeer{
+			IPBlock: &networkingv1.IPBlock{
+				CIDR: *rule.IPBlock,
+			},
+		})
+	}
+	// process egress whitelist
+	if len(cluster.GlobalWhitelist.Egress) != 0 {
+		sp.Spec.EgressRules = append(sp.Spec.EgressRules, v1alpha1.Rule{
+			Name: "egress",
+			To:   []v1alpha1.SecurityPolicyPeer{},
+		})
+		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeEgress)
+	}
+	for _, rule := range cluster.GlobalWhitelist.Egress {
+		sp.Spec.EgressRules[0].To = append(sp.Spec.EgressRules[0].To, v1alpha1.SecurityPolicyPeer{
+			IPBlock: &networkingv1.IPBlock{
+				CIDR: *rule.IPBlock,
+			},
+		})
+	}
+
+	return []v1alpha1.SecurityPolicy{sp}, nil
+}
+
+// parseControllerPolicy convert schema.EverouteCluster Controller to []v1alpha1.SecurityPolicy
 func (c *Controller) parseControllerPolicy(clusters []*schema.EverouteCluster) ([]v1alpha1.SecurityPolicy, error) {
 	sp := v1alpha1.SecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1127,6 +1199,10 @@ func (c *Controller) getSystemEndpointsPolicyKey() string {
 
 func (c *Controller) getControllerPolicyKey() string {
 	return c.namespace + "/" + ControllerPolicyName
+}
+
+func (c *Controller) getGlobalWhitelistPolicyKey() string {
+	return c.namespace + "/" + GlobalWhitelistPolicyName
 }
 
 func parseIPBlock(ipBlock string) (string, error) {

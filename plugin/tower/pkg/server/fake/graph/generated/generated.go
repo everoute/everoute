@@ -51,6 +51,7 @@ type ComplexityRoot struct {
 		AgentELFClusters    func(childComplexity int) int
 		ControllerInstances func(childComplexity int) int
 		GlobalDefaultAction func(childComplexity int) int
+		GlobalWhitelist     func(childComplexity int) int
 		ID                  func(childComplexity int) int
 	}
 
@@ -58,6 +59,12 @@ type ComplexityRoot struct {
 		Mutation       func(childComplexity int) int
 		Node           func(childComplexity int) int
 		PreviousValues func(childComplexity int) int
+	}
+
+	EverouteClusterWhitelist struct {
+		Egress  func(childComplexity int) int
+		Enable  func(childComplexity int) int
+		Ingress func(childComplexity int) int
 	}
 
 	EverouteControllerInstance struct {
@@ -277,6 +284,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.EverouteCluster.GlobalDefaultAction(childComplexity), true
 
+	case "EverouteCluster.global_whitelist":
+		if e.complexity.EverouteCluster.GlobalWhitelist == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.GlobalWhitelist(childComplexity), true
+
 	case "EverouteCluster.id":
 		if e.complexity.EverouteCluster.ID == nil {
 			break
@@ -304,6 +318,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.EverouteClusterEvent.PreviousValues(childComplexity), true
+
+	case "EverouteClusterWhitelist.egress":
+		if e.complexity.EverouteClusterWhitelist.Egress == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterWhitelist.Egress(childComplexity), true
+
+	case "EverouteClusterWhitelist.enable":
+		if e.complexity.EverouteClusterWhitelist.Enable == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterWhitelist.Enable(childComplexity), true
+
+	case "EverouteClusterWhitelist.ingress":
+		if e.complexity.EverouteClusterWhitelist.Ingress == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterWhitelist.Ingress(childComplexity), true
 
 	case "EverouteControllerInstance.ipAddr":
 		if e.complexity.EverouteControllerInstance.IPAddr == nil {
@@ -1186,6 +1221,13 @@ type EverouteCluster {
     agent_elf_clusters: [ObjectReference!]
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
+    global_whitelist: EverouteClusterWhitelist
+}
+
+type EverouteClusterWhitelist {
+    egress: [NetworkPolicyRule!]
+    enable: Boolean!
+    ingress: [NetworkPolicyRule!]
 }
 
 type EverouteControllerInstance {
@@ -1415,6 +1457,38 @@ func (ec *executionContext) _EverouteCluster_global_default_action(ctx context.C
 	return ec.marshalNGlobalPolicyAction2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGlobalPolicyAction(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _EverouteCluster_global_whitelist(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GlobalWhitelist, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.EverouteClusterWhitelist)
+	fc.Result = res
+	return ec.marshalOEverouteClusterWhitelist2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterWhitelist(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _EverouteClusterEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1515,6 +1589,105 @@ func (ec *executionContext) _EverouteClusterEvent_previousValues(ctx context.Con
 	res := resTmp.(*schema.ObjectReference)
 	fc.Result = res
 	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterWhitelist_egress(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterWhitelist) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterWhitelist",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Egress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterWhitelist_enable(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterWhitelist) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterWhitelist",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Enable, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _EverouteClusterWhitelist_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterWhitelist) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "EverouteClusterWhitelist",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Ingress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRule)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _EverouteControllerInstance_ipAddr(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteControllerInstance) (ret graphql.Marshaler) {
@@ -5654,6 +5827,8 @@ func (ec *executionContext) _EverouteCluster(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "global_whitelist":
+			out.Values[i] = ec._EverouteCluster_global_whitelist(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5688,6 +5863,37 @@ func (ec *executionContext) _EverouteClusterEvent(ctx context.Context, sel ast.S
 			}
 		case "previousValues":
 			out.Values[i] = ec._EverouteClusterEvent_previousValues(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteClusterWhitelistImplementors = []string{"EverouteClusterWhitelist"}
+
+func (ec *executionContext) _EverouteClusterWhitelist(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteClusterWhitelist) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterWhitelistImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteClusterWhitelist")
+		case "egress":
+			out.Values[i] = ec._EverouteClusterWhitelist_egress(ctx, field, obj)
+		case "enable":
+			out.Values[i] = ec._EverouteClusterWhitelist_enable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "ingress":
+			out.Values[i] = ec._EverouteClusterWhitelist_ingress(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7879,6 +8085,10 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	return graphql.MarshalBoolean(*v)
+}
+
+func (ec *executionContext) marshalOEverouteClusterWhitelist2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterWhitelist(ctx context.Context, sel ast.SelectionSet, v schema.EverouteClusterWhitelist) graphql.Marshaler {
+	return ec._EverouteClusterWhitelist(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalOIDSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpointᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IDSystemEndpoint) graphql.Marshaler {

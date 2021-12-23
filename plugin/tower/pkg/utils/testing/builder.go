@@ -215,6 +215,18 @@ func NewEverouteCluster(erClusterID string, defaultAction schema.GlobalPolicyAct
 	}
 }
 
+func NewGlobalWhitelist() *schema.EverouteClusterWhitelist {
+	return &schema.EverouteClusterWhitelist{
+		Enable: true,
+		Egress: []schema.NetworkPolicyRule{
+			*NewNetworkPolicyRule("", "", NewRandomIP().String()),
+		},
+		Ingress: []schema.NetworkPolicyRule{
+			*NewNetworkPolicyRule("", "", NewRandomIP().String()),
+		},
+	}
+}
+
 func NewSystemEndpoints(endpointNum int) *schema.SystemEndpoints {
 	systemEndpoints := &schema.SystemEndpoints{IPPortEndpoints: make([]schema.IPPortSystemEndpoint, 0, endpointNum)}
 	for i := 0; i < endpointNum; i++ {
