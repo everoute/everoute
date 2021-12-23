@@ -670,9 +670,142 @@ var _ = Describe("PolicyController", func() {
 				})
 			})
 
-			When("remove all endpoint from everouteCluster", func() {
+			When("remove all security policies from everouteCluster", func() {
 				BeforeEach(func() {
 					cluster.ControllerInstances = nil
+					By(fmt.Sprintf("remove all security policy from everouteCluster: %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should delete security policy", func() {
+					assertPoliciesNum(ctx, 0)
+				})
+			})
+		})
+	})
+
+	Context("User-defined Global Whitelist Policy", func() {
+		When("create EverouteCluster", func() {
+			var cluster *schema.EverouteCluster
+
+			BeforeEach(func() {
+				cluster = NewEverouteCluster(everouteCluster, schema.GlobalPolicyActionAllow)
+				cluster.ControllerInstances = nil
+				cluster.GlobalWhitelist = *NewGlobalWhitelist()
+				By(fmt.Sprintf("create random everouteCluster %+v", everouteCluster))
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+
+				anotherCluster := NewEverouteCluster("anotherCluster", schema.GlobalPolicyActionAllow)
+				anotherCluster.ControllerInstances = nil
+				anotherCluster.GlobalWhitelist = *NewGlobalWhitelist()
+				By(fmt.Sprintf("create another random everouteCluster %+v", anotherCluster))
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(anotherCluster)
+			})
+			It("should create security policy", func() {
+				assertPoliciesNum(ctx, 1)
+				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+					&v1alpha1.Rule{
+						Name: "ingress",
+						From: []v1alpha1.SecurityPolicyPeer{
+							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
+						},
+					},
+					&v1alpha1.Rule{
+						Name: "egress",
+						To: []v1alpha1.SecurityPolicyPeer{
+							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
+						},
+					},
+				)
+			})
+
+			When("update everouteCluster to disable global whitelist", func() {
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Enable = false
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 0)
+				})
+			})
+
+			When("update everouteCluster to only ingress", func() {
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Egress = nil
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+						&v1alpha1.Rule{
+							Name: "ingress",
+							From: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
+							},
+						}, nil,
+					)
+				})
+			})
+
+			When("update everouteCluster to only egress", func() {
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Ingress = nil
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+						nil,
+						&v1alpha1.Rule{
+							Name: "egress",
+							To: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
+							},
+						},
+					)
+				})
+			})
+
+			When("add more items in cluster", func() {
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Ingress = append(cluster.GlobalWhitelist.Ingress,
+						*NewNetworkPolicyRule("", "", NewRandomIP().String()))
+					cluster.GlobalWhitelist.Egress = append(cluster.GlobalWhitelist.Egress,
+						*NewNetworkPolicyRule("", "", NewRandomIP().String()))
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						&v1alpha1.Rule{
+							Name: "ingress",
+							From: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[1].IPBlock}},
+							},
+						},
+						&v1alpha1.Rule{
+							Name: "egress",
+							To: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[1].IPBlock}},
+							},
+						},
+					)
+				})
+			})
+
+			When("without ingress and egress in global whitelist", func() {
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Ingress = nil
+					cluster.GlobalWhitelist.Egress = nil
 					By(fmt.Sprintf("remove all security policy from everouteCluster: %+v", cluster))
 					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
 				})
@@ -692,13 +825,14 @@ func assertPoliciesNum(ctx context.Context, numOfPolicies int) {
 	}, timeout, interval).Should(Equal(numOfPolicies))
 }
 
-func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType, policyTypes []networkingv1.PolicyType,
-	ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) {
+func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType,
+	policyTypes []networkingv1.PolicyType, ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) {
 	Eventually(func() bool {
 		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).Should(Succeed())
 		for item := range policyList.Items {
-			if matchPolicy(&policyList.Items[item], tier, symmetricMode, defaultRule, policyTypes, ingress, egress, applyToPeers...) {
+			if matchPolicy(&policyList.Items[item], tier, symmetricMode,
+				defaultRule, policyTypes, ingress, egress, applyToPeers...) {
 				return true
 			}
 		}
@@ -706,8 +840,8 @@ func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, defau
 	}, timeout, interval).Should(BeTrue())
 }
 
-func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType, policyTypes []networkingv1.PolicyType,
-	ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) bool {
+func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode bool, defaultRule v1alpha1.DefaultRuleType,
+	policyTypes []networkingv1.PolicyType, ingress, egress *v1alpha1.Rule, applyToPeers ...v1alpha1.ApplyToPeer) bool {
 	matchAllPolicyTypes := func(policyTypes1 []networkingv1.PolicyType, policyTypes2 []networkingv1.PolicyType) bool {
 		if len(policyTypes1) != len(policyTypes2) {
 			return false
