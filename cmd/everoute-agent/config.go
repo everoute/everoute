@@ -39,6 +39,9 @@ const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 type agentConfig struct {
 	DatapathConfig map[string]string `yaml:"datapathConfig"`
 	LocalGwIP      string            `yaml:"localGwIP,omitempty"`
+
+	// InternalWhitelist allow the items all ingress or egress traffics
+	InternalWhitelist []string `yaml:"internalWhitelist,omitempty"`
 }
 
 func getAgentConfig() (*agentConfig, error) {
@@ -64,7 +67,10 @@ func getDatapathConfig() (*datapath.Config, error) {
 		return nil, fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
 
-	dpConfig := new(datapath.Config)
+	dpConfig := &datapath.Config{
+		InternalWhitelist: agentConfig.InternalWhitelist,
+	}
+
 	managedVDSMap := make(map[string]string)
 	for managedvds, ovsbrname := range agentConfig.DatapathConfig {
 		managedVDSMap[managedvds] = ovsbrname
