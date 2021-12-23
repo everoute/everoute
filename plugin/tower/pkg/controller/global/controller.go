@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"time"
 
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -306,15 +305,6 @@ func (c *Controller) getCurrentGlobalPolicySpec() v1alpha1.GlobalPolicySpec {
 			globalPolicySpec.DefaultAction = v1alpha1.GlobalDefaultActionAllow
 		case schema.GlobalPolicyActionDrop:
 			globalPolicySpec.DefaultAction = v1alpha1.GlobalDefaultActionDrop
-		}
-		// add all hosts management ip to whitelist
-		for _, elfCluster := range obj.(*schema.EverouteCluster).AgentELFClusters {
-			hosts, _ := c.hostLister.ByIndex(elfClusterIndex, elfCluster.ID)
-			for _, host := range hosts {
-				globalPolicySpec.Whitelist = append(globalPolicySpec.Whitelist, networkingv1.IPBlock{
-					CIDR: fmt.Sprintf("%s/32", host.(*schema.Host).ManagementIP),
-				})
-			}
 		}
 	} else {
 		// if everoute cluster not found, use default action allow

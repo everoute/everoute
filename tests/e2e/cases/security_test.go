@@ -19,7 +19,6 @@ package cases
 import (
 	"context"
 	"fmt"
-	"net"
 	"strconv"
 	"time"
 
@@ -622,32 +621,6 @@ var _ = Describe("GlobalPolicy", func() {
 				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 			})
 
-			When("add endpointA and endpointB to whitelist", func() {
-				BeforeEach(func() {
-					updatePolicy := globalPolicy.DeepCopy()
-
-					for _, ep := range []*model.Endpoint{endpointA, endpointB} {
-						ip, _, err := net.ParseCIDR(ep.Status.IPAddr)
-						Expect(err).Should(Succeed())
-						ipCidr := fmt.Sprintf("%s/32", ip.String())
-						updatePolicy.Spec.Whitelist = append(updatePolicy.Spec.Whitelist, networkingv1.IPBlock{CIDR: ipCidr})
-					}
-
-					Expect(e2eEnv.KubeClient().Patch(ctx, updatePolicy, client.MergeFrom(globalPolicy))).Should(Succeed())
-				})
-
-				It("should allow all traffics between endpointA and endpointB", func() {
-					securityModel := &SecurityModel{
-						Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
-					}
-					By("verify reachable between endpoints")
-					expectedTruthTable := securityModel.NewEmptyTruthTable(false)
-					expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
-					expectedTruthTable.Set(endpointB.Name, endpointA.Name, true)
-					assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
-				})
-			})
-
 			When("update global policy to default allow", func() {
 				BeforeEach(func() {
 					By("wait for global policy add to datapath")
@@ -709,17 +682,11 @@ func newPolicy(name, tier string, appliedPeers ...interface{}) *securityv1alpha1
 	return policy
 }
 
-func newGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whitelist ...string) *securityv1alpha1.GlobalPolicy {
+func newGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction) *securityv1alpha1.GlobalPolicy {
 	var policy securityv1alpha1.GlobalPolicy
 
 	policy.Name = rand.String(6)
 	policy.Spec.DefaultAction = defaultAction
-
-	for _, cidr := range whitelist {
-		policy.Spec.Whitelist = append(policy.Spec.Whitelist, networkingv1.IPBlock{
-			CIDR: cidr,
-		})
-	}
 
 	return &policy
 }

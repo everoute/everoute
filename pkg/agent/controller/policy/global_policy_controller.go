@@ -26,7 +26,6 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	"github.com/everoute/everoute/pkg/utils"
 )
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
@@ -77,37 +76,14 @@ func (r *Reconciler) calculateExpectGlobalPolicyRules() ([]cache.PolicyRule, err
 
 	switch len(policyList.Items) {
 	case 1:
-		ruleList, err := getGlobalPolicyRules(&policyList.Items[0])
-		return ruleList, err
+		ruleList := newGlobalPolicyRulePair("", cache.RuleTypeGlobalDefaultRule,
+			cache.RuleAction(policyList.Items[0].Spec.DefaultAction))
+		return ruleList, nil
 	case 0:
 		return []cache.PolicyRule{}, nil
 	default:
 		return []cache.PolicyRule{}, fmt.Errorf("unexpect multiple global policy found")
 	}
-}
-
-func getGlobalPolicyRules(policy *securityv1alpha1.GlobalPolicy) ([]cache.PolicyRule, error) {
-	var policyRuleList []cache.PolicyRule
-
-	// global default rule
-	policyRuleList = append(policyRuleList,
-		newGlobalPolicyRulePair("", cache.RuleTypeGlobalDefaultRule, cache.RuleAction(policy.Spec.DefaultAction))...,
-	)
-
-	// global white list rule
-	for item := range policy.Spec.Whitelist {
-		ipNets, err := utils.ParseIPBlock(&policy.Spec.Whitelist[item])
-		if err != nil {
-			return []cache.PolicyRule{}, err
-		}
-		for _, ipNet := range ipNets {
-			policyRuleList = append(policyRuleList,
-				newGlobalPolicyRulePair(ipNet.String(), cache.RuleTypeNormalRule, cache.RuleActionAllow)...,
-			)
-		}
-	}
-
-	return policyRuleList, nil
 }
 
 func newGlobalPolicyRulePair(ipCIDR string, ruleType cache.RuleType, ruleAction cache.RuleAction) []cache.PolicyRule {

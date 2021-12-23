@@ -332,10 +332,6 @@ type GlobalPolicySpec struct {
 	// +optional
 	// +kubebuilder:default="Allow"
 	DefaultAction GlobalDefaultAction `json:"defaultAction,omitempty"`
-
-	// Whitelist defines IPBlocks than always allow traffics.
-	// +optional
-	Whitelist []networkingv1.IPBlock `json:"whitelist,omitempty"`
 }
 
 // GlobalDefaultAction defines actions supported for GlobalPolicy.

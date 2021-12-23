@@ -23,7 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -81,58 +80,6 @@ var _ = Describe("PolicyController", func() {
 			})
 		})
 	})
-
-	When("create global policy with whitelist", func() {
-		var policy *securityv1alpha1.GlobalPolicy
-		var whitelist string
-
-		BeforeEach(func() {
-			whitelist = "192.168.0.0/24"
-			policy = newTestGlobalPolicy(securityv1alpha1.GlobalDefaultActionDrop, whitelist)
-			By("create global policy " + policy.Name)
-			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
-		})
-
-		It("should flatten golbal policy to rules", func() {
-			assertGlobalPolicyRulesNum(4)
-			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
-			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
-			assertHasGlobalPolicyRule("NormalRule", "Ingress", "Allow", "", whitelist)
-			assertHasGlobalPolicyRule("NormalRule", "Egress", "Allow", whitelist, "")
-		})
-
-		When("update GlobalPolicy whitelist", func() {
-			var newWhitelist string
-			BeforeEach(func() {
-				updatePolicy := policy.DeepCopy()
-				newWhitelist = "192.168.0.0/16"
-				updatePolicy.Spec.Whitelist = []networkingv1.IPBlock{{
-					CIDR: newWhitelist,
-				}}
-
-				By(fmt.Sprintf("update global policy %s whitelist to %+v", updatePolicy.Name, updatePolicy.Spec.Whitelist))
-				Expect(k8sClient.Update(ctx, updatePolicy)).Should(Succeed())
-			})
-
-			It("should flatten golbal policy to rules", func() {
-				assertGlobalPolicyRulesNum(4)
-				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
-				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
-				assertHasGlobalPolicyRule("NormalRule", "Ingress", "Allow", "", newWhitelist)
-				assertHasGlobalPolicyRule("NormalRule", "Egress", "Allow", newWhitelist, "")
-			})
-		})
-		When("delete GlobalPolicy", func() {
-			BeforeEach(func() {
-				By(fmt.Sprintf("delete global policy %s", policy.Name))
-				Expect(k8sClient.Delete(ctx, policy)).Should(Succeed())
-			})
-
-			It("should delete all global rules", func() {
-				assertGlobalPolicyRulesNum(0)
-			})
-		})
-	})
 })
 
 func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whitelist ...string) *securityv1alpha1.GlobalPolicy {
@@ -140,12 +87,6 @@ func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whi
 
 	policy.Name = rand.String(6)
 	policy.Spec.DefaultAction = defaultAction
-
-	for _, cidr := range whitelist {
-		policy.Spec.Whitelist = append(policy.Spec.Whitelist, networkingv1.IPBlock{
-			CIDR: cidr,
-		})
-	}
 
 	return &policy
 }
