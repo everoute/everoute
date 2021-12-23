@@ -41,6 +41,8 @@ import (
 	cmap "github.com/streamrail/concurrent-map"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 //nolint
@@ -184,7 +186,8 @@ type AgentConf struct {
 }
 
 type Config struct {
-	ManagedVDSMap map[string]string // map vds to ovsbr-name
+	ManagedVDSMap     map[string]string // map vds to ovsbr-name
+	InternalWhitelist []string          // internal whitelist IPs
 }
 
 type Endpoint struct {
@@ -206,7 +209,7 @@ type EveroutePolicyRule struct {
 	SrcPortMask uint16
 	DstPort     uint16 // destination port
 	DstPortMask uint16
-	Action      string // rule action: 'accept' or 'deny'
+	Action      string // rule action: 'allow' or 'deny'
 }
 
 type FlowEntry struct {
@@ -270,7 +273,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		wg.Add(1)
 		go func(vdsID string) {
 			defer wg.Done()
-			InitializeVDS(datapathManager, vdsID, stopChan)
+			InitializeVDS(datapathManager, vdsID, datapathManager.datapathConfig.InternalWhitelist, stopChan)
 		}(vdsID)
 	}
 	wg.Wait()
@@ -404,7 +407,7 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.name, ovsVswitchdUnixDomainSockSuffix))
 }
 
-func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan struct{}) {
+func InitializeVDS(datapathManager *DpManager, vdsID string, whitelist []string, stopChan <-chan struct{}) {
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
 		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
@@ -428,6 +431,20 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan str
 	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+
+	// add internal whitelist
+	for _, internalIP := range whitelist {
+		// internal ingress rule
+		err = datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), POLICY_DIRECTION_IN, POLICY_TIER2)
+		if err != nil {
+			log.Fatalf("Failed to add internal whitelist: %v", err)
+		}
+		// internal egress rule
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), POLICY_DIRECTION_OUT, POLICY_TIER2)
+		if err != nil {
+			log.Fatalf("Failed to add internal whitelist: %v", err)
+		}
+	}
 
 	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
 		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
@@ -932,4 +949,24 @@ func waitUntilFileCreate(fileName string, timeout time.Duration) error {
 
 		return true, nil
 	})
+}
+
+// newInternalIngressRule generate a rule allow all ingress to internalIP
+func newInternalIngressRule(internalIP string) *EveroutePolicyRule {
+	return &EveroutePolicyRule{
+		RuleID:    fmt.Sprintf("internal-ingress-%s", internalIP),
+		Priority:  constants.NormalPolicyRulePriority,
+		DstIPAddr: internalIP,
+		Action:    "allow",
+	}
+}
+
+// newInternalEgressRule generate a rule allow all egress from internalIP
+func newInternalEgressRule(internalIP string) *EveroutePolicyRule {
+	return &EveroutePolicyRule{
+		RuleID:    fmt.Sprintf("internal-egress-%s", internalIP),
+		Priority:  constants.NormalPolicyRulePriority,
+		SrcIPAddr: internalIP,
+		Action:    "allow",
+	}
 }
