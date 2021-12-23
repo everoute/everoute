@@ -1493,24 +1493,9 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
-					"whitelist": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Whitelist defines IPBlocks than always allow traffics.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("k8s.io/api/networking/v1.IPBlock"),
-									},
-								},
-							},
-						},
-					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"k8s.io/api/networking/v1.IPBlock"},
 	}
 }
 

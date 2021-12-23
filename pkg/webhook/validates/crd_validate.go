@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -547,12 +546,6 @@ func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo au
 		// In both cases, we should keep quiet. And leave to handle by apiserver.
 		fallthrough
 	case 0:
-		for _, ipBlock := range policy.Spec.Whitelist {
-			err := validateIPBlock(ipBlock)
-			if err != nil {
-				return fmt.Sprintf("validate ipBlock %+v: %s", ipBlock, err), false
-			}
-		}
 		return "", true
 	default:
 		return "cannot create multiple global policies", false
@@ -560,20 +553,6 @@ func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo au
 }
 
 func (v globalPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	policyOld := oldObj.(*securityv1alpha1.GlobalPolicy)
-	policyNew := curObj.(*securityv1alpha1.GlobalPolicy)
-
-	if reflect.DeepEqual(policyOld.Spec, policyNew.Spec) {
-		return "", true
-	}
-
-	for _, ipBlock := range policyNew.Spec.Whitelist {
-		err := validateIPBlock(ipBlock)
-		if err != nil {
-			return fmt.Sprintf("validate ipBlock %+v: %s", ipBlock, err), false
-		}
-	}
-
 	return "", true
 }
 

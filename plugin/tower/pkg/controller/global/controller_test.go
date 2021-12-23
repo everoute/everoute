@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/global"
@@ -58,7 +57,6 @@ var _ = Describe("GlobalPolicyController", func() {
 		})
 		It("should create default global policy", func() {
 			assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionAllow)
-			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 		})
 
 		When("update everoute cluster to default drop", func() {
@@ -69,85 +67,6 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 			It("should update default global policy", func() {
 				assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionDrop)
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
-			})
-		})
-
-		When("associate new elf cluster", func() {
-			var elfCluster = rand.String(10)
-			var host01, host02, host03 *schema.Host
-
-			BeforeEach(func() {
-				host01 = NewRandomHost(elfCluster)
-				host02 = NewRandomHost(elfCluster)
-				host03 = NewRandomHost(elfCluster)
-
-				By(fmt.Sprintf("add host %v %v %v to elf cluster %s", host01, host02, host03, elfCluster))
-				server.TrackerFactory().Host().CreateOrUpdate(host01)
-				server.TrackerFactory().Host().CreateOrUpdate(host02)
-				server.TrackerFactory().Host().CreateOrUpdate(host03)
-
-				By(fmt.Sprintf("associate elf cluster %s to everoute cluster %s", elfCluster, erCluster.ID))
-				erCluster.AgentELFClusters = append(erCluster.AgentELFClusters, schema.ObjectReference{ID: elfCluster})
-				server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
-			})
-
-			It("should add cluster hosts management ip to whitelist", func() {
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03}, nil)
-			})
-
-			When("add new host to the elf cluster", func() {
-				var host04 *schema.Host
-
-				BeforeEach(func() {
-					host04 = NewRandomHost(elfCluster)
-					By(fmt.Sprintf("add host %v to elf cluster %s", host04, elfCluster))
-					server.TrackerFactory().Host().CreateOrUpdate(host04)
-				})
-				It("should add new host management ip to whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02, host03, host04}, nil)
-				})
-			})
-			When("remove host from the elf cluster", func() {
-				BeforeEach(func() {
-					By(fmt.Sprintf("remove host %s from elf cluster %s", host03, elfCluster))
-					err := server.TrackerFactory().Host().Delete(host03.ID)
-					Expect(err).Should(Succeed())
-				})
-				It("should remove host management ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, []*schema.Host{host01, host02}, nil)
-				})
-			})
-			When("disassociate the elf cluster", func() {
-				BeforeEach(func() {
-					By(fmt.Sprintf("disassociate elf cluster %s from everoute cluster %s", elfCluster, erCluster.ID))
-					erCluster.AgentELFClusters = nil
-					server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
-				})
-				It("should remove elf cluster hosts management ip from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
-				})
-			})
-		})
-
-		When("create rand everoute cluster", func() {
-			var randomERCluster *schema.EverouteCluster
-
-			BeforeEach(func() {
-				randomERCluster = NewEverouteCluster(rand.String(10), schema.GlobalPolicyActionAllow)
-				By(fmt.Sprintf("create random everoute cluster %+v", randomERCluster))
-				server.TrackerFactory().EverouteCluster().CreateOrUpdate(randomERCluster)
-			})
-
-			When("remove the everoute cluster", func() {
-				BeforeEach(func() {
-					By(fmt.Sprintf("remove random everoute cluster %s", randomERCluster.ID))
-					err := server.TrackerFactory().EverouteCluster().Delete(randomERCluster.ID)
-					Expect(err).Should(Succeed())
-				})
-				It("should remove all endpoints from whitelist", func() {
-					assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
-				})
 			})
 		})
 	})
@@ -162,7 +81,6 @@ var _ = Describe("GlobalPolicyController", func() {
 		})
 		It("should create default global policy", func() {
 			assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionDrop)
-			assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 		})
 
 		When("update everoute cluster to default allow", func() {
@@ -173,7 +91,6 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 			It("should update default global policy", func() {
 				assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionAllow)
-				assertMatchWhiteList(ctx, []*schema.EverouteCluster{erCluster}, nil, nil)
 			})
 		})
 	})
@@ -205,25 +122,5 @@ func assertMatchDefaultAction(ctx context.Context, defaultAction v1alpha1.Global
 			return false
 		}
 		return globalPolicy.Spec.DefaultAction == defaultAction
-	}, timeout, interval).Should(BeTrue())
-}
-
-func assertMatchWhiteList(ctx context.Context, erClusters []*schema.EverouteCluster, hosts []*schema.Host, systemEndpoints *schema.SystemEndpoints) {
-	var whiteList = sets.NewString()
-
-	for _, host := range hosts {
-		whiteList.Insert(fmt.Sprintf("%s/32", host.ManagementIP))
-	}
-
-	Eventually(func() bool {
-		globalPolicy, err := crdClient.SecurityV1alpha1().GlobalPolicies().Get(ctx, controller.DefaultGlobalPolicyName, metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-		currentWhiteList := sets.NewString()
-		for _, ipBlock := range globalPolicy.Spec.Whitelist {
-			currentWhiteList.Insert(ipBlock.CIDR)
-		}
-		return currentWhiteList.Equal(whiteList)
 	}, timeout, interval).Should(BeTrue())
 }

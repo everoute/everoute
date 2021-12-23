@@ -198,9 +198,6 @@ var initObject = func() {
 		},
 		Spec: securityv1alpha1.GlobalPolicySpec{
 			DefaultAction: securityv1alpha1.GlobalDefaultActionAllow,
-			Whitelist: []networkingv1.IPBlock{{
-				CIDR: "192.169.0.0/24",
-			}},
 		},
 	}
 
@@ -514,13 +511,6 @@ var _ = Describe("CRD Validate", func() {
 	})
 
 	Context("Validate On GlobalPolicy", func() {
-		It("Create GlobalPolicy with error format of IPBlock should not allowed", func() {
-			policy := globalPolicy.DeepCopy()
-			policy.Spec.Whitelist[0] = networkingv1.IPBlock{
-				CIDR: "192.168.0.0/123",
-			}
-			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
-		})
 		It("Create multiple GlobalPolicy should not allowed", func() {
 			policy := globalPolicy.DeepCopy()
 			policy.Name = "new-global-policy"
@@ -530,18 +520,9 @@ var _ = Describe("CRD Validate", func() {
 			policy := globalPolicy.DeepCopy()
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 		})
-		It("Update GlobalPolicy with error format of IPBlock should not allowed", func() {
-			policy := globalPolicy.DeepCopy()
-			policy.Spec.Whitelist[0] = networkingv1.IPBlock{
-				CIDR: "192.168.0.0/123",
-			}
-			Expect(validate.Validate(fakeAdmissionReview(policy, globalPolicy, "")).Allowed).Should(BeFalse())
-		})
 		It("Update available GlobalPolicy should allowed", func() {
 			policy := globalPolicy.DeepCopy()
-			policy.Spec.Whitelist[0] = networkingv1.IPBlock{
-				CIDR: "192.168.0.0/32",
-			}
+			policy.Spec.DefaultAction = securityv1alpha1.GlobalDefaultActionDrop
 			Expect(validate.Validate(fakeAdmissionReview(policy, globalPolicy, "")).Allowed).Should(BeTrue())
 		})
 		It("Delete GlobalPolicy should always allowed", func() {
