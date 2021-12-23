@@ -955,7 +955,7 @@ func waitUntilFileCreate(fileName string, timeout time.Duration) error {
 func newInternalIngressRule(internalIP string) *EveroutePolicyRule {
 	return &EveroutePolicyRule{
 		RuleID:    fmt.Sprintf("internal-ingress-%s", internalIP),
-		Priority:  constants.NormalPolicyRulePriority,
+		Priority:  constants.InternalWhitelistPriority,
 		DstIPAddr: internalIP,
 		Action:    "allow",
 	}
@@ -965,7 +965,7 @@ func newInternalIngressRule(internalIP string) *EveroutePolicyRule {
 func newInternalEgressRule(internalIP string) *EveroutePolicyRule {
 	return &EveroutePolicyRule{
 		RuleID:    fmt.Sprintf("internal-egress-%s", internalIP),
-		Priority:  constants.NormalPolicyRulePriority,
+		Priority:  constants.InternalWhitelistPriority,
 		SrcIPAddr: internalIP,
 		Action:    "allow",
 	}
