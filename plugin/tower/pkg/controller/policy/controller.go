@@ -453,7 +453,8 @@ func (c *Controller) handleCRDPolicy(obj interface{}) {
 		c.systemEndpointPolicyQueue.Add("key")
 	}
 
-	if obj.(*v1alpha1.SecurityPolicy).Name == ControllerPolicyName {
+	if obj.(*v1alpha1.SecurityPolicy).Name == ControllerPolicyName ||
+		obj.(*v1alpha1.SecurityPolicy).Name == GlobalWhitelistPolicyName {
 		c.everouteClusterPolicyQueue.Add("key")
 	}
 }
@@ -760,9 +761,11 @@ func (c *Controller) parseControllerPolicy(clusters []*schema.EverouteCluster) (
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:        constants.Tier2,
-			DefaultRule: v1alpha1.DefaultRuleNone,
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			Tier:         constants.Tier2,
+			DefaultRule:  v1alpha1.DefaultRuleNone,
+			IngressRules: []v1alpha1.Rule{{Name: "ingress"}},
+			EgressRules:  []v1alpha1.Rule{{Name: "egress"}},
+			PolicyTypes:  []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 	for _, cluster := range clusters {
@@ -788,9 +791,11 @@ func (c *Controller) parseSystemEndpointsPolicy(systemEndpoints *schema.SystemEn
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:        constants.Tier2,
-			DefaultRule: v1alpha1.DefaultRuleNone,
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			Tier:         constants.Tier2,
+			DefaultRule:  v1alpha1.DefaultRuleNone,
+			IngressRules: []v1alpha1.Rule{{Name: "ingress"}},
+			EgressRules:  []v1alpha1.Rule{{Name: "egress"}},
+			PolicyTypes:  []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 	for _, ip := range systemEndpoints.IPPortEndpoints {

@@ -591,7 +591,7 @@ var _ = Describe("PolicyController", func() {
 				assertPoliciesNum(ctx, 1)
 				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
 					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-					nil, nil,
+					getEmptyIngress(), getEmptyEgress(),
 					NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[0].Key)),
 					NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[1].Key)),
 				)
@@ -611,7 +611,7 @@ var _ = Describe("PolicyController", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
 						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-						nil, nil,
+						getEmptyIngress(), getEmptyEgress(),
 						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[0].Key)),
 						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[1].Key)),
 						NewSecurityPolicyApplyPeer(endpoint.GetSystemEndpointName(randomSystemEndpoints.IPPortEndpoints[2].Key)),
@@ -642,7 +642,7 @@ var _ = Describe("PolicyController", func() {
 				assertPoliciesNum(ctx, 1)
 				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
 					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-					nil, nil,
+					getEmptyIngress(), getEmptyEgress(),
 					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[0])),
 					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[1])),
 					NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[2])),
@@ -661,7 +661,7 @@ var _ = Describe("PolicyController", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.DefaultRuleNone,
 						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-						nil, nil,
+						getEmptyIngress(), getEmptyEgress(),
 						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[0])),
 						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[1])),
 						NewSecurityPolicyApplyPeer(endpoint.GetCtrlEndpointName(cluster.GetID(), cluster.ControllerInstances[2])),
@@ -890,6 +890,14 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 
 func allPolicyTypes() []networkingv1.PolicyType {
 	return []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress}
+}
+
+func getEmptyIngress() *v1alpha1.Rule {
+	return &v1alpha1.Rule{Name: "ingress"}
+}
+
+func getEmptyEgress() *v1alpha1.Rule {
+	return &v1alpha1.Rule{Name: "egress"}
 }
 
 type ApplyPeers []v1alpha1.ApplyToPeer
