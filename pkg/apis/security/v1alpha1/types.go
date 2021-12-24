@@ -68,7 +68,7 @@ type SecurityPolicySpec struct {
 
 	// Selects the endpoints to which this SecurityPolicy object applies.
 	// Empty or nil means select all endpoints
-	AppliedTo []ApplyToPeer `json:"appliedTo"`
+	AppliedTo []ApplyToPeer `json:"appliedTo,omitempty"`
 
 	// List of ingress rules to be applied to the selected endpoints. If this field
 	// is empty then this SecurityPolicy does not allow any traffic.

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/tests/e2e/framework/matcher"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
@@ -642,6 +644,76 @@ var _ = Describe("GlobalPolicy", func() {
 				})
 			})
 		})
+	})
+
+	Context("environment with global white list policy [Feature:GlobalWhitelistPolicy]", func() {
+		var endpointA, endpointB, endpointC *model.Endpoint
+		var tcpPort int
+		var whitelistPolicyA, whitelistPolicy *securityv1alpha1.SecurityPolicy
+
+		BeforeEach(func() {
+			tcpPort = rand.IntnRange(1000, 5000)
+
+			endpointA = &model.Endpoint{Name: "ep.a", TCPPort: tcpPort}
+			endpointB = &model.Endpoint{Name: "ep.b", TCPPort: tcpPort}
+			endpointC = &model.Endpoint{Name: "ep.c", TCPPort: tcpPort}
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
+
+			whitelistPolicyA = newPolicy("whitelist-a", constants.Tier2)
+			whitelistPolicyA.Spec.AppliedTo = []securityv1alpha1.ApplyToPeer{
+				{
+					Endpoint: &endpointA.Name,
+				},
+			}
+			whitelistPolicyA.Spec.IngressRules = []securityv1alpha1.Rule{
+				{Name: "ingress"},
+			}
+			whitelistPolicyA.Spec.EgressRules = []securityv1alpha1.Rule{
+				{Name: "egress"},
+			}
+			Expect(e2eEnv.SetupObjects(ctx, whitelistPolicyA)).Should(Succeed())
+		})
+		When("add global whitelist ip with ingress", func() {
+			BeforeEach(func() {
+				whitelistPolicy = newPolicy("whitelist", constants.Tier2)
+				whitelistPolicy.Spec.IngressRules = []securityv1alpha1.Rule{
+					{Name: "ingress", From: []securityv1alpha1.SecurityPolicyPeer{{
+						IPBlock: &networkingv1.IPBlock{CIDR: strings.Split(endpointA.Status.IPAddr, "/")[0] + "/32"}}}},
+				}
+				Expect(e2eEnv.SetupObjects(ctx, whitelistPolicy)).Should(Succeed())
+			})
+			It("should allow traffics between endpointA to others", func() {
+				securityModel := &SecurityModel{
+					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+				}
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(false)
+				expectedTruthTable.SetAllFrom(endpointA.Name, true)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+			})
+		})
+
+		When("add global whitelist ip with egress", func() {
+			BeforeEach(func() {
+				whitelistPolicy = newPolicy("whitelist", constants.Tier2)
+				whitelistPolicy.Spec.EgressRules = []securityv1alpha1.Rule{
+					{Name: "egress", To: []securityv1alpha1.SecurityPolicyPeer{{
+						IPBlock: &networkingv1.IPBlock{CIDR: strings.Split(endpointA.Status.IPAddr, "/")[0] + "/32"}}}},
+				}
+				Expect(e2eEnv.SetupObjects(ctx, whitelistPolicy)).Should(Succeed())
+			})
+			It("should allow traffics between endpointA to others", func() {
+				securityModel := &SecurityModel{
+					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+				}
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(false)
+				expectedTruthTable.SetAllTo(endpointA.Name, true)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+			})
+		})
+
 	})
 })
 
