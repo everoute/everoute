@@ -577,7 +577,10 @@ func (c *Controller) syncEverouteClusterPolicy(key string) error {
 		return fmt.Errorf("everouteCluste %s not found", c.everouteCluster)
 	}
 
-	whitelistPolicy, _ := c.parseGlobalWhitelistPolicy(currentCluster.(*schema.EverouteCluster))
+	whitelistPolicy, err := c.parseGlobalWhitelistPolicy(currentCluster.(*schema.EverouteCluster))
+	if err != nil {
+		return fmt.Errorf("create global whitelist policy error: %s", err)
+	}
 	err = c.applyPoliciesChanges([]string{c.getGlobalWhitelistPolicyKey()}, whitelistPolicy)
 	if err != nil {
 		return fmt.Errorf("unable update EverouteCluster policies: %s", err)
@@ -723,31 +726,31 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 	if len(cluster.GlobalWhitelist.Ingress) != 0 {
 		sp.Spec.IngressRules = append(sp.Spec.IngressRules, v1alpha1.Rule{
 			Name: "ingress",
-			From: []v1alpha1.SecurityPolicyPeer{},
 		})
 		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeIngress)
-	}
-	for _, rule := range cluster.GlobalWhitelist.Ingress {
-		sp.Spec.IngressRules[0].From = append(sp.Spec.IngressRules[0].From, v1alpha1.SecurityPolicyPeer{
-			IPBlock: &networkingv1.IPBlock{
-				CIDR: *rule.IPBlock,
-			},
-		})
+
+		for index := range cluster.GlobalWhitelist.Ingress {
+			peer, _, err := c.parseNetworkPolicyRule(&cluster.GlobalWhitelist.Ingress[index])
+			if err != nil {
+				return nil, err
+			}
+			sp.Spec.IngressRules[0].From = append(sp.Spec.IngressRules[0].From, peer...)
+		}
 	}
 	// process egress whitelist
 	if len(cluster.GlobalWhitelist.Egress) != 0 {
 		sp.Spec.EgressRules = append(sp.Spec.EgressRules, v1alpha1.Rule{
 			Name: "egress",
-			To:   []v1alpha1.SecurityPolicyPeer{},
 		})
 		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeEgress)
-	}
-	for _, rule := range cluster.GlobalWhitelist.Egress {
-		sp.Spec.EgressRules[0].To = append(sp.Spec.EgressRules[0].To, v1alpha1.SecurityPolicyPeer{
-			IPBlock: &networkingv1.IPBlock{
-				CIDR: *rule.IPBlock,
-			},
-		})
+
+		for index := range cluster.GlobalWhitelist.Egress {
+			peer, _, err := c.parseNetworkPolicyRule(&cluster.GlobalWhitelist.Egress[index])
+			if err != nil {
+				return nil, err
+			}
+			sp.Spec.EgressRules[0].To = append(sp.Spec.EgressRules[0].To, peer...)
+		}
 	}
 
 	return []v1alpha1.SecurityPolicy{sp}, nil

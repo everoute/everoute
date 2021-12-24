@@ -707,13 +707,13 @@ var _ = Describe("PolicyController", func() {
 					&v1alpha1.Rule{
 						Name: "ingress",
 						From: []v1alpha1.SecurityPolicyPeer{
-							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
+							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock + "/32"}},
 						},
 					},
 					&v1alpha1.Rule{
 						Name: "egress",
 						To: []v1alpha1.SecurityPolicyPeer{
-							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
+							{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock + "/32"}},
 						},
 					},
 				)
@@ -743,7 +743,7 @@ var _ = Describe("PolicyController", func() {
 						&v1alpha1.Rule{
 							Name: "ingress",
 							From: []v1alpha1.SecurityPolicyPeer{
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock + "/32"}},
 							},
 						}, nil,
 					)
@@ -764,7 +764,7 @@ var _ = Describe("PolicyController", func() {
 						&v1alpha1.Rule{
 							Name: "egress",
 							To: []v1alpha1.SecurityPolicyPeer{
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock + "/32"}},
 							},
 						},
 					)
@@ -787,15 +787,15 @@ var _ = Describe("PolicyController", func() {
 						&v1alpha1.Rule{
 							Name: "ingress",
 							From: []v1alpha1.SecurityPolicyPeer{
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock}},
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[1].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock + "/32"}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[1].IPBlock + "/32"}},
 							},
 						},
 						&v1alpha1.Rule{
 							Name: "egress",
 							To: []v1alpha1.SecurityPolicyPeer{
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock}},
-								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[1].IPBlock}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock + "/32"}},
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[1].IPBlock + "/32"}},
 							},
 						},
 					)
