@@ -145,7 +145,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(c.reconcileWorker, time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.reconcileQueue, c.reconcileGlobalPolicy), time.Second, stopCh)
 	}
 
 	<-stopCh
@@ -237,27 +237,6 @@ func (c *Controller) elfClusterIndexFunc(obj interface{}) ([]string, error) {
 	}
 
 	return elfClusters, nil
-}
-
-func (c *Controller) reconcileWorker() {
-	for {
-		key, quit := c.reconcileQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.reconcileGlobalPolicy(key.(string))
-		if err != nil {
-			c.reconcileQueue.Done(key)
-			c.reconcileQueue.AddRateLimited(key)
-			klog.Errorf("got error while reconcile GlobalPolicy %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.reconcileQueue.Done(key)
-		c.reconcileQueue.Forget(key)
-	}
 }
 
 func (c *Controller) reconcileGlobalPolicy(name string) error {

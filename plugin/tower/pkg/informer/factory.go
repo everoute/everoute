@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -184,4 +186,27 @@ func TowerObjectKey(obj interface{}) (string, error) {
 		return resource.GetID(), nil
 	}
 	return "", fmt.Errorf("unsupport resource type %s, object: %v", obj, obj)
+}
+
+func ReconcileWorker(queue workqueue.RateLimitingInterface, processFunc func(string) error) func() {
+	return func() {
+		for {
+			key, quit := queue.Get()
+			if quit {
+				return
+			}
+
+			err := processFunc(key.(string))
+			if err != nil {
+				queue.Done(key)
+				queue.AddRateLimited(key)
+				klog.Errorf("got error while sync %s: %s", key.(string), err)
+				continue
+			}
+
+			// stop the rate limiter from tracking the key
+			queue.Done(key)
+			queue.Forget(key)
+		}
+	}
 }
