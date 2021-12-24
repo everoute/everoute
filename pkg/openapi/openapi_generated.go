@@ -1826,7 +1826,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"tier", "appliedTo"},
+				Required: []string{"tier"},
 			},
 		},
 		Dependencies: []string{

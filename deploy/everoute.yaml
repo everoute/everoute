@@ -1555,7 +1555,6 @@ spec:
                   belongs to. In v1alpha1, Tier only support tier0, tier1, tier2.
                 type: string
             required:
-            - appliedTo
             - tier
             type: object
         required:
