@@ -51,9 +51,9 @@ const (
 	IsolationPolicyEgressPrefix      = "tower.ip.egress-"
 	SecurityPolicyCommunicablePrefix = "tower.sp.communicable-"
 
-	SystemEndpointsPolicyName = "tower.sp.internal-systemEndpoints"
+	SystemEndpointsPolicyName = "tower.sp.internal-system.endpoints"
 	ControllerPolicyName      = "tower.sp.internal-controller"
-	GlobalWhitelistPolicyName = "tower.sp.global-userWhitelist"
+	GlobalWhitelistPolicyName = "tower.sp.global-user.whitelist"
 
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
