@@ -712,45 +712,23 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 		return nil, nil
 	}
 
+	ingress, egress, err := c.parseNetworkPolicyRules(cluster.GlobalWhitelist.Ingress, cluster.GlobalWhitelist.Egress)
+	if err != nil {
+		return nil, fmt.Errorf("parse NetworkPolicyRules error, err: %s", err)
+	}
+
 	sp := v1alpha1.SecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GlobalWhitelistPolicyName,
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:        constants.Tier2,
-			DefaultRule: v1alpha1.DefaultRuleNone,
+			Tier:         constants.Tier2,
+			DefaultRule:  v1alpha1.DefaultRuleNone,
+			IngressRules: ingress,
+			EgressRules:  egress,
+			PolicyTypes:  []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
-	}
-	// process ingress whitelist
-	if len(cluster.GlobalWhitelist.Ingress) != 0 {
-		sp.Spec.IngressRules = append(sp.Spec.IngressRules, v1alpha1.Rule{
-			Name: "ingress",
-		})
-		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeIngress)
-
-		for index := range cluster.GlobalWhitelist.Ingress {
-			peer, _, err := c.parseNetworkPolicyRule(&cluster.GlobalWhitelist.Ingress[index])
-			if err != nil {
-				return nil, err
-			}
-			sp.Spec.IngressRules[0].From = append(sp.Spec.IngressRules[0].From, peer...)
-		}
-	}
-	// process egress whitelist
-	if len(cluster.GlobalWhitelist.Egress) != 0 {
-		sp.Spec.EgressRules = append(sp.Spec.EgressRules, v1alpha1.Rule{
-			Name: "egress",
-		})
-		sp.Spec.PolicyTypes = append(sp.Spec.PolicyTypes, networkingv1.PolicyTypeEgress)
-
-		for index := range cluster.GlobalWhitelist.Egress {
-			peer, _, err := c.parseNetworkPolicyRule(&cluster.GlobalWhitelist.Egress[index])
-			if err != nil {
-				return nil, err
-			}
-			sp.Spec.EgressRules[0].To = append(sp.Spec.EgressRules[0].To, peer...)
-		}
 	}
 
 	return []v1alpha1.SecurityPolicy{sp}, nil
