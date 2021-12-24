@@ -203,8 +203,8 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(c.syncEndpointWorker, time.Second, stopCh)
-		go wait.Until(c.syncStaticEndpointWorker, time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.endpointQueue, c.syncEndpoint), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.staticEndpointQueue, c.syncStaticEndpoint), time.Second, stopCh)
 	}
 
 	<-stopCh
@@ -432,48 +432,6 @@ func (c *Controller) getStaticEndpoint(key string) *v1alpha1.Endpoint {
 				types.IPAddress(ipAddr),
 			},
 		},
-	}
-}
-
-func (c *Controller) syncStaticEndpointWorker() {
-	for {
-		key, quit := c.staticEndpointQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncStaticEndpoint(key.(string))
-		if err != nil {
-			c.staticEndpointQueue.Done(key)
-			c.staticEndpointQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync static endpoint %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.staticEndpointQueue.Done(key)
-		c.staticEndpointQueue.Forget(key)
-	}
-}
-
-func (c *Controller) syncEndpointWorker() {
-	for {
-		key, quit := c.endpointQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncEndpoint(key.(string))
-		if err != nil {
-			c.endpointQueue.Done(key)
-			c.endpointQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync endpoint %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.endpointQueue.Done(key)
-		c.endpointQueue.Forget(key)
 	}
 }
 

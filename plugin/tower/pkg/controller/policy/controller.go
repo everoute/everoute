@@ -270,12 +270,12 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(c.syncSecurityPolicyWorker, time.Second, stopCh)
-		go wait.Until(c.syncIsolationPolicyWorker, time.Second, stopCh)
-		go wait.Until(c.syncEverouteClusterPolicyWorker, time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.securityPolicyQueue, c.syncSecurityPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.isolationPolicyQueue, c.syncIsolationPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.everouteClusterPolicyQueue, c.syncEverouteClusterPolicy), time.Second, stopCh)
 	}
 	// only ONE SystemEndpoints in tower
-	go wait.Until(c.syncSystemEndpointsPolicyWorker, time.Second, stopCh)
+	go wait.Until(informer.ReconcileWorker(c.systemEndpointPolicyQueue, c.syncSystemEndpointsPolicy), time.Second, stopCh)
 
 	<-stopCh
 }
@@ -498,90 +498,6 @@ func (c *Controller) updateSystemEndpoints(old, new interface{}) {
 	// handle systemEndpoints IP changes
 	if !reflect.DeepEqual(newSystemEndpoints, oldSystemEndpoints) {
 		c.handleSystemEndpoints(newSystemEndpoints)
-	}
-}
-
-func (c *Controller) syncSecurityPolicyWorker() {
-	for {
-		key, quit := c.securityPolicyQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncSecurityPolicy(key.(string))
-		if err != nil {
-			c.securityPolicyQueue.Done(key)
-			c.securityPolicyQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync SecurityPolicy %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.securityPolicyQueue.Done(key)
-		c.securityPolicyQueue.Forget(key)
-	}
-}
-
-func (c *Controller) syncIsolationPolicyWorker() {
-	for {
-		key, quit := c.isolationPolicyQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncIsolationPolicy(key.(string))
-		if err != nil {
-			c.isolationPolicyQueue.Done(key)
-			c.isolationPolicyQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync IsolationPolicy %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.isolationPolicyQueue.Done(key)
-		c.isolationPolicyQueue.Forget(key)
-	}
-}
-
-func (c *Controller) syncSystemEndpointsPolicyWorker() {
-	for {
-		key, quit := c.systemEndpointPolicyQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncSystemEndpointsPolicy(key.(string))
-		if err != nil {
-			c.systemEndpointPolicyQueue.Done(key)
-			c.systemEndpointPolicyQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync systemEndpointPolicy %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.systemEndpointPolicyQueue.Done(key)
-		c.systemEndpointPolicyQueue.Forget(key)
-	}
-}
-
-func (c *Controller) syncEverouteClusterPolicyWorker() {
-	for {
-		key, quit := c.everouteClusterPolicyQueue.Get()
-		if quit {
-			return
-		}
-
-		err := c.syncEverouteClusterPolicy(key.(string))
-		if err != nil {
-			c.everouteClusterPolicyQueue.Done(key)
-			c.everouteClusterPolicyQueue.AddRateLimited(key)
-			klog.Errorf("got error while sync controllerPolicy %s: %s", key.(string), err)
-			continue
-		}
-
-		// stop the rate limiter from tracking the key
-		c.everouteClusterPolicyQueue.Done(key)
-		c.everouteClusterPolicyQueue.Forget(key)
 	}
 }
 
