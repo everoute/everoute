@@ -270,12 +270,12 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(informer.ReconcileWorker(c.securityPolicyQueue, c.syncSecurityPolicy), time.Second, stopCh)
-		go wait.Until(informer.ReconcileWorker(c.isolationPolicyQueue, c.syncIsolationPolicy), time.Second, stopCh)
-		go wait.Until(informer.ReconcileWorker(c.everouteClusterPolicyQueue, c.syncEverouteClusterPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.securityPolicyQueue, c.syncSecurityPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.isolationPolicyQueue, c.syncIsolationPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.everouteClusterPolicyQueue, c.syncEverouteClusterPolicy), time.Second, stopCh)
 	}
 	// only ONE SystemEndpoints in tower
-	go wait.Until(informer.ReconcileWorker(c.systemEndpointPolicyQueue, c.syncSystemEndpointsPolicy), time.Second, stopCh)
+	go wait.Until(informer.ReconcileWorker(c.name, c.systemEndpointPolicyQueue, c.syncSystemEndpointsPolicy), time.Second, stopCh)
 
 	<-stopCh
 }

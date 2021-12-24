@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -39,7 +38,6 @@ import (
 )
 
 const (
-	elfClusterIndex         = "elfClusterIndex"
 	DefaultGlobalPolicyName = "everoute-global-policy"
 )
 
@@ -53,10 +51,6 @@ type Controller struct {
 	everouteClusterInformer       cache.SharedIndexInformer
 	everouteClusterLister         informer.Lister
 	everouteClusterInformerSynced cache.InformerSynced
-
-	hostInformer       cache.SharedIndexInformer
-	hostLister         informer.Lister
-	hostInformerSynced cache.InformerSynced
 
 	globalPolicyInformer       cache.SharedIndexInformer
 	globalPolicyLister         informer.Lister
@@ -74,7 +68,6 @@ func New(
 	everouteClusterID string,
 ) *Controller {
 	globalPolicyInformer := crdFactory.Security().V1alpha1().GlobalPolicies().Informer()
-	hostInformer := towerFactory.Host()
 	erClusterInformer := towerFactory.EverouteCluster()
 
 	c := &Controller{
@@ -84,9 +77,6 @@ func New(
 		everouteClusterInformer:       erClusterInformer,
 		everouteClusterLister:         erClusterInformer.GetIndexer(),
 		everouteClusterInformerSynced: erClusterInformer.HasSynced,
-		hostInformer:                  hostInformer,
-		hostLister:                    hostInformer.GetIndexer(),
-		hostInformerSynced:            hostInformer.HasSynced,
 		globalPolicyInformer:          globalPolicyInformer,
 		globalPolicyLister:            globalPolicyInformer.GetIndexer(),
 		globalPolicyInformerSynced:    globalPolicyInformer.HasSynced,
@@ -102,15 +92,6 @@ func New(
 		resyncPeriod,
 	)
 
-	hostInformer.AddEventHandlerWithResyncPeriod(
-		cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.handleHost,
-			UpdateFunc: c.updateHost,
-			DeleteFunc: c.handleHost,
-		},
-		resyncPeriod,
-	)
-
 	erClusterInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleEverouteCluster,
@@ -119,14 +100,6 @@ func New(
 		},
 		resyncPeriod,
 	)
-
-	_ = erClusterInformer.AddIndexers(cache.Indexers{
-		elfClusterIndex: c.elfClusterIndexFunc,
-	})
-
-	_ = hostInformer.AddIndexers(cache.Indexers{
-		elfClusterIndex: c.elfClusterIndexFunc,
-	})
 
 	return c
 }
@@ -138,14 +111,13 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 
 	if !cache.WaitForNamedCacheSync(c.name, stopCh,
 		c.globalPolicyInformerSynced,
-		c.hostInformerSynced,
 		c.everouteClusterInformerSynced,
 	) {
 		return
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(informer.ReconcileWorker(c.reconcileQueue, c.reconcileGlobalPolicy), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.reconcileQueue, c.reconcileGlobalPolicy), time.Second, stopCh)
 	}
 
 	<-stopCh
@@ -170,27 +142,6 @@ func (c *Controller) updateGlobalPolicy(old, new interface{}) {
 	c.handleGlobalPolicy(newGlobalPolicy)
 }
 
-func (c *Controller) handleHost(obj interface{}) {
-	unknow, ok := obj.(cache.DeletedFinalStateUnknown)
-	if ok {
-		obj = unknow.Obj
-	}
-	elfClusters, _ := c.everouteClusterLister.IndexKeys(elfClusterIndex, obj.(*schema.Host).Cluster.ID)
-	if sets.NewString(elfClusters...).Has(c.everouteClusterID) {
-		c.reconcileQueue.Add(DefaultGlobalPolicyName)
-	}
-}
-
-func (c *Controller) updateHost(old, new interface{}) {
-	oldHost := old.(*schema.Host)
-	newHost := new.(*schema.Host)
-
-	if newHost.ManagementIP == oldHost.ManagementIP {
-		return
-	}
-	c.handleHost(newHost)
-}
-
 func (c *Controller) handleEverouteCluster(_ interface{}) {
 	c.reconcileQueue.Add(DefaultGlobalPolicyName)
 }
@@ -199,44 +150,11 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 	oldERCluster := old.(*schema.EverouteCluster)
 	newERCluster := new.(*schema.EverouteCluster)
 
-	if newERCluster.ID == c.everouteClusterID {
+	// enqueue when default action changes
+	if newERCluster.ID == c.everouteClusterID && oldERCluster.GlobalDefaultAction != newERCluster.GlobalDefaultAction {
 		c.handleEverouteCluster(newERCluster)
 		return
 	}
-
-	// handle controller instance ip changes
-	if !reflect.DeepEqual(newERCluster.ControllerInstances, oldERCluster.ControllerInstances) {
-		c.handleEverouteCluster(newERCluster)
-	}
-}
-
-func (c *Controller) handleSystemEndpoints(_ interface{}) {
-	c.reconcileQueue.Add(DefaultGlobalPolicyName)
-}
-
-func (c *Controller) updateSystemEndpoints(old, new interface{}) {
-	oldSystemEndpoints := old.(*schema.SystemEndpoints)
-	newSystemEndpoints := new.(*schema.SystemEndpoints)
-
-	// handle systemEndpoints IP changes
-	if !reflect.DeepEqual(newSystemEndpoints, oldSystemEndpoints) {
-		c.handleSystemEndpoints(newSystemEndpoints)
-	}
-}
-
-func (c *Controller) elfClusterIndexFunc(obj interface{}) ([]string, error) {
-	var elfClusters []string
-
-	switch o := obj.(type) {
-	case *schema.EverouteCluster:
-		for _, elfCluster := range o.AgentELFClusters {
-			elfClusters = append(elfClusters, elfCluster.ID)
-		}
-	case *schema.Host:
-		elfClusters = append(elfClusters, o.Cluster.ID)
-	}
-
-	return elfClusters, nil
 }
 
 func (c *Controller) reconcileGlobalPolicy(name string) error {

@@ -203,8 +203,8 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	}
 
 	for i := uint(0); i < workers; i++ {
-		go wait.Until(informer.ReconcileWorker(c.endpointQueue, c.syncEndpoint), time.Second, stopCh)
-		go wait.Until(informer.ReconcileWorker(c.staticEndpointQueue, c.syncStaticEndpoint), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.endpointQueue, c.syncEndpoint), time.Second, stopCh)
+		go wait.Until(informer.ReconcileWorker(c.name, c.staticEndpointQueue, c.syncStaticEndpoint), time.Second, stopCh)
 	}
 
 	<-stopCh

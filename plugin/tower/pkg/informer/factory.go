@@ -188,7 +188,7 @@ func TowerObjectKey(obj interface{}) (string, error) {
 	return "", fmt.Errorf("unsupport resource type %s, object: %v", obj, obj)
 }
 
-func ReconcileWorker(queue workqueue.RateLimitingInterface, processFunc func(string) error) func() {
+func ReconcileWorker(name string, queue workqueue.RateLimitingInterface, processFunc func(string) error) func() {
 	return func() {
 		for {
 			key, quit := queue.Get()
@@ -200,7 +200,7 @@ func ReconcileWorker(queue workqueue.RateLimitingInterface, processFunc func(str
 			if err != nil {
 				queue.Done(key)
 				queue.AddRateLimited(key)
-				klog.Errorf("got error while sync %s: %s", key.(string), err)
+				klog.Errorf("%s got error while sync %s: %s", name, key.(string), err)
 				continue
 			}
 
