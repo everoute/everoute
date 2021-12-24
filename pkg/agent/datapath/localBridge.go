@@ -188,7 +188,6 @@ func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
 func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
 	_, ok := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, inPort))
 	if !ok {
-		log.Errorf("Endpoint with ofport %v was not added to bridge %v", inPort, l.name)
 		return
 	}
 
