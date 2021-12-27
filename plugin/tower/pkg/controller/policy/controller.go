@@ -785,6 +785,11 @@ func (c *Controller) parseSystemEndpointsPolicy(systemEndpoints *schema.SystemEn
 			Endpoint: &epName,
 		})
 	}
+	for index := range systemEndpoints.IDEndpoints {
+		sp.Spec.AppliedTo = append(sp.Spec.AppliedTo, v1alpha1.ApplyToPeer{
+			Endpoint: &systemEndpoints.IDEndpoints[index].VMID,
+		})
+	}
 	if len(sp.Spec.AppliedTo) == 0 {
 		return nil, nil
 	}
