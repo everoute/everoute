@@ -551,7 +551,7 @@ func (c *Controller) processStaticEndpointUpdate(key string) error {
 	if !reflect.DeepEqual(ep.Status, endpoint.Status) {
 		klog.Infof("will update endpoint from %+v to %+v", ep, endpoint)
 		ep.Status = endpoint.Status
-		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Update(context.Background(), ep, metav1.UpdateOptions{})
+		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).UpdateStatus(context.Background(), ep, metav1.UpdateOptions{})
 		return err
 	}
 
@@ -564,10 +564,13 @@ func (c *Controller) getStaticIP(key string) string {
 		if len(clusterList) == 0 {
 			return ""
 		}
-		cluster := clusterList[0].(*schema.EverouteCluster)
-		for _, ctrl := range cluster.ControllerInstances {
-			if GetCtrlEndpointName(cluster.ID, ctrl) == key {
-				return ctrl.IPAddr
+		// fetch all clusters in tower
+		for index := range clusterList {
+			cluster := clusterList[index].(*schema.EverouteCluster)
+			for _, ctrl := range cluster.ControllerInstances {
+				if GetCtrlEndpointName(cluster.ID, ctrl) == key {
+					return ctrl.IPAddr
+				}
 			}
 		}
 	} else if strings.HasPrefix(key, SystemEndpointPrefix) {
