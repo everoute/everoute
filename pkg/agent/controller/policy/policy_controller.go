@@ -461,8 +461,14 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList []policycache.PolicyRule) {
 	var err = r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
 	var rateLimiter = workqueue.NewItemExponentialFailureRateLimiter(time.Microsecond, time.Second)
+	var timeout = time.Minute * 5
+	var deadline = time.Now().Add(timeout)
 
 	for err != nil {
+		if time.Now().After(deadline) {
+			klog.Errorf("unable sync %+v and %+v in %s", oldRuleList, newRuleList, timeout)
+			return
+		}
 		duration := rateLimiter.When("next-sync")
 		klog.Errorf("failed to sync policyRules, next sync after %s: %s", duration, err)
 		time.Sleep(duration)
@@ -513,16 +519,25 @@ func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {
 		return nil
 	}
 
-	klog.Infof("remove rule %s from datapath", flowKey)
-	if err := r.deletePolicyRuleFromDatapath(flowKey); err != nil {
-		return err
-	}
-
-	r.flowKeyReferenceMap[flowKey].Delete(ruleName)
-	if r.flowKeyReferenceMap[flowKey].Len() == 0 {
+	switch r.flowKeyReferenceMap[flowKey].Len() {
+	case 0:
 		delete(r.flowKeyReferenceMap, flowKey)
-	}
 
+	case 1:
+		if r.flowKeyReferenceMap[flowKey].Has(ruleName) {
+			klog.Infof("remove rule %s from datapath", flowKey)
+			if err := r.deletePolicyRuleFromDatapath(flowKey); err != nil {
+				return err
+			}
+			delete(r.flowKeyReferenceMap, flowKey)
+		} else {
+			// this should never happen
+			klog.Warningf("rule %s with flowkey %s not found in reference map %+v", ruleName, flowKey, r.flowKeyReferenceMap)
+		}
+
+	default:
+		r.flowKeyReferenceMap[flowKey].Delete(ruleName)
+	}
 	return nil
 }
 

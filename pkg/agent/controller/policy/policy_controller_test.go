@@ -676,6 +676,62 @@ var _ = Describe("PolicyController", func() {
 
 			})
 		})
+
+		When("create two same sample policy", func() {
+			var policy01, policy02 *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy01 = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				By(fmt.Sprintf("create policy %s without drop", policy01.Name))
+				Expect(k8sClient.Create(ctx, policy01)).Should(Succeed())
+
+				policy02 = newTestPolicy(group1, group2, group3, newTestPort("TCP", "443"), newTestPort("UDP", "123"))
+				By(fmt.Sprintf("create policy %s without drop", policy02.Name))
+				Expect(k8sClient.Create(ctx, policy02)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertPolicyRulesNum(policy01, 4)
+				assertPolicyRulesNum(policy02, 4)
+				assertCompleteRuleNum(8)
+
+				assertHasPolicyRule(policy01, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertHasPolicyRule(policy01, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+				assertHasPolicyRule(policy01, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(policy01, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(policy02, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				assertHasPolicyRule(policy02, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+				assertHasPolicyRule(policy02, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+				assertHasPolicyRule(policy02, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+			})
+
+			When("remove one of security policy", func() {
+				BeforeEach(func() {
+					Expect(k8sClient.Delete(ctx, policy01)).Should(Succeed())
+				})
+
+				It("should not hang on policy rule remove", func() {
+					assertPolicyRulesNum(policy01, 0)
+					assertPolicyRulesNum(policy02, 4)
+					assertCompleteRuleNum(4)
+				})
+
+				When("remove another security policy", func() {
+					BeforeEach(func() {
+						By("wait for policy rule generated")
+						time.Sleep(5 * time.Second)
+						By(fmt.Sprintf("delete policy %+v", policy02))
+						Expect(k8sClient.Delete(ctx, policy02)).Should(Succeed())
+					})
+
+					It("should not hang on policy rule remove", func() {
+						assertPolicyRulesNum(policy01, 0)
+						assertPolicyRulesNum(policy02, 0)
+						assertCompleteRuleNum(0)
+					})
+				})
+			})
+		})
 	})
 })
 
