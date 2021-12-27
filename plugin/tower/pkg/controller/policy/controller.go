@@ -352,6 +352,18 @@ func (c *Controller) handleVM(obj interface{}) {
 	for _, policy := range policies {
 		c.handleIsolationPolicy(policy)
 	}
+
+	// update systemEndpoints policy
+	systemEndpoints := c.systemEndpointLister.List()
+	if len(systemEndpoints) != 0 {
+		// TODO: replace for loop with vmIndex
+		for _, ep := range systemEndpoints[0].(*schema.SystemEndpoints).IDEndpoints {
+			if ep.VMID == obj.(*schema.VM).GetID() {
+				c.systemEndpointPolicyQueue.Add("key")
+				break
+			}
+		}
+	}
 }
 
 func (c *Controller) updateVM(old, new interface{}) {
