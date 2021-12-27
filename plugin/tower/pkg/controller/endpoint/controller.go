@@ -329,6 +329,7 @@ func (c *Controller) deleteEndpoint(old interface{}) {
 
 func (c *Controller) addEverouteCluster(new interface{}) {
 	cluster := new.(*schema.EverouteCluster)
+	klog.Infof("receive everouteCluster add: %+v", cluster)
 	for _, controller := range cluster.ControllerInstances {
 		if validation.IsValidIP(controller.IPAddr) == nil {
 			c.staticEndpointQueue.Add(GetCtrlEndpointName(cluster.ID, controller))
@@ -343,6 +344,7 @@ func (c *Controller) deleteEverouteCluster(old interface{}) {
 		old = d.Obj
 	}
 	cluster := old.(*schema.EverouteCluster)
+	klog.Infof("receive everouteCluster delete: %+v", cluster)
 	for _, ctrl := range cluster.ControllerInstances {
 		if ctrl.IPAddr != "" {
 			c.staticEndpointQueue.Add(GetCtrlEndpointName(cluster.ID, ctrl))
@@ -358,6 +360,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 		return
 	}
 
+	klog.Infof("receive everouteCluster update: %+v", newEverouteCluster)
 	for _, ctrl := range oldEverouteCluster.ControllerInstances {
 		c.staticEndpointQueue.Add(GetCtrlEndpointName(oldEverouteCluster.ID, ctrl))
 	}
@@ -371,6 +374,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 }
 
 func (c *Controller) addSystemEndpoints(new interface{}) {
+	klog.Infof("receive systemEndpoints add: %+v", new.(*schema.SystemEndpoints))
 	for _, ip := range new.(*schema.SystemEndpoints).IPPortEndpoints {
 		if validation.IsValidIP(ip.IP) == nil {
 			c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
@@ -384,6 +388,7 @@ func (c *Controller) deleteSystemEndpoints(old interface{}) {
 	if d, ok := old.(cache.DeletedFinalStateUnknown); ok {
 		old = d.Obj
 	}
+	klog.Infof("receive systemEndpoints delete: %+v", old.(*schema.SystemEndpoints))
 	for _, ip := range old.(*schema.SystemEndpoints).IPPortEndpoints {
 		c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 	}
@@ -396,7 +401,7 @@ func (c *Controller) updateSystemEndpoints(old, new interface{}) {
 	if reflect.DeepEqual(oldSystemEndpoints.IPPortEndpoints, newSystemEndpoints.IPPortEndpoints) {
 		return
 	}
-
+	klog.Infof("receive systemEndpoints update: %+v", new.(*schema.SystemEndpoints))
 	for _, ip := range oldSystemEndpoints.IPPortEndpoints {
 		c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 	}
