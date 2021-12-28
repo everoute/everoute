@@ -237,7 +237,7 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 	var oldRuleList []policycache.PolicyRule
 
 	// retrieve policy completeRules from cache
-	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
+	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
 		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
 		// start a force full synchronization of policyrule
@@ -252,7 +252,7 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
 	var oldRuleList []policycache.PolicyRule
 
-	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
+	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
 		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
 	}
@@ -282,7 +282,7 @@ func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.Secur
 	}
 
 	// todo: replace delete and add completeRules with update
-	oldCompleteRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Name+"/"+policy.Namespace)
+	oldCompleteRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, oldCompleteRule := range oldCompleteRules {
 		_ = r.ruleCache.Delete(oldCompleteRule)
 	}
@@ -317,7 +317,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "ingress", rule.Name),
+				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "ingress", rule.Name),
 				Tier:          policy.Spec.Tier,
 				Action:        policycache.RuleActionAllow,
 				Direction:     policycache.RuleDirectionIn,
@@ -352,7 +352,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultIngressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "ingress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "ingress"),
 				Tier:              policy.Spec.Tier,
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionIn,
@@ -370,7 +370,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if egressEnabled {
 		for _, rule := range policy.Spec.EgressRules {
 			egressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "egress", rule.Name),
+				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "egress", rule.Name),
 				Tier:          policy.Spec.Tier,
 				Action:        policycache.RuleActionAllow,
 				Direction:     policycache.RuleDirectionOut,
@@ -405,7 +405,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultEgressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Name, policy.Namespace, "default", "egress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "egress"),
 				Tier:              policy.Spec.Tier,
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionOut,

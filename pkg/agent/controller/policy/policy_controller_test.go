@@ -797,13 +797,11 @@ var _ = Describe("CompleteRuleCache", func() {
 	})
 
 	When("add a completerule to rule cache", func() {
-		var policyName, policyNamespace, policyNamespacedName, ruleID, srcGroup, dstGroup string
+		var policyNamespacedName, ruleID, srcGroup, dstGroup string
 
 		BeforeEach(func() {
-			policyName = rand.String(6)
-			policyNamespace = rand.String(6)
-			policyNamespacedName = policyName + "/" + policyNamespace
-			ruleID = fmt.Sprintf("%s/%s/%s", policyName, policyNamespace, rand.String(6))
+			policyNamespacedName = rand.String(6) + "/" + rand.String(6)
+			ruleID = fmt.Sprintf("%s/%s", policyNamespacedName, rand.String(6))
 			srcGroup = rand.String(6)
 			dstGroup = rand.String(6)
 
@@ -1131,7 +1129,7 @@ func assertNoPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 
 func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule {
 	var policyRuleList []cache.PolicyRule
-	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Name+"/"+policy.Namespace)
+	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
 		policyRuleList = append(policyRuleList, completeRule.(*cache.CompleteRule).ListRules()...)
 	}
