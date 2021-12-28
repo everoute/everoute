@@ -53,7 +53,7 @@ const (
 	responseChanLenth = 10
 )
 
-// subscription subscribe change of objects, subscribe will stop when get response error, subscribe
+// Subscription subscribe change of objects, subscribe will stop when get response error, subscribe
 // also could be stopped by run return function stopWatch().
 func (c *Client) Subscription(req *Request) (respCh <-chan Response, stopWatch func(), err error) {
 	var respChan = make(chan Response, responseChanLenth)
@@ -79,12 +79,12 @@ func (c *Client) Subscription(req *Request) (respCh <-chan Response, stopWatch f
 	}
 
 	var stopChan = make(chan struct{})
-	go lookReadMessage(conn, respChan, stopChan)
+	go loopReadMessage(conn, respChan, stopChan)
 
 	return respChan, closeChanFunc(stopChan), nil
 }
 
-// query send query request to tower
+// Query send query request to tower
 func (c *Client) Query(req *Request) (*Response, error) {
 	var reqBody, respBody bytes.Buffer
 	var resp Response
@@ -119,7 +119,7 @@ func (c *Client) Query(req *Request) (*Response, error) {
 	return &resp, nil
 }
 
-// query send login request to tower, and save token
+// Auth send login request to tower, and save token
 func (c *Client) Auth() (string, error) {
 	var token string
 
@@ -257,8 +257,8 @@ func (c *Client) httpClient() *http.Client {
 	return c.HTTPClient
 }
 
-// lookReadMessage loop read message from conn until read error or get signal from stopChan
-func lookReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan chan struct{}) {
+// loopReadMessage loop read message from conn until read error or get signal from stopChan
+func loopReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan chan struct{}) {
 	// we close the connection before return
 	// goroutines read from the connection would get an error
 	defer conn.Close()
@@ -278,7 +278,7 @@ func lookReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan ch
 			default:
 				respChan <- resp
 				if len(resp.Errors) != 0 {
-					// stop watch if get response error
+					// stop watch when get response error
 					closeChanFunc(stopChan)()
 					return
 				}
