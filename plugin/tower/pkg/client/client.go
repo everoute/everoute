@@ -19,12 +19,14 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -245,14 +247,21 @@ func (c *Client) getToken() string {
 
 func (c *Client) dialer() *websocket.Dialer {
 	if c.Dialer == nil {
-		return websocket.DefaultDialer
+		// #nosec G402
+		return &websocket.Dialer{
+			Proxy:            http.ProxyFromEnvironment,
+			HandshakeTimeout: 45 * time.Second,
+			TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
+		}
 	}
 	return c.Dialer
 }
 
 func (c *Client) httpClient() *http.Client {
 	if c.HTTPClient == nil {
-		return http.DefaultClient
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
+		return &http.Client{Transport: transport}
 	}
 	return c.HTTPClient
 }
