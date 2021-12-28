@@ -278,6 +278,20 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	}
 	wg.Wait()
 
+	// add internal whitelist
+	for _, internalIP := range datapathManager.datapathConfig.InternalWhitelist {
+		// internal ingress rule
+		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), POLICY_DIRECTION_IN, POLICY_TIER2)
+		if err != nil {
+			log.Fatalf("Failed to add internal whitelist: %v", err)
+		}
+		// internal egress rule
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), POLICY_DIRECTION_OUT, POLICY_TIER2)
+		if err != nil {
+			log.Fatalf("Failed to add internal whitelist: %v", err)
+		}
+	}
+
 	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
 
 	go func() {
@@ -431,20 +445,6 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, whitelist []string,
 	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
-
-	// add internal whitelist
-	for _, internalIP := range whitelist {
-		// internal ingress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), POLICY_DIRECTION_IN, POLICY_TIER2)
-		if err != nil {
-			log.Fatalf("Failed to add internal whitelist: %v", err)
-		}
-		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), POLICY_DIRECTION_OUT, POLICY_TIER2)
-		if err != nil {
-			log.Fatalf("Failed to add internal whitelist: %v", err)
-		}
-	}
 
 	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
 		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
