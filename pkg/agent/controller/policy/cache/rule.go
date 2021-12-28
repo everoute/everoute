@@ -21,10 +21,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/everoute/everoute/pkg/utils"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/cache"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -66,7 +63,7 @@ type PolicyRule struct {
 type CompleteRule struct {
 	lock sync.RWMutex
 
-	// RuleID is an unique identifier of rule, it's always set to policyName/policyNamespace/ruleName.
+	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/ruleName.
 	RuleID string
 
 	Tier      string
@@ -144,7 +141,7 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, po
 }
 
 func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort) PolicyRule {
-	var ruleType RuleType = RuleTypeNormalRule
+	var ruleType = RuleTypeNormalRule
 	if rule.DefaultPolicyRule {
 		ruleType = RuleTypeDefaultRule
 	}
@@ -163,17 +160,11 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Action:      rule.Action,
 	}
 
-	ruleName := strings.Split(rule.RuleID, "/")[2]
-	policyName := utils.EncodeNamespacedName(k8stypes.NamespacedName{
-		Name:      strings.Split(rule.RuleID, "/")[0],
-		Namespace: strings.Split(rule.RuleID, "/")[1],
-	})
-
 	// todo: it is not appropriate to calculate the flowkey here
 	// we should get flowkey when add flow to datapath
 	flowKey := GenerateFlowKey(policyRule)
 
-	policyRule.Name = genRuleName(policyName, ruleName, flowKey)
+	policyRule.Name = fmt.Sprintf("%s-%s", rule.RuleID, flowKey)
 
 	return policyRule
 }
@@ -277,8 +268,8 @@ func groupIndexFunc(obj interface{}) ([]string, error) {
 
 func policyIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	policyName := strings.Split(rule.RuleID, "/")[0] + "/" + strings.Split(rule.RuleID, "/")[1]
-	return []string{policyName}, nil
+	policyNamespaceName := strings.Join(strings.Split(rule.RuleID, "/")[:2], "/")
+	return []string{policyNamespaceName}, nil
 }
 
 func NewCompleteRuleCache() cache.Indexer {
@@ -289,19 +280,6 @@ func NewCompleteRuleCache() cache.Indexer {
 			PolicyIndex: policyIndexFunc,
 		},
 	)
-}
-
-// genRuleName generate policy rule name as defined in RFC 1123.
-func genRuleName(policyName, ruleName, flowKey string) string {
-	var prefix = fmt.Sprintf("%s-%s", policyName, ruleName)
-	var suffix = fmt.Sprintf("%s-%s", HashName(10, policyName, ruleName), flowKey)
-
-	maxPrefixLength := validation.DNS1123SubdomainMaxLength - len(suffix) - 1
-	if len(prefix) >= maxPrefixLength {
-		prefix = prefix[:maxPrefixLength]
-	}
-
-	return fmt.Sprintf("%s-%s", prefix, suffix)
 }
 
 func GenerateFlowKey(rule PolicyRule) string {
