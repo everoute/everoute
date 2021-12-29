@@ -186,8 +186,8 @@ type AgentConf struct {
 }
 
 type Config struct {
-	ManagedVDSMap     map[string]string // map vds to ovsbr-name
-	InternalWhitelist []string          // internal whitelist IPs
+	ManagedVDSMap map[string]string // map vds to ovsbr-name
+	InternalIPs   []string          // internal IPs
 }
 
 type Endpoint struct {
@@ -273,13 +273,13 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		wg.Add(1)
 		go func(vdsID string) {
 			defer wg.Done()
-			InitializeVDS(datapathManager, vdsID, datapathManager.datapathConfig.InternalWhitelist, stopChan)
+			InitializeVDS(datapathManager, vdsID, stopChan)
 		}(vdsID)
 	}
 	wg.Wait()
 
-	// add internal whitelist
-	for _, internalIP := range datapathManager.datapathConfig.InternalWhitelist {
+	// add rules for internalIP
+	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
 		// internal ingress rule
 		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), POLICY_DIRECTION_IN, POLICY_TIER2)
 		if err != nil {
@@ -421,7 +421,7 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.name, ovsVswitchdUnixDomainSockSuffix))
 }
 
-func InitializeVDS(datapathManager *DpManager, vdsID string, whitelist []string, stopChan <-chan struct{}) {
+func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan struct{}) {
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
 		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
