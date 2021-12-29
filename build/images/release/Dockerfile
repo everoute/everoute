@@ -10,8 +10,9 @@ RUN go mod download
 RUN mkdir -p /opt/everoute/bin
 
 ARG CNI_BINARIES_VERSION=v1.0.0
+ARG TARGETARCH=amd64
 
-RUN wget -q -O - https://github.com/containernetworking/plugins/releases/download/$CNI_BINARIES_VERSION/cni-plugins-linux-amd64-$CNI_BINARIES_VERSION.tgz | tar xz -C /opt/everoute/bin ./host-local ./loopback ./portmap
+RUN wget -q -O - https://github.com/containernetworking/plugins/releases/download/$CNI_BINARIES_VERSION/cni-plugins-linux-$TARGETARCH-$CNI_BINARIES_VERSION.tgz | tar xz -C /opt/everoute/bin ./host-local ./loopback ./portmap
 
 ADD ./build/script/* /opt/everoute/bin/
 ADD . $GOPATH/src/everoute
