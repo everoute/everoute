@@ -40,8 +40,8 @@ type agentConfig struct {
 	DatapathConfig map[string]string `yaml:"datapathConfig"`
 	LocalGwIP      string            `yaml:"localGwIP,omitempty"`
 
-	// InternalWhitelist allow the items all ingress or egress traffics
-	InternalWhitelist []string `yaml:"internalWhitelist,omitempty"`
+	// InternalIPs allow the items all ingress and egress traffics
+	InternalIPs []string `yaml:"internalIPs,omitempty"`
 }
 
 func getAgentConfig() (*agentConfig, error) {
@@ -68,7 +68,7 @@ func getDatapathConfig() (*datapath.Config, error) {
 	}
 
 	dpConfig := &datapath.Config{
-		InternalWhitelist: agentConfig.InternalWhitelist,
+		InternalIPs: agentConfig.InternalIPs,
 	}
 
 	managedVDSMap := make(map[string]string)
