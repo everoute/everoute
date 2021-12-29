@@ -573,7 +573,7 @@ func (c *Controller) syncEverouteClusterPolicy(key string) error {
 		clusters = append(clusters, cluster.(*schema.EverouteCluster))
 	}
 
-	// process controller ip whitelist
+	// process controller ip policy
 	ctrlPolicy, _ := c.parseControllerPolicy(clusters)
 	err := c.applyPoliciesChanges([]string{c.getControllerPolicyKey()}, ctrlPolicy)
 	if err != nil {
