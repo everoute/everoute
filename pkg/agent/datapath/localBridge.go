@@ -31,11 +31,13 @@ import (
 
 //nolint
 const (
-	VLAN_INPUT_TABLE          = 0
-	L2_FORWARDING_TABLE       = 5
-	L2_LEARNING_TABLE         = 10
-	FROM_LOCAL_REDIRECT_TABLE = 15
-	FACK_MAC                  = "ee:ee:ee:ee:ee:ee"
+	VLAN_INPUT_TABLE                   = 0
+	L2_FORWARDING_TABLE                = 5
+	L2_LEARNING_TABLE                  = 10
+	FROM_LOCAL_REDIRECT_TABLE          = 15
+	FROM_LOCAL_ARP_PASS_TABLE          = 20
+	FROM_LOCAL_ARP_TO_CONTROLLER_TABLE = 25
+	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 )
 
 type LocalBridge struct {
@@ -47,6 +49,8 @@ type LocalBridge struct {
 	localEndpointL2ForwardingTable *ofctrl.Table // Table 5
 	localEndpointL2LearningTable   *ofctrl.Table // table 10
 	fromLocalRedirectTable         *ofctrl.Table // Table 15
+	fromLocalArpPassTable          *ofctrl.Table // Table 20
+	fromLocalArpSendToCtrlTable    *ofctrl.Table // Table 25
 
 	// Table 0
 	fromLocalEndpointFlow map[uint32]*ofctrl.Flow // map local endpoint interface ofport to its fromLocalEndpointFlow
@@ -155,8 +159,6 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 		} else if ok && ipReference.updateTimes > 0 {
 			l.processLocalEndpointUpdate(arpIn, inPort)
 		}
-		// NOTE output to local-to-policy-patch port
-		l.arpOutput(pkt, inPort, uint32(LOCAL_TO_POLICY_PORT))
 	default:
 		log.Infof("error pkt type")
 	}
@@ -212,24 +214,6 @@ func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint3
 	l.datapathManager.ofPortIPAddressUpdateChan <- updatedOfPortInfo
 }
 
-func (l *LocalBridge) arpOutput(pkt protocol.Ethernet, inPort uint32, outputPort uint32) {
-	arpIn := pkt.Data.(*protocol.ARP)
-
-	ethPkt := protocol.NewEthernet()
-	ethPkt.VLANID = pkt.VLANID
-	ethPkt.HWDst = pkt.HWDst
-	ethPkt.HWSrc = pkt.HWSrc
-	ethPkt.Ethertype = PROTOCOL_ARP
-	ethPkt.Data = arpIn
-
-	pktOut := openflow13.NewPacketOut()
-	pktOut.InPort = inPort
-	pktOut.Data = ethPkt
-	pktOut.AddAction(openflow13.NewActionOutput(outputPort))
-
-	l.OfSwitch.Send(pktOut)
-}
-
 // specific type Bridge interface
 func (l *LocalBridge) BridgeInit() {
 	sw := l.OfSwitch
@@ -238,6 +222,8 @@ func (l *LocalBridge) BridgeInit() {
 	l.localEndpointL2ForwardingTable, _ = sw.NewTable(L2_FORWARDING_TABLE)
 	l.localEndpointL2LearningTable, _ = sw.NewTable(L2_LEARNING_TABLE)
 	l.fromLocalRedirectTable, _ = sw.NewTable(FROM_LOCAL_REDIRECT_TABLE)
+	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
+	l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
 
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
@@ -249,6 +235,12 @@ func (l *LocalBridge) BridgeInit() {
 		log.Fatalf("Failed to init local bridge l2 learning table, error: %v", err)
 	}
 	if err := l.initFromLocalRedirectTable(sw); err != nil {
+		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
+	}
+	if err := l.initFromLocalArpPassTable(sw); err != nil {
+		log.Fatalf("Failed to init local bridge from local arp pass table, error: %v", err)
+	}
+	if err := l.initFromLocalArpSendToCtrlTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 	}
 }
@@ -574,23 +566,55 @@ func (l *LocalBridge) initFromLocalL2LearningTable() error {
 }
 
 func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
-	// Table 6 from local redirect flow
-	fromLocalArpRedirectFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+	// from local arp, duplicate it, send one to of controller to ip learning; send other to local to policy port
+	fromLocalArpFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_ARP,
 	})
-	sendToControllerAct := fromLocalArpRedirectFlow.NewControllerAction(sw.ControllerID, 0)
-	_ = fromLocalArpRedirectFlow.SendToController(sendToControllerAct)
-	if err := fromLocalArpRedirectFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalArpPassTable.TableId); err != nil {
+		return err
+	}
+	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalArpSendToCtrlTable.TableId); err != nil {
+		return err
+	}
+	if err := fromLocalArpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install from local arp redirect flow, error: %v", err)
 	}
 
-	fromLocalRedirectFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
-		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	// from local other protocol type, send to local to policy port
+	fromLocalOtherRedirectFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY,
 	})
 	outputPort, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
-	if err := fromLocalRedirectFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install from local redirect flow, error: %v", err)
+	if err := fromLocalOtherRedirectFlow.Next(outputPort); err != nil {
+		return fmt.Errorf("failed to install from local other redirect flow, error: %v", err)
+	}
+
+	return nil
+}
+
+func (l *LocalBridge) initFromLocalArpPassTable(sw *ofctrl.OFSwitch) error {
+	fromLocalArpPassFlow, _ := l.fromLocalArpPassTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_ARP,
+	})
+	outputPort, _ := l.OfSwitch.OutputPort(LOCAL_TO_POLICY_PORT)
+	if err := fromLocalArpPassFlow.Next(outputPort); err != nil {
+		return fmt.Errorf("failed to install from local arp pass flow, error: %v", err)
+	}
+
+	return nil
+}
+
+func (l *LocalBridge) initFromLocalArpSendToCtrlTable(sw *ofctrl.OFSwitch) error {
+	fromLocalArpSendToCtrlFlow, _ := l.fromLocalArpSendToCtrlTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_ARP,
+	})
+	sendToControllerAct := fromLocalArpSendToCtrlFlow.NewControllerAction(sw.ControllerID, 0)
+	_ = fromLocalArpSendToCtrlFlow.SendToController(sendToControllerAct)
+	if err := fromLocalArpSendToCtrlFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install from local arp send to controller flow, error: %v", err)
 	}
 
 	return nil
