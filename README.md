@@ -69,7 +69,7 @@ SmartX virtualization platform [SMTX OS](https://www.smartx.com/smtx-os).
 * **Kubernetes Platform**: For the Kubernetes platform, Everoute provides
 the native K8s CNI network plug-in. The Everoute CNI supports Pod connection
 management, Network Policies, cluster service and NodePort etc. Details please
-refer to [Everoute CNI](https://github.com/everoute/everoute/blob/dev/docs/cni/README.md) 
+refer to [Everoute CNI](https://github.com/everoute/everoute/blob/main/docs/cni/README.md) 
 
 * **Virtualization Platform**: [SMTX OS](https://www.smartx.com/smtx-os)
 is [SmartX](https://www.smartx.com) native virtualization platform.
