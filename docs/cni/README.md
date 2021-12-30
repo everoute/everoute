@@ -7,7 +7,7 @@ and standard NetworkPolicy network strategy
 
 ## Prerequisites
 ### Kubernetes cluster
-+ support version: `v1.16.0 ~ v1.21.5`.
++ support version: `v1.17.0 ~ v1.21.5`.
 + When deploying a cluster with kubeadm the `--pod-network-cidr <cidr>` option must be specified.
 + Open vSwitch kernel module must be present on every Kubernetes node.
 
@@ -17,23 +17,24 @@ and standard NetworkPolicy network strategy
 3. Check config file in `/etc/cni/net.d/` has been removed. `!important`
 
 ## Image
+
+### Public docker hub (recommended)
+https://hub.docker.com/repository/docker/everoute/release
+
+The latest version of everoute CNI is `1.0.0` current
+
 ### Build image
 ```shell
-git clone https://github.com/everoute/everoute.git
+git clone -b 1.0.0 https://github.com/everoute/everoute.git
 cd everoute
-make images
+make image
 ```
 images need to be manually distributed to each node.
 
-### Public docker hub (recommended)
-hub.docker.io - everoute/release
-
-The latest version of everoute CNI is `v0.9.1` current
-
 ## Deployment
-By default, we will get the latest version of everoute.
+
 ```shell
-wget https://raw.githubusercontent.com/everoute/everoute/main/deploy/everoute.yaml
+wget https://raw.githubusercontent.com/everoute/everoute/1.0.0/deploy/everoute.yaml
 kubectl apply -f everoute.yaml
 ```
 
