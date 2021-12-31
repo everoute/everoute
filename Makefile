@@ -8,10 +8,10 @@ bin: controller agent cni
 images: image image-generate
 
 image:
-	docker build -f build/images/release/Dockerfile -t everoute/release .
+	docker buildx build -f build/images/release/Dockerfile -t everoute/release .
 
 image-generate:
-	docker build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
+	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
 
 yaml:
 	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
