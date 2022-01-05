@@ -7,6 +7,8 @@ build:
     - image: everoute/release
       docker:
         dockerfile: build/images/release/Dockerfile
+  local:
+    useBuildkit: true
 deploy:
   kubectl:
     manifests:
