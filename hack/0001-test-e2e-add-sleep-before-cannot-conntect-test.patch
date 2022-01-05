@@ -1,0 +1,25 @@
+From 791e87f9469d1fe2a80ea2bd5780ca393105a0f2 Mon Sep 17 00:00:00 2001
+From: Changliang Wu <changliang.wu@smartx.com>
+Date: Mon, 10 Jan 2022 10:43:18 +0800
+Subject: [PATCH] test(e2e): add sleep before cannot conntect test
+
+---
+ test/e2e/network/netpol/network_legacy.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/e2e/network/netpol/network_legacy.go b/test/e2e/network/netpol/network_legacy.go
+index 0015b6ab5f1..df254138d32 100644
+--- a/test/e2e/network/netpol/network_legacy.go
++++ b/test/e2e/network/netpol/network_legacy.go
+@@ -2143,7 +2143,7 @@ func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *
+ 					Command: []string{"/bin/sh"},
+ 					Args: []string{
+ 						"-c",
+-						fmt.Sprintf("for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
++						fmt.Sprintf("sleep 10; for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
+ 					},
+ 				},
+ 			},
+-- 
+2.30.1 (Apple Git-130)
+
