@@ -40,6 +40,10 @@ spec:
     matchLabels:
       app: everoute
       component: everoute-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1024
   template:
     metadata:
       labels:
