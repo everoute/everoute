@@ -70,13 +70,6 @@ var _ = AfterSuite(func() {
 	klog.Infof("run e2e-reset.sh to clean test environment")
 })
 
-const (
-	// default tier tier0, tier1, tier2
-	tier0 = "tier0"
-	tier1 = "tier1"
-	tier2 = "tier2"
-)
-
 func E2eFail(message string, callerSkip ...int) {
 	if e2eEnv == nil {
 		// skip dump resources when e2eEnv uninitialized
