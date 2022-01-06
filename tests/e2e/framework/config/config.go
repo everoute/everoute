@@ -40,13 +40,19 @@ type Config struct {
 
 	Endpoint     EndpointConfig     `yaml:"endpoint"`
 	GlobalPolicy GlobalPolicyConfig `yaml:"globalPolicy,omitempty"`
+	Nodes        NodesConfig        `yaml:"nodes,omitempty"`
 	IPAM         *IPAMConfig        `yaml:"ipam,omitempty"`
-	Nodes        []NodeConfig       `yaml:"nodes,omitempty"`
 	Timeout      *time.Duration     `yaml:"timeout,omitempty"`
 	Interval     *time.Duration     `yaml:"interval,omitempty"`
 
 	// In which namespace are endpoints and policies created
 	Namespace string `yaml:"namespace,omitempty"`
+}
+
+type NodesConfig struct {
+	DisableAgentRestarter      bool         `yaml:"disableAgentRestarter,omitempty"`
+	DisableControllerRestarter bool         `yaml:"disableControllerRestarter,omitempty"`
+	Instances                  []NodeConfig `yaml:"instances,omitempty"`
 }
 
 type NodeConfig struct {

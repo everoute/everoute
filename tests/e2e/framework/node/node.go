@@ -178,12 +178,16 @@ func loadLocalSigner() (ssh.Signer, error) {
 
 // Manager manage and cached all nodes
 type Manager struct {
-	nodeMap map[string]*Node
+	nodeMap                    map[string]*Node
+	disableAgentRestarter      bool
+	disableControllerRestarter bool
 }
 
-func NewManager(nodes ...*Node) *Manager {
+func NewManager(disableAgentRestarter, disableControllerRestarter bool, nodes ...*Node) *Manager {
 	manager := Manager{
-		nodeMap: make(map[string]*Node, len(nodes)),
+		nodeMap:                    make(map[string]*Node, len(nodes)),
+		disableAgentRestarter:      disableAgentRestarter,
+		disableControllerRestarter: disableControllerRestarter,
 	}
 
 	for _, node := range nodes {
@@ -193,11 +197,10 @@ func NewManager(nodes ...*Node) *Manager {
 	return &manager
 }
 
-func NewManagerFromConfig(nodeConfigs []config.NodeConfig) (*Manager, error) {
-	var nodes = make([]*Node, 0, len(nodeConfigs))
-	var errList []error
+func NewManagerFromConfig(nodesConfig *config.NodesConfig) (*Manager, error) {
+	var nodes = make([]*Node, 0, len(nodesConfig.Instances))
 
-	for _, nodeConfig := range nodeConfigs {
+	for _, nodeConfig := range nodesConfig.Instances {
 		node := Node{
 			Name:     nodeConfig.Name,
 			Roles:    sets.NewString(nodeConfig.Roles...),
@@ -227,7 +230,7 @@ func NewManagerFromConfig(nodeConfigs []config.NodeConfig) (*Manager, error) {
 		nodes = append(nodes, &node)
 	}
 
-	return NewManager(nodes...), errutils.NewAggregate(errList)
+	return NewManager(nodesConfig.DisableAgentRestarter, nodesConfig.DisableControllerRestarter, nodes...), nil
 }
 
 func (m *Manager) GetAgent(name string) (*Agent, error) {
@@ -323,14 +326,18 @@ func (m *Manager) ListController() []*Controller {
 	return agents
 }
 
-func (m *Manager) ServiceRestarter(minInterval, maxInterval int, ignoreController bool) *ServiceRestarter {
+// ServiceRestarter random restart controller and agent when e2e
+// Deprecated, we should use external chaos engineering tools to replace restarter
+func (m *Manager) ServiceRestarter(minInterval, maxInterval int) *ServiceRestarter {
 	var serviceList []Service
 
-	for _, agent := range m.ListAgent() {
-		serviceList = append(serviceList, agent)
+	if !m.disableAgentRestarter {
+		for _, agent := range m.ListAgent() {
+			serviceList = append(serviceList, agent)
+		}
 	}
 
-	if !ignoreController {
+	if !m.disableControllerRestarter {
 		for _, controller := range m.ListController() {
 			serviceList = append(serviceList, controller)
 		}

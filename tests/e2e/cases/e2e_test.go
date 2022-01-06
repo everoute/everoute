@@ -59,9 +59,7 @@ var _ = BeforeSuite(func() {
 	// reset resource before start e2e
 	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())
 
-	// Will random restart controller and agent when e2e. Skip restart controller when provider
-	// is netns, because it may cause failed when create endpoint (failed to call webhook).
-	restarter := e2eEnv.NodeManager().ServiceRestarter(10, 30, e2eEnv.EndpointManager().Name() == "netns")
+	restarter := e2eEnv.NodeManager().ServiceRestarter(10, 30)
 	go restarter.Run(make(chan struct{}))
 })
 
