@@ -72,7 +72,7 @@ func NewFromKube(kubeConfig string) (*Framework, error) {
 	}
 
 	var nodeManager *node.Manager
-	if nodeManager, err = node.NewManagerFromConfig(cfg.Nodes); err != nil {
+	if nodeManager, err = node.NewManagerFromConfig(&cfg.Nodes); err != nil {
 		return nil, fmt.Errorf("unable get node manager: %s", err)
 	}
 

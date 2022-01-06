@@ -62,17 +62,19 @@ data:
   config: |-
     timeout: 60s
     nodes:
+      disableControllerRestarter: true
+      instances:
 $(
   for agent in $(echo ${APISERVER_EXPOSE_IP},${EVEROUTE_AGENT_HOSTLIST} | sed "s/,/\n/g" | sort -u); do
-    printf "    - name: %s\n" $agent
-    printf "      roles: \n"
-    printf "      - agent \n"
+    printf "      - name: %s\n" $agent
+    printf "        roles: \n"
+    printf "        - agent \n"
     if [[ $agent == "${APISERVER_EXPOSE_IP}" ]]; then
-    printf "      - controller \n"
+    printf "        - controller \n"
     fi
-    printf "      user: %s\n" ${USER}
-    printf "      dial-address: %s:22\n" $agent
-    printf "      bridge-name: ovsbr1\n"
+    printf "        user: %s\n" ${USER}
+    printf "        dial-address: %s:22\n" $agent
+    printf "        bridge-name: ovsbr1\n"
   done
 )
 EOF
