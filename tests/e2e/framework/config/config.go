@@ -43,6 +43,9 @@ type Config struct {
 	Nodes    []NodeConfig   `yaml:"nodes,omitempty"`
 	Timeout  *time.Duration `yaml:"timeout,omitempty"`
 	Interval *time.Duration `yaml:"interval,omitempty"`
+
+	// In which namespace are endpoints and policies created
+	Namespace string `yaml:"namespace,omitempty"`
 }
 
 type NodeConfig struct {
@@ -147,6 +150,10 @@ func verifyAndComplete(config *Config) (*Config, error) {
 
 	if config.Interval == nil {
 		config.Interval = &defaultInterval
+	}
+
+	if config.Namespace == "" {
+		config.Namespace = metav1.NamespaceDefault
 	}
 
 	return config, nil
