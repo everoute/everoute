@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,6 +37,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -76,7 +77,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	endpoint := v1alpha1.Endpoint{}
-	endpointReq := types.NamespacedName{
+	endpointReq := k8stypes.NamespacedName{
 		Namespace: req.Namespace,
 		Name:      endpointName,
 	}
@@ -88,11 +89,11 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		endpoint.Namespace = req.Namespace
 		endpoint.Spec.VID = 0
 		endpoint.Spec.Reference.ExternalIDName = "pod-uuid"
-		endpoint.Spec.Reference.ExternalIDValue = utils.EncodeNamespacedName(types.NamespacedName{
+		endpoint.Spec.Reference.ExternalIDValue = utils.EncodeNamespacedName(k8stypes.NamespacedName{
 			Name:      endpointName,
 			Namespace: req.Namespace,
 		})
-		endpoint.Spec.Type = v1alpha1.EndpointDynamic
+		endpoint.Spec.Type = v1alpha1.EndpointStatic
 		endpoint.ObjectMeta.Labels = map[string]string{}
 		for key, value := range pod.ObjectMeta.Labels {
 			endpoint.ObjectMeta.Labels[key] = value
@@ -103,7 +104,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		}
 	case metav1.StatusReasonUnknown: // no error
-		// update pod
+		// update pod label
 		endpoint.ObjectMeta.Labels = map[string]string{} // clear old labels
 		for key, value := range pod.ObjectMeta.Labels {
 			endpoint.ObjectMeta.Labels[key] = value
@@ -112,6 +113,14 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err := r.Update(ctx, &endpoint); err != nil {
 			klog.Errorf("update endpoint %s err: %s", endpointName, err)
 			return ctrl.Result{}, err
+		}
+		// update pod IP
+		if pod.Status.PodIP != "" {
+			endpoint.Status.IPs = []types.IPAddress{types.IPAddress(pod.Status.PodIP)}
+			if err := r.Status().Update(ctx, &endpoint); err != nil {
+				klog.Errorf("update endpoint status %s err: %s", endpointName, err)
+				return ctrl.Result{}, err
+			}
 		}
 	default: // other errors
 		klog.Errorf("Get endpoint error, err: %s", err)
@@ -156,7 +165,7 @@ func (r *PodReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitin
 
 	// only handle endpoint with "pod-" prefix
 	if strings.HasPrefix(e.Meta.GetName(), "pod-") {
-		q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
+		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 			Namespace: e.Meta.GetNamespace(),
 			Name:      strings.TrimPrefix(e.Meta.GetName(), "pod-"),
 		}})
