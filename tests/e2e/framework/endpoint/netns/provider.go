@@ -38,13 +38,15 @@ import (
 // provider provide endpoint from netns
 type provider struct {
 	ipPool      ipam.Pool
+	namespace   string // in which namespace are endpoints created
 	nodeManager *node.Manager
 	kubeClient  clientset.Interface
 }
 
-func NewProvider(pool ipam.Pool, nodeManager *node.Manager, client clientset.Interface) model.EndpointProvider {
+func NewProvider(pool ipam.Pool, namespace string, nodeManager *node.Manager, client clientset.Interface) model.EndpointProvider {
 	return &provider{
 		ipPool:      pool,
+		namespace:   namespace,
 		nodeManager: nodeManager,
 		kubeClient:  client,
 	}
@@ -66,7 +68,7 @@ func (m *provider) Get(ctx context.Context, name string) (*model.Endpoint, error
 func (m *provider) List(ctx context.Context) ([]*model.Endpoint, error) {
 	var epList []*model.Endpoint
 
-	list, err := m.kubeClient.SecurityV1alpha1().Endpoints(metav1.NamespaceDefault).List(ctx, metav1.ListOptions{})
+	list, err := m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +102,7 @@ func (m *provider) Create(ctx context.Context, endpoint *model.Endpoint) (*model
 		return nil, fmt.Errorf("failed build endpoint %s status: %s", endpoint.Name, err)
 	}
 
-	_, err = m.kubeClient.SecurityV1alpha1().Endpoints(metav1.NamespaceDefault).Create(ctx, toCrdEndpoint(endpoint, ""), metav1.CreateOptions{})
+	_, err = m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Create(ctx, toCrdEndpoint(endpoint, ""), metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable create endpoint %s: %s", endpoint.Name, err)
 	}
@@ -151,7 +153,7 @@ func (m *provider) Delete(ctx context.Context, name string) error {
 		return fmt.Errorf("unable delete endpoint %s on agent %s: %s", endpoint.Name, endpoint.Status.Host, err)
 	}
 
-	return m.kubeClient.SecurityV1alpha1().Endpoints(metav1.NamespaceDefault).Delete(ctx, name, metav1.DeleteOptions{})
+	return m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
 func (m *provider) RenewIP(ctx context.Context, name string) (*model.Endpoint, error) {
@@ -253,7 +255,7 @@ func (m *provider) updateEndpoint(ctx context.Context, endpoint *model.Endpoint,
 
 	for {
 		crdEp := toCrdEndpoint(endpoint, rv)
-		_, err = m.kubeClient.SecurityV1alpha1().Endpoints(metav1.NamespaceDefault).Update(ctx, crdEp, metav1.UpdateOptions{})
+		_, err = m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Update(ctx, crdEp, metav1.UpdateOptions{})
 
 		if err != nil && apierrors.IsConflict(err) {
 			// if got error StatusReasonConflict, fetch resource version and try again
@@ -269,7 +271,7 @@ func (m *provider) updateEndpoint(ctx context.Context, endpoint *model.Endpoint,
 }
 
 func (m *provider) getEndpoint(ctx context.Context, name string) (*model.Endpoint, string, error) {
-	crdEp, err := m.kubeClient.SecurityV1alpha1().Endpoints(metav1.NamespaceDefault).Get(ctx, name, metav1.GetOptions{})
+	crdEp, err := m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, "", err
 	}

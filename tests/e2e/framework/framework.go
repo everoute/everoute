@@ -38,6 +38,9 @@ import (
 )
 
 type Framework struct {
+	// start e2e in the specified namespace
+	// all resources for e2e should create in the namespace
+	namespace  string
 	kubeClient client.Client
 
 	epManager   *endpoint.Manager
@@ -72,7 +75,8 @@ func NewFromKube(kubeConfig string) (*Framework, error) {
 
 	f := &Framework{
 		kubeClient:  kubeClient,
-		epManager:   endpoint.NewManager(ipPool, nodeManager, &cfg.Endpoint),
+		namespace:   cfg.Namespace,
+		epManager:   endpoint.NewManager(ipPool, cfg.Namespace, nodeManager, &cfg.Endpoint),
 		nodeManager: nodeManager,
 		timeout:     *cfg.Timeout,
 		interval:    *cfg.Interval,
@@ -136,7 +140,7 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 		return fmt.Errorf("clean endpoints: %s", err)
 	}
 
-	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.InNamespace(metav1.NamespaceDefault))
+	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.InNamespace(f.Namespace()))
 	if err != nil {
 		return fmt.Errorf("clean policies: %s", err)
 	}
@@ -155,4 +159,8 @@ func (f *Framework) Timeout() time.Duration {
 
 func (f *Framework) Interval() time.Duration {
 	return f.interval
+}
+
+func (f *Framework) Namespace() string {
+	return f.namespace
 }

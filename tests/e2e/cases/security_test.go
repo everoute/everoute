@@ -732,7 +732,7 @@ func newSelector(selector map[string]string) *metav1.LabelSelector {
 func newPolicy(name, tier string, defaultRule securityv1alpha1.DefaultRuleType, appliedPeers ...interface{}) *securityv1alpha1.SecurityPolicy {
 	policy := &securityv1alpha1.SecurityPolicy{}
 	policy.Name = name
-	policy.Namespace = metav1.NamespaceDefault
+	policy.Namespace = e2eEnv.Namespace()
 	policy.Spec.Tier = tier
 	policy.Spec.DefaultRule = defaultRule
 	policy.Spec.PolicyTypes = []networkingv1.PolicyType{

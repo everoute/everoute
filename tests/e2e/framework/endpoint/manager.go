@@ -39,13 +39,13 @@ type Manager struct {
 	model.EndpointProvider
 }
 
-func NewManager(pool ipam.Pool, nodeManager *node.Manager, config *config.EndpointConfig) *Manager {
+func NewManager(pool ipam.Pool, namespace string, nodeManager *node.Manager, config *config.EndpointConfig) *Manager {
 	var provider model.EndpointProvider
 
 	switch {
 	case config.Provider == nil, *config.Provider == "netns":
 		crdClient := clientset.NewForConfigOrDie(config.KubeConfig)
-		provider = netns.NewProvider(pool, nodeManager, crdClient)
+		provider = netns.NewProvider(pool, namespace, nodeManager, crdClient)
 
 	case *config.Provider == "tower":
 		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID)

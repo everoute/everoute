@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
@@ -108,7 +109,7 @@ func E2eFail(message string, callerSkip ...int) {
 
 func dumpAndPrintResource(splitLine string, resources ...runtime.Object) {
 	for _, resource := range resources {
-		err := e2eEnv.KubeClient().List(ctx, resource)
+		err := e2eEnv.KubeClient().List(ctx, resource, client.InNamespace(e2eEnv.Namespace()))
 		if err == nil {
 			raw, _ := json.Marshal(resource)
 			fmt.Printf("%sDump %T:\n%s\n\n", splitLine, resource, string(raw))
