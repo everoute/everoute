@@ -77,15 +77,15 @@ var _ = Describe("SecurityPolicy", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
+				nginxPolicy = newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
 				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
 
-				serverPolicy = newPolicy("server-policy", tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
+				serverPolicy = newPolicy("server-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
 				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
 				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
 
-				dbPolicy = newPolicy("db-policy", tier2, securityv1alpha1.DefaultRuleDrop, dbSelector)
+				dbPolicy = newPolicy("db-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, dbSelector)
 				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
 				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
 
@@ -184,10 +184,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				icmpDropPolicy = newPolicy("icmp-drop-policy", tier2, securityv1alpha1.DefaultRuleDrop, serverSelector, dbSelector)
+				icmpDropPolicy = newPolicy("icmp-drop-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector, dbSelector)
 				addIngressRule(icmpDropPolicy, "TCP", 0) // allow all tcp packets
 
-				icmpAllowPolicy = newPolicy("icmp-allow-policy", tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
+				icmpAllowPolicy = newPolicy("icmp-allow-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
 				addIngressRule(icmpAllowPolicy, "ICMP", 0) // allow all icmp packets
 
 				Expect(e2eEnv.SetupObjects(ctx, icmpAllowPolicy, icmpDropPolicy)).Should(Succeed())
@@ -233,7 +233,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var isolationPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				isolationPolicy = newPolicy("isolation-policy", tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
+				isolationPolicy = newPolicy("isolation-policy", constants.Tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
 
 				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
 			})
@@ -260,11 +260,11 @@ var _ = Describe("SecurityPolicy", func() {
 			var forensicPolicy2 *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				forensicPolicy1 = newPolicy("forensic-policy-ingress", tier1, securityv1alpha1.DefaultRuleDrop, ep01.Name)
+				forensicPolicy1 = newPolicy("forensic-policy-ingress", constants.Tier1, securityv1alpha1.DefaultRuleDrop, ep01.Name)
 				forensicPolicy1.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
 				addIngressRule(forensicPolicy1, "TCP", tcpPort, forensicGroup)
 
-				forensicPolicy2 = newPolicy("forensic-policy-egress", tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
+				forensicPolicy2 = newPolicy("forensic-policy-egress", constants.Tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
 				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				// set ep02 as forensic endpoint
@@ -320,11 +320,11 @@ var _ = Describe("SecurityPolicy", func() {
 			var forensicPolicy2 *securityv1alpha1.SecurityPolicy
 			var isolationPolicy *securityv1alpha1.SecurityPolicy
 			BeforeEach(func() {
-				forensicPolicy1 = newPolicy("forensic-policy-ingress", tier1, securityv1alpha1.DefaultRuleDrop, ep02.Name)
+				forensicPolicy1 = newPolicy("forensic-policy-ingress", constants.Tier1, securityv1alpha1.DefaultRuleDrop, ep02.Name)
 				forensicPolicy1.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
 				addIngressRule(forensicPolicy1, "TCP", tcpPort, forensicGroup)
 
-				forensicPolicy2 = newPolicy("forensic-policy-egress", tier0, securityv1alpha1.DefaultRuleDrop, ep02.Name)
+				forensicPolicy2 = newPolicy("forensic-policy-egress", constants.Tier0, securityv1alpha1.DefaultRuleDrop, ep02.Name)
 				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				// set ep02 as forensic endpoint
@@ -333,7 +333,7 @@ var _ = Describe("SecurityPolicy", func() {
 				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep01)).Should(Succeed())
 				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy1, forensicPolicy2)).Should(Succeed())
 
-				isolationPolicy = newPolicy("isolation-policy", tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
+				isolationPolicy = newPolicy("isolation-policy", constants.Tier0, securityv1alpha1.DefaultRuleDrop, ep01.Name)
 				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
 			})
 			It("isolation policy should have higher priority than forensic policy", func() {
@@ -358,11 +358,11 @@ var _ = Describe("SecurityPolicy", func() {
 				var forensicPolicy3 *securityv1alpha1.SecurityPolicy
 				var forensicPolicy4 *securityv1alpha1.SecurityPolicy
 				BeforeEach(func() {
-					forensicPolicy3 = newPolicy("forensic-policy2-ingress", tier1, securityv1alpha1.DefaultRuleDrop, ep03.Name)
+					forensicPolicy3 = newPolicy("forensic-policy2-ingress", constants.Tier1, securityv1alpha1.DefaultRuleDrop, ep03.Name)
 					forensicPolicy3.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
 					addIngressRule(forensicPolicy3, "TCP", tcpPort, forensicGroup2)
 
-					forensicPolicy4 = newPolicy("forensic-policy2-egress", tier0, securityv1alpha1.DefaultRuleDrop, ep03.Name)
+					forensicPolicy4 = newPolicy("forensic-policy2-egress", constants.Tier0, securityv1alpha1.DefaultRuleDrop, ep03.Name)
 					forensicPolicy4.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 					// set ep02 as forensic endpoint
@@ -430,10 +430,10 @@ var _ = Describe("SecurityPolicy", func() {
 			var ntpProductionPolicy, ntpDevelopmentPolicy *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				ntpProductionPolicy = newPolicy("ntp-production-policy", tier2, securityv1alpha1.DefaultRuleDrop, ntpProductionSelector)
+				ntpProductionPolicy = newPolicy("ntp-production-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ntpProductionSelector)
 				addIngressRule(ntpProductionPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: productionCidr})
 
-				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", tier2, securityv1alpha1.DefaultRuleDrop, ntpDevelopmentSelector)
+				ntpDevelopmentPolicy = newPolicy("ntp-development-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ntpDevelopmentSelector)
 				addIngressRule(ntpDevelopmentPolicy, "UDP", ntpPort, &networkingv1.IPBlock{CIDR: developmentCidr})
 
 				Expect(e2eEnv.SetupObjects(ctx, ntpProductionPolicy, ntpDevelopmentPolicy)).Should(Succeed())
@@ -496,7 +496,7 @@ var _ = Describe("SecurityPolicy", func() {
 			var securityPolicy1, securityPolicy2 *securityv1alpha1.SecurityPolicy
 
 			BeforeEach(func() {
-				securityPolicy1 = newPolicy("group1-policy", tier0, securityv1alpha1.DefaultRuleDrop, group1)
+				securityPolicy1 = newPolicy("group1-policy", constants.Tier0, securityv1alpha1.DefaultRuleDrop, group1)
 				addIngressRule(securityPolicy1, "TCP", epTCPPort, group2)
 				securityPolicy1.Spec.SymmetricMode = true
 
@@ -513,7 +513,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			When("Define a securityPolicy which semanticly conflict with existing securityPolicy", func() {
 				BeforeEach(func() {
-					securityPolicy2 = newPolicy("group2-policy", tier0, securityv1alpha1.DefaultRuleDrop, group2)
+					securityPolicy2 = newPolicy("group2-policy", constants.Tier0, securityv1alpha1.DefaultRuleDrop, group2)
 					addEngressRule(securityPolicy2, "TCP", epTCPPort, group3)
 
 					Expect(e2eEnv.SetupObjects(ctx, securityPolicy2)).Should(Succeed())
@@ -555,7 +555,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			BeforeEach(func() {
 				// allow traffic from groupA to groupB
-				groupPolicy = newPolicy("group-policy", tier2, securityv1alpha1.DefaultRuleDrop, groupA)
+				groupPolicy = newPolicy("group-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, groupA)
 				addEngressRule(groupPolicy, "TCP", tcpPort, groupB)
 				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
 			})
