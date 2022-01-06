@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -605,13 +604,10 @@ var _ = Describe("GlobalPolicy", func() {
 			assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 		})
 
-		When("create global drop policy", func() {
-			var globalPolicy *securityv1alpha1.GlobalPolicy
-
+		When("update global default action to drop", func() {
 			BeforeEach(func() {
 				// drop all traffics between endpoints
-				globalPolicy = newGlobalPolicy(securityv1alpha1.GlobalDefaultActionDrop)
-				Expect(e2eEnv.SetupObjects(ctx, globalPolicy)).Should(Succeed())
+				Expect(e2eEnv.GlobalPolicyProvider().SetDefaultAction(ctx, securityv1alpha1.GlobalDefaultActionDrop)).Should(Succeed())
 			})
 
 			It("should limits all traffics between endpoints", func() {
@@ -623,15 +619,13 @@ var _ = Describe("GlobalPolicy", func() {
 				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 			})
 
-			When("update global policy to default allow", func() {
+			When("update global default action to allow", func() {
 				BeforeEach(func() {
-					By("wait for global policy add to datapath")
+					By("wait for global drop policy add to datapath")
 					time.Sleep(5 * time.Second)
 
 					By("update global policy to default allow")
-					updateGlobalPolicy := globalPolicy.DeepCopy()
-					updateGlobalPolicy.Spec.DefaultAction = securityv1alpha1.GlobalDefaultActionAllow
-					Expect(e2eEnv.KubeClient().Patch(ctx, updateGlobalPolicy, client.MergeFrom(globalPolicy))).Should(Succeed())
+					Expect(e2eEnv.GlobalPolicyProvider().SetDefaultAction(ctx, securityv1alpha1.GlobalDefaultActionAllow)).Should(Succeed())
 				})
 
 				It("should allow all traffics between endpoints", func() {
@@ -650,7 +644,6 @@ var _ = Describe("GlobalPolicy", func() {
 		var endpointA, endpointB, endpointC *model.Endpoint
 		var tcpPort int
 		var internalPolicyA, whitelistPolicy *securityv1alpha1.SecurityPolicy
-		var globalPolicy *securityv1alpha1.GlobalPolicy
 
 		BeforeEach(func() {
 			tcpPort = rand.IntnRange(1000, 5000)
@@ -662,8 +655,7 @@ var _ = Describe("GlobalPolicy", func() {
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
 
 			// drop all traffics between endpoints
-			globalPolicy = newGlobalPolicy(securityv1alpha1.GlobalDefaultActionDrop)
-			Expect(e2eEnv.SetupObjects(ctx, globalPolicy)).Should(Succeed())
+			Expect(e2eEnv.GlobalPolicyProvider().SetDefaultAction(ctx, securityv1alpha1.GlobalDefaultActionDrop)).Should(Succeed())
 
 			// add ingress all and egress all for endpoints A, set endpoint A as an outside vm
 			internalPolicyA = newPolicy("internal-policy-a", constants.Tier2, securityv1alpha1.DefaultRuleNone)
@@ -759,15 +751,6 @@ func newPolicy(name, tier string, defaultRule securityv1alpha1.DefaultRuleType, 
 	}
 
 	return policy
-}
-
-func newGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction) *securityv1alpha1.GlobalPolicy {
-	var policy securityv1alpha1.GlobalPolicy
-
-	policy.Name = rand.String(6)
-	policy.Spec.DefaultAction = defaultAction
-
-	return &policy
 }
 
 func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, policyPeers ...interface{}) {
