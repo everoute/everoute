@@ -843,7 +843,7 @@ func assertFlowMatches(securityModel *SecurityModel) {
 		allFlows, err := e2eEnv.NodeManager().DumpFlowAll()
 		Expect(err).Should(Succeed())
 		return allFlows
-	}, 2*e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.ContainsFlow(expectFlows))
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.ContainsFlow(expectFlows))
 }
 
 func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, protocol string, expectReach bool) {
@@ -871,7 +871,7 @@ func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, 
 			}
 		}
 		return errors.NewAggregate(errList)
-	}, 2*e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
 }
 
 func assertMatchReachTable(protocol string, port int, expectedTruthTable *model.TruthTable) {
@@ -882,5 +882,5 @@ func assertMatchReachTable(protocol string, port int, expectedTruthTable *model.
 		tt, err := e2eEnv.EndpointManager().ReachTruthTable(ctx, protocol, port)
 		Expect(err).Should(Succeed())
 		return tt
-	}, 2*e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.MatchTruthTable(expectedTruthTable, true))
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.MatchTruthTable(expectedTruthTable, true))
 }
