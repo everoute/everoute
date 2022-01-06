@@ -646,6 +646,10 @@ var _ = Describe("GlobalPolicy", func() {
 		var internalPolicyA, whitelistPolicy *securityv1alpha1.SecurityPolicy
 
 		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "tower" {
+				Skip("skip verify policy applied to endpoint directly")
+			}
+
 			tcpPort = rand.IntnRange(1000, 5000)
 
 			endpointA = &model.Endpoint{Name: "ep.a", TCPPort: tcpPort}
