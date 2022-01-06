@@ -77,6 +77,11 @@ const (
 )
 
 func E2eFail(message string, callerSkip ...int) {
+	if e2eEnv == nil {
+		// skip dump resources when e2eEnv uninitialized
+		Fail(message, callerSkip...)
+	}
+
 	const splitLine = "------------------------\n"
 
 	// Dump and print flows
