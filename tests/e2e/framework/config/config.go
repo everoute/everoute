@@ -38,11 +38,12 @@ type Config struct {
 	// TowerClient connect to tower
 	TowerClient *client.Client `yaml:"tower-client,omitempty"`
 
-	Endpoint EndpointConfig `yaml:"endpoint"`
-	IPAM     *IPAMConfig    `yaml:"ipam,omitempty"`
-	Nodes    []NodeConfig   `yaml:"nodes,omitempty"`
-	Timeout  *time.Duration `yaml:"timeout,omitempty"`
-	Interval *time.Duration `yaml:"interval,omitempty"`
+	Endpoint     EndpointConfig     `yaml:"endpoint"`
+	GlobalPolicy GlobalPolicyConfig `yaml:"globalPolicy,omitempty"`
+	IPAM         *IPAMConfig        `yaml:"ipam,omitempty"`
+	Nodes        []NodeConfig       `yaml:"nodes,omitempty"`
+	Timeout      *time.Duration     `yaml:"timeout,omitempty"`
+	Interval     *time.Duration     `yaml:"interval,omitempty"`
 
 	// In which namespace are endpoints and policies created
 	Namespace string `yaml:"namespace,omitempty"`
@@ -70,6 +71,18 @@ type EndpointConfig struct {
 	VMTemplateID *string `yaml:"vm-template-id,omitempty"`
 	// create vm in the specify vds, only valid when provider is tower
 	VdsID *string `yaml:"vds-id,omitempty"`
+}
+
+type GlobalPolicyConfig struct {
+	// if provider is netns and kubeConfig is empty, config.KubeConfig will use
+	KubeConfig *rest.Config `yaml:"kube-config,omitempty"`
+	// if provider is tower and towerClient is empty, config.TowerClient will use
+	TowerClient *client.Client `yaml:"tower-client,omitempty"`
+
+	// Endpoint Provider, must "tower", "kubernetes" or nil, default kubernetes
+	Provider *string `yaml:"provider,omitempty"`
+	// update the specified ERCluster global action, only valid when provider is tower
+	EverouteClusterID *string `yaml:"everouteClusterID,omitempty"`
 }
 
 type IPAMConfig struct {
@@ -118,6 +131,19 @@ func verifyAndComplete(config *Config) (*Config, error) {
 	}
 	if config.Endpoint.TowerClient == nil {
 		config.Endpoint.TowerClient = config.TowerClient
+	}
+
+	if config.GlobalPolicy.KubeConfig == nil {
+		config.GlobalPolicy.KubeConfig = config.KubeConfig
+	}
+	if config.GlobalPolicy.TowerClient == nil {
+		config.GlobalPolicy.TowerClient = config.TowerClient
+	}
+
+	if config.GlobalPolicy.Provider != nil && *config.GlobalPolicy.Provider == "tower" {
+		if config.GlobalPolicy.EverouteClusterID == nil {
+			return nil, fmt.Errorf("EverouteClusterID must set when provider is tower")
+		}
 	}
 
 	if config.Endpoint.Provider != nil && *config.Endpoint.Provider == "tower" {

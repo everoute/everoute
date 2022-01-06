@@ -33,7 +33,9 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/tests/e2e/framework/config"
 	"github.com/everoute/everoute/tests/e2e/framework/endpoint"
+	"github.com/everoute/everoute/tests/e2e/framework/globalpolicy"
 	"github.com/everoute/everoute/tests/e2e/framework/ipam"
+	"github.com/everoute/everoute/tests/e2e/framework/model"
 	"github.com/everoute/everoute/tests/e2e/framework/node"
 )
 
@@ -43,8 +45,9 @@ type Framework struct {
 	namespace  string
 	kubeClient client.Client
 
-	epManager   *endpoint.Manager
-	nodeManager *node.Manager
+	epManager            *endpoint.Manager
+	nodeManager          *node.Manager
+	globalPolicyProvider model.GlobalPolicyProvider
 
 	timeout  time.Duration
 	interval time.Duration
@@ -74,12 +77,13 @@ func NewFromKube(kubeConfig string) (*Framework, error) {
 	}
 
 	f := &Framework{
-		kubeClient:  kubeClient,
-		namespace:   cfg.Namespace,
-		epManager:   endpoint.NewManager(ipPool, cfg.Namespace, nodeManager, &cfg.Endpoint),
-		nodeManager: nodeManager,
-		timeout:     *cfg.Timeout,
-		interval:    *cfg.Interval,
+		namespace:            cfg.Namespace,
+		kubeClient:           kubeClient,
+		epManager:            endpoint.NewManager(ipPool, cfg.Namespace, nodeManager, &cfg.Endpoint),
+		nodeManager:          nodeManager,
+		globalPolicyProvider: globalpolicy.NewProvider(&cfg.GlobalPolicy),
+		timeout:              *cfg.Timeout,
+		interval:             *cfg.Interval,
 	}
 
 	return f, nil
@@ -91,6 +95,10 @@ func (f *Framework) NodeManager() *node.Manager {
 
 func (f *Framework) EndpointManager() *endpoint.Manager {
 	return f.epManager
+}
+
+func (f *Framework) GlobalPolicyProvider() model.GlobalPolicyProvider {
+	return f.globalPolicyProvider
 }
 
 func (f *Framework) KubeClient() client.Client {
@@ -145,9 +153,9 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 		return fmt.Errorf("clean policies: %s", err)
 	}
 
-	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.GlobalPolicy{})
+	err = f.GlobalPolicyProvider().SetDefaultAction(ctx, securityv1alpha1.GlobalDefaultActionAllow)
 	if err != nil {
-		return fmt.Errorf("clean GlobalPolicy: %s", err)
+		return fmt.Errorf("reset GlobalPolicy: %s", err)
 	}
 
 	return nil
