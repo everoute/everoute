@@ -10,6 +10,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	ct "github.com/florianl/go-conntrack"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 //nolint
@@ -198,7 +201,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
-	var policyConntrackZone uint16 = 65520
+	var policyConntrackZone uint16 = constants.PolicyBridgeConntrackZone
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -396,6 +399,34 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8) (*ofctrl.Table,
 	return policyTable, nextTable, nil
 }
 
+func (p *PolicyBridge) removeConntrackEntry(rule *EveroutePolicyRule) error {
+	nfct, err := ct.Open(&ct.Config{})
+	if err != nil {
+		return fmt.Errorf("could not create nfct: %s", err)
+	}
+	defer nfct.Close()
+
+	var policyConntrackZone uint16 = constants.PolicyBridgeConntrackZone
+	srcIP := net.ParseIP(rule.SrcIPAddr)
+	dstIP := net.ParseIP(rule.DstIPAddr)
+
+	entry := ct.Con{
+		Origin: &ct.IPTuple{
+			Src: &srcIP,
+			Dst: &dstIP,
+			Proto: &ct.ProtoTuple{
+				Number: &rule.IPProtocol,
+			},
+		},
+		Zone: &policyConntrackZone,
+	}
+	if err := nfct.Delete(ct.Conntrack, ct.IPv4, entry); err != nil {
+		return fmt.Errorf("clear ct error: %s", err)
+	}
+
+	return nil
+}
+
 func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error) {
 	var ipDa *net.IP = nil
 	var ipDaMask *net.IP = nil
@@ -474,6 +505,11 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		log.Errorf("Unknown action in rule {%+v}", rule)
 		return nil, errors.New("unknown action in rule")
 	}
+
+	if err := p.removeConntrackEntry(rule); err != nil {
+		log.Errorf("fail to remove ct entry: %s", err)
+	}
+
 	return &FlowEntry{
 		Table:    policyTable,
 		Priority: ruleFlow.Match.Priority,

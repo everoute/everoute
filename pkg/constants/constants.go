@@ -38,6 +38,8 @@ const (
 	// Tier2 used for security policy and global policy
 	Tier2 = "tier2"
 
+	PolicyBridgeConntrackZone = 65520
+
 	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
 
 	EverouteWebhookName     = "validator.everoute.io"
