@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/tests/e2e/framework/config"
@@ -141,25 +140,6 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("clean policies: %s", err)
 	}
-	err = wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
-		var policies securityv1alpha1.SecurityPolicyList
-		if err := f.kubeClient.List(ctx, &policies); err != nil {
-			return false, err
-		}
-		return len(policies.Items) == 0, nil
-	})
-
-	err = f.kubeClient.DeleteAllOf(ctx, &groupv1alpha1.EndpointGroup{})
-	if err != nil {
-		return fmt.Errorf("clean groups: %s", err)
-	}
-	err = wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
-		var groups groupv1alpha1.EndpointGroupList
-		if err := f.kubeClient.List(ctx, &groups); err != nil {
-			return false, err
-		}
-		return len(groups.Items) == 0, nil
-	})
 
 	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.GlobalPolicy{})
 	if err != nil {
