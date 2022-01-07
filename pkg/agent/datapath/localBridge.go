@@ -188,8 +188,7 @@ func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
 }
 
 func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
-	_, ok := l.datapathManager.localEndpointDB.Get(fmt.Sprintf("%s-%d", l.name, inPort))
-	if !ok {
+	if !l.isOfPortExists(inPort) {
 		return
 	}
 
@@ -206,6 +205,17 @@ func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint
 			updateTimes:    ipReference.updateTimes - 1,
 		}
 	}
+}
+
+func (l *LocalBridge) isOfPortExists(inPort uint32) bool {
+	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
+		endpoint := endpointObj.Val.(*Endpoint)
+		if endpoint.BridgeName == l.name && endpoint.PortNo == inPort {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
