@@ -50,10 +50,11 @@ const (
 )
 
 type Iface struct {
-	IfaceName string
-	IfaceType string
-	MacAddr   net.HardwareAddr
-	OfPort    uint32
+	IfaceName  string
+	IfaceType  string
+	MacAddr    net.HardwareAddr
+	OfPort     uint32
+	externalID map[string]string
 }
 
 var (
@@ -228,9 +229,10 @@ func TestOvsDbEventHandler(t *testing.T) {
 	ep1MacAddrStr := "00:11:11:11:11:11"
 	ep1InterfaceExternalIds := map[string]string{"attached-mac": ep1MacAddrStr}
 	ep1Iface := Iface{
-		IfaceName: "ep1Iface",
-		IfaceType: "internal",
-		OfPort:    uint32(11),
+		IfaceName:  "ep1",
+		IfaceType:  "internal",
+		OfPort:     uint32(11),
+		externalID: ep1InterfaceExternalIds,
 	}
 
 	t.Logf("create new bridge %s", bridgeName)
@@ -238,7 +240,6 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	// Add local endpoint, set attached interface externalIDs
 	Expect(createOvsPort(bridgeName, ep1Port, []Iface{ep1Iface}, 0)).Should(Succeed())
-	Expect(updateInterface(ovsClient, ep1Iface.IfaceName, ep1InterfaceExternalIds)).Should(Succeed())
 
 	t.Run("Add local endpoint ep1", func(t *testing.T) {
 		Eventually(func() string {
@@ -277,19 +278,23 @@ func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ov
 	intfUUID := []ovsdb.UUID{}
 
 	for _, iface := range interfaces {
-		intfUUIDStr := iface.IfaceName
+		intfUUIDStr := fmt.Sprintf("Intf%s", iface.IfaceName)
 		intfUUID = append(intfUUID, ovsdb.UUID{GoUuid: intfUUIDStr})
 
 		intf := make(map[string]interface{})
 		intf["name"] = iface.IfaceName
 		intf["type"] = iface.IfaceType
 		intf["ofport"] = float64(iface.OfPort)
+		if iface.externalID != nil {
+			ovsExternalIDs, _ := ovsdb.NewOvsMap(iface.externalID)
+			intf["external_ids"] = ovsExternalIDs
+		}
 
 		intfOp := ovsdb.Operation{
 			Op:       opStr,
 			Table:    "Interface",
 			Row:      intf,
-			UUIDName: iface.IfaceName,
+			UUIDName: intfUUIDStr,
 		}
 
 		intfOperations = append(intfOperations, intfOp)

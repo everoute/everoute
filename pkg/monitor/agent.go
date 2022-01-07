@@ -262,10 +262,11 @@ func (monitor *AgentMonitor) interfaceToEndpoint(ofport uint32, interfaceName, m
 	}
 
 	return &datapath.Endpoint{
-		MacAddrStr: macAddrStr,
-		PortNo:     ofport,
-		BridgeName: bridgeName,
-		VlanID:     vlanID,
+		InterfaceName: interfaceName,
+		MacAddrStr:    macAddrStr,
+		PortNo:        ofport,
+		BridgeName:    bridgeName,
+		VlanID:        vlanID,
 	}
 }
 
@@ -421,7 +422,7 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 		return nil, nil
 	}
 
-	macAddr, err := net.ParseMAC(newExternalIds["attached-mac"].(string))
+	macAddr, err := net.ParseMAC(newExternalIds[LocalEndpointIdentity].(string))
 	if err != nil {
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil, nil
@@ -433,6 +434,11 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(newOfPort)
+
+	if err := monitor.waitForPortPresent(rowupdate.New.Fields["name"].(string), 1*time.Second); err != nil {
+		klog.Errorf("Failed to update local endpoint, wait ovs port of newEndpoint present timeout, error: %v", err)
+		return nil, nil
+	}
 
 	newEndpoint := monitor.interfaceToEndpoint(uint32(newOfPort), rowupdate.New.Fields["name"].(string), macAddr.String())
 	oldEndpoint := monitor.interfaceToEndpoint(uint32(oldOfPort), rowupdate.Old.Fields["name"].(string), macAddr.String())
@@ -458,14 +464,41 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 	}
 	ofport := uint32(ofPort)
 
-	macAddr, err := net.ParseMAC(newExternalIds["attached-mac"].(string))
+	macAddr, err := net.ParseMAC(newExternalIds[LocalEndpointIdentity].(string))
 	if err != nil {
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil
 	}
 	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(ofPort)
 
+	if err := monitor.waitForPortPresent(rowupdate.New.Fields["name"].(string), 1*time.Second); err != nil {
+		klog.Errorf("Failed to add local endpoint, wait ovs port present timeout, error: %v", err)
+		return nil
+	}
+
 	return monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds[LocalEndpointIdentity].(string))
+}
+
+func (monitor *AgentMonitor) waitForPortPresent(interfaceName string, timeout time.Duration) error {
+	return wait.PollImmediate(10*time.Millisecond, timeout, func() (do bool, err error) {
+		if !monitor.isPortExists(interfaceName) {
+			return false, nil
+		}
+
+		return true, nil
+	})
+}
+
+func (monitor *AgentMonitor) isPortExists(interfaceName string) bool {
+	monitor.cacheLock.RLock()
+	defer monitor.cacheLock.RUnlock()
+	for _, port := range monitor.ovsdbCache["Port"] {
+		if port.Fields["name"].(string) == interfaceName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
@@ -494,8 +527,7 @@ func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 
 		delete(monitor.localEndpointHardwareAddrCache, oldExternalIds[LocalEndpointIdentity].(string))
 
-		endpoint := monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds[LocalEndpointIdentity].(string))
-		return endpoint
+		return monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds[LocalEndpointIdentity].(string))
 	}
 
 	return nil
@@ -630,7 +662,7 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(uuid ovsdb.UUID, bridgeName st
 		iface.ExternalIDs[name.(string)] = value.(string)
 	}
 
-	if mac, ok := iface.ExternalIDs["attached-mac"]; ok {
+	if mac, ok := iface.ExternalIDs[LocalEndpointIdentity]; ok {
 		// if attached-mac found, use attached-mac as endpoint mac
 		iface.Mac = mac
 	} else {
