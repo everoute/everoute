@@ -27,7 +27,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
@@ -48,7 +47,7 @@ const (
 
 func TestPolicyController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "PolicyController Suite", []Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "PolicyController Suite")
 }
 
 var _ = BeforeSuite(func() {

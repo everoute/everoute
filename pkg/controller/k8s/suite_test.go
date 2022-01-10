@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
@@ -49,7 +48,7 @@ const (
 
 func TestPolicyController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "K8S Controller Suite", []Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "K8S Controller Suite")
 }
 
 var _ = BeforeSuite(func() {

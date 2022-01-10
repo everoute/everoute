@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
@@ -49,7 +48,7 @@ const (
 
 func TestEndpointController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "EndpointController Suite", []Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "EndpointController Suite")
 }
 
 var _ = BeforeSuite(func() {

@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
@@ -47,7 +46,7 @@ const (
 
 func TestGlobalPolicyController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "GlobalPolicyController Suite", []Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "GlobalPolicyController Suite")
 }
 
 var _ = BeforeSuite(func() {

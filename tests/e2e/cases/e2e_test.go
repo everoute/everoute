@@ -46,7 +46,7 @@ var (
 
 func TestE2e(t *testing.T) {
 	RegisterFailHandlerWithT(t, E2eFail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Everoute e2e Suite", []Reporter{})
+	RunSpecs(t, "Everoute e2e Suite")
 }
 
 var _ = BeforeSuite(func() {
