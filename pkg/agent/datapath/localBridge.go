@@ -38,6 +38,7 @@ const (
 	FROM_LOCAL_ARP_PASS_TABLE          = 20
 	FROM_LOCAL_ARP_TO_CONTROLLER_TABLE = 25
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
+	P_NONE                             = 0xffff
 )
 
 type LocalBridge struct {
@@ -501,7 +502,7 @@ func (l *LocalBridge) InitFromLocalLearnAction(fromLocalLearnAction *ofctrl.Lear
 
 	srcValue := make([]byte, 2)
 	binary.BigEndian.PutUint16(srcValue, uint16(0))
-	err = fromLocalLearnAction.AddLearnedLoadAction(&ofctrl.LearnField{Name: "nxm_of_vlan_tci", Start: 0}, 12, nil, srcValue)
+	err = fromLocalLearnAction.AddLearnedLoadAction(&ofctrl.LearnField{Name: "nxm_of_vlan_tci", Start: 0}, 13, nil, srcValue)
 	if err != nil {
 		return fmt.Errorf("failed to initialize learn action, AddLearnedLoadAction: load:0x0->NXM_OF_vlan_tci[] failure, error: %v", err)
 	}
@@ -544,7 +545,7 @@ func (l *LocalBridge) initL2ForwardingTable(sw *ofctrl.OFSwitch) error {
 	localToLocalBUMDefaultFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	outputPort, _ := sw.OutputPort(openflow13.P_ALL)
+	outputPort, _ := sw.OutputPort(openflow13.P_NORMAL)
 	if err := localToLocalBUMDefaultFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install local to local bum default flow, error: %v", err)
 	}
@@ -640,7 +641,7 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: endpoint.PortNo,
 	})
-	if err := vlanInputTableFromLocalFlow.LoadField("nxm_of_vlan_tci", uint64(endpoint.VlanID), openflow13.NewNXRange(0, 11)); err != nil {
+	if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
 		return err
 	}
 	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
@@ -680,12 +681,14 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 
 func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	// remove table 0 from local endpoing flow
+	log.Infof("remove from local endpoint flow: %v", l.fromLocalEndpointFlow[endpoint.PortNo])
 	if err := l.fromLocalEndpointFlow[endpoint.PortNo].Delete(); err != nil {
 		return err
 	}
 	delete(l.fromLocalEndpointFlow, endpoint.PortNo)
 
 	// remote table 1 local to local bum redirect flow
+	log.Infof("remove from local to local flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
 	if err := l.localToLocalBUMFlow[endpoint.PortNo].Delete(); err != nil {
 		return err
 	}

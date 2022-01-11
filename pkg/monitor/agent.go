@@ -533,6 +533,73 @@ func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 	return nil
 }
 
+func (monitor *AgentMonitor) filterPortVlanTagUpdate(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	monitor.cacheLock.Lock()
+	ok, localEndpointIface := monitor.isLocalEndpointPort(rowupdate.New.Fields["name"].(string))
+	if !ok {
+		monitor.cacheLock.Unlock()
+		return nil, nil
+	}
+	monitor.cacheLock.Unlock()
+
+	var oldTag, newTag float64
+	var ofport uint32
+	if rowupdate.New.Fields["tag"] == nil {
+		return nil, nil
+	}
+	if rowupdate.Old.Fields["tag"] == nil {
+		return nil, nil
+	}
+	newTag, _ = rowupdate.New.Fields["tag"].(float64)
+	oldTag, _ = rowupdate.Old.Fields["tag"].(float64)
+	if newTag == oldTag {
+		return nil, nil
+	}
+
+	portName := localEndpointIface.Fields["name"].(string)
+	externalIDs := localEndpointIface.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	ofPort, ok := localEndpointIface.Fields["ofport"].(float64)
+	if !ok {
+		return nil, nil
+	}
+	if ofPort <= 0 {
+		monitor.localEndpointHardwareAddrCacheLock.Lock()
+		ofport = monitor.localEndpointHardwareAddrCache[externalIDs[LocalEndpointIdentity].(string)]
+		monitor.localEndpointHardwareAddrCacheLock.Unlock()
+	} else {
+		ofport = uint32(ofPort)
+	}
+
+	newEndpoint := monitor.interfaceToEndpoint(ofport, portName, externalIDs[LocalEndpointIdentity].(string))
+	oldEndpoint := &datapath.Endpoint{
+		InterfaceName: newEndpoint.InterfaceName,
+		MacAddrStr:    newEndpoint.MacAddrStr,
+		PortNo:        newEndpoint.PortNo,
+		BridgeName:    newEndpoint.BridgeName,
+		VlanID:        uint16(oldTag),
+	}
+
+	return newEndpoint, oldEndpoint
+}
+
+func (monitor *AgentMonitor) isLocalEndpointPort(portName string) (bool, ovsdb.Row) {
+	for i, iface := range monitor.ovsdbCache["Interface"] {
+		if iface.Fields["name"].(string) == portName {
+			if _, ok := iface.Fields["external_ids"].(ovsdb.OvsMap).GoMap[LocalEndpointIdentity]; ok {
+				return true, monitor.ovsdbCache["Interface"][i]
+			}
+		}
+	}
+	return false, ovsdb.Row{}
+}
+
+func (monitor *AgentMonitor) processPortUpdate(rowupdate ovsdb.RowUpdate) {
+	newEndpoint, oldEndpoint := monitor.filterPortVlanTagUpdate(rowupdate)
+	if newEndpoint != nil && oldEndpoint != nil {
+		go monitor.ovsdbEventHandler.UpdateLocalEndpoint(*newEndpoint, *oldEndpoint)
+	}
+}
+
 func (monitor *AgentMonitor) processEndpointUpdate(rowupdate ovsdb.RowUpdate) {
 	newEndpoint, oldEndpoint := monitor.filterEndpoint(rowupdate)
 	if newEndpoint != nil && oldEndpoint != nil {
@@ -562,6 +629,9 @@ func (monitor *AgentMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 			if !reflect.DeepEqual(row.New, empty) {
 				if table == "Interface" {
 					go monitor.processEndpointUpdate(row)
+				}
+				if table == "Port" {
+					go monitor.processPortUpdate(row)
 				}
 
 				monitor.ovsdbCache[table][uuid] = row.New
