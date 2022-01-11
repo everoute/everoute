@@ -7,10 +7,13 @@ on:
   push:
     branches: [ main ]
 
+  schedule:
+    # 7:00 UTC+8
+    - cron: '0 23 * * *'
+
 jobs:
   pr-check:
     runs-on: [ ubuntu-20.04 ]
-
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -128,3 +131,85 @@ jobs:
       - name: show message if failed
         if: ${{ failure() }}
         run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
+
+  slack-notification:
+    if: ${{ always() }}
+    needs: [ pr-check,golint,run-deploy,run-e2e,run-k8s-e2e,generate-check ]
+    runs-on: [ ubuntu-20.04 ]
+    env:
+      SLACK_COLOR: 2EA44F
+      RESULT_PR_CHECK: ":white_check_mark:"
+      RESULT_GOLINT: ":white_check_mark:"
+      RESULT_RUN_DEPLOY: ":white_check_mark:"
+      RESULT_RUN_E2E: ":white_check_mark:"
+      RESULT_RUN_K8S_E2E: ":white_check_mark:"
+      RESULT_GENERATE_CHECK: ":white_check_mark:"
+    steps:
+      - if: ${{ needs.pr-check.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.golint.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GOLINT=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.run-deploy.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_DEPLOY=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.run-e2e.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.run-k8s-e2e.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_K8S_E2E=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.generate-check.result != 'success'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GENERATE_CHECK=:x:" >> $GITHUB_ENV
+
+      - name: send message to slack
+        #if: ${{ github.event_name != 'pull_request' && ${{ github.repository }} == 'everoute/everoute' }}
+        uses: slackapi/slack-github-action@v1.17.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Finish Github Action CI, details <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} | `here`>"
+                  }
+                }
+              ],
+              "attachments": [
+                {
+                  "color": "${{ env.SLACK_COLOR }}",
+                  "blocks": [
+                    {"type": "section","text": {"type": "mrkdwn",
+                      "text": "*type: * ${{ github.event_name }}"
+                    }},
+                    {"type": "section","fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*pr-check:          * ${{ env.RESULT_PR_CHECK }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*golint:                  * ${{ env.RESULT_GOLINT }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*run-deploy:      * ${{ env.RESULT_RUN_DEPLOY }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*run-e2e:               * ${{ env.RESULT_RUN_E2E }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*run-k8s-e2e:    * ${{ env.RESULT_RUN_K8S_E2E }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*generate-check: * ${{ env.RESULT_GENERATE_CHECK }}"
+                      }
+                  ]}
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_E2E_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
