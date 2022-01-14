@@ -7,7 +7,7 @@
 ## Overview
 
 Everoute is a cloud-native networking and security solution.
-It works with OSI Network Model's Layer3/4. It leverages [Open vSwitch](https://www.openvswitchd.org)
+It works with OSI Network Model's Layer3/4. It leverages [Open vSwitch](https://www.openvswitch.org)
 as the networking data plane.
 
 Everoute provides network and security services for the following platforms:
