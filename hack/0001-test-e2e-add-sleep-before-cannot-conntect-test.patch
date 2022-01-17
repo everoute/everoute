@@ -1,14 +1,15 @@
-From 791e87f9469d1fe2a80ea2bd5780ca393105a0f2 Mon Sep 17 00:00:00 2001
+From 5701b178b36bdf4d9922aa2d1fa931a061d0a24d Mon Sep 17 00:00:00 2001
 From: Changliang Wu <changliang.wu@smartx.com>
 Date: Mon, 10 Jan 2022 10:43:18 +0800
 Subject: [PATCH] test(e2e): add sleep before cannot conntect test
 
 ---
  test/e2e/network/netpol/network_legacy.go | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ test/e2e/network/netpol/test_helper.go    | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/test/e2e/network/netpol/network_legacy.go b/test/e2e/network/netpol/network_legacy.go
-index 0015b6ab5f1..df254138d32 100644
+index 0015b6ab5f1..6ba72a9c14e 100644
 --- a/test/e2e/network/netpol/network_legacy.go
 +++ b/test/e2e/network/netpol/network_legacy.go
 @@ -2143,7 +2143,7 @@ func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *
@@ -20,6 +21,18 @@ index 0015b6ab5f1..df254138d32 100644
  					},
  				},
  			},
+diff --git a/test/e2e/network/netpol/test_helper.go b/test/e2e/network/netpol/test_helper.go
+index 41fb55c0fa6..a9ccf63c2e2 100644
+--- a/test/e2e/network/netpol/test_helper.go
++++ b/test/e2e/network/netpol/test_helper.go
+@@ -68,6 +68,7 @@ func UpdatePolicy(k8s *kubeManager, policy *networkingv1.NetworkPolicy, namespac
+ func ValidateOrFail(k8s *kubeManager, model *Model, testCase *TestCase) {
+ 	ginkgo.By("Validating reachability matrix...")
+
++	time.Sleep(time.Second * 10)
+ 	// 1st try
+ 	ginkgo.By("Validating reachability matrix... (FIRST TRY)")
+ 	ProbePodToPodConnectivity(k8s, model, testCase)
 -- 
 2.30.1 (Apple Git-130)
 
