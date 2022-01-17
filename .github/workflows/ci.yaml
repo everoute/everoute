@@ -158,6 +158,19 @@ jobs:
       - if: ${{ needs.generate-check.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GENERATE_CHECK=:x:" >> $GITHUB_ENV
 
+      - if: ${{ needs.pr-check.result == 'cancelled'}}
+        run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.golint.result == 'cancelled'}}
+        run: echo "RESULT_GOLINT=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.run-deploy.result == 'cancelled'}}
+        run: echo "RESULT_RUN_DEPLOY=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.run-e2e.result == 'cancelled'}}
+        run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
+        run: echo "RESULT_RUN_K8S_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.generate-check.result == 'cancelled'}}
+        run: echo "RESULT_GENERATE_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
+
       - name: generate short commit sha
         run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-7`" >> $GITHUB_ENV
 
