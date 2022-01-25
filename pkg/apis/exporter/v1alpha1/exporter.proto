@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package everoute_io.pkg.apis.exporter.v1alpha1;
+
+option go_package = "pkg/apis/exporter/v1alpha1";
+
+message PktMessage {
+  string agent_id = 1;
+
+  uint32 sample_rate = 2;
+  uint32 sample_pool = 3;
+  uint32 dropped = 4;
+
+  // entire ethernet pkt
+  repeated bytes raw_arp = 7;
+  repeated bytes raw_ip = 8;
+}
+
+message CounterMessage {
+  string agent_id = 1;
+
+  repeated Counter counter = 2;
+}
+message Counter {
+  string ifname = 1;
+  map<string, string> external_id = 20;
+
+  uint32 type = 2;
+  uint64 link_speed = 3;
+  uint32 direction = 4;
+  uint32 status = 5;
+
+  // increase statistic from last counter
+  uint64 in_octets = 6;
+  uint32 in_ucast_pkts = 7;
+  uint32 in_multicast_pkts = 8;
+  uint32 in_broadcast_pkts = 9;
+  uint32 in_discards = 10;
+  uint32 in_errors = 11;
+  uint32 in_unknown_protos = 12;
+  uint64 out_octets = 13;
+  uint32 out_ucast_pkts = 14;
+  uint32 out_multicast_pkts = 15;
+  uint32 out_broadcast_pkts = 16;
+  uint32 out_discards = 17;
+  uint32 out_errors = 18;
+
+  uint32 promiscuous_mode = 19;
+}
+
+message FlowMessage {
+  string agent_id = 1;
+
+  repeated Flow flow = 2;
+}
+
+message Flow {
+  FlowTuple origin_tuple = 2;
+  FlowTuple reply_tuple = 3;
+
+  FlowCounter origin_counter = 4;
+  FlowCounter reply_counter = 5;
+
+  uint32 protocol = 15;
+  ProtocolInfo protocol_info = 16;
+
+  // 0 - in
+  // 1 - out
+  // 2 - unknown
+  uint32 origin_dir = 6;
+
+  uint64 start_time = 11;
+  uint64 endTime = 19; // only for destroy event
+  uint64 update_time = 18;
+
+  uint32 ct_id = 13;
+  uint32 ct_timeout = 14;
+  uint32 ct_zone = 1;
+  uint32 ct_use = 8;
+  uint32 ct_mark = 9;
+  uint32 ct_status = 10;
+}
+message FlowTuple {
+  bytes src = 1;
+  bytes dst = 2;
+
+  bytes eth_src = 3;
+  bytes eth_dst = 4;
+
+  uint32 src_port = 6;
+  uint32 dst_port = 7;
+
+  uint32 icmp_id = 8;
+  uint32 icmp_type = 9;
+  uint32 icmp_code = 10;
+}
+message FlowCounter {
+  uint64 packets = 1;
+  uint64 bytes = 2;
+}
+message ProtocolInfo {
+  TcpInfo tcp_info = 1;
+}
+message TcpInfo {
+  uint32 state = 1;
+  uint32 ca_state = 4;
+  uint32 rto = 2;
+  uint32 rtt = 3;
+  uint32 rtt_var = 5;
+}

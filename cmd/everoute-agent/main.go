@@ -19,7 +19,9 @@ package main
 import (
 	"flag"
 	"net"
+	"time"
 
+	"github.com/contiv/libOpenflow/protocol"
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/flowcontrol"
@@ -33,12 +35,16 @@ import (
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/exporter"
 	"github.com/everoute/everoute/pkg/monitor"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 var (
-	enableCNI   bool
-	metricsAddr string
+	enableCNI      bool
+	enableExporter bool
+	metricsAddr    string
+	kafkaHosts     string
 )
 
 func init() {
@@ -47,7 +53,9 @@ func init() {
 
 func main() {
 	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
+	flag.BoolVar(&enableExporter, "enable-exporter", true, "Enable Exporter in agent.")
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
+	flag.StringVar(&kafkaHosts, "kafka-host", "192.168.26.10:9092,192.168.28.177:9092,192.168.30.12:9092", "Kafka hosts")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
@@ -56,13 +64,25 @@ func main() {
 	stopChan := ctrl.SetupSignalHandler()
 	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
 
+	// arp channel from datapath to exporter
+	var arpChan chan protocol.ARP
+	var exp *exporter.Exporter
+	if enableExporter {
+		exp = exporter.NewExporter(exporter.NewKafkaUploader(kafkaHosts, utils.ReadOrGenerateAgentName(), stopChan))
+		arpChan = exp.AgentArpChan
+	}
+
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig, err := getDatapathConfig()
 	if err != nil {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
-	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	datapathManager := datapath.NewDatapathManager(datapathConfig, arpChan, ofPortIPAddrMoniotorChan)
 	datapathManager.InitializeDatapath(stopChan)
+
+	if enableExporter {
+		go exp.StartExporter(datapathManager, stopChan)
+	}
 
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
@@ -118,6 +138,7 @@ func main() {
 	go agentmonitor.Run(stopChan)
 
 	<-stopChan
+	time.Sleep(time.Second * 5)
 }
 
 func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {

@@ -152,6 +152,10 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
 
+		if l.datapathManager.ArpChan != nil {
+			l.datapathManager.ArpChan <- arpIn
+		}
+
 		l.learnedIPAddressMapMutex.Lock()
 		defer l.learnedIPAddressMapMutex.Unlock()
 		ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
