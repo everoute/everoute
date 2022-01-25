@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/contiv/libOpenflow/protocol"
 	"net"
 	"os"
 	"os/exec"
@@ -166,6 +167,8 @@ type DpManager struct {
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
 
+	ArpChan chan protocol.ARP
+
 	AgentInfo *AgentConf
 }
 
@@ -236,7 +239,7 @@ type RoundInfo struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
+func NewDatapathManager(datapathConfig *Config, arpChan chan protocol.ARP, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
@@ -250,6 +253,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
+	datapathManager.ArpChan = arpChan
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {

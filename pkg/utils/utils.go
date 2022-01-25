@@ -4,12 +4,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
+	typeuuid "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 func Base64Encode(message []byte) []byte {
@@ -53,4 +59,25 @@ func GetIfaceMAC(name string) (net.HardwareAddr, error) {
 		return nil, err
 	}
 	return link.Attrs().HardwareAddr, nil
+}
+
+func ReadOrGenerateAgentName() string {
+	content, err := ioutil.ReadFile(constants.AgentNameConfigPath)
+	if err == nil {
+		return string(content)
+	}
+
+	name := string(typeuuid.NewUUID())
+
+	err = os.MkdirAll(filepath.Dir(constants.AgentNameConfigPath), 0644)
+	if err != nil {
+		klog.Fatalf("while write name %s: %s", name, err)
+	}
+
+	err = ioutil.WriteFile(constants.AgentNameConfigPath, []byte(name), 0644)
+	if err != nil {
+		klog.Fatalf("while write name %s: %s", name, err)
+	}
+
+	return name
 }

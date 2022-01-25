@@ -17,6 +17,8 @@ limitations under the License.
 package constants
 
 const (
+	AgentNameConfigPath   = "/var/lib/everoute/agent/name"
+
 	// InternalWhitelistPriority is the priority of internal whitelist IP, we set different priorities
 	// with NormalPolicyRulePriority to make sure normal rules won't cover internal whitelist rules
 	InternalWhitelistPriority       = 120

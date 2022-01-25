@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/99designs/gqlgen v0.13.0
+	github.com/Shopify/sarama v1.19.0
 	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
@@ -18,18 +19,22 @@ require (
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
+	github.com/google/gopacket v1.1.18
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2
+	github.com/mdlayher/netlink v1.4.1 // indirect
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.15.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.10.0 // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
+	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
-	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/sys v0.0.0-20210917161153-d61c044b1678
+	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	google.golang.org/grpc v1.35.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -39,6 +44,7 @@ require (
 	k8s.io/client-go v0.20.6
 	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	k8s.io/kubernetes v1.13.0
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/controller-runtime v0.6.0
 )
