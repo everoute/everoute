@@ -102,6 +102,9 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		cidr, _ := cnitypes.ParseCIDR(cidrString)
 		agentInfo.PodCIDR = append(agentInfo.PodCIDR, cnitypes.IPNet(*cidr))
 	}
+	if len(agentInfo.PodCIDR) == 0 {
+		klog.Fatalf("PodCIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --pod-network-cidr 10.0.0.0/16`")
+	}
 
 	for bridge := range datapathManager.OvsdbDriverMap {
 		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
