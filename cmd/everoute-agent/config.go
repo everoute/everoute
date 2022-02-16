@@ -103,6 +103,34 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		agentInfo.PodCIDR = append(agentInfo.PodCIDR, cnitypes.IPNet(*cidr))
 	}
 
+	// get cluster CIDR
+	pods := corev1.PodList{}
+	if err := k8sClient.List(context.Background(), &pods, client.InNamespace("kube-system")); err != nil {
+		klog.Fatalf("get pod info error, err:%s", err)
+	}
+
+	loopExit := false
+	for _, pod := range pods.Items {
+		if loopExit {
+			break
+		}
+		if strings.HasPrefix(pod.Name, "kube-apiserver-") {
+			for _, container := range pod.Spec.Containers {
+				for _, commond := range container.Command {
+					if strings.HasPrefix(commond, "--service-cluster-ip-range=") {
+						cidr, _ := cnitypes.ParseCIDR(strings.TrimPrefix(commond, "--service-cluster-ip-range="))
+						cidrNet := cnitypes.IPNet(*cidr)
+						agentInfo.ClusterCIDR = &cidrNet
+						loopExit = true
+					}
+				}
+			}
+		}
+	}
+	if agentInfo.ClusterCIDR == nil {
+		klog.Fatalf("Service cluster CIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --service-cidr 10.244.0.0/16`")
+	}
+
 	for bridge := range datapathManager.OvsdbDriverMap {
 		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
 		agentInfo.GatewayName = agentInfo.BridgeName + "-gw"

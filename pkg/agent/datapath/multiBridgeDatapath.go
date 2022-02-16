@@ -176,6 +176,8 @@ type AgentConf struct {
 	PodCIDR    []cnitypes.IPNet
 	BridgeName string
 
+	ClusterCIDR *cnitypes.IPNet
+
 	LocalGwName string
 	LocalGwIP   net.IP
 	LocalGwMac  net.HardwareAddr
