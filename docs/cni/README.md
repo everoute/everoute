@@ -8,7 +8,8 @@ and standard NetworkPolicy network strategy
 ## Prerequisites
 ### Kubernetes cluster
 + support version: `v1.17.0 ~ v1.21.5`.
-+ When deploying a cluster with kubeadm the `--pod-network-cidr <cidr>` option must be specified.
++ When deploying a cluster with kubeadm the `--pod-network-cidr <cidr>` option MUST be specified.
++ ApiServer pod name MUST have `kube-apiserver-` in prefix , and `--service-cluster-ip-range=` MUST set in commands.
 + Open vSwitch kernel module must be present on every Kubernetes node.
 
 ### Remove old CNI (if exist)

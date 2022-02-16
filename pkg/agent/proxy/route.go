@@ -265,6 +265,18 @@ func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev
 			klog.Errorf("Append %s into raw PREROUTING error, err: %s", r.DatapathManager.AgentInfo.LocalGwName, err)
 		}
 	}
+
+	// allow ct invalid from gw-local
+	if exist, err = ipt.Exists("filter", "FORWARD", "-i", r.DatapathManager.AgentInfo.LocalGwName,
+		"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
+		klog.Errorf("Check filter FORWARD error, err: %s", err)
+	}
+	if !exist {
+		if err = ipt.Insert("filter", "FORWARD", 1, "-i", r.DatapathManager.AgentInfo.LocalGwName,
+			"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
+			klog.Errorf("Append filter FORWARD error, err: %s", err)
+		}
+	}
 }
 
 func (r *NodeReconciler) UpdateNetwork() {
