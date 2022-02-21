@@ -121,6 +121,11 @@ func (u *UplinkBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
 }
 
+func (u *UplinkBridge) UpdatePolicyEnforcementMode(newMode string) error {
+
+	return nil
+}
+
 func (u *UplinkBridge) AddVNFInstance() error {
 	return nil
 }
