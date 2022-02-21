@@ -147,7 +147,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	var err error
-	var policyController, patchController, globalPolicyController controller.Controller
+	var policyController, patchController, globalPolicyController, policyEnforcementModeController controller.Controller
 
 	// ignore not empty ruleCache for future cache inject
 	if r.ruleCache == nil {
@@ -212,6 +212,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err = globalPolicyController.Watch(&source.Kind{Type: &securityv1alpha1.GlobalPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+
+	if policyEnforcementModeController, err = controller.New("policy_enforcement_controller", mgr, controller.Options{
+		MaxConcurrentReconciles: 1,
+		Reconciler:              reconcile.Func(r.ReconcilePolicyEnforcementMode),
+	}); err != nil {
+		return err
+	}
+
+	if err = policyEnforcementModeController.Watch(&source.Kind{Type: &securityv1alpha1.PolicyEnforcementMode{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
