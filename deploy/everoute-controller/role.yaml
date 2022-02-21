@@ -78,6 +78,7 @@ rules:
   - endpoints
   - endpoints/status
   - globalpolicies
+  - policyenforcementmodes
   verbs:
   - patch
   - create

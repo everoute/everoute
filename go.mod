@@ -54,6 +54,7 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20211229083707-5cb1e875a38b
+	//github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20211229083707-5cb1e875a38b
+	github.com/contiv/ofnet => github.com/echkenluo/ofnet v0.0.0-20220221070635-77d8eaabab24
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 )
