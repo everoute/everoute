@@ -28,6 +28,7 @@ type SecurityV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	EndpointsGetter
 	GlobalPoliciesGetter
+	PolicyEnforcementModesGetter
 	SecurityPoliciesGetter
 }
 
@@ -42,6 +43,10 @@ func (c *SecurityV1alpha1Client) Endpoints(namespace string) EndpointInterface {
 
 func (c *SecurityV1alpha1Client) GlobalPolicies() GlobalPolicyInterface {
 	return newGlobalPolicies(c)
+}
+
+func (c *SecurityV1alpha1Client) PolicyEnforcementModes() PolicyEnforcementModeInterface {
+	return newPolicyEnforcementModes(c)
 }
 
 func (c *SecurityV1alpha1Client) SecurityPolicies(namespace string) SecurityPolicyInterface {
