@@ -50,6 +50,7 @@ const (
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
 	NORMAL_MATCH_FLOW_PRIORITY          = 100
+	DEFAULT_DROP_FLOW_PRIORITY          = 70
 	GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY = 40
 	DEFAULT_FLOW_MISS_PRIORITY          = 10
 	FLOW_MATCH_OFFSET                   = 3
@@ -135,6 +136,7 @@ type Bridge interface {
 	RemoveSFCRule() error
 	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error)
 	RemoveMicroSegmentRule(rule *EveroutePolicyRule) error
+	UpdatePolicyEnforcementMode(mode string) error
 
 	IsSwitchConnected() bool
 
@@ -748,6 +750,16 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 		}
 	}
 
+	return nil
+}
+
+func (datapathManager *DpManager) UpdateEveroutePolicyEnforcementMode(newMode string) error {
+	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
+		err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].UpdatePolicyEnforcementMode(newMode)
+		if err != nil {
+			return fmt.Errorf("failed to update policy enforcement mode to %v for vds %v : bridge %v, error: %v", newMode, vdsID, ovsbrname, err)
+		}
+	}
 	return nil
 }
 
