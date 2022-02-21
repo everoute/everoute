@@ -32,6 +32,8 @@ func init() {
 		&SecurityPolicyList{},
 		&GlobalPolicy{},
 		&GlobalPolicyList{},
+		&PolicyEnforcementMode{},
+		&PolicyEnforcementModeList{},
 	)
 }
 

@@ -37,6 +37,10 @@ func (c *FakeSecurityV1alpha1) GlobalPolicies() v1alpha1.GlobalPolicyInterface {
 	return &FakeGlobalPolicies{c}
 }
 
+func (c *FakeSecurityV1alpha1) PolicyEnforcementModes() v1alpha1.PolicyEnforcementModeInterface {
+	return &FakePolicyEnforcementModes{c}
+}
+
 func (c *FakeSecurityV1alpha1) SecurityPolicies(namespace string) v1alpha1.SecurityPolicyInterface {
 	return &FakeSecurityPolicies{c, namespace}
 }

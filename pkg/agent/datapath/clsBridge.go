@@ -333,6 +333,11 @@ func (c *ClsBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
 }
 
+func (c *ClsBridge) UpdatePolicyEnforcementMode(newMode string) error {
+
+	return nil
+}
+
 func (c *ClsBridge) AddVNFInstance() error {
 	return nil
 }
