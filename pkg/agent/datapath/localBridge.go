@@ -772,6 +772,10 @@ func (l *LocalBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
 }
 
+func (l *LocalBridge) UpdatePolicyEnforcementMode(mode string) error {
+	return nil
+}
+
 func (l *LocalBridge) AddVNFInstance() error {
 	return nil
 }
