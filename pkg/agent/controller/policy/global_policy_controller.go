@@ -28,6 +28,10 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
+const (
+	DefaultGlobalPolicyName = "everoute-global-policy"
+)
+
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
 func (r *Reconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
@@ -96,7 +100,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType cache.RuleType, ruleAction 
 		DstIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}
-	ingressRule.Name = fmt.Sprintf("global-%s", cache.GenerateFlowKey(ingressRule))
+	ingressRule.Name = fmt.Sprintf("/%s/global.ingress/-%s", DefaultGlobalPolicyName, cache.GenerateFlowKey(ingressRule))
 
 	egressRule = cache.PolicyRule{
 		Direction: cache.RuleDirectionOut,
@@ -105,7 +109,7 @@ func newGlobalPolicyRulePair(ipCIDR string, ruleType cache.RuleType, ruleAction 
 		SrcIPAddr: ipCIDR,
 		Action:    ruleAction,
 	}
-	egressRule.Name = fmt.Sprintf("global-%s", cache.GenerateFlowKey(egressRule))
+	egressRule.Name = fmt.Sprintf("/%s/global.egress/-%s", DefaultGlobalPolicyName, cache.GenerateFlowKey(egressRule))
 
 	return []cache.PolicyRule{ingressRule, egressRule}
 }
