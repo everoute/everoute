@@ -36,7 +36,7 @@ const (
 
 type Uploader interface {
 	Flow(msg *v1alpha1.FlowMessage)
-	SFlowSample()
+	SFlowSample(msg *v1alpha1.PktMessage)
 	SFlowCounter(msg *v1alpha1.CounterMessage)
 	OVSFlow()
 }
@@ -74,8 +74,9 @@ func (k *KafkaUploader) Flow(msg *v1alpha1.FlowMessage) {
 	msg.AgentId = k.AgentID
 	k.Send(protoToByte(msg), KafkaFlowTopic)
 }
-func (k *KafkaUploader) SFlowSample() {
-
+func (k *KafkaUploader) SFlowSample(msg *v1alpha1.PktMessage) {
+	msg.AgentId = k.AgentID
+	k.Send(protoToByte(msg), KafkaSFlowSampleTopic)
 }
 func (k *KafkaUploader) SFlowCounter(msg *v1alpha1.CounterMessage) {
 	msg.AgentId = k.AgentID
