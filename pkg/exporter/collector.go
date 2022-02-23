@@ -308,7 +308,11 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 		select {
 		case flow := <-channel:
 			// handle flow sample packet
+			pktMsg := &v1alpha1.PktMessage{}
 			for _, sample := range flow.FlowSamples {
+				pktMsg.SampleRate = sample.SamplingRate
+				pktMsg.SamplePool = sample.SamplePool
+				pktMsg.Dropped += sample.Dropped
 				for _, record := range sample.Records {
 					switch record.(type) {
 					case layers.SFlowRawPacketFlowRecord:
@@ -325,16 +329,21 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 								if e.cache.IsLocalIface(sample.InputInterface) {
 									e.cache.AddArp(arp)
 								}
+								pktMsg.RawArp = append(pktMsg.RawArp, packet.Data())
 							case layers.LayerTypeIPv4:
 								if e.cache.IsLocalIface(sample.InputInterface) {
 									e.cache.AddIp(packet)
 								}
+								pktMsg.RawIp = append(pktMsg.RawIp, packet.Data())
 							default:
 								fmt.Println(packet.Layers()[1].LayerType())
 							}
 						}
 					}
 				}
+			}
+			if len(pktMsg.RawArp) != 0 || len(pktMsg.RawIp) != 0 {
+				e.uploader.SFlowSample(pktMsg)
 			}
 
 			// handle counter sample flow
