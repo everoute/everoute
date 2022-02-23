@@ -45,6 +45,7 @@ const (
 )
 
 type PolicyRule struct {
+	// Name format policyNamespace/policyName/ruleName-flowKey
 	Name   string     `json:"name"`
 	Action RuleAction `json:"action"`
 
