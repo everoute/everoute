@@ -79,6 +79,8 @@ message Flow {
   uint32 ct_use = 8;
   uint32 ct_mark = 9;
   uint32 ct_status = 10;
+  bytes ct_label = 20;
+  bytes ct_label_mask = 21;
 }
 message FlowTuple {
   bytes src = 1;

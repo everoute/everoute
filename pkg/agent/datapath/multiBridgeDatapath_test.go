@@ -92,7 +92,7 @@ func TestMain(m *testing.M) {
 	}
 
 	stopChan := make(<-chan struct{})
-	datapathManager = NewDatapathManager(&datapathConfig, ipAddressChan)
+	datapathManager = NewDatapathManager(&datapathConfig, nil, ipAddressChan)
 	datapathManager.InitializeDatapath(stopChan)
 
 	exitCode := m.Run()

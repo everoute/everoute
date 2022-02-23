@@ -23,7 +23,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2
-	github.com/mdlayher/netlink v1.4.1 // indirect
+	github.com/mdlayher/netlink v1.4.1
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.15.0
 	github.com/pkg/errors v0.9.1
@@ -31,6 +31,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
 	github.com/ti-mo/conntrack v0.4.0
+	github.com/ti-mo/netfilter v0.3.1
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
