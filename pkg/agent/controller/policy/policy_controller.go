@@ -68,9 +68,6 @@ type Reconciler struct {
 	groupCache *policycache.GroupCache
 
 	DatapathManager *datapath.DpManager
-
-	flowKeyReferenceMapLock sync.RWMutex
-	flowKeyReferenceMap     map[string]sets.String // Map flowKey to policyRule names
 }
 
 func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
@@ -161,7 +158,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.groupCache == nil {
 		r.groupCache = policycache.NewGroupCache()
 	}
-	r.flowKeyReferenceMap = make(map[string]sets.String)
 
 	if policyController, err = controller.New("policy-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -521,61 +517,17 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 }
 
 func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {
-	r.flowKeyReferenceMapLock.Lock()
-	defer r.flowKeyReferenceMapLock.Unlock()
-
-	var flowKey = flowKeyFromRuleName(ruleName)
-	if r.flowKeyReferenceMap[flowKey] == nil {
-		// already deleted
-		return nil
-	}
-
-	switch r.flowKeyReferenceMap[flowKey].Len() {
-	case 0:
-		delete(r.flowKeyReferenceMap, flowKey)
-
-	case 1:
-		if r.flowKeyReferenceMap[flowKey].Has(ruleName) {
-			klog.Infof("remove rule %s from datapath", flowKey)
-			if err := r.deletePolicyRuleFromDatapath(flowKey); err != nil {
-				return err
-			}
-			delete(r.flowKeyReferenceMap, flowKey)
-		} else {
-			// this should never happen
-			klog.Warningf("rule %s with flowkey %s not found in reference map %+v", ruleName, flowKey, r.flowKeyReferenceMap)
-		}
-
-	default:
-		r.flowKeyReferenceMap[flowKey].Delete(ruleName)
-	}
-	return nil
+	return r.DatapathManager.RemoveEveroutePolicyRule(flowKeyFromRuleName(ruleName), ruleName)
 }
 
 func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) error {
-	r.flowKeyReferenceMapLock.Lock()
-	defer r.flowKeyReferenceMapLock.Unlock()
 
-	var flowKey = flowKeyFromRuleName(policyRule.Name)
-
-	if r.flowKeyReferenceMap[flowKey] == nil {
-		r.flowKeyReferenceMap[flowKey] = sets.NewString()
-	}
-	klog.Infof("add rule %s to datapath", flowKey)
-	if err := r.addPolicyRuleToDatapath(flowKey, policyRule); err != nil {
+	klog.Infof("add rule %s to datapath", policyRule.Name)
+	if err := r.addPolicyRuleToDatapath(flowKeyFromRuleName(policyRule.Name), policyRule); err != nil {
 		return err
 	}
 
-	r.flowKeyReferenceMap[flowKey].Insert(policyRule.Name)
 	return nil
-}
-
-func (r *Reconciler) deletePolicyRuleFromDatapath(flowKey string) error {
-	ERPolicyRule := &datapath.EveroutePolicyRule{
-		RuleID: flowKey,
-	}
-
-	return r.DatapathManager.RemoveEveroutePolicyRule(ERPolicyRule)
 }
 
 func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) error {
@@ -584,5 +536,5 @@ func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.Po
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
-	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, ruleDirection, ruleTier)
+	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, rule.Name, ruleDirection, ruleTier)
 }

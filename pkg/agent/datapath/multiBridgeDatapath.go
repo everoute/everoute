@@ -119,6 +119,9 @@ const (
 	ClsBridgeL2ForwardingTableHardTimeout   = 300
 	ClsBridgeL2ForwardingTableIdleTimeout   = 300
 	MaxIPAddressLearningFrenquency          = 5
+
+	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/ingress/-"
+	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/egress/-"
 )
 
 type Bridge interface {
@@ -227,10 +230,11 @@ type FlowEntry struct {
 }
 
 type EveroutePolicyRuleEntry struct {
-	EveroutePolicyRule *EveroutePolicyRule
-	Direction          uint8
-	Tier               uint8
-	RuleFlowMap        map[string]*FlowEntry
+	EveroutePolicyRule  *EveroutePolicyRule
+	Direction           uint8
+	Tier                uint8
+	RuleFlowMap         map[string]*FlowEntry
+	PolicyRuleReference sets.String
 }
 
 type RoundInfo struct {
@@ -290,12 +294,12 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	// add rules for internalIP
 	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
 		// internal ingress rule
-		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), POLICY_DIRECTION_IN, POLICY_TIER2)
+		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER2)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
 		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), POLICY_DIRECTION_OUT, POLICY_TIER2)
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER2)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
@@ -726,7 +730,7 @@ func (datapathManager *DpManager) UpdateEveroutePolicyEnforcementMode(newMode st
 	return nil
 }
 
-func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, direction uint8, tier uint8) error {
+func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
@@ -734,12 +738,16 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	}
 
 	// check if we already have the rule
+	var ruleEntry *EveroutePolicyRuleEntry
 	if _, ok := datapathManager.Rules[rule.RuleID]; ok {
-		oldRule := datapathManager.Rules[rule.RuleID].EveroutePolicyRule
+		ruleEntry = datapathManager.Rules[rule.RuleID]
 
-		if RuleIsSame(oldRule, rule) {
-			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, oldRule)
+		if RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
+			datapathManager.Rules[rule.RuleID].PolicyRuleReference.Insert(ruleName)
+			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.PolicyRuleReference)
 			return nil
+		} else {
+			log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.PolicyRuleReference, rule)
 		}
 	}
 
@@ -756,37 +764,50 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	}
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
-	pRule := EveroutePolicyRuleEntry{
-		EveroutePolicyRule: rule,
-		Direction:          direction,
-		Tier:               tier,
-		RuleFlowMap:        ruleFlowMap,
+	if ruleEntry == nil {
+		ruleEntry = &EveroutePolicyRuleEntry{
+			EveroutePolicyRule:  rule,
+			Direction:           direction,
+			Tier:                tier,
+			PolicyRuleReference: sets.NewString(ruleName),
+		}
 	}
-	datapathManager.Rules[rule.RuleID] = &pRule
+	ruleEntry.RuleFlowMap = ruleFlowMap
+
+	datapathManager.Rules[rule.RuleID] = ruleEntry
 
 	return nil
 }
 
-func (datapathManager *DpManager) RemoveEveroutePolicyRule(rule *EveroutePolicyRule) error {
+func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleName string) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
 
+	pRule := datapathManager.Rules[ruleID]
+	if pRule == nil {
+		return fmt.Errorf("ruleID %v not found when deleting", ruleID)
+	}
+
+	// check and remove rule reference
+	if pRule.PolicyRuleReference.Has(ruleName) {
+		pRule.PolicyRuleReference.Delete(ruleName)
+		return nil
+	}
+
 	for vdsID := range datapathManager.BridgeChainMap {
-		pRule := datapathManager.Rules[rule.RuleID]
-		if pRule == nil {
-			return fmt.Errorf("rule %v not found when deleting", rule)
-		}
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
-			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", rule, err)
+			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", ruleID, err)
 			return err
 		}
 	}
 
-	delete(datapathManager.Rules, rule.RuleID)
+	if pRule.PolicyRuleReference.Len() == 0 {
+		delete(datapathManager.Rules, ruleID)
+	}
 
 	return nil
 }
@@ -972,7 +993,7 @@ func waitUntilFileCreate(fileName string, timeout time.Duration) error {
 // newInternalIngressRule generate a rule allow all ingress to internalIP
 func newInternalIngressRule(internalIP string) *EveroutePolicyRule {
 	return &EveroutePolicyRule{
-		RuleID:    fmt.Sprintf("internal-ingress-%s", internalIP),
+		RuleID:    fmt.Sprintf("internal.ingress.%s", internalIP),
 		Priority:  constants.InternalWhitelistPriority,
 		DstIPAddr: internalIP,
 		Action:    "allow",
@@ -982,7 +1003,7 @@ func newInternalIngressRule(internalIP string) *EveroutePolicyRule {
 // newInternalEgressRule generate a rule allow all egress from internalIP
 func newInternalEgressRule(internalIP string) *EveroutePolicyRule {
 	return &EveroutePolicyRule{
-		RuleID:    fmt.Sprintf("internal-egress-%s", internalIP),
+		RuleID:    fmt.Sprintf("internal.egress.%s", internalIP),
 		Priority:  constants.InternalWhitelistPriority,
 		SrcIPAddr: internalIP,
 		Action:    "allow",
