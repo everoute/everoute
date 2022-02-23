@@ -238,17 +238,18 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 			Packets: ct.CountersReply.Packets,
 			Bytes:   ct.CountersReply.Bytes,
 		},
-		OriginDir:  0,
-		StartTime:  uint64(ct.Timestamp.Start.Unix()),
-		UpdateTime: uint64(time.Now().Unix()),
-		CtId:       ct.ID,
-		CtTimeout:  ct.Timeout,
-		CtZone:     uint32(ct.Zone),
-		CtUse:      ct.Use,
-		CtMark:     ct.Mark,
-		CtStatus:   uint32(ct.Status.Value),
+		OriginDir:   0,
+		StartTime:   uint64(ct.Timestamp.Start.Unix()),
+		UpdateTime:  uint64(time.Now().Unix()),
+		CtId:        ct.ID,
+		CtTimeout:   ct.Timeout,
+		CtZone:      uint32(ct.Zone),
+		CtUse:       ct.Use,
+		CtMark:      ct.Mark,
+		CtStatus:    uint32(ct.Status.Value),
+		CtLabel:     ct.Labels,
+		CtLabelMask: ct.LabelsMask,
 	}
-
 	// calculate ct direction
 	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) == nil &&
 		e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) == nil {
@@ -403,19 +404,24 @@ func (e *Exporter) ctEventHandle(c chan conntrack.Event) {
 
 func (e *Exporter) conntractCollector(ct chan []conntrack.Flow) {
 	// open conntrack connection
-	c, err := conntrack.Dial(nil)
+	eventConn, err := conntrack.Dial(nil)
 	if err != nil {
 		klog.Fatal(err)
 	}
-	defer c.Close()
+	defer eventConn.Close()
+	dumpConn, err := conntrack.Dial(nil)
+	if err != nil {
+		klog.Fatal(err)
+	}
+	defer dumpConn.Close()
 
 	// add event handle
 	eventCh := make(chan conntrack.Event, 1024)
-	_, err = c.Listen(eventCh, 1, append(netfilter.GroupsCT))
+	_, err = eventConn.Listen(eventCh, 1, append(netfilter.GroupsCT))
 	if err != nil {
 		klog.Fatal(err)
 	}
-	err = c.SetOption(netlink2.ListenAllNSID, true)
+	err = eventConn.SetOption(netlink2.ListenAllNSID, true)
 	if err != nil {
 		klog.Fatal(err)
 	}
@@ -426,7 +432,7 @@ func (e *Exporter) conntractCollector(ct chan []conntrack.Flow) {
 	for {
 		select {
 		case <-ticker.C:
-			flows, err := c.Dump()
+			flows, err := dumpConn.Dump()
 			if err != nil {
 				klog.Errorf("dump flows: %s", err)
 			}
