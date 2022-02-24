@@ -41,3 +41,7 @@ func (p *SecurityPolicy) IsEnable() (ingressEnabled bool, egressEnabled bool) {
 	}
 	return
 }
+
+func (p PolicyMode) String() string {
+	return string(p)
+}
