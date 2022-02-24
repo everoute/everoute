@@ -17,6 +17,7 @@ limitations under the License.
 package exporter
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
@@ -238,17 +239,15 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 			Packets: ct.CountersReply.Packets,
 			Bytes:   ct.CountersReply.Bytes,
 		},
-		OriginDir:   0,
-		StartTime:   uint64(ct.Timestamp.Start.Unix()),
-		UpdateTime:  uint64(time.Now().Unix()),
-		CtId:        ct.ID,
-		CtTimeout:   ct.Timeout,
-		CtZone:      uint32(ct.Zone),
-		CtUse:       ct.Use,
-		CtMark:      ct.Mark,
-		CtStatus:    uint32(ct.Status.Value),
-		CtLabel:     ct.Labels,
-		CtLabelMask: ct.LabelsMask,
+		StartTime:  uint64(ct.Timestamp.Start.Unix()),
+		UpdateTime: uint64(time.Now().Unix()),
+		CtId:       ct.ID,
+		CtTimeout:  ct.Timeout,
+		CtZone:     uint32(ct.Zone),
+		CtUse:      ct.Use,
+		CtMark:     ct.Mark,
+		CtStatus:   uint32(ct.Status.Value),
+		CtLabel:    ct.Labels,
 	}
 	// calculate ct direction
 	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) == nil &&
@@ -276,6 +275,28 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 				},
 			}
 		}
+	}
+
+	// fetch policy info into flow
+	if len(flow.CtLabel) != 0 {
+		// for egress drop
+		flowA := binary.LittleEndian.Uint64(flow.CtLabel[0:8])
+		// for ingress drop
+		flowB := binary.LittleEndian.Uint64(flow.CtLabel[8:16])
+
+		policyList := e.datapathManager.GetPolicyByFlowID(flowA, flowB)
+		for _, policySet := range policyList {
+			for _, policyItem := range policySet.NamespacedName {
+				flow.Policy = append(flow.Policy, &v1alpha1.Policy{
+					Name:      policyItem.Name,
+					Namespace: policyItem.Namespace,
+					Dir:       uint32(policySet.Dir),
+					Mode:      e.datapathManager.WorkMode,
+					Action:    policySet.Action,
+				})
+			}
+		}
+		klog.Info(flow.Policy)
 	}
 
 	return flow
