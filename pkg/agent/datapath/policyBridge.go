@@ -653,6 +653,39 @@ func (p *PolicyBridge) UpdatePolicyEnforcementMode(newMode string) error {
 		if err := ingressTier2DropFlow.Next(p.ctCommitTable); err != nil {
 			return fmt.Errorf("failed to install ingress tier3 bypass table flow, error: %v", err)
 		}
+
+		ctByPassFlow1, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+			Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Regs: []*ofctrl.NXRegister{
+				{
+					RegID: 0,
+					Data:  0x20,
+					Range: openflow13.NewNXRange(0, 15),
+				},
+			},
+		})
+		if err := ctByPassFlow1.Resubmit(nil, &p.sfcPolicyTable.TableId); err != nil {
+			return fmt.Errorf("failed to install ct bypass flow 1, error: %v", err)
+		}
+		if err := ctByPassFlow1.Next(ofctrl.NewEmptyElem()); err != nil {
+			return fmt.Errorf("failed to install ct bypass flow 1, error: %v", err)
+		}
+		ctByPassFlow2, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+			Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Regs: []*ofctrl.NXRegister{
+				{
+					RegID: 0,
+					Data:  0x30,
+					Range: openflow13.NewNXRange(0, 15),
+				},
+			},
+		})
+		if err := ctByPassFlow2.Resubmit(nil, &p.sfcPolicyTable.TableId); err != nil {
+			return fmt.Errorf("failed to install ct bypass flow 2, error: %v", err)
+		}
+		if err := ctByPassFlow2.Next(ofctrl.NewEmptyElem()); err != nil {
+			return fmt.Errorf("failed to install ct bypass flow 2, error: %v", err)
+		}
 	}
 
 	if newMode == "work" {
@@ -667,6 +700,34 @@ func (p *PolicyBridge) UpdatePolicyEnforcementMode(newMode string) error {
 		})
 		if err := ingressTier2DropFlow.Next(p.OfSwitch.DropAction()); err != nil {
 			return fmt.Errorf("failed to install ingress tier3 drop table flow, error: %v", err)
+		}
+
+		ctDropFlow1, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+			Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Regs: []*ofctrl.NXRegister{
+				{
+					RegID: 0,
+					Data:  0x20,
+					Range: openflow13.NewNXRange(0, 15),
+				},
+			},
+		})
+		if err := ctDropFlow1.Next(p.OfSwitch.DropAction()); err != nil {
+			return fmt.Errorf("failed to install ct drop flow 1, error: %v", err)
+		}
+
+		ctDropFlow2, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+			Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Regs: []*ofctrl.NXRegister{
+				{
+					RegID: 0,
+					Data:  0x30,
+					Range: openflow13.NewNXRange(0, 15),
+				},
+			},
+		})
+		if err := ctDropFlow2.Next(p.OfSwitch.DropAction()); err != nil {
+			return fmt.Errorf("failed to install ct drop flow 2, error: %v", err)
 		}
 	}
 
