@@ -47,7 +47,7 @@ func (r *Reconciler) ReconcilePolicyEnforcementMode(request ctrl.Request) (ctrl.
 }
 
 func (r *Reconciler) UpdatePolicyEnforcementMode(newMode securityv1alpha1.PolicyEnforcementMode) error {
-	if err := r.DatapathManager.UpdateEveroutePolicyEnforcementMode(newMode.Name); err != nil {
+	if err := r.DatapathManager.UpdateEveroutePolicyEnforcementMode(newMode.Spec.EnforcementMode.String()); err != nil {
 		return err
 	}
 
