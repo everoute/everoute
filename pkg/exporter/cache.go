@@ -27,7 +27,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
-	
+
 	"github.com/everoute/everoute/pkg/apis/exporter/v1alpha1"
 )
 
