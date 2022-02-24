@@ -39,6 +39,7 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/fsnotify/fsnotify"
 	cmap "github.com/streamrail/concurrent-map"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -179,6 +180,7 @@ type DpManager struct {
 	ofPortIPAddressUpdateChan chan map[string]net.IP // map bridgename-ofport to endpoint ips
 	datapathConfig            *Config
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
+	FlowIdToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
@@ -254,6 +256,12 @@ type RoundInfo struct {
 	curRoundNum      uint64
 }
 
+type PolicyInfo struct {
+	Dir            uint8
+	Action         string
+	NamespacedName []types.NamespacedName
+}
+
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
@@ -265,6 +273,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.controllerIDSets = sets.NewString()
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
+	datapathManager.FlowIdToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.datapathConfig = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.AgentInfo = new(AgentConf)
@@ -340,6 +349,32 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			}(vdsID, bridgeKeyword)
 		}
 	}
+}
+
+func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
+	datapathManager.flowReplayMutex.RLock()
+	defer datapathManager.flowReplayMutex.RUnlock()
+
+	var policyInfoList []*PolicyInfo
+
+	for _, id := range flowID {
+		item := datapathManager.FlowIdToRules[id]
+		if item != nil {
+			policyInfo := &PolicyInfo{
+				Dir:    item.Direction,
+				Action: item.EveroutePolicyRule.Action,
+			}
+			for _, p := range item.PolicyRuleReference.List() {
+				policyInfo.NamespacedName = append(policyInfo.NamespacedName, types.NamespacedName{
+					Namespace: strings.Split(p, "/")[0],
+					Name:      strings.Split(p, "/")[1],
+				})
+			}
+			policyInfoList = append(policyInfoList, policyInfo)
+		}
+	}
+
+	return policyInfoList
 }
 
 func (datapathManager *DpManager) InitializeCNI() {
@@ -816,6 +851,12 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
 
+	// save flowID reference
+	for _, v := range ruleEntry.RuleFlowMap {
+		datapathManager.FlowIdToRules[v.FlowID] = ruleEntry
+		log.Info(v.FlowID)
+	}
+
 	datapathManager.Rules[rule.RuleID] = ruleEntry
 
 	return nil
@@ -848,6 +889,8 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", ruleID, err)
 			return err
 		}
+		// remove flowID reference
+		delete(datapathManager.FlowIdToRules, pRule.RuleFlowMap[vdsID].FlowID)
 	}
 
 	if pRule.PolicyRuleReference.Len() == 0 {
