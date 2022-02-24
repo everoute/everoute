@@ -73,6 +73,7 @@ message Flow {
   uint64 endTime = 19; // only for destroy event
   uint64 update_time = 18;
 
+  // ct info
   uint32 ct_id = 13;
   uint32 ct_timeout = 14;
   uint32 ct_zone = 1;
@@ -80,7 +81,17 @@ message Flow {
   uint32 ct_mark = 9;
   uint32 ct_status = 10;
   bytes ct_label = 20;
-  bytes ct_label_mask = 21;
+
+  // policy info
+  repeated Policy policy = 30;
+}
+message Policy{
+  string name = 1;
+  string namespace = 2;
+
+  uint32 dir = 4;   	// egress = 0, ingress = 1
+  string mode = 5;    // monitor, work
+  string action = 3;  // allow, drop
 }
 message FlowTuple {
   bytes src = 1;
