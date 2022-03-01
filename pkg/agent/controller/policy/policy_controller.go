@@ -324,7 +324,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "ingress", rule.Name),
+				RuleID:        fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
 				Tier:          policy.Spec.Tier,
 				Action:        policycache.RuleActionAllow,
 				Direction:     policycache.RuleDirectionIn,
@@ -359,7 +359,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultIngressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "ingress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
 				Tier:              policy.Spec.Tier,
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionIn,
@@ -377,7 +377,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if egressEnabled {
 		for _, rule := range policy.Spec.EgressRules {
 			egressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "egress", rule.Name),
+				RuleID:        fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
 				Tier:          policy.Spec.Tier,
 				Action:        policycache.RuleActionAllow,
 				Direction:     policycache.RuleDirectionOut,
@@ -412,7 +412,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultEgressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "egress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
 				Tier:              policy.Spec.Tier,
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionOut,

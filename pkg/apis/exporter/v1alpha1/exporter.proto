@@ -86,6 +86,7 @@ message Flow {
 message Policy{
   string name = 1;
   string namespace = 2;
+  string type = 6;    // normal, global
 
   uint32 dir = 4;   	// egress = 0, ingress = 1
   string mode = 5;    // monitor, work
