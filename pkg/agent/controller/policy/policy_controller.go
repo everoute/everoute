@@ -349,7 +349,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultIngressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "ingress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
 				Tier:              policy.Spec.Tier,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
@@ -368,15 +368,6 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if egressEnabled {
 		for _, rule := range policy.Spec.EgressRules {
 			egressRule := &policycache.CompleteRule{
-<<<<<<< HEAD
-				RuleID:        fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "egress", rule.Name),
-				Tier:          policy.Spec.Tier,
-				Action:        policycache.RuleActionAllow,
-				Direction:     policycache.RuleDirectionOut,
-				SymmetricMode: policy.Spec.SymmetricMode,
-				SrcGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
-=======
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
 				Tier:            policy.Spec.Tier,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -385,7 +376,6 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				SymmetricMode:   policy.Spec.SymmetricMode,
 				SrcGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
 				SrcIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
->>>>>>> 1f9a0f0 (add monitor mode support)
 			}
 
 			if len(rule.To) == 0 {
@@ -414,7 +404,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultEgressRule := &policycache.CompleteRule{
-				RuleID:            fmt.Sprintf("%s/%s/%s.%s", policy.Namespace, policy.Name, "default", "egress"),
+				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
 				Tier:              policy.Spec.Tier,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
