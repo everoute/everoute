@@ -300,10 +300,11 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 
 		policyList := e.datapathManager.GetPolicyByFlowID(flowA, flowB)
 		for _, policySet := range policyList {
-			for _, policyItem := range policySet.NamespacedName {
+			for _, policyItem := range policySet.Item {
 				flow.Policy = append(flow.Policy, &v1alpha1.Policy{
 					Name:      policyItem.Name,
 					Namespace: policyItem.Namespace,
+					Type:      string(policyItem.PolicyType),
 					Dir:       uint32(policySet.Dir),
 					Mode:      e.datapathManager.WorkMode,
 					Action:    policySet.Action,
