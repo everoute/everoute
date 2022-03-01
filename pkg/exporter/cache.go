@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/contiv/libOpenflow/protocol"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"k8s.io/client-go/tools/cache"
@@ -35,7 +34,7 @@ type CollectorCache struct {
 	interfaceCache     cache.Store
 	localEndpointCache cache.Store
 	tcpSocketCache     cache.Store
-	sflowCounterCache  cache.Store
+	sFlowCounterCache  cache.Store
 }
 
 type Interface struct {
@@ -103,12 +102,12 @@ func NewCollectorCache() *CollectorCache {
 		localEndpointCache: cache.NewTTLStore(localEndpointKeyFunc, time.Second*LocalEndpointExpirationTime),
 		tcpSocketCache:     cache.NewTTLStore(TcpSocketKeyFunc, time.Second*TcpSocketExpirationTime),
 		interfaceCache:     cache.NewStore(interfaceKeyFunc),
-		sflowCounterCache:  cache.NewTTLStore(sflowCounterKeyFunc, time.Second*SflowPoolRate*2),
+		sFlowCounterCache:  cache.NewTTLStore(sflowCounterKeyFunc, time.Second*SFlowPooling*2),
 	}
 }
 
 func (c *CollectorCache) AddSFlowCounter(item layers.SFlowGenericInterfaceCounters) {
-	err := c.sflowCounterCache.Add(&SflowCounter{
+	err := c.sFlowCounterCache.Add(&SflowCounter{
 		ifindex:          item.IfIndex,
 		InOctets:         item.IfInOctets,
 		InUcastPkts:      item.IfInUcastPkts,
@@ -237,14 +236,7 @@ func (c *CollectorCache) AddIpMac(ip string, mac []byte) {
 }
 
 func (c *CollectorCache) AddArp(arp layers.ARP) {
-
 	c.AddIpMac(net.IP(arp.SourceProtAddress).String(), arp.SourceHwAddress)
-}
-
-func (c *CollectorCache) AddAgentArp(arp protocol.ARP) {
-
-	klog.Infof("receive agent arp from: %s", arp.IPSrc)
-	c.AddIpMac(arp.IPSrc.String(), arp.HWSrc)
 }
 
 func (c *CollectorCache) AddIp(pkt gopacket.Packet) {

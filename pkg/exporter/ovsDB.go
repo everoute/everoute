@@ -28,7 +28,13 @@ import (
 )
 
 const (
+	SFlowSampling = 64
+	SFlowPooling  = 10
+	SFlowHeader   = 128
+
 	SFlowPort = 6666
+
+	emptyUUID = "00000000-0000-0000-0000-000000000000"
 )
 
 type OvsMonitor struct {
@@ -152,8 +158,6 @@ func (m *OvsMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 	}
 }
 
-const emptyUUID = "00000000-0000-0000-0000-000000000000"
-
 func ovsdbTransact(client *ovsdb.OvsdbClient, database string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	results, err := client.Transact(database, operation...)
 	for item, result := range results {
@@ -176,10 +180,10 @@ func addSFlowForBridge(brName string) error {
 		Op:       "insert",
 		Table:    "sFlow",
 		Row: map[string]interface{}{
-			"header":   128,
-			"polling":  SflowPoolRate,
+			"header":   SFlowHeader,
+			"polling":  SFlowPooling,
 			"targets":  fmt.Sprintf("127.0.0.1:%d", SFlowPort),
-			"sampling": 64,
+			"sampling": SFlowSampling,
 		},
 	}
 

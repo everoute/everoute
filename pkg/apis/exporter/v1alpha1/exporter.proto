@@ -50,10 +50,8 @@ message Counter {
 
 message FlowMessage {
   string agent_id = 1;
-
   repeated Flow flow = 2;
 }
-
 message Flow {
   FlowTuple origin_tuple = 2;
   FlowTuple reply_tuple = 3;
