@@ -39,10 +39,10 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/fsnotify/fsnotify"
 	cmap "github.com/streamrail/concurrent-map"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
@@ -257,9 +257,14 @@ type RoundInfo struct {
 }
 
 type PolicyInfo struct {
-	Dir            uint8
-	Action         string
-	NamespacedName []types.NamespacedName
+	Dir    uint8
+	Action string
+	Item   []PolicyItem
+}
+type PolicyItem struct {
+	Name       string
+	Namespace  string
+	PolicyType policycache.PolicyType
 }
 
 // Datapath manager act as openflow controller:
@@ -365,9 +370,10 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 				Action: item.EveroutePolicyRule.Action,
 			}
 			for _, p := range item.PolicyRuleReference.List() {
-				policyInfo.NamespacedName = append(policyInfo.NamespacedName, types.NamespacedName{
-					Namespace: strings.Split(p, "/")[0],
-					Name:      strings.Split(p, "/")[1],
+				policyInfo.Item = append(policyInfo.Item, PolicyItem{
+					Name:       strings.Split(p, "/")[1],
+					Namespace:  strings.Split(p, "/")[0],
+					PolicyType: policycache.PolicyType(strings.Split(p, "/")[2]),
 				})
 			}
 			policyInfoList = append(policyInfoList, policyInfo)
