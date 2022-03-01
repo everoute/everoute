@@ -32,6 +32,8 @@ type RuleType string
 type RuleAction string
 type RuleDirection string
 
+type PolicyType string
+
 const (
 	RuleTypeGlobalDefaultRule RuleType = "GlobalDefaultRule"
 	RuleTypeDefaultRule       RuleType = "DefaultRule"
@@ -42,10 +44,13 @@ const (
 
 	RuleDirectionIn  RuleDirection = "Ingress"
 	RuleDirectionOut RuleDirection = "Egress"
+
+	NormalPolicy PolicyType = "normal"
+	GlobalPolicy PolicyType = "global"
 )
 
 type PolicyRule struct {
-	// Name format policyNamespace/policyName/ruleName-flowKey
+	// Name format policyNamespace/policyName/policyType/ruleName-flowKey
 	Name   string     `json:"name"`
 	Action RuleAction `json:"action"`
 
@@ -95,7 +100,7 @@ func NewIPBlockItem() *IPBlockItem {
 type CompleteRule struct {
 	lock sync.RWMutex
 
-	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/ruleName.
+	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/policyType/ruleName.
 	RuleID string
 
 	Tier            string
