@@ -18,8 +18,8 @@ package exporter
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
@@ -42,30 +42,31 @@ const (
 
 	LocalEndpointExpirationTime = 30
 	TcpSocketExpirationTime     = 8
-
-	SflowPoolRate = 10
 )
 
-// tcp state for conntrack
+// tcp state for conntrack, differ from tcp state in kernel socket
 const (
-	TCP_CONNTRACK_NONE = iota
-	TCP_CONNTRACK_SYN_SENT
-	TCP_CONNTRACK_SYN_RECV
-	TCP_CONNTRACK_ESTABLISHED
-	TCP_CONNTRACK_FIN_WAIT
-	TCP_CONNTRACK_CLOSE_WAIT
-	TCP_CONNTRACK_LAST_ACK
-	TCP_CONNTRACK_TIME_WAIT
-	TCP_CONNTRACK_CLOSE
-	TCP_CONNTRACK_LISTEN
+	TcpConntrackNone = iota
+	TcpConntrackSynSent
+	TcpConntrackSynRecv
+	TcpConntrackEstablished
+	TcpConntrackFinWait
+	TcpConntrackCloseWait
+	TcpConntrackLastAck
+	TcpConntrackTimeWait
+	TcpConntrackClose
+	TcpConntrackListen
 )
 
 type Exporter struct {
 	cache    *CollectorCache
 	uploader Uploader
 
-	AgentArpChan chan protocol.ARP
-	stopChan     <-chan struct{}
+	AgentArpChan        chan protocol.ARP
+	agentArpReport      [][]byte
+	agentArpReportMutex sync.Mutex
+
+	stopChan <-chan struct{}
 
 	datapathManager *datapath.DpManager
 }
@@ -155,7 +156,20 @@ func (e *Exporter) agentArpProcess() {
 	for {
 		select {
 		case arp := <-e.AgentArpChan:
-			e.cache.AddAgentArp(arp)
+			b, err := arp.MarshalBinary()
+			if err != nil {
+				continue
+			}
+			arpPkt := layers.ARP{}
+			err = arpPkt.DecodeFromBytes(b, gopacket.NilDecodeFeedback)
+			if err != nil {
+				continue
+			}
+			e.cache.AddArp(arpPkt)
+
+			e.agentArpReportMutex.Lock()
+			e.agentArpReport = append(e.agentArpReport, b)
+			e.agentArpReportMutex.Unlock()
 		case <-e.stopChan:
 			return
 		}
@@ -199,7 +213,7 @@ func (e *Exporter) ctFilter(ct conntrack.Flow) bool {
 
 	// skip time_wait tcp flow
 	if ct.TupleOrig.Proto.Protocol == uint8(layers.IPProtocolTCP) {
-		if ct.ProtoInfo.TCP != nil && ct.ProtoInfo.TCP.State == TCP_CONNTRACK_TIME_WAIT {
+		if ct.ProtoInfo.TCP != nil && ct.ProtoInfo.TCP.State == TcpConntrackTimeWait {
 			return true
 		}
 	}
@@ -296,7 +310,6 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 				})
 			}
 		}
-		klog.Info(flow.Policy)
 	}
 
 	return flow
@@ -356,13 +369,18 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 									e.cache.AddIp(packet)
 								}
 								pktMsg.RawIp = append(pktMsg.RawIp, packet.Data())
-							default:
-								fmt.Println(packet.Layers()[1].LayerType())
 							}
 						}
 					}
 				}
 			}
+			// add agent arp
+			e.agentArpReportMutex.Lock()
+			pktMsg.RawArp = append(pktMsg.RawArp, e.agentArpReport...)
+			e.agentArpReport = nil
+			e.agentArpReportMutex.Unlock()
+
+			// report arp
 			if len(pktMsg.RawArp) != 0 || len(pktMsg.RawIp) != 0 {
 				e.uploader.SFlowSample(pktMsg)
 			}
@@ -374,7 +392,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 					switch record.(type) {
 					case layers.SFlowGenericInterfaceCounters:
 						item := record.(layers.SFlowGenericInterfaceCounters)
-						counter, exist, err := e.cache.sflowCounterCache.Get(&SflowCounter{ifindex: item.IfIndex})
+						counter, exist, err := e.cache.sFlowCounterCache.Get(&SflowCounter{ifindex: item.IfIndex})
 						if !exist || err != nil {
 							e.cache.AddSFlowCounter(item)
 							continue

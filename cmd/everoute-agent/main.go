@@ -99,7 +99,6 @@ func main() {
 
 	if enableCNI {
 		setAgentConf(datapathManager, mgr.GetAPIReader())
-
 		// cni server
 		cniServer := cniserver.Initialize(k8sClient, datapathManager)
 		go cniServer.Run(stopChan)
