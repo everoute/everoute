@@ -613,7 +613,7 @@ type Policy struct {
 
 	Name      string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Dir       uint32 `protobuf:"varint,4,opt,name=dir,proto3" json:"dir,omitempty"`      // POLICY_DIRECTION_OUT = 0,POLICY_DIRECTION_IN  = 1
+	Dir       uint32 `protobuf:"varint,4,opt,name=dir,proto3" json:"dir,omitempty"`      // egress = 0, ingress = 1
 	Mode      string `protobuf:"bytes,5,opt,name=mode,proto3" json:"mode,omitempty"`     // monitor, work
 	Action    string `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"` // allow, drop
 }
