@@ -18,7 +18,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&kafkaHosts, "host", "192.168.26.10:9092,192.168.28.177:9092,192.168.30.12:9092", "Kafka hosts")
+	flag.StringVar(&kafkaHosts, "host", "192.168.24.37:30990", "Kafka hosts")
 	flag.Parse()
 
 	stopChan := make(chan struct{})
