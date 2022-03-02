@@ -39,6 +39,7 @@ import (
 const (
 	ConntrackSampleInterval = 5
 	TcpSocketSampleInterval = 5
+	BondInfoReportInterval  = 5
 
 	LocalEndpointExpirationTime = 30
 	TcpSocketExpirationTime     = 8
@@ -108,7 +109,22 @@ func (e *Exporter) StartExporter(datapathManager *datapath.DpManager, stopChan <
 
 	go e.agentArpProcess()
 
+	go e.bondInfoProcess()
+
 	<-e.stopChan
+}
+
+func (e *Exporter) bondInfoProcess() {
+	ticker := time.NewTicker(time.Second * BondInfoReportInterval)
+	for {
+		select {
+		case <-ticker.C:
+			bondMsg := OvsBondInfo()
+			e.uploader.Bond(bondMsg)
+		case <-e.stopChan:
+			return
+		}
+	}
 }
 
 func (e *Exporter) tcpSocketCollector() {
