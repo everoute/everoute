@@ -31,6 +31,7 @@ const (
 	KafkaFlowTopic         = "flow"
 	KafkaSFlowSampleTopic  = "sflow-sample"
 	KafkaSFlowCounterTopic = "sflow-counter"
+	KafkaBondTopic         = "bond"
 	KafkaOvsFlowTopic      = "ovs-flow"
 )
 
@@ -39,6 +40,7 @@ type Uploader interface {
 	SFlowSample(msg *v1alpha1.PktMessage)
 	SFlowCounter(msg *v1alpha1.CounterMessage)
 	OVSFlow()
+	Bond(msg *v1alpha1.BondMsg)
 }
 
 type KafkaUploader struct {
@@ -81,6 +83,10 @@ func (k *KafkaUploader) SFlowSample(msg *v1alpha1.PktMessage) {
 func (k *KafkaUploader) SFlowCounter(msg *v1alpha1.CounterMessage) {
 	msg.AgentId = k.AgentID
 	k.Send(protoToByte(msg), KafkaSFlowCounterTopic)
+}
+func (k *KafkaUploader) Bond(msg *v1alpha1.BondMsg) {
+	msg.AgentId = k.AgentID
+	k.Send(protoToByte(msg), KafkaBondTopic)
 }
 func (k *KafkaUploader) OVSFlow() {
 
