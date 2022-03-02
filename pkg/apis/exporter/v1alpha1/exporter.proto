@@ -23,29 +23,29 @@ message CounterMessage {
 }
 message Counter {
   string ifname = 1;
-  map<string, string> external_id = 20;
+  map<string, string> external_id = 2;
 
-  uint32 type = 2;
-  uint64 link_speed = 3;
-  uint32 direction = 4;
-  uint32 status = 5;
+  uint32 type = 3;
+  uint64 link_speed = 4;
+  uint32 direction = 5;
+  uint32 status = 6;
 
   // increase statistic from last counter
-  uint64 in_octets = 6;
-  uint32 in_ucast_pkts = 7;
-  uint32 in_multicast_pkts = 8;
-  uint32 in_broadcast_pkts = 9;
-  uint32 in_discards = 10;
-  uint32 in_errors = 11;
-  uint32 in_unknown_protos = 12;
-  uint64 out_octets = 13;
-  uint32 out_ucast_pkts = 14;
-  uint32 out_multicast_pkts = 15;
-  uint32 out_broadcast_pkts = 16;
-  uint32 out_discards = 17;
-  uint32 out_errors = 18;
+  uint64 in_octets = 7;
+  uint32 in_ucast_pkts = 8;
+  uint32 in_multicast_pkts = 9;
+  uint32 in_broadcast_pkts = 10;
+  uint32 in_discards = 11;
+  uint32 in_errors = 12;
+  uint32 in_unknown_protos = 13;
+  uint64 out_octets = 14;
+  uint32 out_ucast_pkts = 15;
+  uint32 out_multicast_pkts = 16;
+  uint32 out_broadcast_pkts = 17;
+  uint32 out_discards = 18;
+  uint32 out_errors = 19;
 
-  uint32 promiscuous_mode = 19;
+  uint32 promiscuous_mode = 20;
 }
 
 message FlowMessage {
@@ -53,44 +53,44 @@ message FlowMessage {
   repeated Flow flow = 2;
 }
 message Flow {
-  FlowTuple origin_tuple = 2;
-  FlowTuple reply_tuple = 3;
+  FlowTuple origin_tuple = 1;
+  FlowTuple reply_tuple = 2;
 
-  FlowCounter origin_counter = 4;
-  FlowCounter reply_counter = 5;
+  FlowCounter origin_counter = 3;
+  FlowCounter reply_counter = 4;
 
-  uint32 protocol = 15;
-  ProtocolInfo protocol_info = 16;
+  uint32 protocol = 5;
+  ProtocolInfo protocol_info = 6;
 
   // 0 - in
   // 1 - out
   // 2 - unknown
-  uint32 origin_dir = 6;
+  uint32 origin_dir = 7;
 
-  uint64 start_time = 11;
-  uint64 endTime = 19; // only for destroy event
-  uint64 update_time = 18;
+  uint64 start_time = 8;
+  uint64 endTime = 9; // only for destroy event
+  uint64 update_time = 10;
 
   // ct info
-  uint32 ct_id = 13;
-  uint32 ct_timeout = 14;
-  uint32 ct_zone = 1;
-  uint32 ct_use = 8;
-  uint32 ct_mark = 9;
-  uint32 ct_status = 10;
-  bytes ct_label = 20;
+  uint32 ct_id = 11;
+  uint32 ct_timeout = 12;
+  uint32 ct_zone = 13;
+  uint32 ct_use = 14;
+  uint32 ct_mark = 15;
+  uint32 ct_status = 16;
+  bytes ct_label = 17;
 
   // policy info
-  repeated Policy policy = 30;
+  repeated Policy policy = 18;
 }
 message Policy{
   string name = 1;
   string namespace = 2;
-  string type = 6;    // normal, global
+  string type = 3;    // normal, global
 
-  uint32 dir = 4;   	// egress = 0, ingress = 1
+  uint32 dir = 4;    // egress = 0, ingress = 1
   string mode = 5;    // monitor, work
-  string action = 3;  // allow, drop
+  string action = 6;  // allow, drop
 }
 message FlowTuple {
   bytes src = 1;
@@ -99,12 +99,12 @@ message FlowTuple {
   bytes eth_src = 3;
   bytes eth_dst = 4;
 
-  uint32 src_port = 6;
-  uint32 dst_port = 7;
+  uint32 src_port = 5;
+  uint32 dst_port = 6;
 
-  uint32 icmp_id = 8;
-  uint32 icmp_type = 9;
-  uint32 icmp_code = 10;
+  uint32 icmp_id = 7;
+  uint32 icmp_type = 8;
+  uint32 icmp_code = 9;
 }
 message FlowCounter {
   uint64 packets = 1;
@@ -115,8 +115,51 @@ message ProtocolInfo {
 }
 message TcpInfo {
   uint32 state = 1;
-  uint32 ca_state = 4;
-  uint32 rto = 2;
-  uint32 rtt = 3;
+  uint32 ca_state = 2;
+  uint32 rto = 3;
+  uint32 rtt = 4;
   uint32 rtt_var = 5;
+}
+message BondMsg{
+  string agent_id = 1;
+  map<string, BondPort> ports = 2;
+}
+message BondPort{
+  string bond_name = 1;
+  string bond_mode = 2;
+
+  // milliseconds
+  uint64 up_delay = 3;
+  uint64 down_delay = 4;
+  uint64 next_rebalance = 5;
+
+  string lacp_status = 6;
+  string lacp_fallback_ab = 7;
+
+  bytes active_slave_mac = 8;
+  string active_slave_interface_name = 9;
+
+  string lacp_time = 10;
+
+  map<string, BondInterface> ifs = 11;
+
+}
+message BondInterface{
+  string name = 1;
+
+  string status = 2;
+  bool is_active_slave = 3;
+  bool may_enable = 4;
+
+  // lacp info
+  uint64 tx_pdu = 5;
+  uint64 rx_pdu = 6;
+  uint64 rx_bad_pdu = 7;
+  uint64 rx_marker_request_pdu = 8;
+  uint64 link_expired = 9;
+  uint64 link_defaulted = 10;
+  uint64 carrier_status_change = 11;
+
+  string actor_state = 12;
+  string partner_state = 13;
 }
