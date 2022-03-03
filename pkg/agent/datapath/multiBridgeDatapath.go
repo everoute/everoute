@@ -793,10 +793,10 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 		if RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
 			datapathManager.Rules[rule.RuleID].PolicyRuleReference.Insert(ruleName)
-			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.PolicyRuleReference)
+			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.EveroutePolicyRule)
 			return nil
 		} else {
-			log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.PolicyRuleReference, rule)
+			log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
 		}
 	}
 
@@ -815,12 +815,12 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	if ruleEntry == nil {
 		ruleEntry = &EveroutePolicyRuleEntry{
-			EveroutePolicyRule:  rule,
-			Direction:           direction,
-			Tier:                tier,
 			PolicyRuleReference: sets.NewString(ruleName),
 		}
 	}
+	ruleEntry.Direction = direction
+	ruleEntry.Tier = tier
+	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
 
 	// save flowID reference
