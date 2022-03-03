@@ -45,17 +45,16 @@ func Listen() *Listener {
 func (l *Listener) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	var conn net.Conn
 	var err error
-
-	done := make(chan struct{})
-	defer close(done)
+	var done = make(chan struct{})
 
 	go func() {
 		conn, err = l.Dial()
 		select {
 		case done <- struct{}{}:
+			close(done)
 		default:
 			if err == nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 	}()
