@@ -40,9 +40,6 @@ const (
 	ConntrackSampleInterval = 5
 	TcpSocketSampleInterval = 5
 	BondInfoReportInterval  = 5
-
-	LocalEndpointExpirationTime = 30
-	TcpSocketExpirationTime     = 8
 )
 
 // tcp state for conntrack, differ from tcp state in kernel socket
@@ -157,7 +154,6 @@ func (e *Exporter) tcpSocketCollector() {
 						rtt:       item.TCPInfo.Rtt,
 						rttVar:    item.TCPInfo.Rttvar,
 					})
-
 					//klog.Infof("tcp %s:%d rto: %d", item.InetDiagMsg.ID.Source.String(), item.InetDiagMsg.ID.SourcePort, item.TCPInfo.Rto)
 				}
 			}
@@ -280,6 +276,7 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 		CtLabel:    ct.Labels,
 	}
 	// calculate ct direction
+	// TODO: const direction and align with policy rule direction
 	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) == nil &&
 		e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) == nil {
 		flow.OriginDir = 2
@@ -289,6 +286,17 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 	}
 	if e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) != nil {
 		flow.OriginDir = 0
+	}
+
+	// fetch uplink interface name
+	switch flow.OriginDir {
+	case 0:
+		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.DestinationAddress.String())...)
+	case 1:
+		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.SourceAddress.String())...)
+	case 2:
+		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.DestinationAddress.String())...)
+		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.SourceAddress.String())...)
 	}
 
 	// fetch socket info into flow
@@ -361,6 +369,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 			// handle flow sample packet
 			pktMsg := &v1alpha1.PktMessage{}
 			for _, sample := range flow.FlowSamples {
+				//klog.Infof("%#X/%#X -> %#X/%#X", sample.InputInterface, sample.InputInterfaceFormat, sample.OutputInterface, sample.InputInterfaceFormat)
 				pktMsg.SampleRate = sample.SamplingRate
 				pktMsg.SamplePool = sample.SamplePool
 				pktMsg.Dropped += sample.Dropped
@@ -385,6 +394,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 								if e.cache.IsLocalIface(sample.InputInterface) {
 									e.cache.AddIp(packet)
 								}
+								e.cache.CheckAndAddBondIp(sample.InputInterface, packet)
 								pktMsg.RawIp = append(pktMsg.RawIp, packet.Data())
 							}
 						}
