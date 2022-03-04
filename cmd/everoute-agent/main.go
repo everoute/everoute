@@ -55,7 +55,7 @@ func main() {
 	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
 	flag.BoolVar(&enableExporter, "enable-exporter", true, "Enable Exporter in agent.")
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
-	flag.StringVar(&kafkaHosts, "kafka-host", "192.168.24.37:30990", "Kafka hosts")
+	flag.StringVar(&kafkaHosts, "kafka-host", "192.168.24.37:30991", "Kafka hosts")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()

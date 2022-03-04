@@ -30,14 +30,24 @@ import (
 	"github.com/everoute/everoute/pkg/apis/exporter/v1alpha1"
 )
 
+const (
+	InterfaceUuidIndex = "interface-uuid-index"
+	BondInterfaceIndex = "bond-interface-index"
+
+	LocalEndpointExpirationTime = 30
+	TcpSocketExpirationTime     = 8
+)
+
 type CollectorCache struct {
-	interfaceCache     cache.Store
+	interfaceCache     cache.Indexer
 	localEndpointCache cache.Store
 	tcpSocketCache     cache.Store
 	sFlowCounterCache  cache.Store
+	BondInterfaceCache cache.Indexer
 }
 
 type Interface struct {
+	uuid       string
 	ifindex    uint32
 	name       string
 	externalID map[string]string
@@ -46,6 +56,11 @@ type Interface struct {
 type LocalEndpoint struct {
 	ip  string
 	mac []byte
+}
+
+type BondInterface struct {
+	uuid string
+	ips  cache.Store
 }
 
 type TcpSocket struct {
@@ -79,7 +94,7 @@ type SflowCounter struct {
 	OutErrors        uint32
 }
 
-func sflowCounterKeyFunc(obj interface{}) (string, error) {
+func sFlowCounterKeyFunc(obj interface{}) (string, error) {
 	return strconv.Itoa(int(obj.(*SflowCounter).ifindex)), nil
 }
 
@@ -87,22 +102,41 @@ func interfaceKeyFunc(obj interface{}) (string, error) {
 	return strconv.Itoa(int(obj.(*Interface).ifindex)), nil
 }
 
+func bondInterfaceKeyFunc(obj interface{}) (string, error) {
+	return obj.(*BondInterface).uuid, nil
+}
+
+func bondInterfaceIndexFunc(obj interface{}) ([]string, error) {
+	ips := obj.(*BondInterface).ips.List()
+	var out []string
+	for _, ip := range ips {
+		out = append(out, ip.(net.IP).String())
+	}
+	return out, nil
+}
+
 func localEndpointKeyFunc(obj interface{}) (string, error) {
 	return obj.(*LocalEndpoint).ip, nil
 }
 
-func TcpSocketKeyFunc(obj interface{}) (string, error) {
+func tcpSocketKeyFunc(obj interface{}) (string, error) {
 	tcp := obj.(*TcpSocket)
 	key := fmt.Sprintf("%s:%d/%s:%d", tcp.localAddr, tcp.localPort, tcp.peerAddr, tcp.peerPort)
 	return key, nil
 }
 
+func interfaceUuidIndexFunc(obj interface{}) ([]string, error) {
+	iface := obj.(*Interface)
+	return []string{iface.uuid}, nil
+}
+
 func NewCollectorCache() *CollectorCache {
 	return &CollectorCache{
 		localEndpointCache: cache.NewTTLStore(localEndpointKeyFunc, time.Second*LocalEndpointExpirationTime),
-		tcpSocketCache:     cache.NewTTLStore(TcpSocketKeyFunc, time.Second*TcpSocketExpirationTime),
-		interfaceCache:     cache.NewStore(interfaceKeyFunc),
-		sFlowCounterCache:  cache.NewTTLStore(sflowCounterKeyFunc, time.Second*SFlowPooling*2),
+		tcpSocketCache:     cache.NewTTLStore(tcpSocketKeyFunc, time.Second*TcpSocketExpirationTime),
+		interfaceCache:     cache.NewIndexer(interfaceKeyFunc, cache.Indexers{InterfaceUuidIndex: interfaceUuidIndexFunc}),
+		sFlowCounterCache:  cache.NewTTLStore(sFlowCounterKeyFunc, time.Second*SFlowPooling*2),
+		BondInterfaceCache: cache.NewIndexer(bondInterfaceKeyFunc, cache.Indexers{BondInterfaceIndex: bondInterfaceIndexFunc}),
 	}
 }
 
@@ -124,7 +158,7 @@ func (c *CollectorCache) AddSFlowCounter(item layers.SFlowGenericInterfaceCounte
 		OutErrors:        item.IfOutErrors,
 	})
 	if err != nil {
-		klog.Errorf("add sflow counter cache error, err:%s", err)
+		klog.Errorf("add sFlow counter cache error, err:%s", err)
 	}
 }
 
@@ -170,6 +204,85 @@ func (c *CollectorCache) FetchSocketByFlow(flow *v1alpha1.Flow) *TcpSocket {
 	}
 
 	return nil
+}
+
+func (c *CollectorCache) AddBondIf(uuid string) {
+	bond := &BondInterface{
+		uuid: uuid,
+		ips: cache.NewTTLStore(func(obj interface{}) (string, error) {
+			return obj.(net.IP).String(), nil
+		}, time.Second*TcpSocketExpirationTime*2),
+	}
+
+	err := c.BondInterfaceCache.Add(bond)
+	if err != nil {
+		klog.Errorf("add bond interface %+v error, err:%s", bond, err)
+	}
+	klog.Infof("add bond interface %+v success", bond)
+}
+
+func (c *CollectorCache) DelBondIf(uuid string) {
+	_, exist, _ := c.BondInterfaceCache.Get(&BondInterface{uuid: uuid})
+	if !exist {
+		return
+	}
+
+	err := c.BondInterfaceCache.Delete(&BondInterface{uuid: uuid})
+	if err != nil {
+		klog.Errorf("delete BondInterface %d error, err:%s", uuid, err)
+	}
+}
+
+func (c *CollectorCache) CheckAndAddBondIp(ifindex uint32, ipPkt gopacket.Packet) {
+	// get interface uuid
+	iface, exist, err := c.interfaceCache.Get(&Interface{ifindex: ifindex})
+	if !exist || err != nil {
+		return
+	}
+	// get bond interface by uuid
+	bond, exist, err := c.BondInterfaceCache.Get(&BondInterface{uuid: iface.(*Interface).uuid})
+	if !exist || err != nil {
+		return
+	}
+
+	ip := layers.IPv4{}
+	err = ip.DecodeFromBytes(ipPkt.LinkLayer().LayerPayload(), gopacket.NilDecodeFeedback)
+	if err != nil {
+		klog.Errorf("parse ip pkt error,err:%s", err)
+		return
+	}
+	err = bond.(*BondInterface).ips.Add(ip.DstIP)
+	if err != nil {
+		klog.Errorf("Add dst ip %s to bond interface %d error, err:%s", ip.DstIP, ifindex, err)
+		return
+	}
+	// MUST update bond struct, inner data struct(ips) update will not trigger index re-sync.
+	err = c.BondInterfaceCache.Update(bond.(*BondInterface))
+	if err != nil {
+		klog.Errorf("sync bond interface %d error, err:%s", ifindex, err)
+		return
+	}
+}
+
+func (c *CollectorCache) FetchIpBondInterface(ip string) []string {
+	// fetch ip from bond cache
+	bonds, err := c.BondInterfaceCache.ByIndex(BondInterfaceIndex, ip)
+	if err != nil {
+		klog.Error(err)
+		return []string{}
+	}
+	// out means target IP is in cache
+	var out []string
+	for _, bond := range bonds {
+		ifs, err := c.interfaceCache.ByIndex(InterfaceUuidIndex, bond.(*BondInterface).uuid)
+		if err != nil {
+			continue
+		}
+		for _, iface := range ifs {
+			out = append(out, iface.(*Interface).name)
+		}
+	}
+	return out
 }
 
 func (c *CollectorCache) AddIface(iface *Interface) {
