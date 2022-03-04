@@ -67,6 +67,8 @@ message Flow {
   // 2 - unknown
   uint32 origin_dir = 7;
 
+  repeated string bond_uplink_ifname = 19; // empty for normal uplink port
+
   uint64 start_time = 8;
   uint64 endTime = 9; // only for destroy event
   uint64 update_time = 10;
@@ -90,7 +92,7 @@ message Policy{
 
   uint32 dir = 4;    // egress = 0, ingress = 1
   string mode = 5;    // monitor, work
-  string action = 6;  // allow, drop
+  string action = 6;  // allow, deny
 }
 message FlowTuple {
   bytes src = 1;
@@ -142,7 +144,6 @@ message BondPort{
   string lacp_time = 10;
 
   map<string, BondInterface> ifs = 11;
-
 }
 message BondInterface{
   string name = 1;

@@ -75,13 +75,14 @@ func (m *OvsMonitor) Run(stopChan <-chan struct{}) {
 		Modify:  true,
 	}
 	requests := map[string]ovsdb.MonitorRequest{
-		"Interface": {Select: selectAll, Columns: []string{"ifindex", "external_ids", "name"}},
+		"Interface": {Select: selectAll, Columns: []string{"_uuid", "ifindex", "external_ids", "name"}},
 		"Bridge":    {Select: selectAll, Columns: []string{"name"}},
+		"Port":      {Select: selectAll, Columns: []string{"interfaces"}},
 	}
 
 	initial, err := m.ovsClient.Monitor("Open_vSwitch", nil, requests)
 	if err != nil {
-		fmt.Errorf("monitor ovsdb %s: %s", "Open_vSwitch", err)
+		klog.Errorf("monitor ovsdb error: %s", "Open_vSwitch", err)
 	}
 	m.handleOvsUpdates(*initial)
 
@@ -105,6 +106,11 @@ func FilterBridge(brName interface{}) bool {
 
 func generateInterface(row ovsdb.Row) *Interface {
 	iface := &Interface{}
+	switch row.Fields["_uuid"].(type) {
+	case ovsdb.UUID:
+		iface.uuid = row.Fields["_uuid"].(ovsdb.UUID).GoUuid
+	}
+
 	switch row.Fields["ifindex"].(type) {
 	case float64:
 		iface.ifindex = uint32(row.Fields["ifindex"].(float64))
@@ -150,15 +156,32 @@ func (m *OvsMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 						continue
 					}
 					if err := addSFlowForBridge(row.New.Fields["name"].(string)); err != nil {
-						klog.Errorf("add sflow for %s error, err:%s", row.New.Fields["name"].(string), err)
+						klog.Errorf("add sFlow for %s error, err:%s", row.New.Fields["name"].(string), err)
+					}
+				}
+				if table == "Port" {
+					switch row.New.Fields["interfaces"].(type) {
+					case ovsdb.OvsSet:
+						if len(row.New.Fields["interfaces"].(ovsdb.OvsSet).GoSet) > 1 {
+							for _, ifaceUUID := range row.New.Fields["interfaces"].(ovsdb.OvsSet).GoSet {
+								switch ifaceUUID.(type) {
+								case ovsdb.UUID:
+									m.collectorCache.AddBondIf(ifaceUUID.(ovsdb.UUID).GoUuid)
+								}
+							}
+						}
 					}
 				}
 			} else {
 				// delete
 				if table == "Interface" {
-					switch row.New.Fields["ifindex"].(type) {
+					switch row.Old.Fields["ifindex"].(type) {
 					case float64:
 						m.collectorCache.DelIface(uint32(row.Old.Fields["ifindex"].(float64)))
+					}
+					switch row.Old.Fields["_uuid"].(type) {
+					case ovsdb.UUID:
+						m.collectorCache.DelBondIf(row.Old.Fields["_uuid"].(ovsdb.UUID).GoUuid)
 					}
 				}
 			}
