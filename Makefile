@@ -13,6 +13,9 @@ image:
 image-generate:
 	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
 
+image-test:
+	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/
+
 yaml:
 	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
 
@@ -41,12 +44,24 @@ e2e-tools:
 test:
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -v
 
+docker-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
+
 cover-test:
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 
+docker-cover-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make cover-test
+
 race-test:
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -race
+
+docker-race-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make race-test
 
 e2e-test:
 	go test ./tests/e2e/...
