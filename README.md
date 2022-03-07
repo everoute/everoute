@@ -56,25 +56,25 @@ networking and security features. Everoute uses Open vSwitch openflow mode to
 control the network forwarding and security rules.
 
 * **3rd party plugins**: Everoute provides a plugin framework to integrate
-within 3rd party platforms, such as [SmartX](https://www.smartx.com) -
-[SMTX OS](https://www.smartx.com/smtx-os) virtualization platform or other
+within 3rd party platforms, such as [SmartX](https://www.smartx.com/global) -
+[SMTX OS](https://www.smartx.com/global/smtx-os) virtualization platform or other
 cloud platform.
 
 
 ## Main functions
 
 In the current phase, Everoute support native Kubernetes platform and
-SmartX virtualization platform [SMTX OS](https://www.smartx.com/smtx-os).
+SmartX virtualization platform [SMTX OS](https://www.smartx.com/global/smtx-os).
 
 * **Kubernetes Platform**: For the Kubernetes platform, Everoute provides
 the native K8s CNI network plug-in. The Everoute CNI supports Pod connection
 management, Network Policies, cluster service and NodePort etc. Details please
 refer to [Everoute CNI](https://github.com/everoute/everoute/blob/main/docs/cni/README.md) 
 
-* **Virtualization Platform**: [SMTX OS](https://www.smartx.com/smtx-os)
-is [SmartX](https://www.smartx.com) native virtualization platform.
+* **Virtualization Platform**: [SMTX OS](https://www.smartx.com/global/smtx-os)
+is [SmartX](https://www.smartx.com/global) native virtualization platform.
 Everoute can be intergated with SMTX OS through the
-[CloudTower](https://www.smartx.com/cloud-tower) plugin to provide the
+[CloudTower](https://www.smartx.com/global/cloud-tower) plugin to provide the
 Micro-Segmentation service.
 
 ## Roadmap
