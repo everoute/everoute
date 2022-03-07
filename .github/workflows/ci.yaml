@@ -16,26 +16,11 @@ jobs:
     runs-on: [ ubuntu-20.04 ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: ^1.15
-      - uses: actions/cache@v2
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-      - uses: RyanSiu1995/kubebuilder-action@v1.2.1
-        with:
-          version: 2.3.1
-          etcdVersion: 3.5.0
-      - name: setup openvswitch
-        run: sudo sh -c "apt update && apt install -y openvswitch-switch && systemctl start openvswitch-switch"
       - name: run everoute unit test
         run: |
-          sudo make test
-          sudo make race-test
-          sudo make cover-test
+          sudo make docker-test
+          sudo make docker-race-test
+          sudo make docker-cover-test
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
