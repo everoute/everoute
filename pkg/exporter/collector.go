@@ -386,6 +386,10 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 								if err != nil || arp.AddrType != layers.LinkTypeEthernet {
 									continue
 								}
+								// only process arp ARPRequest packet
+								if arp.AddrType == layers.ARPReply{
+									continue
+								}
 								// add to cache
 								if e.cache.IsLocalIface(sample.InputInterface) {
 									e.cache.AddArp(arp)
