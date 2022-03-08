@@ -15,7 +15,12 @@ message PktMessage {
   repeated bytes raw_arp = 7;
   repeated bytes raw_ip = 8;
 }
-
+enum DIR{
+  CT_ORIGIN_IN = 0;
+  CT_ORIGIN_OUT = 1;
+  CT_ORIGIN_LOCAL = 2;
+  CT_ORIGIN_UNKNOWN = 9;
+}
 message CounterMessage {
   string agent_id = 1;
 
@@ -62,12 +67,9 @@ message Flow {
   uint32 protocol = 5;
   ProtocolInfo protocol_info = 6;
 
-  // 0 - in
-  // 1 - out
-  // 2 - unknown
-  uint32 origin_dir = 7;
+  DIR origin_dir = 7;
 
-  repeated string bond_uplink_ifname = 19; // empty for normal uplink port
+  string bond_uplink_ifname = 19; // empty for normal uplink port
 
   uint64 start_time = 8;
   uint64 endTime = 9; // only for destroy event
