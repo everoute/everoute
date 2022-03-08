@@ -5,6 +5,7 @@ package resolver
 
 import (
 	"context"
+
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/generated"
 )

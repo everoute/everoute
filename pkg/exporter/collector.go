@@ -279,24 +279,25 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 	// TODO: const direction and align with policy rule direction
 	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) == nil &&
 		e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) == nil {
-		flow.OriginDir = 2
+		flow.OriginDir = v1alpha1.DIR_CT_ORIGIN_UNKNOWN
 	}
 	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) != nil {
-		flow.OriginDir = 1
+		flow.OriginDir = v1alpha1.DIR_CT_ORIGIN_OUT
 	}
 	if e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) != nil {
-		flow.OriginDir = 0
+		flow.OriginDir = v1alpha1.DIR_CT_ORIGIN_IN
+	}
+	if e.cache.GetMac(ct.TupleOrig.IP.SourceAddress.String()) != nil &&
+		e.cache.GetMac(ct.TupleOrig.IP.DestinationAddress.String()) != nil {
+		flow.OriginDir = v1alpha1.DIR_CT_ORIGIN_LOCAL
 	}
 
-	// fetch uplink interface name
+	// fetch uplink interface name, empty if dir is known
 	switch flow.OriginDir {
-	case 0:
-		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.DestinationAddress.String())...)
-	case 1:
-		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.SourceAddress.String())...)
-	case 2:
-		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.DestinationAddress.String())...)
-		flow.BondUplinkIfname = append(flow.BondUplinkIfname, e.cache.FetchIpBondInterface(ct.TupleOrig.IP.SourceAddress.String())...)
+	case v1alpha1.DIR_CT_ORIGIN_IN:
+		flow.BondUplinkIfname = e.cache.FetchIpBondInterface(ct.TupleOrig.IP.DestinationAddress.String())
+	case v1alpha1.DIR_CT_ORIGIN_OUT:
+		flow.BondUplinkIfname = e.cache.FetchIpBondInterface(ct.TupleOrig.IP.SourceAddress.String())
 	}
 
 	// fetch socket info into flow

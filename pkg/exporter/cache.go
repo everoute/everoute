@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -44,6 +45,8 @@ type CollectorCache struct {
 	tcpSocketCache     cache.Store
 	sFlowCounterCache  cache.Store
 	BondInterfaceCache cache.Indexer
+
+	mutex sync.Mutex
 }
 
 type Interface struct {
@@ -234,6 +237,10 @@ func (c *CollectorCache) DelBondIf(uuid string) {
 }
 
 func (c *CollectorCache) CheckAndAddBondIp(ifindex uint32, ipPkt gopacket.Packet) {
+	// ensure old ips correctly cleaned
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	// get interface uuid
 	iface, exist, err := c.interfaceCache.Get(&Interface{ifindex: ifindex})
 	if !exist || err != nil {
@@ -251,6 +258,27 @@ func (c *CollectorCache) CheckAndAddBondIp(ifindex uint32, ipPkt gopacket.Packet
 		klog.Errorf("parse ip pkt error,err:%s", err)
 		return
 	}
+
+	// force clear ips in other bond interface
+	allBonds, err := c.BondInterfaceCache.ByIndex(BondInterfaceIndex, ip.DstIP.String())
+	if err == nil && len(allBonds) != 0 {
+		for _, item := range allBonds {
+			// skip target interface
+			if item.(*BondInterface).uuid == bond.(*BondInterface).uuid {
+				continue
+			}
+			// update ip set and bond interface
+			if err = item.(*BondInterface).ips.Delete(ip.DstIP); err != nil {
+				klog.Errorf("delete ip %s in bond interface %+v error, err:%s", ip.DstIP.String(), item.(*BondInterface), err)
+				continue
+			}
+			if err = c.BondInterfaceCache.Update(bond.(*BondInterface));err!=nil{
+				klog.Errorf("delete ip %s in bond interface %+v error, err:%s", ip.DstIP.String(), item.(*BondInterface), err)
+				continue
+			}
+		}
+	}
+
 	err = bond.(*BondInterface).ips.Add(ip.DstIP)
 	if err != nil {
 		klog.Errorf("Add dst ip %s to bond interface %d error, err:%s", ip.DstIP, ifindex, err)
@@ -264,25 +292,19 @@ func (c *CollectorCache) CheckAndAddBondIp(ifindex uint32, ipPkt gopacket.Packet
 	}
 }
 
-func (c *CollectorCache) FetchIpBondInterface(ip string) []string {
+func (c *CollectorCache) FetchIpBondInterface(ip string) string {
 	// fetch ip from bond cache
 	bonds, err := c.BondInterfaceCache.ByIndex(BondInterfaceIndex, ip)
-	if err != nil {
-		klog.Error(err)
-		return []string{}
+	if err != nil || len(bonds) == 0 {
+		return ""
 	}
-	// out means target IP is in cache
-	var out []string
-	for _, bond := range bonds {
-		ifs, err := c.interfaceCache.ByIndex(InterfaceUuidIndex, bond.(*BondInterface).uuid)
-		if err != nil {
-			continue
-		}
-		for _, iface := range ifs {
-			out = append(out, iface.(*Interface).name)
-		}
+
+	// target IP is in cache
+	ifs, err := c.interfaceCache.ByIndex(InterfaceUuidIndex, bonds[0].(*BondInterface).uuid)
+	if err != nil || len(ifs) == 0 {
+		return ""
 	}
-	return out
+	return ifs[0].(*Interface).name
 }
 
 func (c *CollectorCache) AddIface(iface *Interface) {
