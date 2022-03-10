@@ -35,6 +35,7 @@ import (
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -629,8 +630,11 @@ func GetSystemEndpointName(key string) string {
 func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labels map[string]string) bool {
 	var epCopy = ep.DeepCopy()
 
+	endpointAgentName := ep.Labels[constants.EndpointAgentNameLabelKey]
+
 	ep.Name = vnic.ID
 	ep.Labels = labels
+	ep.Labels[constants.EndpointAgentNameLabelKey] = endpointAgentName
 	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
 	ep.Spec.Reference.ExternalIDName = ExternalIDName

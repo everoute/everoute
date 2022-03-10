@@ -79,6 +79,18 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// update endpoint label
+	agentName, err := r.fetchEndpointAgentName(GetEndpointID(endpoint))
+	klog.Infof("update label,agent name %s, err %s", agentName, err)
+	if err == nil {
+		if endpoint.Labels[constants.EndpointAgentNameLabelKey] != agentName {
+			endpoint.Labels[constants.EndpointAgentNameLabelKey] = agentName
+			if err = r.Update(ctx, &endpoint); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
+
 	// Only update status for dynamic endpoint
 	if endpoint.Spec.Type != securityv1alpha1.EndpointDynamic {
 		return ctrl.Result{}, nil
@@ -408,6 +420,25 @@ func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string
 			klog.Errorf("couldn't update agentInfo: %s", err)
 			return
 		}
+	}
+}
+
+func (r *EndpointReconciler) fetchEndpointAgentName(id ctrltypes.ExternalID) (string, error) {
+	r.ifaceCacheLock.RLock()
+	defer r.ifaceCacheLock.RUnlock()
+
+	ifaces, err := r.ifaceCache.ByIndex(externalIDIndex, id.String())
+	if err != nil {
+		return "", err
+	}
+	switch len(ifaces) {
+	case 0:
+		return "", fmt.Errorf("interface not found")
+	case 1:
+		return ifaces[0].(*iface).agentName, nil
+	default:
+		// ignore un-stable status
+		return "", fmt.Errorf("endpoint has multi ifaces")
 	}
 }
 
