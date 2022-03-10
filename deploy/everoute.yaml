@@ -596,6 +596,11 @@ spec:
           status:
             description: Status is the current state of the Endpoint
             properties:
+              agents:
+                description: Agents where this endpoint is currently located
+                items:
+                  type: string
+                type: array
               ips:
                 description: IPs of an endpoint, can be IPV4 or IPV6.
                 items:
@@ -605,7 +610,7 @@ spec:
                   type: string
                 type: array
               macAddress:
-                description: MACAddress of an endpoint.
+                description: MacAddress of an endpoint.
                 type: string
             type: object
         required:

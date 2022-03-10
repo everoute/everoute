@@ -1382,9 +1382,23 @@ func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallba
 					},
 					"macAddress": {
 						SchemaProps: spec.SchemaProps{
-							Description: "MACAddress of an endpoint.",
+							Description: "MacAddress of an endpoint.",
 							Type:        []string{"string"},
 							Format:      "",
+						},
+					},
+					"agents": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Agents where this endpoint is currently located",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
 						},
 					},
 				},

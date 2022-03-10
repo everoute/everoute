@@ -45,10 +45,12 @@ var (
 	ovsPortStatusA = securityv1alpha1.EndpointStatus{
 		MacAddress: rand.String(10),
 		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
+		Agents:     []string{"fakeAgentInfoA"},
 	}
 	ovsPortStatusB = securityv1alpha1.EndpointStatus{
 		MacAddress: rand.String(10),
 		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
+		Agents:     []string{"fakeAgentInfoA"},
 	}
 	fakeAgentInfoA = &agentv1alpha1.AgentInfo{
 		TypeMeta: v1.TypeMeta{
@@ -79,6 +81,16 @@ var (
 									Mac: ovsPortStatusA.MacAddress,
 									IPMap: map[types.IPAddress]v1.Time{
 										ovsPortStatusA.IPs[0]: {},
+									},
+								},
+								{
+									Name: "iface2",
+									ExternalIDs: map[string]string{
+										endpointExternalIDKey: "ep04",
+									},
+									Mac: ovsPortStatusB.MacAddress,
+									IPMap: map[types.IPAddress]v1.Time{
+										ovsPortStatusB.IPs[0]: {},
 									},
 								},
 							},
@@ -368,8 +380,8 @@ func testProcessAgentinfo(t *testing.T) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
 		}
 		ifaces := r.ifaceCache.ListKeys()
-		if len(ifaces) != 1 {
-			t.Errorf("expect cache should have one iface after add agentinfo %s", fakeAgentInfoA.Name)
+		if len(ifaces) != 2 {
+			t.Errorf("expect cache should have two iface after add agentinfo %s", fakeAgentInfoA.Name)
 		}
 	})
 

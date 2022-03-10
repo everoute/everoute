@@ -563,7 +563,18 @@ string
 </em>
 </td>
 <td>
-<p>MACAddress of an endpoint.</p>
+<p>MacAddress of an endpoint.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>agents</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+<p>Agents where this endpoint is currently located</p>
 </td>
 </tr>
 </tbody>
@@ -584,11 +595,11 @@ string
 </thead>
 <tbody><tr>
 <td><p>&#34;dynamic&#34;</p></td>
-<td><p>EndpointDynamic is the Endpoint for Dynamic IP.</p>
+<td><p>EndpointDynamic update endpoint status with agentInfo.</p>
 </td>
 </tr><tr>
 <td><p>&#34;static&#34;</p></td>
-<td><p>EndpointStatic is the Endpoint for Static IP.</p>
+<td><p>EndpointStatic will not update endpoint status from agentInfo.</p>
 </td>
 </tr></tbody>
 </table>
