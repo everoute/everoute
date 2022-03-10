@@ -260,9 +260,9 @@ type Endpoint struct {
 type EndpointType string
 
 const (
-	// EndpointDynamic is the Endpoint for Dynamic IP.
+	// EndpointDynamic update endpoint status with agentInfo.
 	EndpointDynamic EndpointType = "dynamic"
-	// EndpointStatic is the Endpoint for Static IP.
+	// EndpointStatic will not update endpoint status from agentInfo.
 	EndpointStatic EndpointType = "static"
 )
 
@@ -293,8 +293,10 @@ type EndpointReference struct {
 type EndpointStatus struct {
 	// IPs of an endpoint, can be IPV4 or IPV6.
 	IPs []types.IPAddress `json:"ips,omitempty"`
-	// MACAddress of an endpoint.
+	// MacAddress of an endpoint.
 	MacAddress string `json:"macAddress,omitempty"`
+	// Agents where this endpoint is currently located
+	Agents []string `json:"agents,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

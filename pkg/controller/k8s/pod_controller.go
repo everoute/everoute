@@ -114,14 +114,14 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.Errorf("update endpoint %s err: %s", endpointName, err)
 			return ctrl.Result{}, err
 		}
-		// update pod IP
-		if pod.Status.PodIP != "" {
-			endpoint.Status.IPs = []types.IPAddress{types.IPAddress(pod.Status.PodIP)}
-			if err := r.Status().Update(ctx, &endpoint); err != nil {
-				klog.Errorf("update endpoint status %s err: %s", endpointName, err)
-				return ctrl.Result{}, err
-			}
+		// update status
+		endpoint.Status.Agents = []string{pod.Spec.NodeName}
+		endpoint.Status.IPs = []types.IPAddress{types.IPAddress(pod.Status.PodIP)}
+		if err := r.Status().Update(ctx, &endpoint); err != nil {
+			klog.Errorf("update endpoint status %s err: %s", endpointName, err)
+			return ctrl.Result{}, err
 		}
+
 	default: // other errors
 		klog.Errorf("Get endpoint error, err: %s", err)
 		return ctrl.Result{}, err

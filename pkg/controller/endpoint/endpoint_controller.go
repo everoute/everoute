@@ -79,8 +79,8 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Only update status for dynamic endpoint
-	if endpoint.Spec.Type != securityv1alpha1.EndpointDynamic {
+	// Do not change endpoint status for EndpointStaticIP
+	if endpoint.Spec.Type == securityv1alpha1.EndpointStatic {
 		return ctrl.Result{}, nil
 	}
 
@@ -426,21 +426,23 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 	default:
 		// combine all ifaces status into endpoint status
 		ipsets := sets.NewString()
+		agentSets := sets.NewString()
 		for _, item := range ifaces {
 			if len(item.(*iface).ipLastUpdateTimeMap) != 0 {
+				agentSets.Insert(item.(*iface).agentName)
 				for ip := range item.(*iface).ipLastUpdateTimeMap {
 					ipsets.Insert(ip.String())
 				}
 			}
 		}
-		var ips []types.IPAddress
-		for _, ip := range ipsets.List() {
-			ips = append(ips, types.IPAddress(ip))
-		}
-		return &securityv1alpha1.EndpointStatus{
-			IPs:        ips,
+		endpointStatus := &securityv1alpha1.EndpointStatus{
 			MacAddress: ifaces[0].(*iface).mac,
-		}, nil
+			Agents:     agentSets.List(),
+		}
+		for _, ip := range ipsets.List() {
+			endpointStatus.IPs = append(endpointStatus.IPs, types.IPAddress(ip))
+		}
+		return endpointStatus, nil
 	}
 }
 
@@ -450,7 +452,18 @@ func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.E
 	macEqual := s.MacAddress == e.MacAddress
 	ipsEqual := utils.EqualIPs(s.IPs, e.IPs)
 
-	return macEqual && ipsEqual
+	var agentEqual = true
+	if len(s.Agents) != len(e.Agents) {
+		agentEqual = false
+	} else {
+		agentSet := sets.NewString(s.Agents...)
+		agentSet.Insert(e.Agents...)
+		if agentSet.Len() != len(s.Agents) {
+			agentEqual = false
+		}
+	}
+
+	return macEqual && ipsEqual && agentEqual
 }
 
 // GetEndpointID return ID of an endpoint, it's unique in one cluster.

@@ -10,6 +10,7 @@ install -m 755 /opt/everoute/bin/host-local /opt/cni/bin/host-local
 install -m 755 /opt/everoute/bin/loopback /opt/cni/bin/loopback
 install -m 755 /opt/everoute/bin/portmap /opt/cni/bin/portmap
 
+rm -f /var/lib/everoute/agent/name
 rm -f /etc/cni/net.d/10-everoute.conf
 rm -f /etc/cni/net.d/10-everoute.conflist
 install -m 644 /var/lib/everoute/cni-conf.conflist /etc/cni/net.d/10-everoute.conflist

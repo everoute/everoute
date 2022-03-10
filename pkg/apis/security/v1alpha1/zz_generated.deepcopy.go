@@ -155,6 +155,11 @@ func (in *EndpointStatus) DeepCopyInto(out *EndpointStatus) {
 		*out = make([]types.IPAddress, len(*in))
 		copy(*out, *in)
 	}
+	if in.Agents != nil {
+		in, out := &in.Agents, &out.Agents
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
