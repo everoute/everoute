@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -84,15 +85,11 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	k8sClient := k8sReader.(client.Client)
 	agentInfo := datapathManager.AgentInfo
 	agentInfo.EnableCNI = true
-
-	nodeName, _ := os.Hostname()
-	nodeName = strings.ToLower(nodeName)
-	agentInfo.NodeName = nodeName
+	agentInfo.NodeName = os.Getenv(constants.AgentNodeNameENV)
 
 	node := corev1.Node{}
-
 	if err := k8sClient.Get(context.Background(), client.ObjectKey{
-		Name: nodeName,
+		Name: agentInfo.NodeName,
 	}, &node); err != nil {
 		klog.Fatalf("get node info error, err:%s", err)
 	}

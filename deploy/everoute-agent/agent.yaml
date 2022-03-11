@@ -94,6 +94,11 @@ spec:
           args:
             - --enable-cni=true
             - -v=0
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
             privileged: true
           volumeMounts:
