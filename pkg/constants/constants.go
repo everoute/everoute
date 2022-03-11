@@ -46,4 +46,6 @@ const (
 
 	ControllerRuntimeQPS   = 1000.0
 	ControllerRuntimeBurst = 2000
+
+	AgentNodeNameENV = "NODE_NAME"
 )
