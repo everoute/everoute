@@ -39,14 +39,18 @@ e2e-tools:
 	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go
 	CGO_ENABLED=0 go build -o bin/net-utils tests/e2e/tools/net-utils/*.go
 
-test:
+agent-uuid:
+	mkdir -p /var/lib/everoute/agent
+	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
+
+test: agent-uuid
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -v
 
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
 
-cover-test:
+cover-test: agent-uuid
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 
@@ -54,7 +58,7 @@ docker-cover-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make cover-test
 
-race-test:
+race-test: agent-uuid
 	go test ./plugin/tower/pkg/controller/... ./pkg/... -race
 
 docker-race-test: image-test

@@ -22,6 +22,7 @@ UPLINK_IFACE=${1:-ens11}
 KUBECONFIG_PATH=${2:-/var/lib/everoute/agent-kubeconfig.yaml}
 OFPORT_NUM=10
 AGENT_CONFIG_PATH=/var/lib/everoute/agentconfig.yaml
+AGENT_NAME_PATH=/var/lib/everoute/agent/name
 
 DEFAULT_BRIDGE="ovsbr1"
 POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
@@ -71,6 +72,8 @@ cat > ${AGENT_CONFIG_PATH} << EOF
 datapathConfig:
     ${DEFAULT_BRIDGE}: ${DEFAULT_BRIDGE}
 EOF
+mkdir -p "$(dirname ${AGENT_NAME_PATH})"
+cat /proc/sys/kernel/random/uuid > ${AGENT_NAME_PATH}
 
 echo "start everoute-agent"
 nohup /usr/local/bin/everoute-agent --kubeconfig "${KUBECONFIG_PATH}" > /var/log/everoute-agent.log 2>&1 &
