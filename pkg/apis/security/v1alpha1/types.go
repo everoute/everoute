@@ -62,6 +62,9 @@ type SecurityPolicySpec struct {
 	// In v1alpha1, Tier only support tier0, tier1, tier2.
 	Tier string `json:"tier"`
 
+	// Work mode specify the policy enforcement state: monitor or work
+	SecurityPolicyEnforcementMode PolicyMode `json:"securityPolicyEnforcementMode,omitempty"`
+
 	// SymmetricMode will generate symmetry rules for the policy.
 	// Defaults to false.
 	SymmetricMode bool `json:"symmetricMode,omitempty"`
@@ -332,6 +335,9 @@ type GlobalPolicySpec struct {
 	// +optional
 	// +kubebuilder:default="Allow"
 	DefaultAction GlobalDefaultAction `json:"defaultAction,omitempty"`
+
+	// GlobalPolicy enforcement mode
+	GlobalPolicyEnforcementMode PolicyMode `json:"globalPolicyEnforcementMode"`
 }
 
 // GlobalDefaultAction defines actions supported for GlobalPolicy.
