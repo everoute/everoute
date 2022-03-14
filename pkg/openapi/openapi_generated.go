@@ -1524,7 +1524,15 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
+					"globalPolicyEnforcementMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "GlobalPolicy enforcement mode",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
+				Required: []string{"globalPolicyEnforcementMode"},
 			},
 		},
 	}
@@ -1894,6 +1902,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					"tier": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Tier specifies the tier to which this SecurityPolicy belongs to. In v1alpha1, Tier only support tier0, tier1, tier2.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"securityPolicyEnforcementMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Work mode specify the policy enforcement state: monitor or work",
 							Type:        []string{"string"},
 							Format:      "",
 						},
