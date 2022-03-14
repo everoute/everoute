@@ -43,6 +43,7 @@ type GroupMembers struct {
 type GroupMember struct {
 	// EndpointReference maintains the reference to the Endpoint.
 	EndpointReference EndpointReference `json:"endpointReference"`
+	EndpointAgent     []string          `json:"endpointAgent,omitempty"`
 	IPs               []types.IPAddress `json:"ips,omitempty"`
 }
 

@@ -451,17 +451,7 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.EndpointStatus) bool {
 	macEqual := s.MacAddress == e.MacAddress
 	ipsEqual := utils.EqualIPs(s.IPs, e.IPs)
-
-	var agentEqual = true
-	if len(s.Agents) != len(e.Agents) {
-		agentEqual = false
-	} else {
-		agentSet := sets.NewString(s.Agents...)
-		agentSet.Insert(e.Agents...)
-		if agentSet.Len() != len(s.Agents) {
-			agentEqual = false
-		}
-	}
+	agentEqual := utils.EqualStringSlice(s.Agents, e.Agents)
 
 	return macEqual && ipsEqual && agentEqual
 }

@@ -155,7 +155,8 @@ func (r *GroupReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLi
 	}
 
 	if labels.Equals(newEndpoint.Labels, oldEndpoint.Labels) &&
-		utils.EqualIPs(newEndpoint.Status.IPs, oldEndpoint.Status.IPs) {
+		utils.EqualIPs(newEndpoint.Status.IPs, oldEndpoint.Status.IPs) &&
+		utils.EqualStringSlice(newEndpoint.Status.Agents, oldEndpoint.Status.Agents) {
 		return
 	}
 
@@ -569,7 +570,8 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 				ExternalIDName:  ep.Spec.Reference.ExternalIDName,
 				ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 			},
-			IPs: ep.Status.IPs,
+			EndpointAgent: ep.Status.Agents,
+			IPs:           ep.Status.IPs,
 		}
 		memberList = append(memberList, member)
 	}
@@ -698,8 +700,9 @@ func ToGroupMembersPatch(prev *groupv1alpha1.GroupMembers, curr *groupv1alpha1.G
 			// If member not found in prevGroupMebers, it's a new member.
 			patch.AddedGroupMembers = append(patch.AddedGroupMembers, member)
 		} else {
-			if !utils.EqualIPs(prevEp.IPs, member.IPs) {
-				// If member IPs changes, it's an update member.
+			if !utils.EqualIPs(prevEp.IPs, member.IPs) ||
+				!utils.EqualStringSlice(prevEp.EndpointAgent, member.EndpointAgent) {
+				// If member changes, it's an update member.
 				patch.UpdatedGroupMembers = append(patch.UpdatedGroupMembers, member)
 			}
 		}
@@ -772,7 +775,7 @@ func showGroupMembersPatch(patch groupv1alpha1.GroupMembersPatch) string {
 				Name:  member.EndpointReference.ExternalIDName,
 				Value: member.EndpointReference.ExternalIDValue,
 			}
-			str = fmt.Sprintf("{ID:%s%s, IPs:%v}, ", str, id.String(), member.IPs)
+			str = fmt.Sprintf("{ID:%s%s, IPs:%v, Agents:%v}, ", str, id.String(), member.IPs, member.EndpointAgent)
 		}
 		if str == "" {
 			return ""

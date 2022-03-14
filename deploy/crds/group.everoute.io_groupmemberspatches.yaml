@@ -25,6 +25,10 @@ spec:
               description: GroupMember represents resource member to be populated
                 in Groups.
               properties:
+                endpointAgent:
+                  items:
+                    type: string
+                  type: array
                 endpointReference:
                   description: EndpointReference maintains the reference to the Endpoint.
                   properties:
@@ -77,6 +81,10 @@ spec:
               description: GroupMember represents resource member to be populated
                 in Groups.
               properties:
+                endpointAgent:
+                  items:
+                    type: string
+                  type: array
                 endpointReference:
                   description: EndpointReference maintains the reference to the Endpoint.
                   properties:
@@ -104,6 +112,10 @@ spec:
               description: GroupMember represents resource member to be populated
                 in Groups.
               properties:
+                endpointAgent:
+                  items:
+                    type: string
+                  type: array
                 endpointReference:
                   description: EndpointReference maintains the reference to the Endpoint.
                   properties:

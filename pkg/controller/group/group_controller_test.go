@@ -89,7 +89,7 @@ var _ = Describe("GroupController", func() {
 				var namespace = metav1.NamespaceDefault
 
 				BeforeEach(func() {
-					ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1")
+					ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1", "agent1")
 
 					By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 					Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -108,7 +108,7 @@ var _ = Describe("GroupController", func() {
 			var namespace = metav1.NamespaceDefault
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1")
+				ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1", "agent1")
 
 				By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -131,7 +131,34 @@ var _ = Describe("GroupController", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 			})
+			When("update the endpoint agents", func() {
+				BeforeEach(func() {
+					ep.Status.Agents = []string{"agent2"}
 
+					By(fmt.Sprintf("update endpoint %s agents to %v", ep.Name, ep.Status.Agents))
+					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+				})
+				It("should create patch update the endpoint", func() {
+					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{UpdatedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+				It("should update groupmembers contains the endpoint", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+			})
+			When("update the endpoint with multi agents", func() {
+				BeforeEach(func() {
+					ep.Status.Agents = []string{"agent2", "agent3"}
+
+					By(fmt.Sprintf("update endpoint %s agents to %v", ep.Name, ep.Status.Agents))
+					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+				})
+				It("should create patch update the endpoint", func() {
+					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{UpdatedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+				It("should update groupmembers contains the endpoint", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+			})
 			When("update the endpoint labels unmatch the group selector", func() {
 				BeforeEach(func() {
 					ep.Labels["label.key"] = "no.such.label.value"
@@ -271,7 +298,7 @@ var _ = Describe("GroupController", func() {
 
 			BeforeEach(func() {
 				namespace = newTestNamespace(namespaceLabel)
-				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1")
+				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1", "agent1")
 
 				By(fmt.Sprintf("create namespace %s", namespace))
 				Expect(k8sClient.Create(ctx, namespace)).Should(Succeed())
@@ -334,7 +361,7 @@ var _ = Describe("GroupController", func() {
 			var ep *securityv1alpha1.Endpoint
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1")
+				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1", "agent1")
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -355,7 +382,7 @@ var _ = Describe("GroupController", func() {
 			var ep *securityv1alpha1.Endpoint
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(metav1.NamespaceDefault, endpointLabel, "192.168.1.1")
+				ep = newTestEndpoint(metav1.NamespaceDefault, endpointLabel, "192.168.1.1", "agent1")
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -399,7 +426,8 @@ func endpointToGroupMember(ep *securityv1alpha1.Endpoint) groupv1alpha1.GroupMem
 			ExternalIDName:  ep.Spec.Reference.ExternalIDName,
 			ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 		},
-		IPs: ep.Status.IPs,
+		IPs:           ep.Status.IPs,
+		EndpointAgent: ep.Status.Agents,
 	}
 }
 
@@ -419,7 +447,7 @@ func getLatestPatch(patchList groupv1alpha1.GroupMembersPatchList) *groupv1alpha
 	return patch
 }
 
-func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddress) *securityv1alpha1.Endpoint {
+func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddress, agent string) *securityv1alpha1.Endpoint {
 	name := "endpoint-test-" + string(uuid.NewUUID())
 	id := name
 	labels[TestLabelKey] = TestLabelValue
@@ -437,7 +465,8 @@ func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddr
 			},
 		},
 		Status: securityv1alpha1.EndpointStatus{
-			IPs: []types.IPAddress{ip},
+			IPs:    []types.IPAddress{ip},
+			Agents: []string{agent},
 		},
 	}
 }

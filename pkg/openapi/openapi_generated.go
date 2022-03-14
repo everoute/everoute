@@ -903,6 +903,19 @@ func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) co
 							Ref:         ref("github.com/everoute/everoute/pkg/apis/group/v1alpha1.EndpointReference"),
 						},
 					},
+					"endpointAgent": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 					"ips": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
