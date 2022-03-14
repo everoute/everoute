@@ -207,6 +207,19 @@ GlobalDefaultAction
 <p>DefaultAction defines global traffic action</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>globalPolicyEnforcementMode</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.PolicyMode">
+PolicyMode
+</a>
+</em>
+</td>
+<td>
+<p>GlobalPolicy enforcement mode</p>
+</td>
+</tr>
 </table>
 </td>
 </tr>
@@ -269,6 +282,19 @@ string
 <td>
 <p>Tier specifies the tier to which this SecurityPolicy belongs to.
 In v1alpha1, Tier only support tier0, tier1, tier2.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>securityPolicyEnforcementMode</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.PolicyMode">
+PolicyMode
+</a>
+</em>
+</td>
+<td>
+<p>Work mode specify the policy enforcement state: monitor or work</p>
 </td>
 </tr>
 <tr>
@@ -682,6 +708,19 @@ GlobalDefaultAction
 <p>DefaultAction defines global traffic action</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>globalPolicyEnforcementMode</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.PolicyMode">
+PolicyMode
+</a>
+</em>
+</td>
+<td>
+<p>GlobalPolicy enforcement mode</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.NamespacedName">NamespacedName
@@ -833,7 +872,9 @@ PolicyMode
 (<code>string</code> alias)</h3>
 <p>
 (<em>Appears in:</em>
-<a href="#security.everoute.io/v1alpha1.PolicyEnforcementModeSpec">PolicyEnforcementModeSpec</a>)
+<a href="#security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec</a>, 
+<a href="#security.everoute.io/v1alpha1.PolicyEnforcementModeSpec">PolicyEnforcementModeSpec</a>, 
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec</a>)
 </p>
 <table class="table table-striped">
 <thead style="background-color: rgb(160,180,190)">
@@ -1114,6 +1155,19 @@ string
 <td>
 <p>Tier specifies the tier to which this SecurityPolicy belongs to.
 In v1alpha1, Tier only support tier0, tier1, tier2.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>securityPolicyEnforcementMode</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.PolicyMode">
+PolicyMode
+</a>
+</em>
+</td>
+<td>
+<p>Work mode specify the policy enforcement state: monitor or work</p>
 </td>
 </tr>
 <tr>
