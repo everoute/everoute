@@ -48,6 +48,11 @@ spec:
                 - Allow
                 - Drop
                 type: string
+              globalPolicyEnforcementMode:
+                description: GlobalPolicy enforcement mode
+                type: string
+            required:
+            - globalPolicyEnforcementMode
             type: object
         type: object
     served: true
