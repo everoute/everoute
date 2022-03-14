@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"sort"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -53,4 +54,26 @@ func GetIfaceMAC(name string) (net.HardwareAddr, error) {
 		return nil, err
 	}
 	return link.Attrs().HardwareAddr, nil
+}
+
+// EqualStringSlice return true when two unordered string slice have same items.
+func EqualStringSlice(list1, list2 []string) bool {
+	if len(list1) != len(list2) {
+		return false
+	}
+
+	var s1, s2 []string
+	s1 = append(s1, list1...)
+	s2 = append(s2, list2...)
+
+	sort.Strings(s1)
+	sort.Strings(s2)
+
+	for i := range s1 {
+		if s1[i] != s2[i] {
+			return false
+		}
+	}
+
+	return true
 }

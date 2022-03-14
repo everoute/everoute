@@ -143,6 +143,11 @@ func (in *EndpointReference) DeepCopy() *EndpointReference {
 func (in *GroupMember) DeepCopyInto(out *GroupMember) {
 	*out = *in
 	out.EndpointReference = in.EndpointReference
+	if in.EndpointAgent != nil {
+		in, out := &in.EndpointAgent, &out.EndpointAgent
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.IPs != nil {
 		in, out := &in.IPs, &out.IPs
 		*out = make([]types.IPAddress, len(*in))
