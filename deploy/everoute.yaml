@@ -719,6 +719,11 @@ spec:
                 - Allow
                 - Drop
                 type: string
+              globalPolicyEnforcementMode:
+                description: GlobalPolicy enforcement mode
+                type: string
+            required:
+            - globalPolicyEnforcementMode
             type: object
         type: object
     served: true
@@ -1693,6 +1698,10 @@ spec:
                     This type is beta-level in 1.8
                   type: string
                 type: array
+              securityPolicyEnforcementMode:
+                description: 'Work mode specify the policy enforcement state: monitor
+                  or work'
+                type: string
               symmetricMode:
                 description: SymmetricMode will generate symmetry rules for the policy.
                   Defaults to false.
