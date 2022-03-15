@@ -254,7 +254,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 		}, timeout, interval).Should(Equal(ep1MacAddrStr))
 	})
 
-	//  Delete local endpoint
+	// Delete local endpoint
 	Expect(deletePort(ovsClient, bridgeName, ep1Port, ep1Iface.IfaceName)).Should(Succeed())
 
 	t.Run("Delete local endpoint ep1", func(t *testing.T) {
@@ -267,10 +267,48 @@ func TestOvsDbEventHandler(t *testing.T) {
 					return false
 				}
 			}
-
 			return true
 		}, timeout, interval).Should(Equal(true))
 	})
+
+	// Add type:vethpair interface, convert to endpoint, update interface MacAddr
+	portName := "if-" + strings.Split(string(uuid.NewUUID()), "-")[0]
+	portPeerName := "if-" + strings.Split(string(uuid.NewUUID()), "-")[0]
+	ifaceName := portName
+
+	t.Logf("create vethpair port %s", portName)
+	Expect(createVethPair(portName, portPeerName)).Should(Succeed())
+	Expect(createPort(ovsClient, bridgeName, portName)).Should(Succeed())
+
+	t.Run("monitor should create new veth port", func(t *testing.T) {
+		Eventually(func() error {
+			_, err := getPort(k8sClient, bridgeName, portName)
+			return err
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("monitor update veth interface test", func(t *testing.T) {
+		Eventually(func() bool {
+			iface, _ := getIface(k8sClient, bridgeName, portName, ifaceName)
+			if vethIfaceMacAddr, ok := localEndpointMap[uint32(iface.Ofport)]; ok {
+				if vethIfaceMacAddr.String() == iface.Mac {
+					return true
+				}
+			}
+			return false
+		}, timeout, interval).Should(Equal(true))
+	})
+
+	t.Logf("delete port %s on bridge %s", portName, bridgeName)
+	Expect(deletePort(ovsClient, bridgeName, portName)).Should(Succeed())
+
+	t.Run("monitor delete veth port", func(t *testing.T) {
+		Eventually(func() bool {
+			_, err := getPort(k8sClient, bridgeName, portName)
+			return isNotFoundError(err)
+		}, timeout, interval).Should(BeTrue())
+	})
+
 }
 
 func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ovsdb.Operation) {
