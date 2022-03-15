@@ -727,15 +727,11 @@ func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (l *LocalBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error) {
+func (l *LocalBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	return nil, nil
 }
 
 func (l *LocalBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
-	return nil
-}
-
-func (l *LocalBridge) UpdatePolicyEnforcementMode(mode string) error {
 	return nil
 }
 
