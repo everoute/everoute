@@ -142,7 +142,7 @@ func testLocalEndpoint(t *testing.T) {
 
 func testERPolicyRule(t *testing.T) {
 	t.Run("test ER policy rule", func(t *testing.T) {
-		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER1); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, "work"); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
 		if _, ok := datapathManager.Rules[rule1.RuleID]; !ok {
@@ -156,13 +156,13 @@ func testERPolicyRule(t *testing.T) {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
 		}
 
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER0); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, "work"); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 		if _, ok := datapathManager.Rules[rule2.RuleID]; !ok {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER0); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, "work"); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 	})
@@ -176,8 +176,8 @@ func testFlowReplay(t *testing.T) {
 	}
 	t.Run("add ER policy rule", func(t *testing.T) {
 		Eventually(func() error {
-			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER2)
-			return datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2)
+			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER3)
+			return datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER3, "work")
 		}, timeout, interval).Should(Succeed())
 	})
 
