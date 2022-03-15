@@ -40,6 +40,8 @@ const (
 	ConntrackSampleInterval = 5
 	TcpSocketSampleInterval = 5
 	BondInfoReportInterval  = 5
+
+	TcpTimeWaitThreshold = 10
 )
 
 // tcp state for conntrack, differ from tcp state in kernel socket
@@ -64,6 +66,8 @@ type Exporter struct {
 	agentArpReport      [][]byte
 	agentArpReportMutex sync.Mutex
 
+	tcpTimeWaitTimeOut uint32
+
 	stopChan <-chan struct{}
 
 	datapathManager *datapath.DpManager
@@ -75,6 +79,12 @@ func NewExporter(uploader Uploader) *Exporter {
 		uploader: uploader,
 	}
 	e.AgentArpChan = make(chan protocol.ARP, 100)
+
+	t, err := sysctl.New().GetSysctl("net/netfilter/nf_conntrack_tcp_timeout_time_wait")
+	if err != nil {
+		klog.Fatal("Could not get net.netfilter.nf_conntrack_tcp_timeout_time_wait, err: %s", err)
+	}
+	e.tcpTimeWaitTimeOut = uint32(t)
 
 	return e
 }
@@ -226,7 +236,9 @@ func (e *Exporter) ctFilter(ct conntrack.Flow) bool {
 	// skip time_wait tcp flow
 	if ct.TupleOrig.Proto.Protocol == uint8(layers.IPProtocolTCP) {
 		if ct.ProtoInfo.TCP != nil && ct.ProtoInfo.TCP.State == TcpConntrackTimeWait {
-			return true
+			if ct.Timeout < e.tcpTimeWaitTimeOut-TcpTimeWaitThreshold {
+				return true
+			}
 		}
 	}
 
@@ -387,7 +399,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 									continue
 								}
 								// only process arp ARPRequest packet
-								if arp.AddrType == layers.ARPReply{
+								if arp.AddrType == layers.ARPReply {
 									continue
 								}
 								// add to cache
