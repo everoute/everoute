@@ -384,16 +384,29 @@ func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 }
 
 func (monitor *AgentMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	_, ok := newExternalIds[LocalEndpointIdentity]
+	if rowupdate.New.Fields["type"] == "" && !ok {
+		return monitor.filterVethIfaceEndpoint(rowupdate)
+	}
+	return monitor.filterLocalEndpoint(rowupdate)
+}
+
+func (monitor *AgentMonitor) filterVethIfaceEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	if rowupdate.New.Fields["mac_in_use"] == "" {
+		return nil, nil
+	}
+	return monitor.filterEndpointProcess(rowupdate)
+}
+
+func (monitor *AgentMonitor) filterLocalEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	if rowupdate.New.Fields["external_ids"] == nil {
 		return nil, nil
 	}
-	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	return monitor.filterEndpointProcess(rowupdate)
+}
 
-	// interface externalIDs without attached-mac, it's not local endpoint, ignore it
-	if _, ok := newExternalIds[LocalEndpointIdentity]; !ok {
-		return nil, nil
-	}
-
+func (monitor *AgentMonitor) filterEndpointProcess(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	empty := ovsdb.Row{}
 	if reflect.DeepEqual(rowupdate.Old, empty) {
 		return monitor.filterEndpointAdded(rowupdate), nil
@@ -407,8 +420,15 @@ func (monitor *AgentMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapat
 }
 
 func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	var macStr string
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-
+	_, ok := newExternalIds[LocalEndpointIdentity]
+	if rowupdate.New.Fields["type"] == "" && !ok {
+		macStr, ok = rowupdate.New.Fields["mac_in_use"].(string)
+	} else {
+		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+		macStr, ok = newExternalIds[LocalEndpointIdentity].(string)
+	}
 	newOfPort, ok := rowupdate.New.Fields["ofport"].(float64)
 	if !ok {
 		return nil, nil
@@ -421,8 +441,7 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	if newOfPort <= 0 || oldOfPort <= 0 {
 		return nil, nil
 	}
-
-	macAddr, err := net.ParseMAC(newExternalIds[LocalEndpointIdentity].(string))
+	macAddr, err := net.ParseMAC(macStr)
 	if err != nil {
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil, nil
@@ -433,9 +452,9 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	}
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
-	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(newOfPort)
+	monitor.localEndpointHardwareAddrCache[macStr] = uint32(newOfPort)
 
-	if err := monitor.waitForPortPresent(rowupdate.New.Fields["name"].(string), 1*time.Second); err != nil {
+	if err := monitor.waitForPortPresent(macStr, 1*time.Second); err != nil {
 		klog.Errorf("Failed to update local endpoint, wait ovs port of newEndpoint present timeout, error: %v", err)
 		return nil, nil
 	}
@@ -446,11 +465,20 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 }
 
 func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
+	var macStr string
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	newMac_in_use, ok := rowupdate.New.Fields["mac_in_use"].(string)
+	_, ok = newExternalIds[LocalEndpointIdentity]
+	if rowupdate.New.Fields["type"] == "" && !ok {
+		macStr = newMac_in_use
+	} else {
+		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+		macStr, ok = newExternalIds[LocalEndpointIdentity].(string)
+	}
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
 
-	if _, ok := monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)]; ok {
+	if _, ok := monitor.localEndpointHardwareAddrCache[macStr]; ok {
 		return nil
 	}
 	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
@@ -464,19 +492,19 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 	}
 	ofport := uint32(ofPort)
 
-	macAddr, err := net.ParseMAC(newExternalIds[LocalEndpointIdentity].(string))
+	macAddr, err := net.ParseMAC(macStr)
 	if err != nil {
 		klog.Errorf("Parsing endpoint macAddr error: %v", macAddr)
 		return nil
 	}
-	monitor.localEndpointHardwareAddrCache[newExternalIds[LocalEndpointIdentity].(string)] = uint32(ofPort)
+	monitor.localEndpointHardwareAddrCache[macStr] = uint32(ofPort)
 
 	if err := monitor.waitForPortPresent(rowupdate.New.Fields["name"].(string), 1*time.Second); err != nil {
 		klog.Errorf("Failed to add local endpoint, wait ovs port present timeout, error: %v", err)
 		return nil
 	}
 
-	return monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), newExternalIds[LocalEndpointIdentity].(string))
+	return monitor.interfaceToEndpoint(ofport, rowupdate.New.Fields["name"].(string), macStr)
 }
 
 func (monitor *AgentMonitor) waitForPortPresent(interfaceName string, timeout time.Duration) error {
