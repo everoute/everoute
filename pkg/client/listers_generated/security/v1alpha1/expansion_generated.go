@@ -30,10 +30,6 @@ type EndpointNamespaceListerExpansion interface{}
 // GlobalPolicyLister.
 type GlobalPolicyListerExpansion interface{}
 
-// PolicyEnforcementModeListerExpansion allows custom methods to be added to
-// PolicyEnforcementModeLister.
-type PolicyEnforcementModeListerExpansion interface{}
-
 // SecurityPolicyListerExpansion allows custom methods to be added to
 // SecurityPolicyLister.
 type SecurityPolicyListerExpansion interface{}
