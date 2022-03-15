@@ -22,6 +22,4 @@ type EndpointExpansion interface{}
 
 type GlobalPolicyExpansion interface{}
 
-type PolicyEnforcementModeExpansion interface{}
-
 type SecurityPolicyExpansion interface{}
