@@ -44,7 +44,6 @@ rules:
   resources:
     - securitypolicies
     - globalpolicies
-    - policyenforcementmodes
   verbs:
     - get
     - list

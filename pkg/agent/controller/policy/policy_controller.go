@@ -144,7 +144,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	var err error
-	var policyController, patchController, globalPolicyController, policyEnforcementModeController controller.Controller
+	var policyController, patchController, globalPolicyController controller.Controller
 
 	// ignore not empty ruleCache for future cache inject
 	if r.ruleCache == nil {
@@ -208,17 +208,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err = globalPolicyController.Watch(&source.Kind{Type: &securityv1alpha1.GlobalPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
-	if policyEnforcementModeController, err = controller.New("policy_enforcement_controller", mgr, controller.Options{
-		MaxConcurrentReconciles: 1,
-		Reconciler:              reconcile.Func(r.ReconcilePolicyEnforcementMode),
-	}); err != nil {
-		return err
-	}
-
-	if err = policyEnforcementModeController.Watch(&source.Kind{Type: &securityv1alpha1.PolicyEnforcementMode{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -324,13 +313,14 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
-				Tier:          policy.Spec.Tier,
-				Action:        policycache.RuleActionAllow,
-				Direction:     policycache.RuleDirectionIn,
-				SymmetricMode: policy.Spec.SymmetricMode,
-				DstGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
+				Tier:            policy.Spec.Tier,
+				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
+				Action:          policycache.RuleActionAllow,
+				Direction:       policycache.RuleDirectionIn,
+				SymmetricMode:   policy.Spec.SymmetricMode,
+				DstGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+				DstIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 			}
 
 			if len(rule.From) == 0 {
@@ -361,6 +351,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			defaultIngressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
 				Tier:              policy.Spec.Tier,
+				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionIn,
 				SymmetricMode:     false, // never generate symmetric rule for default rule
@@ -377,13 +368,14 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	if egressEnabled {
 		for _, rule := range policy.Spec.EgressRules {
 			egressRule := &policycache.CompleteRule{
-				RuleID:        fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
-				Tier:          policy.Spec.Tier,
-				Action:        policycache.RuleActionAllow,
-				Direction:     policycache.RuleDirectionOut,
-				SymmetricMode: policy.Spec.SymmetricMode,
-				SrcGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
+				Tier:            policy.Spec.Tier,
+				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
+				Action:          policycache.RuleActionAllow,
+				Direction:       policycache.RuleDirectionOut,
+				SymmetricMode:   policy.Spec.SymmetricMode,
+				SrcGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
+				SrcIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
 			}
 
 			if len(rule.To) == 0 {
@@ -414,6 +406,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			defaultEgressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
 				Tier:              policy.Spec.Tier,
+				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionOut,
 				SymmetricMode:     false, // never generate symmetric rule for default rule
@@ -536,5 +529,5 @@ func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.Po
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
-	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, rule.Name, ruleDirection, ruleTier)
+	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
 }
