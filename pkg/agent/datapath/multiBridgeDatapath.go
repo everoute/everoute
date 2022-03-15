@@ -71,9 +71,9 @@ const (
 
 //nolint
 const (
-	POLICY_TIER0 = 50
-	POLICY_TIER1 = 100
-	POLICY_TIER2 = 150
+	POLICY_TIER1 = 50
+	POLICY_TIER2 = 100
+	POLICY_TIER3 = 150
 )
 
 //nolint
@@ -86,6 +86,16 @@ const (
 const (
 	IP_BROADCAST_ADDR = "255.255.255.255"
 	LOOP_BACK_ADDR    = "127.0.0.1"
+)
+
+//nolink
+const (
+	FLOW_ROUND_NUM_LENGTH = 10
+	FLOW_SEQ_NUM_LENGTH   = 22
+	FLOW_ROUND_NUM_MASK   = 0xffc
+	FLOW_SEQ_NUM_MASK     = 0x003fffff
+
+	DEFAULT_POLICY_ENFORCEMENT_MODE = "work"
 )
 
 //nolint
@@ -138,9 +148,8 @@ type Bridge interface {
 
 	AddSFCRule() error
 	RemoveSFCRule() error
-	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error)
+	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error)
 	RemoveMicroSegmentRule(rule *EveroutePolicyRule) error
-	UpdatePolicyEnforcementMode(mode string) error
 
 	IsSwitchConnected() bool
 
@@ -237,6 +246,7 @@ type EveroutePolicyRuleEntry struct {
 	EveroutePolicyRule  *EveroutePolicyRule
 	Direction           uint8
 	Tier                uint8
+	Mode                string
 	RuleFlowMap         map[string]*FlowEntry
 	PolicyRuleReference sets.String
 }
@@ -310,12 +320,12 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	// add rules for internalIP
 	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
 		// internal ingress rule
-		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER2)
+		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, "work")
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
 		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER2)
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, "work")
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
@@ -617,7 +627,7 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 	for ruleID, erPolicyRuleEntry := range datapathManager.Rules {
 		// Add new policy rule flow to datapath
 		flowEntry, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(erPolicyRuleEntry.EveroutePolicyRule,
-			erPolicyRuleEntry.Direction, erPolicyRuleEntry.Tier)
+			erPolicyRuleEntry.Direction, erPolicyRuleEntry.Tier, erPolicyRuleEntry.Mode)
 		if err != nil {
 			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD], err)
 		}
@@ -763,18 +773,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	return nil
 }
 
-func (datapathManager *DpManager) UpdateEveroutePolicyEnforcementMode(newMode string) error {
-	datapathManager.WorkMode = newMode
-	for vdsID, ovsbrname := range datapathManager.datapathConfig.ManagedVDSMap {
-		err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].UpdatePolicyEnforcementMode(newMode)
-		if err != nil {
-			return fmt.Errorf("failed to update policy enforcement mode to %v for vds %v : bridge %v, error: %v", newMode, vdsID, ovsbrname, err)
-		}
-	}
-	return nil
-}
-
-func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8) error {
+func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
@@ -799,7 +798,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
-		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier)
+		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier, mode)
 		if err != nil {
 			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
 			return err
@@ -815,6 +814,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	}
 	ruleEntry.Direction = direction
 	ruleEntry.Tier = tier
+	ruleEntry.Mode = mode
 	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
 

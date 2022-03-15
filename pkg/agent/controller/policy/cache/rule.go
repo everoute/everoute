@@ -55,16 +55,17 @@ type PolicyRule struct {
 	Action RuleAction `json:"action"`
 
 	// match fields
-	Direction   RuleDirection `json:"direction"`
-	RuleType    RuleType      `json:"ruleType"`
-	Tier        string        `json:"tier,omitempty"`
-	SrcIPAddr   string        `json:"srcIPAddr,omitempty"`
-	DstIPAddr   string        `json:"dstIPAddr,omitempty"`
-	IPProtocol  string        `json:"ipProtocol"`
-	SrcPort     uint16        `json:"srcPort,omitempty"`
-	DstPort     uint16        `json:"dstPort,omitempty"`
-	SrcPortMask uint16        `json:"srcPortMask,omitempty"`
-	DstPortMask uint16        `json:"dstPortMask,omitempty"`
+	Direction       RuleDirection `json:"direction"`
+	RuleType        RuleType      `json:"ruleType"`
+	Tier            string        `json:"tier,omitempty"`
+	EnforcementMode string        `json:"enforcementMode,omitempty"`
+	SrcIPAddr       string        `json:"srcIPAddr,omitempty"`
+	DstIPAddr       string        `json:"dstIPAddr,omitempty"`
+	IPProtocol      string        `json:"ipProtocol"`
+	SrcPort         uint16        `json:"srcPort,omitempty"`
+	DstPort         uint16        `json:"dstPort,omitempty"`
+	SrcPortMask     uint16        `json:"srcPortMask,omitempty"`
+	DstPortMask     uint16        `json:"dstPortMask,omitempty"`
 }
 
 type DeepCopyBase interface {
@@ -102,9 +103,10 @@ type CompleteRule struct {
 	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/policyType/ruleName.
 	RuleID string
 
-	Tier      string
-	Action    RuleAction
-	Direction RuleDirection
+	Tier            string
+	EnforcementMode string
+	Action          RuleAction
+	Direction       RuleDirection
 
 	// SymmetricMode will ignore direction, generate both ingress and egress rule
 	SymmetricMode bool
@@ -203,17 +205,18 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 	}
 
 	policyRule := PolicyRule{
-		Direction:   direction,
-		RuleType:    ruleType,
-		Tier:        rule.Tier,
-		SrcIPAddr:   srcIPBlock,
-		DstIPAddr:   dstIPBlock,
-		IPProtocol:  string(port.Protocol),
-		SrcPort:     port.SrcPort,
-		DstPort:     port.DstPort,
-		SrcPortMask: port.SrcPortMask,
-		DstPortMask: port.DstPortMask,
-		Action:      rule.Action,
+		Direction:       direction,
+		RuleType:        ruleType,
+		Tier:            rule.Tier,
+		EnforcementMode: rule.EnforcementMode,
+		SrcIPAddr:       srcIPBlock,
+		DstIPAddr:       dstIPBlock,
+		IPProtocol:      string(port.Protocol),
+		SrcPort:         port.SrcPort,
+		DstPort:         port.DstPort,
+		SrcPortMask:     port.SrcPortMask,
+		DstPortMask:     port.DstPortMask,
+		Action:          rule.Action,
 	}
 
 	// todo: it is not appropriate to calculate the flowkey here
