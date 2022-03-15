@@ -832,13 +832,14 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:          constants.Tier2,
-			SymmetricMode: true,
-			AppliedTo:     applyToPeers,
-			IngressRules:  ingress,
-			EgressRules:   egress,
-			DefaultRule:   v1alpha1.DefaultRuleDrop,
-			PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			Tier:                          constants.Tier2,
+			SecurityPolicyEnforcementMode: v1alpha1.PolicyMode(securityPolicy.EnforcementMode),
+			SymmetricMode:                 true,
+			AppliedTo:                     applyToPeers,
+			IngressRules:                  ingress,
+			EgressRules:                   egress,
+			DefaultRule:                   v1alpha1.DefaultRuleDrop,
+			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 	policyList = append(policyList, policy)
@@ -874,21 +875,21 @@ func (c *Controller) parseIsolationPolicy(isolationPolicy *schema.IsolationPolic
 	case schema.IsolationModeAll:
 		// IsolationModeAll should not create ingress or egress rule
 		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
-			schema.IsolationModeAll, applyToPeers, nil, nil)...)
+			schema.IsolationModeAll, applyToPeers, isolationPolicy.EnforcementMode, nil, nil)...)
 	case schema.IsolationModePartial:
 		ingress, egress, err := c.parseNetworkPolicyRules(isolationPolicy.Ingress, isolationPolicy.Egress)
 		if err != nil {
 			return nil, err
 		}
 		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
-			schema.IsolationModePartial, applyToPeers, ingress, egress)...)
+			schema.IsolationModePartial, applyToPeers, isolationPolicy.EnforcementMode, ingress, egress)...)
 	}
 
 	return isolationPolices, nil
 }
 
 func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMode, applyToPeers []v1alpha1.ApplyToPeer,
-	ingress, egress []v1alpha1.Rule) []v1alpha1.SecurityPolicy {
+	enforcementMode string, ingress, egress []v1alpha1.Rule) []v1alpha1.SecurityPolicy {
 	var isolationPolices []v1alpha1.SecurityPolicy
 	switch mode {
 	case schema.IsolationModeAll:
@@ -924,6 +925,8 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 		}
 		if len(ingress) == 0 {
 			ingressPolicy.Spec.Tier = constants.Tier0
+		} else {
+			ingressPolicy.Spec.SecurityPolicyEnforcementMode = v1alpha1.PolicyMode(enforcementMode)
 		}
 		isolationPolices = append(isolationPolices, ingressPolicy)
 
@@ -943,6 +946,8 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 		}
 		if len(egress) == 0 {
 			egressPolicy.Spec.Tier = constants.Tier0
+		} else {
+			egressPolicy.Spec.SecurityPolicyEnforcementMode = v1alpha1.PolicyMode(enforcementMode)
 		}
 		isolationPolices = append(isolationPolices, egressPolicy)
 	}
