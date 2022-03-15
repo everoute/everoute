@@ -28,8 +28,6 @@ type Interface interface {
 	Endpoints() EndpointInformer
 	// GlobalPolicies returns a GlobalPolicyInformer.
 	GlobalPolicies() GlobalPolicyInformer
-	// PolicyEnforcementModes returns a PolicyEnforcementModeInformer.
-	PolicyEnforcementModes() PolicyEnforcementModeInformer
 	// SecurityPolicies returns a SecurityPolicyInformer.
 	SecurityPolicies() SecurityPolicyInformer
 }
@@ -53,11 +51,6 @@ func (v *version) Endpoints() EndpointInformer {
 // GlobalPolicies returns a GlobalPolicyInformer.
 func (v *version) GlobalPolicies() GlobalPolicyInformer {
 	return &globalPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// PolicyEnforcementModes returns a PolicyEnforcementModeInformer.
-func (v *version) PolicyEnforcementModes() PolicyEnforcementModeInformer {
-	return &policyEnforcementModeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // SecurityPolicies returns a SecurityPolicyInformer.
