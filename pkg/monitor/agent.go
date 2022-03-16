@@ -455,10 +455,10 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	var macStr string
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-	newMac_in_use, ok := rowupdate.New.Fields["mac_in_use"].(string)
+	newMacInUse, ok := rowupdate.New.Fields["mac_in_use"].(string)
 	_, ok = newExternalIds[LocalEndpointIdentity]
 	if !ok {
-		macStr = newMac_in_use
+		macStr = newMacInUse
 	} else {
 		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 		macStr, ok = newExternalIds[LocalEndpointIdentity].(string)
