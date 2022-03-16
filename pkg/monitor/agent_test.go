@@ -289,6 +289,8 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	t.Run("monitor update veth interface test", func(t *testing.T) {
 		Eventually(func() bool {
+			localEndpointLock.Lock()
+			defer localEndpointLock.Unlock()
 			iface, _ := getIface(k8sClient, bridgeName, portName, ifaceName)
 			if vethIfaceMacAddr, ok := localEndpointMap[uint32(iface.Ofport)]; ok {
 				if vethIfaceMacAddr.String() == iface.Mac {
