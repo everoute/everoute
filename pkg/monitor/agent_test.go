@@ -310,7 +310,6 @@ func TestOvsDbEventHandler(t *testing.T) {
 			return isNotFoundError(err)
 		}, timeout, interval).Should(BeTrue())
 	})
-
 }
 
 func getOvsDBInterfaceInfo(opStr string, interfaces []Iface) ([]ovsdb.UUID, []ovsdb.Operation) {
