@@ -390,25 +390,9 @@ func (monitor *AgentMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapat
 		if rowupdate.New.Fields["mac_in_use"] == "" {
 			return nil, nil
 		}
-		//return monitor.filterLocalEndpoint(rowupdate)
 	}
 	return monitor.filterLocalEndpoint(rowupdate)
-	//return monitor.filterLocalEndpointForVM(rowupdate)
 }
-
-//func (monitor *AgentMonitor) filterLocalEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
-//	if rowupdate.New.Fields["mac_in_use"] == "" {
-//		return nil, nil
-//	}
-//	return monitor.filterEndpointProcess(rowupdate)
-//}
-
-//func (monitor *AgentMonitor) filterLocalEndpointForVM(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
-//	if rowupdate.New.Fields["external_ids"] == nil {
-//		return nil, nil
-//	}
-//	return monitor.filterEndpointProcess(rowupdate)
-//}
 
 func (monitor *AgentMonitor) filterLocalEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	empty := ovsdb.Row{}
