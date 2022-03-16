@@ -358,7 +358,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 	var policyConntrackZone uint16 = 65520
 	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
 	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveAct := openflow13.NewNXActionRegMove(64, 0, 0, srcField, dstField)
+	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
 	_ = egressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
 
@@ -406,7 +406,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 		Ethertype: PROTOCOL_IP,
 		CtStates:  ctTrkState,
 	})
-	moveAct = openflow13.NewNXActionRegMove(64, 0, 64, srcField, dstField)
+	moveAct = openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
 	ctCommitAction = ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
 	_ = ingressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
 
@@ -539,73 +539,6 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 	return policyTable, nextTable, nil
 }
 
-func (p *PolicyBridge) AddMonitorModeMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8) (*FlowEntry, error) {
-	var ipDa *net.IP = nil
-	var ipDaMask *net.IP = nil
-	var ipSa *net.IP = nil
-	var ipSaMask *net.IP = nil
-	var err error
-
-	// make sure switch is connected
-	if !p.IsSwitchConnected() {
-		p.WaitForSwitchConnection()
-	}
-
-	// Different tier have different nextTable select strategy:
-	policyTable, nextTable, e := p.GetTierTable(direction, tier, "monitor")
-	if e != nil {
-		log.Errorf("Failed to get policy table tier %v", tier)
-		return nil, errors.New("failed get policy table")
-	}
-
-	// Parse dst ip
-	if rule.DstIPAddr != "" {
-		ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
-		if err != nil {
-			log.Errorf("Failed to parse dst ip %s. Err: %v", rule.DstIPAddr, err)
-			return nil, err
-		}
-	}
-
-	// parse src ip
-	if rule.SrcIPAddr != "" {
-		ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
-		if err != nil {
-			log.Errorf("Failed to parse src ip %s. Err: %v", rule.SrcIPAddr, err)
-			return nil, err
-		}
-	}
-
-	// Install the rule in policy table
-	ruleFlow, err := policyTable.NewFlow(ofctrl.FlowMatch{
-		Priority:       uint16(rule.Priority),
-		Ethertype:      PROTOCOL_IP,
-		IpDa:           ipDa,
-		IpDaMask:       ipDaMask,
-		IpSa:           ipSa,
-		IpSaMask:       ipSaMask,
-		IpProto:        rule.IPProtocol,
-		TcpSrcPort:     rule.SrcPort,
-		TcpSrcPortMask: rule.SrcPortMask,
-		TcpDstPort:     rule.DstPort,
-		TcpDstPortMask: rule.DstPortMask,
-		UdpSrcPort:     rule.SrcPort,
-		UdpSrcPortMask: rule.SrcPortMask,
-		UdpDstPort:     rule.DstPort,
-		UdpDstPortMask: rule.DstPortMask,
-	})
-	if err != nil {
-		log.Errorf("Failed to add flow for rule {%v}. Err: %v", rule, err)
-		return nil, err
-	}
-
-	if rule.Action == "deny" {
-		ruleFlow.Next(nextTable)
-	}
-
-	return nil, nil
-}
-
 func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	var ipDa *net.IP = nil
 	var ipDaMask *net.IP = nil
@@ -675,8 +608,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			return nil, fmt.Errorf("policy tier1 without monitor mode support")
 		}
 
-		// load flowID[0..9] -> xxreg0[0..9]
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_ROUND_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
 			return nil, err
 		}
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(32, 53)); err != nil {
@@ -689,8 +621,10 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	case "work":
 		switch rule.Action {
 		case "allow":
-			if err := ruleFlow.LoadField("nxm_nx_reg0", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
-				return nil, err
+			if rule.Priority == GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY {
+				if err := ruleFlow.LoadField("nxm_nx_reg0", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
+					return nil, err
+				}
 			}
 		case "deny":
 			if err := ruleFlow.LoadField("nxm_nx_reg0", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
@@ -700,8 +634,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			return nil, fmt.Errorf("unknown action")
 		}
 
-		// load flowID[0..9] -> xxreg0[0..9]
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_ROUND_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
 			return nil, err
 		}
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(54, 75)); err != nil {
