@@ -27,7 +27,7 @@ RUN chmod 755 /opt/everoute/bin/*
 FROM ubuntu:20.04
 
 #RUN apk update && apk add openvswitch
-RUN apt update && apt install -y openvswitch-switch=2.13.* iptables tcpdump && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y openvswitch-switch=2.13.* iptables iproute2 tcpdump && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/everoute/bin
 COPY --from=builder /opt/everoute/bin/* /opt/everoute/bin/
