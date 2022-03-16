@@ -16,7 +16,7 @@ require (
 	github.com/fatih/color v1.7.0
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/gertd/go-pluralize v0.1.7
-	github.com/go-logr/logr v0.4.0 // indirect
+	github.com/go-logr/logr v0.2.1 // indirect
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/gorilla/websocket v1.4.2
@@ -25,29 +25,35 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.15.0
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/cobra v1.1.1
+	github.com/spf13/cobra v1.1.3
 	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
-	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/sys v0.0.0-20210917161153-d61c044b1678
-	google.golang.org/grpc v1.35.0
+	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.20.6
-	k8s.io/apimachinery v0.20.6
+	k8s.io/api v0.22.2
+	k8s.io/apimachinery v0.22.2
 	k8s.io/cli-runtime v0.20.1
-	k8s.io/client-go v0.20.6
+	k8s.io/client-go v0.22.2
 	k8s.io/klog v1.0.0
-	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
-	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
-	sigs.k8s.io/controller-runtime v0.6.0
+	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
+	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
+	sigs.k8s.io/controller-runtime v0.10.2
 )
 
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
 	//github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20211229083707-5cb1e875a38b
-	github.com/contiv/ofnet => github.com/echkenluo/ofnet v0.0.0-20220221070635-77d8eaabab24
+	github.com/contiv/ofnet => github.com/echkenluo/ofnet v0.0.0-20220316073105-f24ad3ca4c99
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
+	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
+	k8s.io/apimachinery v0.22.2 => k8s.io/apimachinery v0.20.6
+	k8s.io/client-go v0.22.2 => k8s.io/client-go v0.20.6
+	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e => k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a => k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
+	sigs.k8s.io/controller-runtime v0.10.2 => sigs.k8s.io/controller-runtime v0.6.0
 )
