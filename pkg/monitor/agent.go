@@ -412,10 +412,10 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 	_, ok := newExternalIds[LocalEndpointIdentity]
 	if !ok {
-		macStr, ok = rowupdate.New.Fields["mac_in_use"].(string)
+		macStr, _ = rowupdate.New.Fields["mac_in_use"].(string)
 	} else {
 		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-		macStr, ok = newExternalIds[LocalEndpointIdentity].(string)
+		macStr, _ = newExternalIds[LocalEndpointIdentity].(string)
 	}
 	newOfPort, ok := rowupdate.New.Fields["ofport"].(float64)
 	if !ok {
@@ -461,7 +461,7 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 		macStr = newMacInUse
 	} else {
 		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-		macStr, ok = newExternalIds[LocalEndpointIdentity].(string)
+		macStr, _ = newExternalIds[LocalEndpointIdentity].(string)
 	}
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
