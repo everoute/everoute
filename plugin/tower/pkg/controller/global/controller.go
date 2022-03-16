@@ -171,7 +171,6 @@ func (c *Controller) reconcileGlobalPolicy(name string) error {
 	if !exists {
 		globalPolicy = new(v1alpha1.GlobalPolicy)
 		globalPolicy.Name = DefaultGlobalPolicyName
-		// globalPolicy.Spec.GlobalPolicyEnforcementMode =
 		klog.Infof("create default global policy %+v", globalPolicy)
 		globalPolicy, err = c.crdClient.SecurityV1alpha1().GlobalPolicies().Create(context.Background(), globalPolicy, metav1.CreateOptions{})
 		if err != nil {

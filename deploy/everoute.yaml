@@ -1576,7 +1576,7 @@ spec:
                   that include "Egress" (since such a policy would not include an
                   Egress section and would otherwise default to just [ "Ingress" ]).
                 items:
-                  description: Policy Type string describes the NetworkPolicy type
+                  description: PolicyType string describes the NetworkPolicy type
                     This type is beta-level in 1.8
                   type: string
                 type: array
