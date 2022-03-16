@@ -386,27 +386,31 @@ func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
 func (monitor *AgentMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 	_, ok := newExternalIds[LocalEndpointIdentity]
-	if rowupdate.New.Fields["type"] == "" && !ok {
-		return monitor.filterVethIfaceEndpoint(rowupdate)
+	if !ok {
+		if rowupdate.New.Fields["mac_in_use"] == "" {
+			return nil, nil
+		}
+		//return monitor.filterLocalEndpoint(rowupdate)
 	}
 	return monitor.filterLocalEndpoint(rowupdate)
+	//return monitor.filterLocalEndpointForVM(rowupdate)
 }
 
-func (monitor *AgentMonitor) filterVethIfaceEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
-	if rowupdate.New.Fields["mac_in_use"] == "" {
-		return nil, nil
-	}
-	return monitor.filterEndpointProcess(rowupdate)
-}
+//func (monitor *AgentMonitor) filterLocalEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+//	if rowupdate.New.Fields["mac_in_use"] == "" {
+//		return nil, nil
+//	}
+//	return monitor.filterEndpointProcess(rowupdate)
+//}
+
+//func (monitor *AgentMonitor) filterLocalEndpointForVM(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+//	if rowupdate.New.Fields["external_ids"] == nil {
+//		return nil, nil
+//	}
+//	return monitor.filterEndpointProcess(rowupdate)
+//}
 
 func (monitor *AgentMonitor) filterLocalEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
-	if rowupdate.New.Fields["external_ids"] == nil {
-		return nil, nil
-	}
-	return monitor.filterEndpointProcess(rowupdate)
-}
-
-func (monitor *AgentMonitor) filterEndpointProcess(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	empty := ovsdb.Row{}
 	if reflect.DeepEqual(rowupdate.Old, empty) {
 		return monitor.filterEndpointAdded(rowupdate), nil
@@ -423,7 +427,7 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	var macStr string
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 	_, ok := newExternalIds[LocalEndpointIdentity]
-	if rowupdate.New.Fields["type"] == "" && !ok {
+	if !ok {
 		macStr, ok = rowupdate.New.Fields["mac_in_use"].(string)
 	} else {
 		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
@@ -469,7 +473,7 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 	newMac_in_use, ok := rowupdate.New.Fields["mac_in_use"].(string)
 	_, ok = newExternalIds[LocalEndpointIdentity]
-	if rowupdate.New.Fields["type"] == "" && !ok {
+	if !ok {
 		macStr = newMac_in_use
 	} else {
 		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
