@@ -414,7 +414,6 @@ func (monitor *AgentMonitor) filterEndpointUpdated(rowupdate ovsdb.RowUpdate) (*
 	if !ok {
 		macStr, _ = rowupdate.New.Fields["mac_in_use"].(string)
 	} else {
-		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 		macStr, _ = newExternalIds[LocalEndpointIdentity].(string)
 	}
 	newOfPort, ok := rowupdate.New.Fields["ofport"].(float64)
@@ -460,7 +459,6 @@ func (monitor *AgentMonitor) filterEndpointAdded(rowupdate ovsdb.RowUpdate) *dat
 	if !ok {
 		macStr = newMacInUse
 	} else {
-		newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
 		macStr, _ = newExternalIds[LocalEndpointIdentity].(string)
 	}
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
@@ -519,34 +517,36 @@ func (monitor *AgentMonitor) isPortExists(interfaceName string) bool {
 
 func (monitor *AgentMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *datapath.Endpoint {
 	var ofport uint32
-	if rowupdate.Old.Fields["external_ids"] == nil {
-		return nil
-	}
+	var macStr string
 	oldExternalIds := rowupdate.Old.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	oldMacInUse, _ := rowupdate.Old.Fields["mac_in_use"].(string)
+	_, ok := oldExternalIds[LocalEndpointIdentity]
+	if !ok {
+		macStr = oldMacInUse
+	} else {
+		macStr, _ = oldExternalIds[LocalEndpointIdentity].(string)
+	}
 
 	monitor.localEndpointHardwareAddrCacheLock.Lock()
 	defer monitor.localEndpointHardwareAddrCacheLock.Unlock()
-	if _, ok := oldExternalIds[LocalEndpointIdentity]; ok {
-		if _, ok := monitor.localEndpointHardwareAddrCache[oldExternalIds[LocalEndpointIdentity].(string)]; !ok {
-			return nil
-		}
 
-		ofPort, ok := rowupdate.Old.Fields["ofport"].(float64)
-		if !ok {
-			return nil
-		}
-		if ofPort <= 0 {
-			ofport = monitor.localEndpointHardwareAddrCache[oldExternalIds[LocalEndpointIdentity].(string)]
-		} else {
-			ofport = uint32(ofPort)
-		}
-
-		delete(monitor.localEndpointHardwareAddrCache, oldExternalIds[LocalEndpointIdentity].(string))
-
-		return monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), oldExternalIds[LocalEndpointIdentity].(string))
+	if _, ok := monitor.localEndpointHardwareAddrCache[macStr]; !ok {
+		return nil
 	}
 
-	return nil
+	ofPort, ok := rowupdate.Old.Fields["ofport"].(float64)
+	if !ok {
+		return nil
+	}
+	if ofPort <= 0 {
+		ofport = monitor.localEndpointHardwareAddrCache[macStr]
+	} else {
+		ofport = uint32(ofPort)
+	}
+
+	delete(monitor.localEndpointHardwareAddrCache, macStr)
+
+	return monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), macStr)
 }
 
 func (monitor *AgentMonitor) filterPortVlanTagUpdate(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
