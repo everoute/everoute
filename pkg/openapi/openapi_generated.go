@@ -905,7 +905,8 @@ func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) co
 					},
 					"endpointAgent": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "EndpointAgent means where this groupMember may appear. if this fields is empty, this member will apply to all agent.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{

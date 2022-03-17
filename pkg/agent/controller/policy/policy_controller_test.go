@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 	storecache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -87,9 +89,9 @@ var _ = Describe("PolicyController", func() {
 		var ep1, ep2, ep3 *securityv1alpha1.Endpoint
 
 		BeforeEach(func() {
-			ep1 = newTestEndpoint("192.168.1.1")
-			ep2 = newTestEndpoint("192.168.2.1")
-			ep3 = newTestEndpoint("192.168.3.1")
+			ep1 = newTestEndpoint("192.168.1.1", utils.CurrentAgentName())
+			ep2 = newTestEndpoint("192.168.2.1", utils.CurrentAgentName())
+			ep3 = newTestEndpoint("192.168.3.1", utils.CurrentAgentName())
 			group1 = newTestGroupMembers(0, endpointToMember(ep1))
 			group2 = newTestGroupMembers(0, endpointToMember(ep2))
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
@@ -182,10 +184,9 @@ var _ = Describe("PolicyController", func() {
 					By(fmt.Sprintf("update policy %s with empty applyTo", testPolicy.Name))
 					mustUpdatePolicy(ctx, testPolicy)
 				})
-
 				It("should apply to all endpoints", func() {
-					assertPolicyRulesNum(testPolicy, 4)
 					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(testPolicy, 4)
 
 					assertHasPolicyRuleWithPortRange(testPolicy, "Ingress", "Allow", "192.168.2.1/32",
 						0, 0, "", 0, 0, "TCP")
@@ -198,7 +199,6 @@ var _ = Describe("PolicyController", func() {
 						0, 0, "", 0, 0, "")
 				})
 			})
-
 		})
 
 		When("create a sample policy with ingress and egress", func() {
@@ -228,7 +228,7 @@ var _ = Describe("PolicyController", func() {
 				var addEp *securityv1alpha1.Endpoint
 
 				BeforeEach(func() {
-					addEp = newTestEndpoint("192.168.1.2")
+					addEp = newTestEndpoint("192.168.1.2", utils.CurrentAgentName())
 					patch = newTestGroupMembersPatch(group1.Name, group1.Revision, endpointToMember(addEp), nil, nil)
 
 					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
@@ -277,7 +277,7 @@ var _ = Describe("PolicyController", func() {
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
 				BeforeEach(func() {
-					newEp := newTestEndpoint("192.168.1.2")
+					newEp := newTestEndpoint("192.168.1.2", utils.CurrentAgentName())
 					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
 					updPolicy = policy.DeepCopy()
 					updPolicy.Spec.AppliedTo = append(updPolicy.Spec.AppliedTo, securityv1alpha1.ApplyToPeer{
@@ -302,7 +302,7 @@ var _ = Describe("PolicyController", func() {
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
 				BeforeEach(func() {
-					newEp := newTestEndpoint("192.168.2.2")
+					newEp := newTestEndpoint("192.168.2.2", utils.CurrentAgentName())
 					newGroup = newTestGroupMembers(0, endpointToMember(newEp))
 					updPolicy = policy.DeepCopy()
 					updPolicy.Spec.IngressRules[0].From = append(updPolicy.Spec.IngressRules[0].From, securityv1alpha1.SecurityPolicyPeer{
@@ -733,6 +733,164 @@ var _ = Describe("PolicyController", func() {
 			})
 		})
 	})
+
+	Context("partial endpoints do not on current agent", func() {
+		var group1, group2, group3, group4, group5, group6 *testGroup
+		var ep1, ep2, ep3, ep4, ep5, ep6 *securityv1alpha1.Endpoint
+
+		BeforeEach(func() {
+			ep1 = newTestEndpoint("192.168.1.1", utils.CurrentAgentName())
+			ep2 = newTestEndpoint("192.168.2.1", utils.CurrentAgentName())
+			ep3 = newTestEndpoint("192.168.3.1", utils.CurrentAgentName())
+			ep4 = newTestEndpoint("192.168.4.1", "agent2")
+			ep5 = newTestEndpoint("192.168.5.1", "agent2")
+			ep6 = newTestEndpoint("192.168.6.1", "agent2")
+			group1 = newTestGroupMembers(0, endpointToMember(ep1))
+			group2 = newTestGroupMembers(0, endpointToMember(ep2))
+			group3 = newTestGroupMembers(0, endpointToMember(ep3))
+			group4 = newTestGroupMembers(0, endpointToMember(ep4))
+			group5 = newTestGroupMembers(0, endpointToMember(ep5))
+			group6 = newTestGroupMembers(0, endpointToMember(ep6))
+
+			By(fmt.Sprintf("create endpoints %s and groups %v",
+				[]string{ep1.Name, ep2.Name, ep3.Name, ep4.Name, ep5.Name, ep6.Name},
+				[]string{group1.Name, group2.Name, group3.Name, group4.Name, group5.Name, group6.Name}))
+			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group2.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group4.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group5.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group6.GroupMembers)).Should(Succeed())
+		})
+
+		When("create a sample policy not in current agent", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group4, group5, group6, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+				policy.Spec.SymmetricMode = true
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should not appear in current agent", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 0)
+			})
+			When("endpoint update ingress in current agent", func() {
+				BeforeEach(func() {
+					ep5.Status.Agents = []string{utils.CurrentAgentName()}
+					patch := newTestGroupMembersPatch(group5.Name, group5.Revision, nil, endpointToMember(ep5), nil)
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should update policy", func() {
+					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(policy, 1)
+
+					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.5.1/32", 0, "192.168.4.1/32", 80, "TCP")
+				})
+			})
+			When("endpoint update egress in current agent", func() {
+				BeforeEach(func() {
+					ep6.Status.Agents = []string{utils.CurrentAgentName()}
+					patch := newTestGroupMembersPatch(group6.Name, group6.Revision, nil, endpointToMember(ep6), nil)
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should update policy", func() {
+					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(policy, 1)
+
+					assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.6.1/32", 80, "UDP")
+				})
+			})
+			When("endpoint update applyTo in current agent", func() {
+				BeforeEach(func() {
+					ep4.Status.Agents = []string{utils.CurrentAgentName()}
+					patch := newTestGroupMembersPatch(group4.Name, group4.Revision, nil, endpointToMember(ep4), nil)
+					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
+				})
+				It("should update policy", func() {
+					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(policy, 4)
+
+					assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.5.1/32", 0, "192.168.4.1/32", 80, "TCP")
+					assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.4.1/32", 0, "")
+					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.4.1/32", 0, "192.168.6.1/32", 80, "UDP")
+					assertHasPolicyRule(policy, "Egress", "Drop", "192.168.4.1/32", 0, "", 0, "")
+				})
+			})
+		})
+		When("create a sample policy apply to current agent with egress & ingress not", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1, group4, group5, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should create rules", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 4)
+
+				assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.1.1/32", 80, "TCP")
+				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.5.1/32", 80, "UDP")
+				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+		})
+		When("create a sample policy applyTo & ingress(current agent), egress(another agent)", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group1, group2, group5, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should create rules", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 4)
+
+				assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 80, "TCP")
+				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
+				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.5.1/32", 80, "UDP")
+				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+		})
+		When("create a sample policy ingress(current agent), applyTo,egress(another agent)", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group4, group1, group5, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+				policy.Spec.SymmetricMode = true
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should only create one Symmetric rule", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 1)
+
+				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.4.1/32", 80, "TCP")
+			})
+		})
+		When("create a sample policy egress(current agent), applyTo,ingress(another agent)", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(group4, group5, group1, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+				policy.Spec.SymmetricMode = true
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should only create one Symmetric rule", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 1)
+
+				assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.1.1/32", 80, "UDP")
+			})
+		})
+	})
 })
 
 var _ = Describe("GroupCache", func() {
@@ -747,7 +905,7 @@ var _ = Describe("GroupCache", func() {
 		var endpoint *securityv1alpha1.Endpoint
 
 		BeforeEach(func() {
-			endpoint = newTestEndpoint("192.168.1.1")
+			endpoint = newTestEndpoint("192.168.1.1", utils.CurrentAgentName())
 			members = newTestGroupMembers(0, endpointToMember(endpoint)).GroupMembers
 			groupCache.AddGroupMembership(members)
 		})
@@ -759,7 +917,8 @@ var _ = Describe("GroupCache", func() {
 			revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
 			Expect(exist).Should(BeTrue())
 			Expect(revision).Should(Equal(members.Revision))
-			Expect(ipBlocks).Should(ConsistOf("192.168.1.1/32"))
+			Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
+				&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0}))
 		})
 
 		When("add and apply a patch to group cache", func() {
@@ -767,7 +926,7 @@ var _ = Describe("GroupCache", func() {
 			var addEp *securityv1alpha1.Endpoint
 
 			BeforeEach(func() {
-				addEp = newTestEndpoint("192.168.1.2")
+				addEp = newTestEndpoint("192.168.1.2", utils.CurrentAgentName())
 				patch = newTestGroupMembersPatch(members.Name, members.Revision, endpointToMember(addEp), nil, nil)
 
 				By("add and apply group patch")
@@ -781,8 +940,10 @@ var _ = Describe("GroupCache", func() {
 				revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
 				Expect(exist).Should(BeTrue())
 				Expect(revision).Should(Equal(members.Revision + 1))
-				Expect(ipBlocks).Should(ConsistOf("192.168.1.1/32", "192.168.1.2/32"))
-
+				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
+					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0}))
+				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.2/32",
+					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0}))
 				Expect(groupCache.PatchLen(members.Name)).Should(BeZero())
 			})
 		})
@@ -939,7 +1100,7 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 	}
 }
 
-func newTestEndpoint(ip types.IPAddress) *securityv1alpha1.Endpoint {
+func newTestEndpoint(ip types.IPAddress, agent string) *securityv1alpha1.Endpoint {
 	name := "endpoint-test-" + rand.String(6)
 	id := name
 
@@ -955,7 +1116,8 @@ func newTestEndpoint(ip types.IPAddress) *securityv1alpha1.Endpoint {
 			},
 		},
 		Status: securityv1alpha1.EndpointStatus{
-			IPs: []types.IPAddress{ip},
+			IPs:    []types.IPAddress{ip},
+			Agents: []string{agent},
 		},
 	}
 }
@@ -1038,7 +1200,8 @@ func endpointToMember(ep *securityv1alpha1.Endpoint) *groupv1alpha1.GroupMember 
 			ExternalIDName:  ep.Spec.Reference.ExternalIDName,
 			ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 		},
-		IPs: ep.Status.IPs,
+		IPs:           ep.Status.IPs,
+		EndpointAgent: ep.Status.Agents,
 	}
 }
 

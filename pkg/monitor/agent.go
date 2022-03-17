@@ -19,11 +19,9 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,12 +37,11 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
-	AgentNameConfigPath   = "/var/lib/everoute/agent/name"
 	LocalEndpointIdentity = "attached-mac"
 	AgentInfoSyncInterval = 5
 )
@@ -131,11 +128,7 @@ func NewAgentMonitor(client client.Client, ofPortIPAddressMonitorChan chan map[s
 
 	var err error
 
-	monitor.agentName, err = readOrGenerateAgentName()
-	if err != nil {
-		klog.Errorf("unable get agent name: %s", err)
-		return nil, err
-	}
+	monitor.agentName = utils.CurrentAgentName()
 
 	monitor.ovsClient, err = ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
 	if err != nil {
@@ -809,19 +802,6 @@ func listUUID(uuidList interface{}) []ovsdb.UUID {
 	}
 
 	return idList
-}
-
-func readOrGenerateAgentName() (string, error) {
-	content, err := ioutil.ReadFile(AgentNameConfigPath)
-	if err == nil {
-		return strings.TrimSpace(string(content)), nil
-	}
-
-	// use node name for agent name in kubernetes
-	nodeName := os.Getenv(constants.AgentNodeNameENV)
-	klog.Infof("Current NodeName: %s", nodeName)
-
-	return nodeName, nil
 }
 
 func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAgentInfo *agentv1alpha1.AgentInfo) *agentv1alpha1.OVSInterface {

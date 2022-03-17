@@ -4,13 +4,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"sort"
+	"strings"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 func Base64Encode(message []byte) []byte {
@@ -76,4 +81,23 @@ func EqualStringSlice(list1, list2 []string) bool {
 	}
 
 	return true
+}
+
+var currentAgentName string
+
+func CurrentAgentName() string {
+	if currentAgentName != "" {
+		return currentAgentName
+	}
+
+	content, err := ioutil.ReadFile(constants.AgentNameConfigPath)
+	if err == nil {
+		currentAgentName = strings.TrimSpace(string(content))
+	} else {
+		// use node name for agent name in kubernetes
+		currentAgentName = os.Getenv(constants.AgentNodeNameENV)
+	}
+
+	klog.Infof("Current AgentName: %s", currentAgentName)
+	return currentAgentName
 }
