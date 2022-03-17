@@ -318,7 +318,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 	internalIface := Iface{
 		IfaceName: internalIfaceName,
 		IfaceType: "internal",
-		OfPort: uint32(22),
+		OfPort:    uint32(22),
 	}
 	Expect(createOvsPort(bridgeName, internalPortName, []Iface{internalIface}, 0)).Should(Succeed())
 
