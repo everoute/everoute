@@ -338,7 +338,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	t.Logf("delete port %s on bridge %s", internalPortName, bridgeName)
 	Expect(deletePort(ovsClient, bridgeName, internalPortName)).Should(Succeed())
-	
+
 	t.Run("Delete internal endpoint", func(t *testing.T) {
 		Eventually(func() bool {
 			_, err := getPort(k8sClient, bridgeName, internalPortName)
