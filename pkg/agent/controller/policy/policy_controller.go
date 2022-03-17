@@ -311,7 +311,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 	// if apply to is nil or empty, add all ips
 	if len(policy.Spec.AppliedTo) == 0 {
-		appliedIPBlocks = map[string]int{"": 1}
+		appliedIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
 	}
 
 	if ingressEnabled {
@@ -323,12 +323,12 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Direction:     policycache.RuleDirectionIn,
 				SymmetricMode: policy.Spec.SymmetricMode,
 				DstGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				DstIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
 			}
 
 			if len(rule.From) == 0 {
 				// If "rule.From" is empty or missing, this rule matches all sources
-				ingressRule.SrcIPBlocks = map[string]int{"": 1}
+				ingressRule.SrcIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
 			} else {
 				// use policy namespace as ingress endpoint namespace
 				ingressRule.SrcGroups, ingressRule.SrcIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.From)
@@ -359,9 +359,9 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				SymmetricMode:     false, // never generate symmetric rule for default rule
 				DefaultPolicyRule: true,
 				DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
-				SrcIPBlocks:       map[string]int{"": 1},      // matches all source IP
-				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+				DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
+				SrcIPBlocks:       map[string]*policycache.IPBlockItem{"": nil}, // matches all source IP
+				Ports:             []policycache.RulePort{{}},                   // has a port matches all ports
 			}
 			completeRules = append(completeRules, defaultIngressRule)
 		}
@@ -376,12 +376,12 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Direction:     policycache.RuleDirectionOut,
 				SymmetricMode: policy.Spec.SymmetricMode,
 				SrcGroups:     policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
+				SrcIPBlocks:   policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
 			}
 
 			if len(rule.To) == 0 {
 				// If "rule.To" is empty or missing, this rule matches all destinations
-				egressRule.DstIPBlocks = map[string]int{"": 1}
+				egressRule.DstIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
 			} else {
 				// use policy namespace as egress endpoint namespace
 				egressRule.DstGroups, egressRule.DstIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.To)
@@ -412,9 +412,9 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				SymmetricMode:     false, // never generate symmetric rule for default rule
 				DefaultPolicyRule: true,
 				SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]int),
-				DstIPBlocks:       map[string]int{"": 1},      // matches all destination IP
-				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+				SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
+				DstIPBlocks:       map[string]*policycache.IPBlockItem{"": nil}, // matches all destination IP
+				Ports:             []policycache.RulePort{{}},                   // has a port matches all ports
 			}
 			completeRules = append(completeRules, defaultEgressRule)
 		}
@@ -424,9 +424,10 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 }
 
 // getPeersGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
-func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securityv1alpha1.SecurityPolicyPeer) (map[string]int32, map[string]int, error) {
+func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string,
+	peers []securityv1alpha1.SecurityPolicyPeer) (map[string]int32, map[string]*policycache.IPBlockItem, error) {
 	var groups = make(map[string]int32)
-	var ipBlocks = make(map[string]int)
+	var ipBlocks = make(map[string]*policycache.IPBlockItem)
 
 	for _, peer := range peers {
 		switch {
@@ -437,7 +438,10 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 				return nil, nil, err
 			}
 			for _, ipNet := range ipNets {
-				ipBlocks[ipNet.String()]++
+				if _, exist := ipBlocks[ipNet.String()]; !exist {
+					ipBlocks[ipNet.String()] = policycache.NewIPBlockItem()
+				}
+				ipBlocks[ipNet.String()].StaticCount++
 			}
 		case peer.Endpoint != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
 			group := ctrlpolicy.PeerAsEndpointGroup(namespace, peer).GetName()
@@ -447,8 +451,11 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string, peers []securit
 			}
 			groups[group] = revision
 
-			for _, ipBlock := range ipAddrs {
-				ipBlocks[ipBlock]++
+			for ip, ipBlock := range ipAddrs {
+				if _, exist = ipBlocks[ip]; !exist {
+					ipBlocks[ip] = policycache.NewIPBlockItem()
+				}
+				ipBlocks[ip].AgentRef.Insert(ipBlock.AgentRef.List()...)
 			}
 		default:
 			klog.Errorf("Empty SecurityPolicyPeer, check your SecurityPolicy definition!")

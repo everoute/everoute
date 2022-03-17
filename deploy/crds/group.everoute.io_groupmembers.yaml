@@ -31,6 +31,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
+                  description: EndpointAgent means where this groupMember may appear.
+                    if this fields is empty, this member will apply to all agent.
                   items:
                     type: string
                   type: array

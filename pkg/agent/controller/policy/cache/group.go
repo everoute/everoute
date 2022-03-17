@@ -31,9 +31,9 @@ type GroupPatch struct {
 	Revision int32
 
 	// Add is the Add IPBlocks if patch applied.
-	Add []string
+	Add map[string]*IPBlockItem
 	// Del is the deleted IPBlocks if patch applied.
-	Del []string
+	Del map[string]*IPBlockItem
 }
 
 type groupMembership struct {
@@ -101,27 +101,45 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 	patch := &GroupPatch{
 		GroupName: groupName,
 		Revision:  membership.revision,
+		Add:       map[string]*IPBlockItem{},
+		Del:       map[string]*IPBlockItem{},
 	}
 
 	for _, member := range sourcePatch.AddedGroupMembers {
 		for _, ipAddr := range member.IPs {
-			patch.Add = append(patch.Add, GetIPCidr(ipAddr))
+			cidr := GetIPCidr(ipAddr)
+			if _, exist := patch.Add[cidr]; !exist {
+				patch.Add[cidr] = NewIPBlockItem()
+			}
+			patch.Add[cidr].AgentRef.Insert(member.EndpointAgent...)
 		}
 	}
 
 	for _, member := range sourcePatch.UpdatedGroupMembers {
 		oldMember := membership.endpoints[member.EndpointReference]
 		for _, ipAddr := range oldMember.IPs {
-			patch.Del = append(patch.Del, GetIPCidr(ipAddr))
+			cidr := GetIPCidr(ipAddr)
+			if _, exist := patch.Add[cidr]; !exist {
+				patch.Del[cidr] = NewIPBlockItem()
+			}
+			patch.Del[cidr].AgentRef.Insert(oldMember.EndpointAgent...)
 		}
 		for _, ipAddr := range member.IPs {
-			patch.Add = append(patch.Add, GetIPCidr(ipAddr))
+			cidr := GetIPCidr(ipAddr)
+			if _, exist := patch.Add[cidr]; !exist {
+				patch.Add[cidr] = NewIPBlockItem()
+			}
+			patch.Add[cidr].AgentRef.Insert(member.EndpointAgent...)
 		}
 	}
 
 	for _, member := range sourcePatch.RemovedGroupMembers {
 		for _, ipAddr := range member.IPs {
-			patch.Del = append(patch.Del, GetIPCidr(ipAddr))
+			cidr := GetIPCidr(ipAddr)
+			if _, exist := patch.Add[cidr]; !exist {
+				patch.Del[cidr] = NewIPBlockItem()
+			}
+			patch.Del[cidr].AgentRef.Insert(member.EndpointAgent...)
 		}
 	}
 
@@ -220,7 +238,7 @@ func (cache *GroupCache) DelGroupMembership(groupName string) {
 }
 
 // ListGroupIPBlocks return a list of IPBlocks of the group.
-func (cache *GroupCache) ListGroupIPBlocks(groupName string) (revision int32, ipBlocks []string, exist bool) {
+func (cache *GroupCache) ListGroupIPBlocks(groupName string) (revision int32, ipBlocks map[string]*IPBlockItem, exist bool) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
@@ -229,9 +247,13 @@ func (cache *GroupCache) ListGroupIPBlocks(groupName string) (revision int32, ip
 		return 0, nil, false
 	}
 
+	ipBlocks = make(map[string]*IPBlockItem)
 	for _, member := range membership.endpoints {
 		for _, ipAddr := range member.IPs {
-			ipBlocks = append(ipBlocks, GetIPCidr(ipAddr))
+			if _, e := ipBlocks[GetIPCidr(ipAddr)]; !e {
+				ipBlocks[GetIPCidr(ipAddr)] = NewIPBlockItem()
+			}
+			ipBlocks[GetIPCidr(ipAddr)].AgentRef.Insert(member.EndpointAgent...)
 		}
 	}
 

@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 type RuleType string
@@ -60,6 +61,20 @@ type PolicyRule struct {
 	DstPortMask uint16        `json:"dstPortMask,omitempty"`
 }
 
+type IPBlockItem struct {
+	// AgentRef means this ip has appeared in these agents.
+	// if sets is empty, this ip will apply to all agents.
+	AgentRef sets.String
+	// StaticCount is counter for ips which assigned directly in policy
+	StaticCount int
+}
+
+func NewIPBlockItem() *IPBlockItem {
+	item := &IPBlockItem{}
+	item.AgentRef = sets.NewString()
+	return item
+}
+
 type CompleteRule struct {
 	lock sync.RWMutex
 
@@ -81,15 +96,15 @@ type CompleteRule struct {
 	SrcGroups map[string]int32
 	DstGroups map[string]int32
 
-	// SrcIPBlocks is a map of source IPBlocks and appear times. This schema is used to calculate
+	// SrcIPBlocks is a map of source IPBlocks and other ip infos. This schema is used to calculate
 	// whether the patch leads to the added/deleted of IPBlocks. Virtual machine hot migration or
 	// configuration conflict may lead to multiple identical IP in the same group at the same time.
-	// If you want matches all source, you should write like {"": 1}.
-	SrcIPBlocks map[string]int
+	// If you want matches all source, you should write like {"": nil}.
+	SrcIPBlocks map[string]*IPBlockItem
 
-	// DstIPBlocks is a map of destination IPBlocks and appear times. If you want matches all
-	// destination, you should write like {"": 1}.
-	DstIPBlocks map[string]int
+	// DstIPBlocks is a map of destination IPBlocks and other ip infos. If you want matches all
+	// destination, you should write like {"": nil}.
+	DstIPBlocks map[string]*IPBlockItem
 
 	// Ports is a list of srcport and dstport with protocol. This filed must not empty.
 	Ports []RulePort
@@ -114,30 +129,50 @@ func (rule *CompleteRule) ListRules() []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
-	srcIPBlocks := sets.StringKeySet(rule.SrcIPBlocks).UnsortedList()
-	dstIPBlocks := sets.StringKeySet(rule.DstIPBlocks).UnsortedList()
-
-	return rule.generateRuleList(srcIPBlocks, dstIPBlocks, rule.Ports)
+	return rule.generateRuleList(rule.SrcIPBlocks, rule.DstIPBlocks, rule.Ports)
 }
 
-func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks []string, ports []RulePort) []PolicyRule {
+func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
 	var policyRuleList []PolicyRule
 
-	for _, srcIPBlock := range srcIPBlocks {
-		for _, dstIPBlock := range dstIPBlocks {
+	for srcIP, srcIPBlock := range srcIPBlocks {
+		for dstIP, dstIPBlock := range dstIPBlocks {
 			for _, port := range ports {
 				if rule.SymmetricMode {
 					// SymmetricMode will ignore rule direction, create both ingress and egress
-					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, RuleDirectionIn, port))
-					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, RuleDirectionOut, port))
+					if rule.hasLocalRule(dstIPBlock) {
+						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, port))
+					}
+					if rule.hasLocalRule(srcIPBlock) {
+						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, port))
+					}
 				} else {
-					policyRuleList = append(policyRuleList, rule.generateRule(srcIPBlock, dstIPBlock, rule.Direction, port))
+					if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock)) ||
+						(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock)) {
+						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, port))
+					}
 				}
 			}
 		}
 	}
 
 	return policyRuleList
+}
+
+func (rule *CompleteRule) hasLocalRule(ipBlock *IPBlockItem) bool {
+	// apply to all target
+	if ipBlock == nil {
+		return true
+	}
+	// apply to peer with static ips
+	if ipBlock.StaticCount > 0 {
+		return true
+	}
+	// apply to src/dst has current agent
+	if ipBlock.AgentRef.Len() == 0 || ipBlock.AgentRef.Has(utils.CurrentAgentName()) {
+		return true
+	}
+	return false
 }
 
 func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort) PolicyRule {
@@ -173,28 +208,28 @@ func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleL
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
-	var srcIPs, dstIPs = DeepCopyMap(rule.SrcIPBlocks).(map[string]int), DeepCopyMap(rule.DstIPBlocks).(map[string]int)
-	var srcAddIPs, srcDelIPs, dstAddIPs, dstDelIPs []string
+	srcIPs := DeepCopyMap(rule.SrcIPBlocks).(map[string]*IPBlockItem)
+	dstIPs := DeepCopyMap(rule.DstIPBlocks).(map[string]*IPBlockItem)
 
 	revision, exist := rule.SrcGroups[patch.GroupName]
 	if exist && revision == patch.Revision {
-		srcAddIPs, srcDelIPs = applyCountMap(srcIPs, patch.Add, patch.Del)
+		applyCountMap(srcIPs, patch.Add, patch.Del)
 
-		addRules := rule.generateRuleList(srcAddIPs, sets.StringKeySet(dstIPs).UnsortedList(), rule.Ports)
+		addRules := rule.generateRuleList(patch.Add, dstIPs, rule.Ports)
 		newPolicyRuleList = append(newPolicyRuleList, addRules...)
 
-		delRules := rule.generateRuleList(srcDelIPs, sets.StringKeySet(dstIPs).UnsortedList(), rule.Ports)
+		delRules := rule.generateRuleList(patch.Del, dstIPs, rule.Ports)
 		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
 	}
 
 	revision, exist = rule.DstGroups[patch.GroupName]
 	if exist && revision == patch.Revision {
-		dstAddIPs, dstDelIPs = applyCountMap(dstIPs, patch.Add, patch.Del)
+		applyCountMap(dstIPs, patch.Add, patch.Del)
 
-		addRules := rule.generateRuleList(sets.StringKeySet(srcIPs).UnsortedList(), dstAddIPs, rule.Ports)
+		addRules := rule.generateRuleList(srcIPs, patch.Add, rule.Ports)
 		newPolicyRuleList = append(newPolicyRuleList, addRules...)
 
-		delRules := rule.generateRuleList(sets.StringKeySet(srcIPs).UnsortedList(), dstDelIPs, rule.Ports)
+		delRules := rule.generateRuleList(srcIPs, patch.Del, rule.Ports)
 		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
 	}
 
@@ -220,22 +255,31 @@ func (rule *CompleteRule) ApplyPatch(patch *GroupPatch) {
 	}
 }
 
-func applyCountMap(count map[string]int, added, deled []string) (new []string, old []string) {
-	for _, add := range added {
-		if count[add] == 0 {
-			new = append(new, add)
+func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlockItem) {
+	for ip, add := range added {
+		if _, exist := count[ip]; !exist {
+			count[ip] = NewIPBlockItem()
 		}
-		count[add]++
+		count[ip].StaticCount += add.StaticCount
+		count[ip].AgentRef.Insert(add.AgentRef.List()...)
 	}
 
-	for _, del := range deled {
-		if count[del]--; count[del] == 0 {
-			delete(count, del)
-			old = append(old, del)
+	for ip, del := range deled {
+		if _, exist := count[ip]; !exist {
+			continue
+		}
+		count[ip].StaticCount -= del.StaticCount
+		count[ip].AgentRef.Delete(del.AgentRef.List()...)
+
+		if count[ip].StaticCount < 0 {
+			count[ip].StaticCount = 0
+		}
+
+		if count[ip].StaticCount == 0 && count[ip].AgentRef.Len() == 0 {
+			delete(count, ip)
 		}
 	}
 
-	return
 }
 
 const (
