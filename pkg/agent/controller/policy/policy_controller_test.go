@@ -735,8 +735,8 @@ var _ = Describe("PolicyController", func() {
 	})
 
 	Context("partial endpoints do not on current agent", func() {
-		var group1, group2, group3, group4, group5, group6 *testGroup
-		var ep1, ep2, ep3, ep4, ep5, ep6 *securityv1alpha1.Endpoint
+		var group1, group2, group3, group4, group5, group6, groupAll *testGroup
+		var ep1, ep2, ep3, ep4, ep5, ep6, epAll *securityv1alpha1.Endpoint
 
 		BeforeEach(func() {
 			ep1 = newTestEndpoint("192.168.1.1", utils.CurrentAgentName())
@@ -745,22 +745,26 @@ var _ = Describe("PolicyController", func() {
 			ep4 = newTestEndpoint("192.168.4.1", "agent2")
 			ep5 = newTestEndpoint("192.168.5.1", "agent2")
 			ep6 = newTestEndpoint("192.168.6.1", "agent2")
+			epAll = newTestEndpoint("192.168.100.1")
+
 			group1 = newTestGroupMembers(0, endpointToMember(ep1))
 			group2 = newTestGroupMembers(0, endpointToMember(ep2))
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
 			group4 = newTestGroupMembers(0, endpointToMember(ep4))
 			group5 = newTestGroupMembers(0, endpointToMember(ep5))
 			group6 = newTestGroupMembers(0, endpointToMember(ep6))
+			groupAll = newTestGroupMembers(0, endpointToMember(epAll))
 
 			By(fmt.Sprintf("create endpoints %s and groups %v",
-				[]string{ep1.Name, ep2.Name, ep3.Name, ep4.Name, ep5.Name, ep6.Name},
-				[]string{group1.Name, group2.Name, group3.Name, group4.Name, group5.Name, group6.Name}))
+				[]string{ep1.Name, ep2.Name, ep3.Name, ep4.Name, ep5.Name, ep6.Name, epAll.Name},
+				[]string{group1.Name, group2.Name, group3.Name, group4.Name, group5.Name, group6.Name, groupAll.Name}))
 			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group2.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group4.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group5.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group6.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, groupAll.GroupMembers)).Should(Succeed())
 		})
 
 		When("create a sample policy not in current agent", func() {
@@ -888,6 +892,25 @@ var _ = Describe("PolicyController", func() {
 				assertPolicyRulesNum(policy, 1)
 
 				assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.1.1/32", 80, "UDP")
+			})
+		})
+		When("create a sample policy with apply all endpoints", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestPolicy(groupAll, group4, group5, newTestPort("TCP", "80"), newTestPort("UDP", "80"))
+				policy.Spec.SymmetricMode = true
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should only create one Symmetric rule", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 4)
+
+				assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.100.1/32", 80, "TCP")
+				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.100.1/32", 0, "")
+				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.100.1/32", 0, "192.168.5.1/32", 80, "UDP")
+				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.100.1/32", 0, "", 0, "")
 			})
 		})
 	})
@@ -1100,7 +1123,7 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 	}
 }
 
-func newTestEndpoint(ip types.IPAddress, agent string) *securityv1alpha1.Endpoint {
+func newTestEndpoint(ip types.IPAddress, agent ...string) *securityv1alpha1.Endpoint {
 	name := "endpoint-test-" + rand.String(6)
 	id := name
 
@@ -1117,7 +1140,7 @@ func newTestEndpoint(ip types.IPAddress, agent string) *securityv1alpha1.Endpoin
 		},
 		Status: securityv1alpha1.EndpointStatus{
 			IPs:    []types.IPAddress{ip},
-			Agents: []string{agent},
+			Agents: agent,
 		},
 	}
 }
