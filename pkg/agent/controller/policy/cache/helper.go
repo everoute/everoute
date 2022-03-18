@@ -92,7 +92,12 @@ func DeepCopyMap(theMap interface{}) interface{} {
 	dstMap := reflect.MakeMapWithSize(maptype, srcMap.Len())
 
 	for _, key := range srcMap.MapKeys() {
-		dstMap.SetMapIndex(key, srcMap.MapIndex(key))
+		switch srcMap.MapIndex(key).Interface().(type) {
+		case DeepCopyBase:
+			dstMap.SetMapIndex(key, reflect.ValueOf(srcMap.MapIndex(key).Interface().(DeepCopyBase).DeepCopy()))
+		default:
+			dstMap.SetMapIndex(key, srcMap.MapIndex(key))
+		}
 	}
 	return dstMap.Interface()
 }
