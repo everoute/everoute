@@ -42,20 +42,6 @@ const (
 	BondInfoReportInterval  = 5
 )
 
-// tcp state for conntrack, differ from tcp state in kernel socket
-const (
-	TcpConntrackNone = iota
-	TcpConntrackSynSent
-	TcpConntrackSynRecv
-	TcpConntrackEstablished
-	TcpConntrackFinWait
-	TcpConntrackCloseWait
-	TcpConntrackLastAck
-	TcpConntrackTimeWait
-	TcpConntrackClose
-	TcpConntrackListen
-)
-
 type Exporter struct {
 	cache    *CollectorCache
 	uploader Uploader
@@ -302,17 +288,19 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 
 	// fetch socket info into flow
 	if flow.Protocol == uint32(layers.IPProtocolTCP) {
+		flow.ProtocolInfo = &v1alpha1.ProtocolInfo{
+			TcpInfo: &v1alpha1.TcpInfo{
+				State: uint32(TcpCTStatusToSocketStatus(ct.ProtoInfo.TCP.State)),
+			},
+		}
+
 		tcpSocket := e.cache.FetchSocketByFlow(flow)
 		if tcpSocket != nil {
-			flow.ProtocolInfo = &v1alpha1.ProtocolInfo{
-				TcpInfo: &v1alpha1.TcpInfo{
-					State:   uint32(tcpSocket.state),
-					CaState: uint32(tcpSocket.caState),
-					Rto:     tcpSocket.rto,
-					Rtt:     tcpSocket.rtt,
-					RttVar:  tcpSocket.rttVar,
-				},
-			}
+			flow.ProtocolInfo.TcpInfo.State = uint32(tcpSocket.state)
+			flow.ProtocolInfo.TcpInfo.CaState = uint32(tcpSocket.caState)
+			flow.ProtocolInfo.TcpInfo.Rto = tcpSocket.rto
+			flow.ProtocolInfo.TcpInfo.Rtt = tcpSocket.rtt
+			flow.ProtocolInfo.TcpInfo.RttVar = tcpSocket.rttVar
 		}
 	}
 
