@@ -61,12 +61,27 @@ type PolicyRule struct {
 	DstPortMask uint16        `json:"dstPortMask,omitempty"`
 }
 
+type DeepCopyBase interface {
+	DeepCopy() interface{}
+}
+
 type IPBlockItem struct {
 	// AgentRef means this ip has appeared in these agents.
 	// if sets is empty, this ip will apply to all agents.
 	AgentRef sets.String
 	// StaticCount is counter for ips which assigned directly in policy
 	StaticCount int
+}
+
+func (item *IPBlockItem) DeepCopy() interface{} {
+	if item == nil {
+		var ptr *IPBlockItem
+		return ptr
+	}
+	return &IPBlockItem{
+		AgentRef:    sets.NewString(item.AgentRef.List()...),
+		StaticCount: item.StaticCount,
+	}
 }
 
 func NewIPBlockItem() *IPBlockItem {
