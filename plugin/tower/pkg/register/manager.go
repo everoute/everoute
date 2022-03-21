@@ -61,6 +61,7 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	flagset.BoolVar(opts.Enable, withPrefix("enable"), false, "If true, tower plugin will start (default false)")
 	flagset.StringVar(&opts.Client.URL, withPrefix("address"), "", "Tower connection address")
 	flagset.StringVar(&opts.Client.UserInfo.Username, withPrefix("username"), "", "Tower user name for authenticate")
+	flagset.BoolVar(&opts.Client.AllowInsecure, withPrefix("allow-insecure"), true, "Tower allow-insecure for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), "", "Tower user source for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), "", "Tower user password for authenticate")
 	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
