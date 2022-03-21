@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
+	github.com/alessio/shellescape v1.4.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
