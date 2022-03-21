@@ -39,6 +39,9 @@ type Client struct {
 	URL      string    `yaml:"url"`
 	UserInfo *UserInfo `yaml:"user_info"`
 
+	// AllowInsecure set whether to check the server certificates
+	AllowInsecure bool
+
 	// Dialer dial websocket connecting to graphql server for subscription.
 	// If nil, websocket.DefaultDialer will be used.
 	Dialer *websocket.Dialer
@@ -251,7 +254,7 @@ func (c *Client) dialer() *websocket.Dialer {
 		return &websocket.Dialer{
 			Proxy:            http.ProxyFromEnvironment,
 			HandshakeTimeout: 45 * time.Second,
-			TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:  &tls.Config{InsecureSkipVerify: c.AllowInsecure},
 		}
 	}
 	return c.Dialer
@@ -260,7 +263,7 @@ func (c *Client) dialer() *websocket.Dialer {
 func (c *Client) httpClient() *http.Client {
 	if c.HTTPClient == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: c.AllowInsecure} // #nosec G402
 		return &http.Client{Transport: transport}
 	}
 	return c.HTTPClient
