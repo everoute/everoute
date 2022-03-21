@@ -48,6 +48,12 @@ func TestUnmarshalPortRange(t *testing.T) {
 			expectBegin: 80,
 			expectEnd:   8080,
 		},
+		"should unmarshal multiple portRange with prefix '0'": {
+			portRange:   "080-08080",
+			expectError: false,
+			expectBegin: 80,
+			expectEnd:   8080,
+		},
 		"should not unmarshal portRange begin less than end": {
 			portRange:   "8080-80",
 			expectError: true,
