@@ -1,8 +1,6 @@
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
 
-all: codegen manifests bin
-
 bin: controller agent cni
 
 images: image image-generate
