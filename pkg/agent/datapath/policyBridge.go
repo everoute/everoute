@@ -15,24 +15,25 @@ import (
 
 //nolint
 const (
-	INPUT_TABLE                 = 0
-	CT_STATE_TABLE              = 1
-	DIRECTION_SELECTION_TABLE   = 10
-	EGRESS_TIER1_TABLE          = 20
-	EGRESS_TIER2_MONITOR_TABLE  = 24
-	EGRESS_TIER2_TABLE          = 25
-	EGRESS_TIER3_MONITOR_TABLE  = 29
-	EGRESS_TIER3_TABLE          = 30
-	EGRESS_DROP_TABLR           = 31
+	INPUT_TABLE                = 0
+	CT_STATE_TABLE             = 1
+	DIRECTION_SELECTION_TABLE  = 10
+	EGRESS_TIER1_TABLE         = 20
+	EGRESS_TIER2_MONITOR_TABLE = 24
+	EGRESS_TIER2_TABLE         = 25
+	EGRESS_TIER3_MONITOR_TABLE = 29
+	EGRESS_TIER3_TABLE         = 30
+	// EGRESS_DROP_TABLR           = 31
 	INGRESS_TIER1_TABLE         = 50
 	INGRESS_TIER2_MONITOR_TABLE = 54
 	INGRESS_TIER2_TABLE         = 55
 	INGRESS_TIER3_MONITOR_TABLE = 59
 	INGRESS_TIER3_TABLE         = 60
-	INGRESS_DROP_TABLE          = 61
-	CT_COMMIT_TABLE             = 70
-	SFC_POLICY_TABLE            = 80
-	POLICY_FORWARDING_TABLE     = 90
+	// INGRESS_DROP_TABLE          = 61
+	CT_COMMIT_TABLE         = 70
+	CT_DROP_TABLE           = 71
+	SFC_POLICY_TABLE        = 80
+	POLICY_FORWARDING_TABLE = 90
 )
 
 type PolicyBridge struct {
@@ -40,24 +41,25 @@ type PolicyBridge struct {
 	OfSwitch        *ofctrl.OFSwitch
 	datapathManager *DpManager
 
-	inputTable                     *ofctrl.Table
-	ctStateTable                   *ofctrl.Table
-	directionSelectionTable        *ofctrl.Table
-	egressTier1PolicyTable         *ofctrl.Table
-	egressTier2PolicyMonitorTable  *ofctrl.Table
-	egressTier2PolicyTable         *ofctrl.Table
-	egressTier3PolicyMonitorTable  *ofctrl.Table
-	egressTier3PolicyTable         *ofctrl.Table
-	egressDropTable                *ofctrl.Table
+	inputTable                    *ofctrl.Table
+	ctStateTable                  *ofctrl.Table
+	directionSelectionTable       *ofctrl.Table
+	egressTier1PolicyTable        *ofctrl.Table
+	egressTier2PolicyMonitorTable *ofctrl.Table
+	egressTier2PolicyTable        *ofctrl.Table
+	egressTier3PolicyMonitorTable *ofctrl.Table
+	egressTier3PolicyTable        *ofctrl.Table
+	// egressDropTable                *ofctrl.Table
 	ingressTier1PolicyTable        *ofctrl.Table
 	ingressTier2PolicyMonitorTable *ofctrl.Table
 	ingressTier2PolicyTable        *ofctrl.Table
 	ingressTier3PolicyMonitorTable *ofctrl.Table
 	ingressTier3PolicyTable        *ofctrl.Table
-	ingressDropTable               *ofctrl.Table
-	ctCommitTable                  *ofctrl.Table
-	sfcPolicyTable                 *ofctrl.Table
-	policyForwardingTable          *ofctrl.Table
+	// ingressDropTable               *ofctrl.Table
+	ctCommitTable         *ofctrl.Table
+	ctDropTable           *ofctrl.Table
+	sfcPolicyTable        *ofctrl.Table
+	policyForwardingTable *ofctrl.Table
 
 	policySwitchStatusMutex sync.RWMutex
 	isPolicySwitchConnected bool
@@ -128,14 +130,15 @@ func (p *PolicyBridge) BridgeInit() {
 	p.ingressTier2PolicyTable, _ = sw.NewTable(INGRESS_TIER2_TABLE)
 	p.ingressTier3PolicyMonitorTable, _ = sw.NewTable(INGRESS_TIER3_MONITOR_TABLE)
 	p.ingressTier3PolicyTable, _ = sw.NewTable(INGRESS_TIER3_TABLE)
-	p.ingressDropTable, _ = sw.NewTable(INGRESS_DROP_TABLE)
+	// p.ingressDropTable, _ = sw.NewTable(INGRESS_DROP_TABLE)
 	p.egressTier1PolicyTable, _ = sw.NewTable(EGRESS_TIER1_TABLE)
 	p.egressTier2PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER2_MONITOR_TABLE)
 	p.egressTier2PolicyTable, _ = sw.NewTable(EGRESS_TIER2_TABLE)
 	p.egressTier3PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER3_MONITOR_TABLE)
 	p.egressTier3PolicyTable, _ = sw.NewTable(EGRESS_TIER3_TABLE)
-	p.egressDropTable, _ = sw.NewTable(EGRESS_DROP_TABLR)
+	// p.egressDropTable, _ = sw.NewTable(EGRESS_DROP_TABLR)
 	p.ctCommitTable, _ = sw.NewTable(CT_COMMIT_TABLE)
+	p.ctDropTable, _ = sw.NewTable(CT_DROP_TABLE)
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
 
@@ -255,7 +258,30 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	}
 
 	// Table 70 conntrack commit table
-	ctByPassFlow1, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+	ctTrkState := openflow13.NewCTStates()
+	ctTrkState.SetNew()
+	ctTrkState.SetTrk()
+	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		CtStates:  ctTrkState,
+	})
+	var ctDropTable uint8 = CT_DROP_TABLE
+	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
+	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
+	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	_ = ctCommitFlow.SetConntrack(ctCommitAction)
+
+	ctCommitTableDefaultFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := ctCommitTableDefaultFlow.Next(p.ctDropTable); err != nil {
+		return fmt.Errorf("failed to install ct commit flow, error: %v", err)
+	}
+
+	// ct drop table: 71
+	ctByPassFlow1, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
@@ -268,7 +294,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	if err := ctByPassFlow1.Next(p.OfSwitch.DropAction()); err != nil {
 		return fmt.Errorf("failed to install ct drop flow, error: %v", err)
 	}
-	ctByPassFlow2, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+	ctByPassFlow2, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
@@ -285,26 +311,11 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct bypass flow 2, error: %v", err)
 	}
 
-	ctTrkState := openflow13.NewCTStates()
-	ctTrkState.SetNew()
-	ctTrkState.SetTrk()
-	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
-		CtStates:  ctTrkState,
-	})
-	var sfcPolicyTable uint8 = SFC_POLICY_TABLE
-	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
-	ctCommitAction := ofctrl.NewConntrackAction(true, false, &sfcPolicyTable, &policyConntrackZone, moveAct)
-	_ = ctCommitFlow.SetConntrack(ctCommitAction)
-
-	ctCommitTableDefaultFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+	ctPassDefaultFlow, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ctCommitTableDefaultFlow.Next(p.sfcPolicyTable); err != nil {
-		return fmt.Errorf("failed to install ct commit flow, error: %v", err)
+	if err := ctPassDefaultFlow.Next(p.sfcPolicyTable); err != nil {
+		return fmt.Errorf("failed to install egress tier3 drop table flow, error: %v", err)
 	}
 
 	return nil
@@ -344,26 +355,26 @@ func (p *PolicyBridge) initPolicyTable() error {
 	}
 
 	// egress drop table
-	egressDropFlow, _ := p.egressDropTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_MISS_PRIORITY,
-	})
-	if err := egressDropFlow.Next(p.ctCommitTable); err != nil {
-		return fmt.Errorf("failed to install egress tier3 drop table flow, error: %v", err)
-	}
-	ctTrkState := openflow13.NewCTStates()
-	ctTrkState.SetNew()
-	ctTrkState.SetTrk()
-	egressDropTableCtCommitFlow, _ := p.egressDropTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
-		CtStates:  ctTrkState,
-	})
-	var policyConntrackZone uint16 = 65520
-	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
-	ctCommitAction := ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
-	_ = egressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
+	// egressDropFlow, _ := p.egressDropTable.NewFlow(ofctrl.FlowMatch{
+	// 	Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	// })
+	// if err := egressDropFlow.Next(p.ctCommitTable); err != nil {
+	// 	return fmt.Errorf("failed to install egress tier3 drop table flow, error: %v", err)
+	// }
+	// ctTrkState := openflow13.NewCTStates()
+	// ctTrkState.SetNew()
+	// ctTrkState.SetTrk()
+	// egressDropTableCtCommitFlow, _ := p.egressDropTable.NewFlow(ofctrl.FlowMatch{
+	// 	Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+	// 	Ethertype: PROTOCOL_IP,
+	// 	CtStates:  ctTrkState,
+	// })
+	// var policyConntrackZone uint16 = 65520
+	// srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
+	// dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	// moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
+	// ctCommitAction := ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
+	// _ = egressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
 
 	// ingress policy table
 	ingressTier1DefaultFlow, _ := p.ingressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
@@ -398,20 +409,20 @@ func (p *PolicyBridge) initPolicyTable() error {
 	}
 
 	// ingress tier3 drop table
-	ingressDropFlow, _ := p.ingressDropTable.NewFlow(ofctrl.FlowMatch{
-		Priority: DEFAULT_FLOW_MISS_PRIORITY,
-	})
-	if err := ingressDropFlow.Next(p.ctCommitTable); err != nil {
-		return fmt.Errorf("failed to install ingress tier3 drop table flow, error: %v", err)
-	}
-	ingressDropTableCtCommitFlow, _ := p.ingressDropTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
-		CtStates:  ctTrkState,
-	})
-	moveAct = openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
-	ctCommitAction = ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
-	_ = ingressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
+	// ingressDropFlow, _ := p.ingressDropTable.NewFlow(ofctrl.FlowMatch{
+	// 	Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	// })
+	// if err := ingressDropFlow.Next(p.ctCommitTable); err != nil {
+	// 	return fmt.Errorf("failed to install ingress tier3 drop table flow, error: %v", err)
+	// }
+	// ingressDropTableCtCommitFlow, _ := p.ingressDropTable.NewFlow(ofctrl.FlowMatch{
+	// 	Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+	// 	Ethertype: PROTOCOL_IP,
+	// 	CtStates:  ctTrkState,
+	// })
+	// moveAct = openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
+	// ctCommitAction = ofctrl.NewConntrackAction(true, false, &p.ctCommitTable.TableId, &policyConntrackZone, moveAct)
+	// _ = ingressDropTableCtCommitFlow.SetConntrack(ctCommitAction)
 
 	// sfc policy table
 	sfcPolicyTableDefaultFlow, _ := p.sfcPolicyTable.NewFlow(ofctrl.FlowMatch{
