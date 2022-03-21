@@ -835,7 +835,9 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	// check and remove rule reference
 	if pRule.PolicyRuleReference.Has(ruleName) {
 		pRule.PolicyRuleReference.Delete(ruleName)
-		return nil
+		if pRule.PolicyRuleReference.Len() > 0 {
+			return nil
+		}
 	}
 
 	log.Infof("Received remove rule: %+v", ruleName)
