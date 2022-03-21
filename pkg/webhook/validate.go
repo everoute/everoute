@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/klog"
 	"net/http"
 
 	admv1 "k8s.io/api/admission/v1"
@@ -53,20 +52,17 @@ func (v *ValidateWebhook) SetupWithManager(mgr ctrl.Manager) error {
 // Handler handle validate admission http request.
 func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		klog.V(2).Info("Received request to validate admission")
 		var reqBody []byte
 		if r.Body != nil {
 			reqBody, _ = ioutil.ReadAll(r.Body)
 		}
 		if len(reqBody) == 0 {
-			klog.Error("Validation webhook received empty request body")
 			http.Error(w, "empty request body", http.StatusBadRequest)
 			return
 		}
 		// verify the content type is accurate
 		contentType := r.Header.Get("Content-Type")
 		if contentType != "application/json" {
-			klog.Errorf("Invalid content-Type %s, expected application/json", contentType)
 			http.Error(w, "invalid Content-Type, expected `application/json`", http.StatusUnsupportedMediaType)
 			return
 		}
@@ -78,7 +74,6 @@ func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 			if err == nil {
 				err = fmt.Errorf("invalidate request body")
 			}
-			klog.Errorf("Webhook validation received incorrect body: %s", err.Error())
 			admissionResponse = &admv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
@@ -100,18 +95,15 @@ func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 
 		resp, err := json.Marshal(aReview)
 		if err != nil {
-			klog.Errorf("Unable to encode response during validation: %s", err.Error())
 			http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 		}
 
-		klog.V(2).Info("Writing validation response to ValidationAdmissionHook")
 		if _, err := w.Write(resp); err != nil {
-			klog.Errorf("Unable to write response during validation: %s", err.Error())
 			http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 		}
 	}
 }
 
 func (v *ValidateWebhook) healthHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "ok")
+	_, _ = fmt.Fprint(w, "ok")
 }
