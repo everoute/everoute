@@ -32,12 +32,10 @@ import (
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
@@ -113,7 +111,6 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 	var msg string
 	var curObj, oldObj runtime.Object
 	var err error
-	var namenamespace *types.NamespacedName
 
 	// default allowed all validate admission, unless one of the validators return
 	// false or some error when process.
@@ -126,38 +123,23 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 	// unmarshal object
 	if len(curRaw) != 0 && string(curRaw) != "null" {
 		if curObj, err = v.unmarshal(curRaw, gvk); err != nil {
-			klog.Errorf("failed to unmarshal object %s, raw: %s", gvk, curRaw)
 			return &admv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
-			}
-		}
-		if obj, ok := curObj.(metav1.Object); ok {
-			namenamespace = &types.NamespacedName{
-				Namespace: obj.GetNamespace(),
-				Name:      obj.GetName(),
 			}
 		}
 	}
 	if len(oldRaw) != 0 && string(oldRaw) != "null" {
 		if oldObj, err = v.unmarshal(oldRaw, gvk); err != nil {
-			klog.Errorf("failed to unmarshal object %s, raw: %s", gvk, oldRaw)
 			return &admv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
 			}
 		}
-		if obj, ok := oldObj.(metav1.Object); ok {
-			namenamespace = &types.NamespacedName{
-				Namespace: obj.GetNamespace(),
-				Name:      obj.GetName(),
-			}
-		}
 	}
 
-	klog.V(2).Infof("validate operation %s of object %s", operation, gvk.String())
 	switch operation {
 	case admv1.Create:
 		for _, validator := range v.validate[gvk] {
@@ -180,10 +162,8 @@ func (v *CRDValidate) Validate(ar *admv1.AdmissionReview) *admv1.AdmissionRespon
 				break
 			}
 		}
-	}
-
-	if !allowed && msg != "" {
-		klog.Errorf("Disallow to %s objects %s %+v: %s", operation, gvk, namenamespace, msg)
+	default:
+		msg = fmt.Sprintf("unsupported operation %s", operation)
 	}
 
 	if msg != "" {
@@ -391,12 +371,14 @@ func (v *securityPolicyValidator) validateRules(ingress, egress []securityv1alph
 // validateRule validates if the rule with validate value
 func (v *securityPolicyValidator) validateRule(rule *securityv1alpha1.Rule) error {
 	rulePeerList := append(rule.From, rule.To...)
-	errList := make([]error, 0, len(rulePeerList)+len(rule.Ports))
+	// fix: size computation for allocation may overflow
+	ruleErrList := make([]error, 0, len(rulePeerList))
+	portErrList := make([]error, 0, len(rule.Ports))
 
 	for item := range rulePeerList {
 		err := v.validateRulePeer(&rulePeerList[item])
 		if err != nil {
-			errList = append(errList,
+			ruleErrList = append(ruleErrList,
 				fmt.Errorf("error format of peer %+v: %s", rulePeerList[item], err),
 			)
 		}
@@ -405,13 +387,16 @@ func (v *securityPolicyValidator) validateRule(rule *securityv1alpha1.Rule) erro
 	for item := range rule.Ports {
 		err := v.validatePort(&rule.Ports[item])
 		if err != nil {
-			errList = append(errList,
+			portErrList = append(portErrList,
 				fmt.Errorf("error format of port %+v: %s", rule.Ports[item], err),
 			)
 		}
 	}
 
-	return errors.NewAggregate(errList)
+	if len(ruleErrList)+len(portErrList) != 0 {
+		return errors.NewAggregate(append(ruleErrList, portErrList...))
+	}
+	return nil
 }
 
 func (v *securityPolicyValidator) validateRulePeer(peer *securityv1alpha1.SecurityPolicyPeer) error {
