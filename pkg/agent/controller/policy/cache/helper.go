@@ -67,12 +67,12 @@ func UnmarshalPortRange(portRange string) (uint16, uint16, error) {
 	case regexp.MustCompile(emptyPort).Match([]byte(portRange)):
 		begin, end = 0, 0
 	case regexp.MustCompile(singlePort).Match([]byte(portRange)):
-		dstPort, _ := strconv.Atoi(portRange)
+		dstPort, _ := strconv.ParseUint(portRange, 10, 16)
 		begin, end = uint16(dstPort), uint16(dstPort)
 	case regexp.MustCompile(multiplePort).Match([]byte(portRange)):
 		port := strings.Split(portRange, "-")
-		portBegin, _ := strconv.Atoi(port[0])
-		portEnd, _ := strconv.Atoi(port[1])
+		portBegin, _ := strconv.ParseUint(port[0], 10, 16)
+		portEnd, _ := strconv.ParseUint(port[1], 10, 16)
 
 		if portBegin > portEnd {
 			return 0, 0, fmt.Errorf("portrange %s begin must <= end", portRange)
