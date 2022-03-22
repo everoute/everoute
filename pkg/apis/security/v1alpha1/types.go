@@ -71,6 +71,7 @@ type SecurityPolicySpec struct {
 	Tier string `json:"tier"`
 
 	// Work mode specify the policy enforcement state: monitor or work
+	// +kubebuilder:default=work
 	SecurityPolicyEnforcementMode PolicyMode `json:"securityPolicyEnforcementMode,omitempty"`
 
 	// SymmetricMode will generate symmetry rules for the policy.
