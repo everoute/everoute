@@ -272,7 +272,7 @@ func (c *CollectorCache) CheckAndAddBondIp(ifindex uint32, ipPkt gopacket.Packet
 				klog.Errorf("delete ip %s in bond interface %+v error, err:%s", ip.DstIP.String(), item.(*BondInterface), err)
 				continue
 			}
-			if err = c.BondInterfaceCache.Update(bond.(*BondInterface));err!=nil{
+			if err = c.BondInterfaceCache.Update(bond.(*BondInterface)); err != nil {
 				klog.Errorf("delete ip %s in bond interface %+v error, err:%s", ip.DstIP.String(), item.(*BondInterface), err)
 				continue
 			}
