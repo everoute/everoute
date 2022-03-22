@@ -1547,11 +1547,12 @@ spec:
                   that include "Egress" (since such a policy would not include an
                   Egress section and would otherwise default to just [ "Ingress" ]).
                 items:
-                  description: PolicyType string describes the NetworkPolicy type
+                  description: Policy Type string describes the NetworkPolicy type
                     This type is beta-level in 1.8
                   type: string
                 type: array
               securityPolicyEnforcementMode:
+                default: work
                 description: 'Work mode specify the policy enforcement state: monitor
                   or work'
                 type: string
