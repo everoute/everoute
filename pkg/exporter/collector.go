@@ -299,7 +299,7 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 	}
 
 	// fetch socket info into flow
-	if flow.Protocol == uint32(layers.IPProtocolTCP) {
+	if flow.Protocol == uint32(layers.IPProtocolTCP) && ct.ProtoInfo.TCP != nil {
 		flow.ProtocolInfo = &v1alpha1.ProtocolInfo{
 			TcpInfo: &v1alpha1.TcpInfo{
 				State: uint32(TcpCTStatusToSocketStatus(ct.ProtoInfo.TCP.State)),
@@ -318,12 +318,8 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 
 	// fetch policy info into flow
 	if len(flow.CtLabel) != 0 {
-		// for egress drop
-		flowA := binary.LittleEndian.Uint64(flow.CtLabel[0:8])
-		// for ingress drop
-		flowB := binary.LittleEndian.Uint64(flow.CtLabel[8:16])
-
-		policyList := e.datapathManager.GetPolicyByFlowID(flowA, flowB)
+		flowID1, flowID2, flowID3 := e.ctLabelDecode(ct.Labels)
+		policyList := e.datapathManager.GetPolicyByFlowID(flowID1, flowID2, flowID3)
 		for _, policySet := range policyList {
 			for _, policyItem := range policySet.Item {
 				flow.Policy = append(flow.Policy, &v1alpha1.Policy{
@@ -331,8 +327,8 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 					Namespace: policyItem.Namespace,
 					Type:      string(policyItem.PolicyType),
 					Dir:       uint32(policySet.Dir),
-					Mode:      e.datapathManager.WorkMode,
 					Action:    policySet.Action,
+					Mode:      policySet.Mode,
 				})
 			}
 		}
@@ -480,6 +476,46 @@ func (e *Exporter) ctEventHandle(c chan conntrack.Event) {
 			return
 		}
 	}
+}
+
+func (e *Exporter) ctLabelDecode(label []byte) (uint64, uint64, uint64) {
+	// Bit Order Example:
+	//
+	// No.1 1010 0010 1111 0001 0xA2F1  -  ovs register order
+	// No.2 1000 1111 0100 0101 0x8F45  -  ovs dpctl/dump-conntrack (left-right mirror from No.1)
+	// No.3 0100 0101 1000 1111 0x458F  -  netlink ct label
+	//
+	// label retrieve from netlink ct label, transfer it with litter endian
+	// In the above case, it seems as No.2
+	// Since binary lib could only handle uint64, label (128 bits) split into TWO parts.
+	//
+	// The round number stores in high 10 bits. Here it means the right 10 bits in uint64 partA.
+
+	partA := binary.LittleEndian.Uint64(label[0:8])
+	partB := binary.LittleEndian.Uint64(label[8:16])
+
+	var RoundMask uint64 = 0x0000_0000_0000_03FF
+	var flowSeq1Mask uint64 = 0x0000_0000_FFFF_FC00
+	var flowSeq2Mask uint64 = 0x003F_FFFF_0000_0000
+	var flowSeq3MaskPartA uint64 = 0xFFC0_0000_0000_0000
+	var flowSeq3MaskPartB uint64 = 0x0000_0000_0000_0FFF
+
+	roundNum := (partA & RoundMask) << 22
+	flowSeq1 := (partA & flowSeq1Mask) >> 10
+	flowSeq2 := (partA & flowSeq2Mask) >> (10 + 22)
+	flowSeq3 := ((partA & flowSeq3MaskPartA) >> (10 + 22 + 22)) | ((partB & flowSeq3MaskPartB) << 10)
+
+	var flowID1, flowID2, flowID3 uint64
+	if flowSeq1 != 0 {
+		flowID1 = roundNum | flowSeq1
+	}
+	if flowSeq2 != 0 {
+		flowID2 = roundNum | flowSeq2
+	}
+	if flowSeq3 != 0 {
+		flowID3 = roundNum | flowSeq3
+	}
+	return flowID1, flowID2, flowID3
 }
 
 func (e *Exporter) conntractCollector(ct chan []conntrack.Flow) {

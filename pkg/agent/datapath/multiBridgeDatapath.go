@@ -183,8 +183,6 @@ type DpManager struct {
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
 
-	WorkMode string // work or monitor, default monitor
-
 	ArpChan chan protocol.ARP
 
 	AgentInfo *AgentConf
@@ -259,6 +257,7 @@ type RoundInfo struct {
 type PolicyInfo struct {
 	Dir    uint8
 	Action string
+	Mode   string
 	Item   []PolicyItem
 }
 type PolicyItem struct {
@@ -363,11 +362,15 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 	var policyInfoList []*PolicyInfo
 
 	for _, id := range flowID {
+		if id == 0 {
+			continue
+		}
 		item := datapathManager.FlowIdToRules[id]
 		if item != nil {
 			policyInfo := &PolicyInfo{
 				Dir:    item.Direction,
 				Action: item.EveroutePolicyRule.Action,
+				Mode:   item.Mode,
 			}
 			for _, p := range item.PolicyRuleReference.List() {
 				policyInfo.Item = append(policyInfo.Item, PolicyItem{
