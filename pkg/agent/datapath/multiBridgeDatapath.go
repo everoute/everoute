@@ -322,12 +322,12 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	// add rules for internalIP
 	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
 		// internal ingress rule
-		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, "work")
+		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
 		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, "work")
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
