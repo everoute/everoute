@@ -849,7 +849,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			continue
 		}
 		// generate intra group policy
-		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), &securityPolicy.ApplyTo[item])
+		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), &securityPolicy.ApplyTo[item], v1alpha1.PolicyMode(securityPolicy.EnforcementMode))
 		if err != nil {
 			return nil, err
 		}
@@ -955,7 +955,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 	return isolationPolices
 }
 
-func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
+func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPeer *schema.SecurityPolicyApply, mode v1alpha1.PolicyMode) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
 	endpointSelector, err := c.parseSelectors(appliedPeer.Selector)
@@ -969,7 +969,8 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier: constants.Tier2,
+			Tier:                          constants.Tier2,
+			SecurityPolicyEnforcementMode: mode,
 			AppliedTo: []v1alpha1.ApplyToPeer{{
 				EndpointSelector: endpointSelector,
 			}},
