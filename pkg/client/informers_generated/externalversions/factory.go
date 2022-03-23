@@ -24,6 +24,7 @@ import (
 	time "time"
 
 	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	activeprobe "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/activeprobe"
 	agent "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent"
 	group "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/group"
 	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
@@ -174,9 +175,14 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
+	Activeprobe() activeprobe.Interface
 	Agent() agent.Interface
 	Group() group.Interface
 	Security() security.Interface
+}
+
+func (f *sharedInformerFactory) Activeprobe() activeprobe.Interface {
+	return activeprobe.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Agent() agent.Interface {

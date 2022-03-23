@@ -75,7 +75,9 @@ codegen: manifests
 	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt \
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
-		--api-versions security/v1alpha1
+		--api-versions security/v1alpha1 \
+		--api-versions activeprobe/v1alpha1
+		
 
 # Generate plugin-tower gql codes
 gqlgen:

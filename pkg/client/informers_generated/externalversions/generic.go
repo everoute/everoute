@@ -21,7 +21,8 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	v1alpha1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,8 +55,12 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=agent.everoute.io, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("agentinfos"):
+	// Group=activeprobe.everoute.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("activeprobes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Activeprobe().V1alpha1().ActiveProbes().Informer()}, nil
+
+		// Group=agent.everoute.io, Version=v1alpha1
+	case agentv1alpha1.SchemeGroupVersion.WithResource("agentinfos"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Agent().V1alpha1().AgentInfos().Informer()}, nil
 
 		// Group=group.everoute.io, Version=v1alpha1
