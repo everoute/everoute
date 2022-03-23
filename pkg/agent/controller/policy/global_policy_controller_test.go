@@ -82,11 +82,12 @@ var _ = Describe("PolicyController", func() {
 	})
 })
 
-func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction, whitelist ...string) *securityv1alpha1.GlobalPolicy {
+func newTestGlobalPolicy(defaultAction securityv1alpha1.GlobalDefaultAction) *securityv1alpha1.GlobalPolicy {
 	var policy securityv1alpha1.GlobalPolicy
 
 	policy.Name = rand.String(6)
 	policy.Spec.DefaultAction = defaultAction
+	policy.Spec.GlobalPolicyEnforcementMode = securityv1alpha1.WorkMode
 
 	return &policy
 }
