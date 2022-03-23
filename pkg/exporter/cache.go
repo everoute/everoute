@@ -232,7 +232,7 @@ func (c *CollectorCache) DelBondIf(uuid string) {
 
 	err := c.BondInterfaceCache.Delete(&BondInterface{uuid: uuid})
 	if err != nil {
-		klog.Errorf("delete BondInterface %d error, err:%s", uuid, err)
+		klog.Errorf("delete BondInterface %s error, err:%s", uuid, err)
 	}
 }
 
@@ -310,7 +310,7 @@ func (c *CollectorCache) FetchIpBondInterface(ip string) string {
 func (c *CollectorCache) AddIface(iface *Interface) {
 	err := c.interfaceCache.Add(iface)
 	if err != nil {
-		klog.Errorf("delete interface %s error, err:%s", iface, err)
+		klog.Errorf("delete interface %+v error, err:%s", iface, err)
 	}
 }
 
