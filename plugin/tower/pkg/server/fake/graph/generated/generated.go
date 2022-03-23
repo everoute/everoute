@@ -100,6 +100,7 @@ type ComplexityRoot struct {
 
 	IsolationPolicy struct {
 		Egress          func(childComplexity int) int
+		EnforcementMode func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
@@ -170,6 +171,7 @@ type ComplexityRoot struct {
 	SecurityPolicy struct {
 		ApplyTo         func(childComplexity int) int
 		Egress          func(childComplexity int) int
+		EnforcementMode func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
@@ -469,6 +471,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.IsolationPolicy.Egress(childComplexity), true
 
+	case "IsolationPolicy.enforcement_mode":
+		if e.complexity.IsolationPolicy.EnforcementMode == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.EnforcementMode(childComplexity), true
+
 	case "IsolationPolicy.everoute_cluster":
 		if e.complexity.IsolationPolicy.EverouteCluster == nil {
 			break
@@ -732,6 +741,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.SecurityPolicy.Egress(childComplexity), true
+
+	case "SecurityPolicy.enforcement_mode":
+		if e.complexity.SecurityPolicy.EnforcementMode == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.EnforcementMode(childComplexity), true
 
 	case "SecurityPolicy.everoute_cluster":
 		if e.complexity.SecurityPolicy.EverouteCluster == nil {
@@ -1185,6 +1201,7 @@ enum MutationType {
 	{Name: "../../schema/policy_types.graphqls", Input: `type SecurityPolicy {
     id: ID!
     name: String!
+    enforcement_mode: String
     everoute_cluster: ObjectReference!
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
@@ -1201,6 +1218,7 @@ type IsolationPolicy {
     everoute_cluster: ObjectReference!
     vm: ObjectReference!
     mode: IsolationMode!
+    enforcement_mode: String
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
 }
@@ -2443,6 +2461,38 @@ func (ec *executionContext) _IsolationPolicy_mode(ctx context.Context, field gra
 	return ec.marshalNIsolationMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIsolationMode(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _IsolationPolicy_enforcement_mode(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EnforcementMode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _IsolationPolicy_ingress(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3676,6 +3726,38 @@ func (ec *executionContext) _SecurityPolicy_name(ctx context.Context, field grap
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_enforcement_mode(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EnforcementMode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicy_everoute_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
@@ -6550,6 +6632,8 @@ func (ec *executionContext) _IsolationPolicy(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "enforcement_mode":
+			out.Values[i] = ec._IsolationPolicy_enforcement_mode(ctx, field, obj)
 		case "ingress":
 			out.Values[i] = ec._IsolationPolicy_ingress(ctx, field, obj)
 		case "egress":
@@ -7013,6 +7097,8 @@ func (ec *executionContext) _SecurityPolicy(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "enforcement_mode":
+			out.Values[i] = ec._SecurityPolicy_enforcement_mode(ctx, field, obj)
 		case "everoute_cluster":
 			out.Values[i] = ec._SecurityPolicy_everoute_cluster(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
