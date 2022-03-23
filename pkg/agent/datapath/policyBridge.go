@@ -461,7 +461,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 				policyTable = p.egressTier3PolicyTable
 				nextTable = p.ctCommitTable
 			default:
-				return nil, nil, errors.New("unknow policy tier")
+				return nil, nil, errors.New("unknown policy tier")
 			}
 		case POLICY_DIRECTION_IN:
 			switch tier {
@@ -475,7 +475,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 				policyTable = p.ingressTier3PolicyTable
 				nextTable = p.ctCommitTable
 			default:
-				return nil, nil, errors.New("unknow policy tier")
+				return nil, nil, errors.New("unknown policy tier")
 			}
 		}
 	case "monitor":
@@ -490,7 +490,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 				policyTable = p.egressTier3PolicyMonitorTable
 				nextTable = p.egressTier3PolicyTable
 			default:
-				return nil, nil, errors.New("unknow policy tier")
+				return nil, nil, errors.New("unknown policy tier")
 			}
 		case POLICY_DIRECTION_IN:
 			switch tier {
@@ -502,9 +502,11 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 				policyTable = p.ingressTier3PolicyMonitorTable
 				nextTable = p.ingressTier3PolicyTable
 			default:
-				return nil, nil, errors.New("unknow policy tier")
+				return nil, nil, errors.New("unknown policy tier")
 			}
 		}
+	default:
+		return nil, nil, fmt.Errorf("unknown work mode (%s)", mode)
 	}
 
 	return policyTable, nextTable, nil
@@ -526,7 +528,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	policyTable, nextTable, e := p.GetTierTable(direction, tier, mode)
 	if e != nil {
 		log.Errorf("Failed to get policy table tier %v", tier)
-		return nil, errors.New("failed get policy table")
+		return nil, fmt.Errorf("failed get policy table, err:%s", e)
 	}
 
 	// Parse dst ip

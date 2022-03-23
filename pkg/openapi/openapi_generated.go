@@ -1551,7 +1551,6 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref common.ReferenceCall
 						},
 					},
 				},
-				Required: []string{"globalPolicyEnforcementMode"},
 			},
 		},
 	}
