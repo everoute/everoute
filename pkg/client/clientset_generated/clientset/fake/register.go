@@ -19,6 +19,7 @@ limitations under the License.
 package fake
 
 import (
+	activeprobev1alpha1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -33,6 +34,7 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 var parameterCodec = runtime.NewParameterCodec(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
+	activeprobev1alpha1.AddToScheme,
 	agentv1alpha1.AddToScheme,
 	groupv1alpha1.AddToScheme,
 	securityv1alpha1.AddToScheme,

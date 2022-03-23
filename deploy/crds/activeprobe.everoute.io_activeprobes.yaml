@@ -1,0 +1,157 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: activeprobes.activeprobe.everoute.io
+spec:
+  group: activeprobe.everoute.io
+  names:
+    kind: ActiveProbe
+    listKind: ActiveProbeList
+    plural: activeprobes
+    singular: activeprobe
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Active probe spec specifies probe intent for specific active
+              probe request
+            properties:
+              destination:
+                properties:
+                  endpoint:
+                    type: string
+                  ip:
+                    type: string
+                  namespace:
+                    type: string
+                  service:
+                    type: string
+                type: object
+              packet:
+                properties:
+                  dstip:
+                    type: string
+                  headerlength:
+                    type: integer
+                  ipheader:
+                    properties:
+                      flags:
+                        format: int32
+                        type: integer
+                      protocol:
+                        format: int32
+                        type: integer
+                      ttl:
+                        format: int32
+                        type: integer
+                    type: object
+                  srcip:
+                    type: string
+                  tranportHeader:
+                    properties:
+                      icmp:
+                        properties:
+                          id:
+                            format: int32
+                            type: integer
+                          sequence:
+                            format: int32
+                            type: integer
+                        type: object
+                      tcp:
+                        properties:
+                          dstport:
+                            format: int32
+                            type: integer
+                          flags:
+                            format: int32
+                            type: integer
+                          srcport:
+                            format: int32
+                            type: integer
+                        type: object
+                      udp:
+                        properties:
+                          dstport:
+                            format: int32
+                            type: integer
+                          srcport:
+                            format: int32
+                            type: integer
+                        type: object
+                    type: object
+                type: object
+              source:
+                properties:
+                  endpoint:
+                    type: string
+                  ip:
+                    type: string
+                  namespace:
+                    type: string
+                type: object
+            required:
+            - packet
+            type: object
+          status:
+            description: Active probe status store collected telemetry info into it
+            properties:
+              results:
+                items:
+                  properties:
+                    agentname:omitempty:
+                      type: string
+                    agentprobepath:
+                      items:
+                        properties:
+                          action':
+                            type: string
+                          tracepoint:
+                            type: string
+                        type: object
+                      type: array
+                  required:
+                  - agentname:omitempty
+                  type: object
+                type: array
+              state:
+                type: string
+              tag:
+                type: integer
+            required:
+            - state
+            - tag
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

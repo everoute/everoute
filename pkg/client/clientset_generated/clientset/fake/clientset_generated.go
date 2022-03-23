@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	activeprobev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/activeprobe/v1alpha1"
+	fakeactiveprobev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/activeprobe/v1alpha1/fake"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	fakeagentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1/fake"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
@@ -79,6 +81,11 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// ActiveprobeV1alpha1 retrieves the ActiveprobeV1alpha1Client
+func (c *Clientset) ActiveprobeV1alpha1() activeprobev1alpha1.ActiveprobeV1alpha1Interface {
+	return &fakeactiveprobev1alpha1.FakeActiveprobeV1alpha1{Fake: &c.Fake}
+}
 
 // AgentV1alpha1 retrieves the AgentV1alpha1Client
 func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {
