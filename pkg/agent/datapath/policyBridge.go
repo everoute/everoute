@@ -453,7 +453,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			switch tier {
 			case POLICY_TIER1:
 				policyTable = p.egressTier1PolicyTable
-				nextTable = p.egressTier2PolicyTable
+				nextTable = p.ctCommitTable
 			case POLICY_TIER2:
 				policyTable = p.egressTier2PolicyTable
 				nextTable = p.ctCommitTable
@@ -467,7 +467,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			switch tier {
 			case POLICY_TIER1:
 				policyTable = p.ingressTier1PolicyTable
-				nextTable = p.ingressTier2PolicyTable
+				nextTable = p.ctCommitTable
 			case POLICY_TIER2:
 				policyTable = p.ingressTier2PolicyTable
 				nextTable = p.ctCommitTable
