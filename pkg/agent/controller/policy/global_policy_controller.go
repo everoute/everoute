@@ -80,8 +80,7 @@ func (r *Reconciler) calculateExpectGlobalPolicyRules() ([]cache.PolicyRule, err
 
 	switch len(policyList.Items) {
 	case 1:
-		ruleList := newGlobalPolicyRulePair("", cache.RuleTypeGlobalDefaultRule,
-			cache.RuleAction(policyList.Items[0].Spec.DefaultAction))
+		ruleList := newGlobalPolicyRulePair(policyList.Items[0])
 		return ruleList, nil
 	case 0:
 		return []cache.PolicyRule{}, nil
@@ -90,24 +89,26 @@ func (r *Reconciler) calculateExpectGlobalPolicyRules() ([]cache.PolicyRule, err
 	}
 }
 
-func newGlobalPolicyRulePair(ipCIDR string, ruleType cache.RuleType, ruleAction cache.RuleAction) []cache.PolicyRule {
+func newGlobalPolicyRulePair(policy securityv1alpha1.GlobalPolicy) []cache.PolicyRule {
 	var ingressRule, egressRule cache.PolicyRule
 
 	ingressRule = cache.PolicyRule{
-		Direction: cache.RuleDirectionIn,
-		RuleType:  ruleType,
-		Tier:      constants.Tier2,
-		DstIPAddr: ipCIDR,
-		Action:    ruleAction,
+		Direction:       cache.RuleDirectionIn,
+		RuleType:        cache.RuleTypeGlobalDefaultRule,
+		Tier:            constants.Tier2,
+		DstIPAddr:       "",
+		Action:          cache.RuleAction(policy.Spec.DefaultAction),
+		EnforcementMode: string(policy.Spec.GlobalPolicyEnforcementMode),
 	}
 	ingressRule.Name = fmt.Sprintf("/%s/global.ingress/-%s", DefaultGlobalPolicyName, cache.GenerateFlowKey(ingressRule))
 
 	egressRule = cache.PolicyRule{
-		Direction: cache.RuleDirectionOut,
-		RuleType:  ruleType,
-		Tier:      constants.Tier2,
-		SrcIPAddr: ipCIDR,
-		Action:    ruleAction,
+		Direction:       cache.RuleDirectionOut,
+		RuleType:        cache.RuleTypeGlobalDefaultRule,
+		Tier:            constants.Tier2,
+		SrcIPAddr:       "",
+		Action:          cache.RuleAction(policy.Spec.DefaultAction),
+		EnforcementMode: string(policy.Spec.GlobalPolicyEnforcementMode),
 	}
 	egressRule.Name = fmt.Sprintf("/%s/global.egress/-%s", DefaultGlobalPolicyName, cache.GenerateFlowKey(egressRule))
 

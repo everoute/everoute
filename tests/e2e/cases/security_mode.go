@@ -153,14 +153,14 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(ingressGroupPort.Protocol))
 
 				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, *ingressNextTableID)
 				} else if ingressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
 						*ingressNextTableID)
 					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask,
 							*ingressNextTableID)
 					}
@@ -184,13 +184,13 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(egressGroupPort.Protocol))
 
 				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 						*egressTableID, priority, protocol, appliedToIP, dstIP, *egressNextTableID)
 				} else if egressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, *egressNextTableID)
 					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=goto_table:%d",
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[54..75],load:0x->NXM_NX_XXREG0[0..9],goto_table:%d",
 							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask,
 							*egressNextTableID)
 					}
