@@ -18,6 +18,7 @@ package node
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -61,7 +62,12 @@ func (n *Agent) DumpFlow() ([]string, error) {
 		if len(felem) > 2 {
 			felem = append([]string{felem[2]}, felem[5:]...)
 			fstr := strings.Join(felem, " ")
-			flowList = append(flowList, fstr)
+
+			// replace roundNum and sequenceNum with static format
+			expr := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
+			re, _ := regexp.Compile(expr)
+
+			flowList = append(flowList, re.ReplaceAllString(fstr, "load:0x->NXM_NX_XXREG0"))
 		}
 	}
 
