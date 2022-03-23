@@ -68,7 +68,7 @@ func NewExporter(uploader Uploader) *Exporter {
 
 	t, err := sysctl.New().GetSysctl("net/netfilter/nf_conntrack_tcp_timeout_time_wait")
 	if err != nil {
-		klog.Fatal("Could not get net.netfilter.nf_conntrack_tcp_timeout_time_wait, err: %s", err)
+		klog.Fatalf("Could not get net.netfilter.nf_conntrack_tcp_timeout_time_wait, err: %s", err)
 	}
 	e.tcpTimeWaitTimeOut = uint32(t)
 
@@ -86,10 +86,10 @@ func (e *Exporter) StartExporter(datapathManager *datapath.DpManager, stopChan <
 	go ovsMonitor.Run(e.stopChan)
 
 	if err := sysctl.New().SetSysctl("net/netfilter/nf_conntrack_acct", 1); err != nil {
-		klog.Fatal("Could not set net.netfilter.nf_conntrack_acct to 1, err: %s", err)
+		klog.Fatalf("Could not set net.netfilter.nf_conntrack_acct to 1, err: %s", err)
 	}
 	if err := sysctl.New().SetSysctl("net/netfilter/nf_conntrack_timestamp", 1); err != nil {
-		klog.Fatal("Could not set net.netfilter.nf_conntrack_timestamp to 1, err: %s", err)
+		klog.Fatalf("Could not set net.netfilter.nf_conntrack_timestamp to 1, err: %s", err)
 	}
 
 	go e.conntractCollector(ctChan)
@@ -504,7 +504,7 @@ func (e *Exporter) ctLabelDecode(label []byte) (uint64, uint64, uint64) {
 	// No.2 1000 1111 0100 0101 0x8F45  -  ovs dpctl/dump-conntrack (left-right mirror from No.1)
 	// No.3 0100 0101 1000 1111 0x458F  -  netlink ct label
 	//
-	// label retrieve from netlink ct label, transfer it with litter endian
+	// label retrieve from netlink ct label, transfer it with little endian
 	// In the above case, it seems as No.2
 	// Since binary lib could only handle uint64, label (128 bits) split into TWO parts.
 	//

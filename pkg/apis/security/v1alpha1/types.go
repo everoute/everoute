@@ -345,7 +345,8 @@ type GlobalPolicySpec struct {
 	DefaultAction GlobalDefaultAction `json:"defaultAction,omitempty"`
 
 	// GlobalPolicy enforcement mode
-	GlobalPolicyEnforcementMode PolicyMode `json:"globalPolicyEnforcementMode"`
+	// +kubebuilder:default=work
+	GlobalPolicyEnforcementMode PolicyMode `json:"globalPolicyEnforcementMode,omitempty"`
 }
 
 // GlobalDefaultAction defines actions supported for GlobalPolicy.

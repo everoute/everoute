@@ -49,10 +49,9 @@ spec:
                 - Drop
                 type: string
               globalPolicyEnforcementMode:
+                default: work
                 description: GlobalPolicy enforcement mode
                 type: string
-            required:
-            - globalPolicyEnforcementMode
             type: object
         type: object
     served: true

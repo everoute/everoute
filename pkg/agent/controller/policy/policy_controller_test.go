@@ -934,7 +934,8 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 				networkingv1.PolicyTypeIngress,
 				networkingv1.PolicyTypeEgress,
 			},
-			Tier: constants.Tier2,
+			Tier:                          constants.Tier2,
+			SecurityPolicyEnforcementMode: securityv1alpha1.WorkMode,
 		},
 	}
 }

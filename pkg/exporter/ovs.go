@@ -82,7 +82,7 @@ func (m *OvsMonitor) Run(stopChan <-chan struct{}) {
 
 	initial, err := m.ovsClient.Monitor("Open_vSwitch", nil, requests)
 	if err != nil {
-		klog.Errorf("monitor ovsdb error: %s", "Open_vSwitch", err)
+		klog.Errorf("monitor ovsdb error: %s", err)
 	}
 	m.handleOvsUpdates(*initial)
 
@@ -237,7 +237,7 @@ func cleanSFlowOVSConfig() {
 	klog.Infof("Cleaning OVS configuration")
 	client, err := ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
 	if err != nil {
-		klog.Fatal("connect to ovsdb: %s", err)
+		klog.Fatalf("connect to ovsdb: %s", err)
 	}
 
 	configBridgeOperation := ovsdb.Operation{
@@ -249,7 +249,7 @@ func cleanSFlowOVSConfig() {
 
 	_, err = ovsdbTransact(client, "Open_vSwitch", configBridgeOperation)
 	if err != nil {
-		klog.Fatal("clean bridges sflow error: %s", err)
+		klog.Fatalf("clean bridges sflow error: %s", err)
 	}
 }
 

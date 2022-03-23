@@ -1,6 +1,7 @@
 type SecurityPolicy {
     id: ID!
     name: String!
+    enforcement_mode: String
     everoute_cluster: ObjectReference!
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
@@ -17,6 +18,7 @@ type IsolationPolicy {
     everoute_cluster: ObjectReference!
     vm: ObjectReference!
     mode: IsolationMode!
+    enforcement_mode: String
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
 }
