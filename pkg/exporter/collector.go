@@ -299,7 +299,7 @@ func (e *Exporter) ctItemToFlow(ct conntrack.Flow) *v1alpha1.Flow {
 	}
 
 	// fetch socket info into flow
-	if flow.Protocol == uint32(layers.IPProtocolTCP) {
+	if flow.Protocol == uint32(layers.IPProtocolTCP) && ct.ProtoInfo.TCP != nil {
 		flow.ProtocolInfo = &v1alpha1.ProtocolInfo{
 			TcpInfo: &v1alpha1.TcpInfo{
 				State: uint32(TcpCTStatusToSocketStatus(ct.ProtoInfo.TCP.State)),
@@ -369,6 +369,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 		case flow := <-channel:
 			// handle flow sample packet
 			pktMsg := &v1alpha1.PktMessage{}
+			arpCounter := map[uint32]*v1alpha1.ArpCounter{}
 			for _, sample := range flow.FlowSamples {
 				//klog.Infof("%#X/%#X -> %#X/%#X", sample.InputInterface, sample.InputInterfaceFormat, sample.OutputInterface, sample.InputInterfaceFormat)
 				pktMsg.SampleRate = sample.SamplingRate
@@ -386,7 +387,24 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 								if err != nil || arp.AddrType != layers.LinkTypeEthernet {
 									continue
 								}
-								// only process arp ARPRequest packet
+
+								// calculate arp counter
+								if _, ok := arpCounter[sample.InputInterface]; !ok {
+									arpCounter[sample.InputInterface] = &v1alpha1.ArpCounter{}
+								}
+								if _, ok := arpCounter[sample.OutputInterface]; !ok {
+									arpCounter[sample.OutputInterface] = &v1alpha1.ArpCounter{}
+								}
+								switch arp.AddrType {
+								case layers.ARPRequest:
+									arpCounter[sample.InputInterface].InArpRequest += sample.SamplingRate
+									arpCounter[sample.OutputInterface].OutArpRequest += sample.SamplingRate
+								case layers.ARPReply:
+									arpCounter[sample.InputInterface].InArpReply += sample.SamplingRate
+									arpCounter[sample.OutputInterface].OutArpReply += sample.SamplingRate
+								}
+
+								// only cache arp ARPRequest packet
 								if arp.AddrType == layers.ARPReply {
 									continue
 								}
@@ -437,6 +455,7 @@ func (e *Exporter) sFlowWorker(channel chan layers.SFlowDatagram) {
 							LinkSpeed:        item.IfSpeed,
 							Direction:        item.IfDirection,
 							Status:           item.IfStatus,
+							ArpCounter:       arpCounter[item.IfIndex],
 							InOctets:         item.IfInOctets - counterLast.InOctets,
 							InUcastPkts:      item.IfInUcastPkts - counterLast.InUcastPkts,
 							InMulticastPkts:  item.IfInMulticastPkts - counterLast.InMulticastPkts,
