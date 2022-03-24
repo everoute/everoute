@@ -26,6 +26,12 @@ message CounterMessage {
 
   repeated Counter counter = 2;
 }
+message ArpCounter{
+  uint32 in_arp_request = 1;
+  uint32 in_arp_reply = 2;
+  uint32 out_arp_request = 3;
+  uint32 out_arp_reply = 4;
+}
 message Counter {
   string ifname = 1;
   map<string, string> external_id = 2;
@@ -34,6 +40,9 @@ message Counter {
   uint64 link_speed = 4;
   uint32 direction = 5;
   uint32 status = 6;
+
+  // arp pkts info (from sflow)
+  ArpCounter arp_counter = 21;
 
   // increase statistic from last counter
   uint64 in_octets = 7;
