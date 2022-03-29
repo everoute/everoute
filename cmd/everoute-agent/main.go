@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
-	datapathConfig, err := getDatapathConfig()
+	datapathConfig, err := datapath.GetDatapathConfig()
 	if err != nil {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
@@ -98,7 +98,7 @@ func main() {
 	k8sClient := mgr.GetClient()
 
 	if enableCNI {
-		setAgentConf(datapathManager, mgr.GetAPIReader())
+		datapath.SetAgentConf(datapathManager, mgr.GetAPIReader())
 		// cni server
 		cniServer := cniserver.Initialize(k8sClient, datapathManager)
 		go cniServer.Run(stopChan)

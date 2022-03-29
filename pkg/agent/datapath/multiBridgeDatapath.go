@@ -58,6 +58,11 @@ const (
 	FLOW_MATCH_OFFSET                   = 3
 )
 
+const (
+	SingleBridgeInputHighPriority   = 100
+	SingleBridgeInputNormalPriority = 5
+)
+
 //nolint
 const (
 	LOCAL_TO_POLICY_PORT = 101

@@ -240,6 +240,22 @@ func (l *LocalBridge) BridgeInit() {
 	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
 	l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
 
+	var inputCtFlowPriority uint16 = SingleBridgeInputHighPriority
+	var matchFields []*openflow13.MatchField
+	protoField := openflow13.NewEthTypeField(protocol.IPv4_MSG)
+	matchFields = append(matchFields, protoField)
+	if err := sw.DeleteSpecTableFlows(INPUT_TABLE, &inputCtFlowPriority, matchFields); err != nil {
+		log.Fatalf("Failed to delete single local bridge vlanInput table, error: %v", err)
+	}
+
+	if err := sw.DeleteSpecTableFlows(CT_STATE_TABLE, nil, nil); err != nil {
+		log.Fatalf("Failed to delete single local bridge ctState table, error: %v", err)
+	}
+
+	if err := sw.DeleteSpecTableFlows(CT_COMMIT_TABLE, nil, nil); err != nil {
+		log.Fatalf("Failed to delete single local bridge ctCommit table, error: %v", err)
+	}
+
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
 	}
