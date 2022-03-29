@@ -68,7 +68,7 @@ func main() {
 	var arpChan chan protocol.ARP
 	var exp *exporter.Exporter
 	if enableExporter {
-		exp = exporter.NewExporter(exporter.NewKafkaUploader(kafkaHosts, utils.ReadOrGenerateAgentName(), stopChan))
+		exp = exporter.NewExporter(exporter.NewKafkaUploader(kafkaHosts, utils.CurrentAgentName(), stopChan))
 		arpChan = exp.AgentArpChan
 	}
 
