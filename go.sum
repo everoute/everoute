@@ -310,8 +310,6 @@ github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21 h1:YEetp8
 github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21/go.mod h1:+020luEh2TKB4/GOp8oxxtq0Daoen/Cii55CzbTV6DU=
 github.com/eapache/queue v1.1.0 h1:YOEu7KNc61ntiQlcEeUIoDTJ2o8mQznoNvUhiigpIqc=
 github.com/eapache/queue v1.1.0/go.mod h1:6eCeP0CKFpHLu8blIFXhExK/dRa7WDZfr6jVFPTqq+I=
-github.com/echkenluo/ofnet v0.0.0-20220316073105-f24ad3ca4c99 h1:WQWeCnqASk/iKFSPYjosYoonzaugeXqACRbINXfA7hc=
-github.com/echkenluo/ofnet v0.0.0-20220316073105-f24ad3ca4c99/go.mod h1:cJR/tu7mdjR0Rm4EXUqw7nJU9cMCoWg2lEO7jfwq7MM=
 github.com/eclipse/paho.mqtt.golang v1.2.0/go.mod h1:H9keYFcgq3Qr5OUJm/JZI/i6U7joQ8SYLhZwfeOo6Ts=
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
@@ -332,6 +330,8 @@ github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5 h1:+z3ZBux28V
 github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5/go.mod h1:xsbTUkWYuDqVv4jMxwinRGdjlYwj0aZS8Rzf6HoNLdg=
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65 h1:a3dwYQt/Y9Yfz1XKpUelQKS5YDgmG4NtVpBrRguQY9k=
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65/go.mod h1:N8fR1bYMqi4pQ7jL17QlBlpJ0hHmqRAXVKkBwuIjClw=
+github.com/everoute/ofnet v0.0.0-20220331075001-946b2a9e97eb h1:veHt547LXOntfVFF47zKShskJiKKzyf2uzBe1o81aDE=
+github.com/everoute/ofnet v0.0.0-20220331075001-946b2a9e97eb/go.mod h1:VI923BFjPJipkV0SbiOmQ1qXefJnBBkjGxA3F56fenM=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
@@ -1051,7 +1051,6 @@ golang.org/x/net v0.0.0-20201224014010-6772e930b67b/go.mod h1:m0MpNAwzfU5UDzcl9v
 golang.org/x/net v0.0.0-20210119194325-5f4716e94777/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
 golang.org/x/net v0.0.0-20210226172049-e18ecbb05110/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
 golang.org/x/net v0.0.0-20210428140749-89ef3d95e781/go.mod h1:OJAsFXCWl8Ukc7SiCT/9KSuxbyM7479/AVlXFRxuMCk=
-golang.org/x/net v0.0.0-20210520170846-37e1c6afe023/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
 golang.org/x/net v0.0.0-20210525063256-abc453219eb5/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
 golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 h1:CIJ76btIcR3eFI5EgSo6k1qKw9KJexJuRLI9G7Hp5wE=
 golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=

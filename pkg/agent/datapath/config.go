@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package datapath
 
 import (
 	"context"
@@ -30,7 +30,6 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -62,13 +61,13 @@ func getAgentConfig() (*agentConfig, error) {
 	return &agentConfig, nil
 }
 
-func getDatapathConfig() (*datapath.Config, error) {
+func GetDatapathConfig() (*Config, error) {
 	agentConfig, err := getAgentConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
 
-	dpConfig := &datapath.Config{
+	dpConfig := &Config{
 		InternalIPs: agentConfig.InternalIPs,
 	}
 
@@ -81,7 +80,7 @@ func getDatapathConfig() (*datapath.Config, error) {
 	return dpConfig, nil
 }
 
-func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) {
+func SetAgentConf(datapathManager *DpManager, k8sReader client.Reader) {
 	k8sClient := k8sReader.(client.Client)
 	agentInfo := datapathManager.AgentInfo
 	agentInfo.EnableCNI = true
@@ -132,7 +131,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	}
 
 	for bridge := range datapathManager.OvsdbDriverMap {
-		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
+		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][LOCAL_BRIDGE_KEYWORD].OvsBridgeName
 		agentInfo.GatewayName = agentInfo.BridgeName + "-gw"
 		agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
 	}

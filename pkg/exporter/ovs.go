@@ -41,8 +41,12 @@ const (
 
 	SFlowPort = 6666
 
-	emptyUUID    = "00000000-0000-0000-0000-000000000000"
-	vSwitchdPath = "/var/run/openvswitch/ovs-vswitchd"
+	emptyUUID             = "00000000-0000-0000-0000-000000000000"
+	vSwitchdPath          = "/var/run/openvswitch/ovs-vswitchd"
+	internalBridgeKeyword = "ovsbr-internal"
+	policyKeyWord         = "-policy"
+	clsKeyWord            = "-cls"
+	uplinkKeyWord         = "-uplink"
 )
 
 type OvsMonitor struct {
@@ -89,12 +93,11 @@ func (m *OvsMonitor) Run(stopChan <-chan struct{}) {
 	<-stopChan
 }
 
-func FilterBridge(brName interface{}) bool {
+func FilterBridge(brName interface{}, nameSuffix string) bool {
 	switch brName.(type) {
 	case string:
 		name := brName.(string)
-		if strings.HasSuffix(name, datapath.POLICY_BRIDGE_KEYWORD) ||
-			strings.HasSuffix(name, datapath.CLS_BRIDGE_KEYWORD) {
+		if strings.HasSuffix(name, nameSuffix) {
 			return true
 		}
 	default:
@@ -102,6 +105,26 @@ func FilterBridge(brName interface{}) bool {
 	}
 
 	return false
+}
+
+func FilterEnableCtSingleBridge(brName interface{}) bool {
+	datapathConfig, err := datapath.GetDatapathConfig()
+	if err != nil {
+		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
+	}
+	name := brName.(string)
+	if name == internalBridgeKeyword {
+		return false
+	}
+	for _, ovsbrname := range datapathConfig.ManagedVDSMap {
+		policyBrName := ovsbrname + policyKeyWord
+		clsBrName := ovsbrname + clsKeyWord
+		uplinkBrName := ovsbrname + uplinkKeyWord
+		if name == ovsbrname || name == policyBrName || name == clsBrName || name == uplinkBrName {
+			return false
+		}
+	}
+	return true
 }
 
 func generateInterface(row ovsdb.Row) *Interface {
@@ -152,8 +175,12 @@ func (m *OvsMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 					m.collectorCache.AddIface(generateInterface(row.New))
 				}
 				if table == "Bridge" {
-					if FilterBridge(row.New.Fields["name"]) {
+					if FilterBridge(row.New.Fields["name"], datapath.POLICY_BRIDGE_KEYWORD) ||
+						FilterBridge(row.New.Fields["name"], datapath.CLS_BRIDGE_KEYWORD) {
 						continue
+					}
+					if FilterEnableCtSingleBridge(row.New.Fields["name"]) {
+						enableConntrack(row.New.Fields["name"].(string))
 					}
 					if err := addSFlowForBridge(row.New.Fields["name"].(string)); err != nil {
 						klog.Errorf("add sFlow for %s error, err:%s", row.New.Fields["name"].(string), err)
@@ -231,6 +258,11 @@ func addSFlowForBridge(brName string) error {
 	}
 
 	return nil
+}
+
+func enableConntrack(brName string) {
+	singleBridge := NewSingleBridge(brName)
+	singleBridge.BridgeInit()
 }
 
 func cleanSFlowOVSConfig() {
