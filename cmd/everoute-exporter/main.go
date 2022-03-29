@@ -23,7 +23,7 @@ func main() {
 
 	stopChan := make(chan struct{})
 
-	exp := exporter.NewExporter(exporter.NewKafkaUploader(kafkaHosts, utils.ReadOrGenerateAgentName(), stopChan))
+	exp := exporter.NewExporter(exporter.NewKafkaUploader(kafkaHosts, utils.CurrentAgentName(), stopChan))
 	go exp.StartExporter(nil, stopChan)
 
 	// catch exit signal
