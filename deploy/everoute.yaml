@@ -329,7 +329,7 @@ spec:
               properties:
                 endpointAgent:
                   description: EndpointAgent means where this groupMember may appear.
-                    if this fields is empty, this member will apply to all agent.
+                    if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
                   type: array
@@ -406,7 +406,7 @@ spec:
               properties:
                 endpointAgent:
                   description: EndpointAgent means where this groupMember may appear.
-                    if this fields is empty, this member will apply to all agent.
+                    if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
                   type: array
@@ -464,7 +464,7 @@ spec:
               properties:
                 endpointAgent:
                   description: EndpointAgent means where this groupMember may appear.
-                    if this fields is empty, this member will apply to all agent.
+                    if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
                   type: array
@@ -497,7 +497,7 @@ spec:
               properties:
                 endpointAgent:
                   description: EndpointAgent means where this groupMember may appear.
-                    if this fields is empty, this member will apply to all agent.
+                    if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
                   type: array
