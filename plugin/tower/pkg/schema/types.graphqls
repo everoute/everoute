@@ -4,7 +4,6 @@ type VM {
     description: String!
     vcpu: Int!
     memory: Float!
-    host: Host!
     vm_nics: [VMNic!]
     status: VMStatus!
 }
@@ -23,7 +22,6 @@ type VMNic {
     enabled: Boolean
     mirror: Boolean
     model: VMNicModel
-    mac_address: String
     interface_id: String
 }
 
@@ -79,16 +77,6 @@ enum GlobalPolicyAction {
 
 type Host {
     id: ID!
-    name: String!
-    nics: [Nic!]
     cluster: ObjectReference!
     management_ip: String!
-    data_ip: String
-}
-
-type Nic {
-    id: ID!
-    physical: Boolean!
-    name: String!
-    mac_address: String!
 }

@@ -19,13 +19,12 @@ package schema
 type VM struct {
 	ObjectMeta
 
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Vcpu        int             `json:"vcpu,omitempty"`
-	Memory      float64         `json:"memory,omitempty"`
-	Host        ObjectReference `json:"host,omitempty"`
-	Status      VMStatus        `json:"status"`
-	VMNics      []VMNic         `json:"vm_nics,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Vcpu        int      `json:"vcpu,omitempty"`
+	Memory      float64  `json:"memory,omitempty"`
+	Status      VMStatus `json:"status"`
+	VMNics      []VMNic  `json:"vm_nics,omitempty"`
 }
 
 // VMStatus is enumeration of vm status
@@ -46,7 +45,6 @@ type VMNic struct {
 	Enabled     bool       `json:"enabled,omitempty"`
 	Mirror      bool       `json:"mirror,omitempty"`
 	Model       VMNicModel `json:"model,omitempty"`
-	MacAddress  string     `json:"mac_address,omitempty"`
 	InterfaceID string     `json:"interface_id,omitempty"`
 }
 
@@ -126,17 +124,6 @@ const (
 type Host struct {
 	ObjectMeta
 
-	Name         string          `json:"name,omitempty"`
-	Nics         []Nic           `json:"nics,omitempty"`
 	ManagementIP string          `json:"management_ip"`
-	DataIP       string          `json:"data_ip,omitempty"`
 	Cluster      ObjectReference `json:"cluster"`
-}
-
-type Nic struct {
-	ObjectMeta
-
-	Physical   bool   `json:"physical"`
-	Name       string `json:"name,omitempty"`
-	MacAddress string `json:"mac_address,omitempty"`
 }
