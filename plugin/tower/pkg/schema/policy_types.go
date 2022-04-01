@@ -24,7 +24,15 @@ type SecurityPolicy struct {
 	ApplyTo         []SecurityPolicyApply `json:"apply_to"`
 	Ingress         []NetworkPolicyRule   `json:"ingress,omitempty"`
 	Egress          []NetworkPolicyRule   `json:"egress,omitempty"`
+	PolicyMode      PolicyMode            `json:"policy_mode,omitempty"`
 }
+
+type PolicyMode string
+
+const (
+	PolicyModeMonitor = "MONITOR"
+	PolicyModeWork    = "WORK"
+)
 
 type IsolationPolicy struct {
 	ObjectMeta
