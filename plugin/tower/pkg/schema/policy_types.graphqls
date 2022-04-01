@@ -1,5 +1,6 @@
 type SecurityPolicy {
     id: ID!
+    name: String!
     everoute_cluster: ObjectReference!
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
