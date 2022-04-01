@@ -5,11 +5,17 @@ type SecurityPolicy {
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
+    policy_mode: PolicyMode
 }
 
 type SecurityPolicyApply {
     communicable: Boolean!
     selector: [ObjectReference!]!
+}
+
+enum PolicyMode {
+    MONITOR
+    WORK
 }
 
 type IsolationPolicy {
