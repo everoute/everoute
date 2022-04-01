@@ -194,6 +194,7 @@ type ComplexityRoot struct {
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
 		Name            func(childComplexity int) int
+		PolicyMode      func(childComplexity int) int
 	}
 
 	SecurityPolicyApply struct {
@@ -886,6 +887,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SecurityPolicy.Name(childComplexity), true
 
+	case "SecurityPolicy.policy_mode":
+		if e.complexity.SecurityPolicy.PolicyMode == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.PolicyMode(childComplexity), true
+
 	case "SecurityPolicyApply.communicable":
 		if e.complexity.SecurityPolicyApply.Communicable == nil {
 			break
@@ -1447,6 +1455,7 @@ enum TaskOrderByInput {
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
+    policy_mode: PolicyMode
 }
 
 type SecurityPolicyApply {
@@ -1459,6 +1468,11 @@ type SecurityPolicyApply {
 enum SecurityPolicyType {
     SECURITY_GROUP
     SELECTOR
+}
+
+enum PolicyMode {
+    MONITOR
+    WORK
 }
 
 type IsolationPolicy {
@@ -4509,6 +4523,38 @@ func (ec *executionContext) _SecurityPolicy_egress(ctx context.Context, field gr
 	res := resTmp.([]schema.NetworkPolicyRule)
 	fc.Result = res
 	return ec.marshalONetworkPolicyRule2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SecurityPolicy_policy_mode(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PolicyMode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.PolicyMode)
+	fc.Result = res
+	return ec.marshalOPolicyMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPolicyMode(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyApply_type(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
@@ -8415,6 +8461,8 @@ func (ec *executionContext) _SecurityPolicy(ctx context.Context, sel ast.Selecti
 			out.Values[i] = ec._SecurityPolicy_ingress(ctx, field, obj)
 		case "egress":
 			out.Values[i] = ec._SecurityPolicy_egress(ctx, field, obj)
+		case "policy_mode":
+			out.Values[i] = ec._SecurityPolicy_policy_mode(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -10556,6 +10604,16 @@ func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋeveroute�
 		return graphql.Null
 	}
 	return ec._ObjectReference(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPolicyMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPolicyMode(ctx context.Context, v interface{}) (schema.PolicyMode, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.PolicyMode(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPolicyMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPolicyMode(ctx context.Context, sel ast.SelectionSet, v schema.PolicyMode) graphql.Marshaler {
+	return graphql.MarshalString(string(v))
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
