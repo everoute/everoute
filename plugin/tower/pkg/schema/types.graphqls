@@ -22,6 +22,8 @@ type VMNic {
     enabled: Boolean
     mirror: Boolean
     model: VMNicModel
+    mac_address: String
+    ip_address: String
     interface_id: String
 }
 
@@ -32,6 +34,7 @@ enum VMNicModel {
 
 type Vlan {
     id: ID!
+    vds: ObjectReference!
     name: String!
     vlan_id: Int!
     type: NetworkType!
@@ -55,6 +58,7 @@ type Label {
 type EverouteCluster {
     id: ID!
     agent_elf_clusters: [ObjectReference!]
+    agent_elf_vdses: [ObjectReference!]
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
@@ -77,6 +81,14 @@ enum GlobalPolicyAction {
 
 type Host {
     id: ID!
-    cluster: ObjectReference!
-    management_ip: String!
+    name: String!
+    nics: [Nic!]
+}
+
+type Nic {
+    id: ID!
+    physical: Boolean!
+    name: String!
+    mac_address: String!
+    ip_address: String
 }

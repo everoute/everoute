@@ -19,6 +19,7 @@ package schema
 type SecurityPolicy struct {
 	ObjectMeta
 
+	Name            string                `json:"name"`
 	EverouteCluster ObjectReference       `json:"everoute_cluster"`
 	ApplyTo         []SecurityPolicyApply `json:"apply_to"`
 	Ingress         []NetworkPolicyRule   `json:"ingress,omitempty"`
