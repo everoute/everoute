@@ -5,6 +5,7 @@ type SecurityPolicy {
     apply_to: [SecurityPolicyApply!]!
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
+    policy_mode: PolicyMode
 }
 
 type SecurityPolicyApply {
@@ -17,6 +18,11 @@ type SecurityPolicyApply {
 enum SecurityPolicyType {
     SECURITY_GROUP
     SELECTOR
+}
+
+enum PolicyMode {
+    MONITOR
+    WORK
 }
 
 type IsolationPolicy {
