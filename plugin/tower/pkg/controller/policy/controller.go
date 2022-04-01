@@ -815,6 +815,7 @@ func (c *Controller) parseSystemEndpointsPolicy(systemEndpoints *schema.SystemEn
 // parseSecurityPolicy convert schema.SecurityPolicy to []v1alpha1.SecurityPolicy
 func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) ([]v1alpha1.SecurityPolicy, error) {
 	var policyList []v1alpha1.SecurityPolicy
+	var policyMode = parseEnforcementMode(securityPolicy.PolicyMode)
 
 	applyToPeers, err := c.parseSecurityPolicyApplys(securityPolicy.ApplyTo)
 	if err != nil {
@@ -832,13 +833,14 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:          constants.Tier2,
-			SymmetricMode: true,
-			AppliedTo:     applyToPeers,
-			IngressRules:  ingress,
-			EgressRules:   egress,
-			DefaultRule:   v1alpha1.DefaultRuleDrop,
-			PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			Tier:                          constants.Tier2,
+			SecurityPolicyEnforcementMode: policyMode,
+			SymmetricMode:                 true,
+			AppliedTo:                     applyToPeers,
+			IngressRules:                  ingress,
+			EgressRules:                   egress,
+			DefaultRule:                   v1alpha1.DefaultRuleDrop,
+			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 	policyList = append(policyList, policy)
@@ -848,7 +850,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			continue
 		}
 		// generate intra group policy
-		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), &securityPolicy.ApplyTo[item])
+		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), policyMode, &securityPolicy.ApplyTo[item])
 		if err != nil {
 			return nil, err
 		}
@@ -950,7 +952,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 	return isolationPolices
 }
 
-func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
+func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.PolicyMode, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
 	endpointSelector, err := c.parseSelectors(appliedPeer.Selector)
@@ -960,7 +962,7 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 
 	policy := v1alpha1.SecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      SecurityPolicyCommunicablePrefix + peerHash + "-" + securityPolicyID,
+			Name:      SecurityPolicyCommunicablePrefix + peerHash + "-" + id,
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
@@ -980,8 +982,9 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 					EndpointSelector: endpointSelector,
 				}},
 			}},
-			DefaultRule: v1alpha1.DefaultRuleDrop,
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			SecurityPolicyEnforcementMode: policyMode,
+			DefaultRule:                   v1alpha1.DefaultRuleDrop,
+			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 
@@ -1142,4 +1145,16 @@ func parseIPBlock(ipBlock string) (string, error) {
 	}
 
 	return "", fmt.Errorf("neither %s is cidr nor ipv4 nor ipv6", ipBlock)
+}
+
+func parseEnforcementMode(mode schema.PolicyMode) v1alpha1.PolicyMode {
+	switch mode {
+	case schema.PolicyModeWork:
+		return v1alpha1.WorkMode
+	case schema.PolicyModeMonitor:
+		return v1alpha1.MonitorMode
+	default:
+		// the default work mode is defined in the SecurityPolicy CRD
+		return ""
+	}
 }
