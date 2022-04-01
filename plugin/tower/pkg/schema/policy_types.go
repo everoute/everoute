@@ -19,8 +19,6 @@ package schema
 type SecurityPolicy struct {
 	ObjectMeta
 
-	Name            string                `json:"name"`
-	EnforcementMode string                `json:"enforcement_mode,omitempty"`
 	EverouteCluster ObjectReference       `json:"everoute_cluster"`
 	ApplyTo         []SecurityPolicyApply `json:"apply_to"`
 	Ingress         []NetworkPolicyRule   `json:"ingress,omitempty"`
@@ -33,7 +31,6 @@ type IsolationPolicy struct {
 	EverouteCluster ObjectReference     `json:"everoute_cluster"`
 	VM              ObjectReference     `json:"vm"`
 	Mode            IsolationMode       `json:"mode"`
-	EnforcementMode string              `json:"enforcement_mode,omitempty"`
 	Ingress         []NetworkPolicyRule `json:"ingress,omitempty"`
 	Egress          []NetworkPolicyRule `json:"egress,omitempty"`
 }
