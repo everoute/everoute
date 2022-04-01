@@ -45,6 +45,8 @@ type VMNic struct {
 	Enabled     bool       `json:"enabled,omitempty"`
 	Mirror      bool       `json:"mirror,omitempty"`
 	Model       VMNicModel `json:"model,omitempty"`
+	MacAddress  string     `json:"mac_address,omitempty"`
+	IPAddress   string     `json:"ip_address,omitempty"`
 	InterfaceID string     `json:"interface_id,omitempty"`
 }
 
@@ -59,9 +61,10 @@ const (
 type Vlan struct {
 	ObjectMeta
 
-	Name   string      `json:"name,omitempty"`
-	VlanID int         `json:"vlan_id"`
-	Type   NetworkType `json:"type,omitempty"`
+	VDS    ObjectReference `json:"vds"`
+	Name   string          `json:"name,omitempty"`
+	VlanID int             `json:"vlan_id"`
+	Type   NetworkType     `json:"type,omitempty"`
 }
 
 // NetworkType is enumeration of network types
@@ -98,6 +101,7 @@ type EverouteCluster struct {
 	ObjectMeta
 
 	AgentELFClusters    []ObjectReference            `json:"agent_elf_clusters"`
+	AgentELFVDSes       []ObjectReference            `json:"agent_elf_vdses,omitempty"`
 	ControllerInstances []EverouteControllerInstance `json:"controller_instances"`
 	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
 	GlobalWhitelist     EverouteClusterWhitelist     `json:"global_whitelist,omitempty"`
@@ -124,6 +128,15 @@ const (
 type Host struct {
 	ObjectMeta
 
-	ManagementIP string          `json:"management_ip"`
-	Cluster      ObjectReference `json:"cluster"`
+	Name string `json:"name,omitempty"`
+	Nics []Nic  `json:"nics,omitempty"`
+}
+
+type Nic struct {
+	ObjectMeta
+
+	Physical   bool   `json:"physical"`
+	Name       string `json:"name,omitempty"`
+	MacAddress string `json:"mac_address,omitempty"`
+	IPAddress  string `json:"ip_address,omitempty"`
 }
