@@ -195,14 +195,6 @@ func LabelAsReference(labels ...*schema.Label) []schema.ObjectReference {
 	return labelRefs
 }
 
-func NewRandomHost(elfClusterID string) *schema.Host {
-	return &schema.Host{
-		ObjectMeta:   schema.ObjectMeta{ID: rand.String(10)},
-		ManagementIP: NewRandomIP().String(),
-		Cluster:      schema.ObjectReference{ID: elfClusterID},
-	}
-}
-
 func NewEverouteCluster(erClusterID string, defaultAction schema.GlobalPolicyAction) *schema.EverouteCluster {
 	return &schema.EverouteCluster{
 		ObjectMeta:          schema.ObjectMeta{ID: erClusterID},
