@@ -144,6 +144,9 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 
 	for _, appliedToIP := range appliedToIPs {
 		for _, srcIP := range ingressIPs {
+			if appliedToIP != "" && srcIP != "" && appliedToIP == srcIP {
+				continue
+			}
 			// Except appliedToIP == srcIP, NOTE error implement in policyrule controller
 			for _, ingressGroupPort := range ingressPorts {
 				var flow string
@@ -173,6 +176,9 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 		}
 
 		for _, dstIP := range egressIPs {
+			if appliedToIP != "" && dstIP != "" && appliedToIP == dstIP {
+				continue
+			}
 			for _, egressGroupPort := range egressGroupPorts {
 				var flow string
 				protocol := strings.ToLower(string(egressGroupPort.Protocol))
