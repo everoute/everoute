@@ -14,6 +14,12 @@ rm -f /etc/cni/net.d/10-everoute.conf
 rm -f /etc/cni/net.d/10-everoute.conflist
 install -m 644 /var/lib/everoute/cni-conf.conflist /etc/cni/net.d/10-everoute.conflist
 
+# init iptables drivers
+modprobe iptable_nat
+modprobe iptable_filter
+modprobe iptable_raw
+modprobe iptable_mangle
+
 # init ovs
 echo "init ovs"
 modprobe openvswitch || (echo "modprobe openvswitch error"; exit 1)
