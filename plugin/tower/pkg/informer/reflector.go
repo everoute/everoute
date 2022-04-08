@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"regexp"
+	"strings"
 	"time"
 	"unicode"
 
@@ -65,6 +67,10 @@ type reflector struct {
 	// An example object of the type we expect to place in the store.
 	expectType gqlType
 
+	// skipFields contains map of skipped fields with parent type.
+	// When got field not exist error, we skip the fields
+	skipFields map[string]string
+
 	// backoff manages backoff of reflector listAndWatch
 	backoffManager wait.BackoffManager
 
@@ -85,7 +91,7 @@ func (r *reflector) Run(stopCh <-chan struct{}) {
 	wait.BackoffUntil(r.reflectWorker(stopCh), r.backoffManager, true, stopCh)
 }
 
-// Resource version not support by gql server.
+// LastSyncResourceVersion not support by gql server.
 func (r *reflector) LastSyncResourceVersion() string {
 	return "<unknown>"
 }
@@ -202,6 +208,16 @@ func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error
 		klog.Errorf("failed to watch %s: %s", r.expectType.TypeName(), err)
 	}
 
+	// reset skipFields from error message to handle the cause:
+	//   after tower upgrade, query all fields from the tower
+	r.skipFields = make(map[string]string)
+	for _, respErr := range respErrs {
+		names := matchFieldNotExistFromMessage(respErr.Message)
+		if names != nil {
+			r.skipFields[names[0]] = names[1]
+		}
+	}
+
 	// not logged in or token expired, need relogin
 	if client.HasAuthError(respErrs) {
 		klog.Errorf("receive auth failed error: %+v, try to login %s", respErrs, r.client.URL)
@@ -276,7 +292,7 @@ func (r *reflector) resyncChan() (<-chan time.Time, func() bool) {
 
 func (r *reflector) queryRequest() *client.Request {
 	request := &client.Request{
-		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields()),
+		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields)),
 	}
 	return request
 }
@@ -286,11 +302,11 @@ func (r *reflector) subscriptionRequest() *client.Request {
 	// we need a serializer to no difference handle them.
 	if r.expectType.Type == reflect.TypeOf(&schema.SystemEndpoints{}) {
 		return &client.Request{
-			Query: fmt.Sprintf("subscription {%s %s}", r.expectType.TypeName(), r.expectType.QueryFields()),
+			Query: fmt.Sprintf("subscription {%s %s}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
 		}
 	}
 	return &client.Request{
-		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields()),
+		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
 	}
 }
 
@@ -323,8 +339,26 @@ func (t *gqlType) ListName() string {
 }
 
 // QueryFields return the type fields as gql query fields.
-func (t *gqlType) QueryFields() string {
-	return utils.GqlTypeMarshal(t, true)
+func (t *gqlType) QueryFields(skipFields map[string]string) string {
+	return utils.GqlTypeMarshal(t, skipFields, true)
+}
+
+// matchFieldNotExistFromMessage matchs field which not exist from error message.
+// It returns two string values, the first is the field name, the second is the parent name.
+// A return value of nil indicates no match.
+func matchFieldNotExistFromMessage(message string) []string {
+	notExistFieldPattern := regexp.MustCompile(`^Cannot query field "(?P<field>\w+)" on type "(?P<parent_name>\w+)"\.`)
+
+	submatches := notExistFieldPattern.FindStringSubmatchIndex(message)
+	if submatches != nil {
+		result := string(notExistFieldPattern.ExpandString(nil, "$field:$parent_name", message, submatches))
+		if names := strings.Split(result, `:`); result != ":" && len(names) == 2 {
+			// todo: parent_name should be normalized, such as: "Vm" -> "VM"
+			return names
+		}
+	}
+
+	return nil
 }
 
 func unmarshalEvent(originObjectType reflect.Type, raw json.RawMessage, event *client.MutationEvent) error {
