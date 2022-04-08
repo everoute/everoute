@@ -36,7 +36,7 @@ import (
    deleteVm(where: VmWhereUniqueInput!): Vm
 */
 func mutationCreateVM(c *client.Client, data *VMCreateInput, effect *CreateVMEffect) (*VM, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation createVm($data: VmCreateInput!, $effect: CreateVmEffect!) {createVm(data: $data, effect: $effect) %s}", queryFields),
@@ -57,7 +57,7 @@ func mutationCreateVM(c *client.Client, data *VMCreateInput, effect *CreateVMEff
 }
 
 func mutationUpdateVM(c *client.Client, data *VMUpdateInput, where *VMWhereUniqueInput) (*VM, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation updateVm($data: VmUpdateInput!, $where: VmWhereUniqueInput!) {updateVm(data: $data, where: $where) %s}", queryFields),
@@ -78,7 +78,7 @@ func mutationUpdateVM(c *client.Client, data *VMUpdateInput, where *VMWhereUniqu
 }
 
 func mutationDeleteVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation deleteVM($where: VmWhereUniqueInput!) {deleteVm(where: $where) %s}", queryFields),
@@ -103,7 +103,7 @@ func mutationDeleteVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) 
    deleteLabel(where: LabelWhereUniqueInput!): Label
 */
 func mutationCreateLabel(c *client.Client, data *LabelCreateInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation createLabel($data: LabelCreateInput!) {createLabel(data: $data) %s}", queryFields),
@@ -123,7 +123,7 @@ func mutationCreateLabel(c *client.Client, data *LabelCreateInput) (*Label, erro
 }
 
 func mutationUpdateLabel(c *client.Client, data *LabelUpdateInput, where *LabelWhereUniqueInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation updateLabel($data: LabelUpdateInput!, $where: LabelWhereUniqueInput!) {updateLabel(data: $data, where: $where) %s}", queryFields),
@@ -144,7 +144,7 @@ func mutationUpdateLabel(c *client.Client, data *LabelUpdateInput, where *LabelW
 }
 
 func mutationDeleteLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation deleteLabel($where: LabelWhereUniqueInput!) {deleteLabel(where: $where) %s}", queryFields),
@@ -167,7 +167,7 @@ func mutationDeleteLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label
    createVlan(data: VlanCreateInput!): Vlan!
 */
 func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("mutation createVlan($data: VlanCreateInput!) {createVlan(data: $data) %s}", queryFields),
@@ -191,7 +191,7 @@ func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) 
    vms: [Vm!]!
 */
 func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query vm($where: VmWhereUniqueInput!) {vm(where: $where) %s}", queryFields),
@@ -216,7 +216,7 @@ func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
 }
 
 func queryVMs(c *client.Client, where *VMWhereInput) ([]VM, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]VM{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]VM{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query vms($where: VmWhereInput) {vms(where: $where) %s}", queryFields),
@@ -240,7 +240,7 @@ func queryVMs(c *client.Client, where *VMWhereInput) ([]VM, error) {
    labels: [Label!]!
 */
 func queryLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query label($where: LabelWhereUniqueInput!) {label(where: $where) %s}", queryFields),
@@ -265,7 +265,7 @@ func queryLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label, error) 
 }
 
 func queryLabels(c *client.Client) ([]Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Label{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Label{}), nil, true)
 
 	request := client.Request{
 		Query:     fmt.Sprintf("query labels {labels %s}", queryFields),
@@ -287,7 +287,7 @@ func queryLabels(c *client.Client) ([]Label, error) {
    vlans: [Vlan!]
 */
 func queryVlan(c *client.Client, where *VlanWhereUniqueInput) (*Vlan, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query vlan($where: VlanWhereUniqueInput!) {vlan(where: $where) %s}", queryFields),
@@ -312,7 +312,7 @@ func queryVlan(c *client.Client, where *VlanWhereUniqueInput) (*Vlan, error) {
 }
 
 func queryVlans(c *client.Client) ([]Vlan, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Vlan{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Vlan{}), nil, true)
 
 	request := client.Request{
 		Query:     fmt.Sprintf("query vlans {vlans %s}", queryFields),
@@ -333,7 +333,7 @@ func queryVlans(c *client.Client) ([]Vlan, error) {
    vmTemplate(where: VmTemplateWhereUniqueInput!): VmTemplate
 */
 func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTemplate, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VMTemplate{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VMTemplate{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query vmTemplate($where: VmTemplateWhereUniqueInput!) {vmTemplate(where: $where) %s}", queryFields),
@@ -361,7 +361,7 @@ func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTe
    host(where: HostWhereUniqueInput!): Host
 */
 func queryHost(c *client.Client, where *HostWhereUniqueInput) (*Host, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Host{}), true)
+	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Host{}), nil, true)
 
 	request := client.Request{
 		Query: fmt.Sprintf("query host($where: HostWhereUniqueInput!) {host(where: $where) %s}", queryFields),
