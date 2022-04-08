@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils_test
+package utils
 
 import (
 	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/everoute/everoute/plugin/tower/pkg/utils"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
 type VM struct {
@@ -64,16 +64,39 @@ func TestGqlTypeMarshal(t *testing.T) {
 			want:       "{id,name,description,vcpu,memory,vm_nics{id,mirror}}",
 		},
 		{
-			t:          reflect.TypeOf(VM{}),
+			t:         reflect.TypeOf(schema.VM{}),
+			bracketed: true,
+			want:      "{id,name,description,vcpu,memory,status,vm_nics{id,vlan{id,vds{id},name,vlan_id,type},enabled,mirror,model,mac_address,ip_address,interface_id}}",
+		},
+		{
+			t:          reflect.TypeOf(schema.VM{}),
+			skipFields: map[string]string{"vds": "Vlan"},
+			bracketed:  true,
+			want:       "{id,name,description,vcpu,memory,status,vm_nics{id,vlan{id,name,vlan_id,type},enabled,mirror,model,mac_address,ip_address,interface_id}}",
+		},
+		{
+			t:          reflect.TypeOf(schema.VM{}),
+			skipFields: map[string]string{"vcpu": "VM"},
+			bracketed:  true,
+			want:       "{id,name,description,memory,status,vm_nics{id,vlan{id,vds{id},name,vlan_id,type},enabled,mirror,model,mac_address,ip_address,interface_id}}",
+		},
+		{
+			t:          reflect.TypeOf(schema.VM{}),
 			skipFields: map[string]string{"vcpu": "VM", "vm_nics": "VM"},
 			bracketed:  true,
-			want:       "{id,name,description,memory}",
+			want:       "{id,name,description,memory,status}",
+		},
+		{
+			t:          reflect.TypeOf(schema.SecurityPolicy{}),
+			skipFields: map[string]string{"egress": "SecurityPolicy", "policy_mode": "SecurityPolicy"},
+			bracketed:  true,
+			want:       "{id,name,everoute_cluster{id},apply_to{communicable,selector{id}},ingress{type,ports{port,protocol},ip_block,selector{id}}}",
 		},
 	}
 
 	for item, tt := range tests {
 		t.Run(fmt.Sprintf("cause%d", item), func(t *testing.T) {
-			if got := utils.GqlTypeMarshal(tt.t, tt.skipFields, tt.bracketed); got != tt.want {
+			if got := GqlTypeMarshal(tt.t, tt.skipFields, tt.bracketed); got != tt.want {
 				t.Errorf("GqlTypeMarshal() = %s, want %s", got, tt.want)
 			}
 		})
