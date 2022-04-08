@@ -154,6 +154,7 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 
 		l.learnedIPAddressMapMutex.Lock()
 		defer l.learnedIPAddressMapMutex.Unlock()
+		l.setLocalEndpointIPAddr(arpIn, inPort)
 		ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
 		if !ok {
 			l.processLocalEndpointUpdate(arpIn, inPort)
@@ -188,8 +189,54 @@ func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
 	}
 }
 
+func (l *LocalBridge) cleanLocalEndpointIPAddrWorker(cycle, timeout int, stopChan <-chan struct{}) {
+	ticker := time.NewTicker(time.Duration(cycle) * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			l.cleanLocalIPAddr(timeout)
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+func (l *LocalBridge) cleanLocalIPAddr(timeout int) {
+	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
+		endpoint := endpointObj.Val.(*Endpoint)
+		endpoint.IPAddrMutex.Lock()
+		if endpoint.IPAddr == nil {
+			endpoint.IPAddrMutex.Unlock()
+			continue
+		}
+		ipExpiredTime := endpoint.IPAddrLastUpdateTime.Add(time.Duration(timeout) * time.Second)
+		if time.Now().After(ipExpiredTime) {
+			endpoint.IPAddr = nil
+		}
+		endpoint.IPAddrMutex.Unlock()
+	}
+}
+
+func (l *LocalBridge) setLocalEndpointIPAddr(arpIn protocol.ARP, inPort uint32) {
+	endpoint, isExist := l.getEndpointByPort(inPort)
+	if !isExist {
+		return
+	}
+	endpoint.IPAddrMutex.Lock()
+	defer endpoint.IPAddrMutex.Unlock()
+	if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.IPAddr == nil {
+		copy(endpoint.IPAddr, arpIn.IPSrc)
+		endpoint.IPAddrLastUpdateTime = time.Now()
+	}
+}
+
 func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
-	if !l.isOfPortExists(inPort) {
+	endpoint, isExist := l.getEndpointByPort(inPort)
+	if !isExist {
+		return
+	}
+
+	if endpoint.MacAddrStr != arpIn.HWSrc.String() && endpoint.IPAddr != nil {
 		return
 	}
 
@@ -208,15 +255,15 @@ func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint
 	}
 }
 
-func (l *LocalBridge) isOfPortExists(inPort uint32) bool {
+func (l *LocalBridge) getEndpointByPort(inPort uint32) (*Endpoint, bool) {
 	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
 		endpoint := endpointObj.Val.(*Endpoint)
 		if endpoint.BridgeName == l.name && endpoint.PortNo == inPort {
-			return true
+			return endpoint, true
 		}
 	}
 
-	return false
+	return nil, false
 }
 
 func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
