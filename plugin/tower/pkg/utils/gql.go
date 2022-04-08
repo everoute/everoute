@@ -23,17 +23,21 @@ import (
 )
 
 // GqlTypeMarshal encoding reflect type into gql query types
-func GqlTypeMarshal(t reflect.Type, bracketed bool) string {
+// Parameter skipFields contains map of skipped fields with parent type
+func GqlTypeMarshal(t reflect.Type, skippFields map[string]string, bracketed bool) string {
 	switch t.Kind() {
 	case reflect.Ptr, reflect.Slice:
-		return GqlTypeMarshal(t.Elem(), bracketed)
+		return GqlTypeMarshal(t.Elem(), skippFields, bracketed)
 
 	case reflect.Struct:
 		var gqlFields []string
 
 		for i := 0; i < t.NumField(); i++ {
 			name := lookupFieldName(t.Field(i))
-			subField := GqlTypeMarshal(t.Field(i).Type, name != "")
+			if name != "" && skippFields != nil && skippFields[name] == t.Name() {
+				continue
+			}
+			subField := GqlTypeMarshal(t.Field(i).Type, skippFields, name != "")
 			gqlFields = append(gqlFields, name+subField)
 		}
 
