@@ -193,13 +193,15 @@ type Config struct {
 }
 
 type Endpoint struct {
-	InterfaceName string // interface name that endpoint attached to
-	IPAddr        net.IP
-	IPv6Addr      net.IP
-	PortNo        uint32 // endpoint of port
-	MacAddrStr    string
-	VlanID        uint16 // endpoint vlan id
-	BridgeName    string // bridge name that endpoint attached to
+	InterfaceName        string // interface name that endpoint attached to
+	IPAddr               net.IP
+	IPAddrMutex          sync.RWMutex
+	IPAddrLastUpdateTime time.Time
+	IPv6Addr             net.IP
+	PortNo               uint32 // endpoint of port
+	MacAddrStr           string
+	VlanID               uint16 // endpoint vlan id
+	BridgeName           string // bridge name that endpoint attached to
 }
 
 type EveroutePolicyRule struct {
@@ -450,6 +452,9 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan str
 	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
 
 	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
+		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+
+	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalEndpointIPAddrWorker(
 		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
 
 	if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
