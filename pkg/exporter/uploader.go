@@ -49,7 +49,9 @@ type KafkaUploader struct {
 }
 
 func NewKafkaUploader(hosts string, agentID string, stopChan <-chan struct{}) *KafkaUploader {
-	producer, err := sarama.NewAsyncProducer(strings.Split(hosts, ","), sarama.NewConfig())
+	config := sarama.NewConfig()
+	config.Producer.MaxMessageBytes = 100 * 1024 * 1024 // 100MB
+	producer, err := sarama.NewAsyncProducer(strings.Split(hosts, ","), config)
 	if err != nil {
 		klog.Fatal(err)
 	}
