@@ -18,6 +18,9 @@ bin
 # Ignore IDEA config file
 .idea
 
+# Ignore VSCode config file
+.vscode
+
 # openapi-gen report file
 violations.report
 
