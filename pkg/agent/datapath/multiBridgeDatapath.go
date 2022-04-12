@@ -93,13 +93,12 @@ const (
 	LOOP_BACK_ADDR    = "127.0.0.1"
 )
 
-//nolink
+//nolint
 const (
-	FLOW_ROUND_NUM_LENGTH = 10
-	FLOW_SEQ_NUM_LENGTH   = 22
-	FLOW_ROUND_NUM_MASK   = 0xffc
-	FLOW_SEQ_NUM_MASK     = 0x003fffff
-
+	FLOW_ROUND_NUM_LENGTH           = 4
+	FLOW_SEQ_NUM_LENGTH             = 28
+	FLOW_ROUND_NUM_MASK             = 0xf0000000
+	FLOW_SEQ_NUM_MASK               = 0x0fffffff
 	DEFAULT_POLICY_ENFORCEMENT_MODE = "work"
 )
 
@@ -138,6 +137,8 @@ const (
 
 	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/ingress/-"
 	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/egress/-"
+
+	MaxRoundNum = 15
 )
 
 type Bridge interface {
@@ -897,7 +898,7 @@ func DeepCopyMap(theMap interface{}) interface{} {
 }
 
 func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
-	var num uint64
+	var num, newRoundNum uint64
 	var err error
 
 	externalIds, err := ovsdbDriver.GetExternalIds()
@@ -925,9 +926,16 @@ func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
 		return nil, fmt.Errorf("bad format of round number: %+v, parse error: %+v", roundNum, err)
 	}
 
+	// Flipping current round num with minimum round num value while it equals with the maximum round num
+	if num >= MaxRoundNum {
+		newRoundNum = 1
+	} else {
+		newRoundNum = num + 1
+	}
+
 	return &RoundInfo{
 		previousRoundNum: num,
-		curRoundNum:      num + 1,
+		curRoundNum:      newRoundNum,
 	}, nil
 }
 

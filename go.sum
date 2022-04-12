@@ -332,6 +332,8 @@ github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65 h1:a3dwYQt/Y9Yfz
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65/go.mod h1:N8fR1bYMqi4pQ7jL17QlBlpJ0hHmqRAXVKkBwuIjClw=
 github.com/everoute/ofnet v0.0.0-20220331075001-946b2a9e97eb h1:veHt547LXOntfVFF47zKShskJiKKzyf2uzBe1o81aDE=
 github.com/everoute/ofnet v0.0.0-20220331075001-946b2a9e97eb/go.mod h1:VI923BFjPJipkV0SbiOmQ1qXefJnBBkjGxA3F56fenM=
+github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb h1:9n+KfNXOHZQhmqbt0BQTsdgKxIib9SEuQYKCw22HyWU=
+github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb/go.mod h1:VI923BFjPJipkV0SbiOmQ1qXefJnBBkjGxA3F56fenM=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
