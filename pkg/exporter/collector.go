@@ -513,16 +513,16 @@ func (e *Exporter) ctLabelDecode(label []byte) (uint64, uint64, uint64) {
 	partA := binary.LittleEndian.Uint64(label[0:8])
 	partB := binary.LittleEndian.Uint64(label[8:16])
 
-	var RoundMask uint64 = 0x0000_0000_0000_03FF
-	var flowSeq1Mask uint64 = 0x0000_0000_FFFF_FC00
-	var flowSeq2Mask uint64 = 0x003F_FFFF_0000_0000
-	var flowSeq3MaskPartA uint64 = 0xFFC0_0000_0000_0000
-	var flowSeq3MaskPartB uint64 = 0x0000_0000_0000_0FFF
+	var RoundMask uint64 = 0x0000_0000_0000_000F
+	var flowSeq1Mask uint64 = 0x0000_0000_FFFF_FFF0
+	var flowSeq2Mask uint64 = 0x0FFF_FFFF_0000_0000
+	var flowSeq3MaskPartA uint64 = 0xF000_0000_0000_0000
+	var flowSeq3MaskPartB uint64 = 0x0000_0000_00FF_FFFF
 
-	roundNum := (partA & RoundMask) << 22
-	flowSeq1 := (partA & flowSeq1Mask) >> 10
-	flowSeq2 := (partA & flowSeq2Mask) >> (10 + 22)
-	flowSeq3 := ((partA & flowSeq3MaskPartA) >> (10 + 22 + 22)) | ((partB & flowSeq3MaskPartB) << 10)
+	roundNum := (partA & RoundMask) << 28
+	flowSeq1 := (partA & flowSeq1Mask) >> 4
+	flowSeq2 := (partA & flowSeq2Mask) >> (4 + 28)
+	flowSeq3 := ((partA & flowSeq3MaskPartA) >> (4 + 28 + 28)) | ((partB & flowSeq3MaskPartB) << 4)
 
 	var flowID1, flowID2, flowID3 uint64
 	if flowSeq1 != 0 {
