@@ -574,10 +574,10 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			return nil, fmt.Errorf("policy tier1 without monitor mode support")
 		}
 
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 3)); err != nil {
 			return nil, err
 		}
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(32, 53)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(32, 59)); err != nil {
 			return nil, err
 		}
 
@@ -600,10 +600,10 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			return nil, fmt.Errorf("unknown action")
 		}
 
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 9)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 3)); err != nil {
 			return nil, err
 		}
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(54, 75)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(60, 87)); err != nil {
 			return nil, err
 		}
 
