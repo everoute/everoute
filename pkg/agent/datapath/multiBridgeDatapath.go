@@ -173,6 +173,25 @@ type Bridge interface {
 	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
 }
 
+type Packet struct {
+	SrcMac     net.HardwareAddr
+	DstMac     net.HardwareAddr
+	SrcIP      net.IP
+	DstIP      net.IP
+	IPProtocol uint8
+	IPLength   uint16
+	IPFlags    uint16
+	TTL        uint8
+	SrcPort    uint16
+	DstPort    uint16
+	TCPFlags   uint8
+	ICMPType   uint8
+	ICMPCode   uint8
+
+	ICMPEchoID  uint16
+	ICMPEchoSeq uint16
+}
+
 type DpManager struct {
 	DpManagerMutex sync.Mutex
 	BridgeChainMap map[string]map[string]Bridge                 // map vds to bridge instance map
@@ -874,6 +893,40 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	}
 
 	return nil
+}
+
+func (datapathManager *DpManager) SendActiveProbePacket(ovsbrName string, packet Packet, tag uint8, inport uint32, outport *uint32) error {
+	// Send to related bridge
+	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
+		if brName == ovsbrName {
+			return sendActiveProbePacket(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch,
+				tag, toOfctrlPacket(packet), inport, outport)
+		}
+	}
+	return nil
+}
+
+func toOfctrlPacket(packet Packet) *ofctrl.Packet {
+	return &ofctrl.Packet{
+		// TODO convert everoute packet to ofctrl packet.
+	}
+}
+
+func sendActiveProbePacket(sw *ofctrl.OFSwitch, tag uint8, packet *ofctrl.Packet, inPort uint32, outPort *uint32) error {
+	packetOut := ofctrl.ConstructPacketOut(packet)
+	packetOut.InPort = inPort
+	packetOut.OutPort = outPort
+
+	field, err := openflow13.FindFieldHeaderByName("nxm_of_ip_tos", true)
+	if err != nil {
+		return err
+	}
+	// FIXME load tos bit will work: we can capture the packet with tos setting to tag, but openflow flow rule will not match it.
+	// temporary method: write ip tos in packet out fields
+	loadOfAction := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(2, 7).ToOfsBits(), field, uint64(tag))
+	packetOut.Actions = append(packetOut.Actions, loadOfAction)
+
+	return ofctrl.SendPacket(sw, packetOut)
 }
 
 func RuleIsSame(r1, r2 *EveroutePolicyRule) bool {
