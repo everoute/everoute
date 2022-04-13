@@ -130,8 +130,8 @@ const (
 	ClsToUplinkSuffix   = "cls-to-uplink"
 	UplinkToClsSuffix   = "uplink-to-cls"
 
-	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/ingress/-"
-	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/egress/-"
+	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/internal/ingress/-"
+	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/internal/egress/-"
 
 	MaxRoundNum = 15
 )
