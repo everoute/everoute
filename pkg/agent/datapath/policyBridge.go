@@ -22,11 +22,13 @@ const (
 	EGRESS_TIER2_TABLE          = 25
 	EGRESS_TIER3_MONITOR_TABLE  = 29
 	EGRESS_TIER3_TABLE          = 30
+	EGRESS_METRIC_TABLE         = 35
 	INGRESS_TIER1_TABLE         = 50
 	INGRESS_TIER2_MONITOR_TABLE = 54
 	INGRESS_TIER2_TABLE         = 55
 	INGRESS_TIER3_MONITOR_TABLE = 59
 	INGRESS_TIER3_TABLE         = 60
+	INGRESS_METRIC_TABLE        = 65
 	CT_COMMIT_TABLE             = 70
 	CT_DROP_TABLE               = 71
 	SFC_POLICY_TABLE            = 80
@@ -46,11 +48,13 @@ type PolicyBridge struct {
 	egressTier2PolicyTable         *ofctrl.Table
 	egressTier3PolicyMonitorTable  *ofctrl.Table
 	egressTier3PolicyTable         *ofctrl.Table
+	egressMetricTable              *ofctrl.Table
 	ingressTier1PolicyTable        *ofctrl.Table
 	ingressTier2PolicyMonitorTable *ofctrl.Table
 	ingressTier2PolicyTable        *ofctrl.Table
 	ingressTier3PolicyMonitorTable *ofctrl.Table
 	ingressTier3PolicyTable        *ofctrl.Table
+	ingressMetricTable             *ofctrl.Table
 	ctCommitTable                  *ofctrl.Table
 	ctDropTable                    *ofctrl.Table
 	sfcPolicyTable                 *ofctrl.Table
@@ -125,11 +129,13 @@ func (p *PolicyBridge) BridgeInit() {
 	p.ingressTier2PolicyTable, _ = sw.NewTable(INGRESS_TIER2_TABLE)
 	p.ingressTier3PolicyMonitorTable, _ = sw.NewTable(INGRESS_TIER3_MONITOR_TABLE)
 	p.ingressTier3PolicyTable, _ = sw.NewTable(INGRESS_TIER3_TABLE)
+	p.ingressMetricTable, _ = sw.NewTable(INGRESS_METRIC_TABLE)
 	p.egressTier1PolicyTable, _ = sw.NewTable(EGRESS_TIER1_TABLE)
 	p.egressTier2PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER2_MONITOR_TABLE)
 	p.egressTier2PolicyTable, _ = sw.NewTable(EGRESS_TIER2_TABLE)
 	p.egressTier3PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER3_MONITOR_TABLE)
 	p.egressTier3PolicyTable, _ = sw.NewTable(EGRESS_TIER3_TABLE)
+	p.egressMetricTable, _ = sw.NewTable(EGRESS_METRIC_TABLE)
 	p.ctCommitTable, _ = sw.NewTable(CT_COMMIT_TABLE)
 	p.ctDropTable, _ = sw.NewTable(CT_DROP_TABLE)
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
@@ -332,6 +338,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 	if err := egressTier2DefaultFlow.Next(p.egressTier3PolicyMonitorTable); err != nil {
 		return fmt.Errorf("failed to install egress tier2 default flow, error: %v", err)
 	}
+	// NOTE to enable tier2 forensic policy monitor mode, we need to udpate egress tier2 flow miss flow entry.
 	egressTier3MonitorDefaultFlow, _ := p.egressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
@@ -341,8 +348,15 @@ func (p *PolicyBridge) initPolicyTable() error {
 	egressTier3DefaultFlow, _ := p.egressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := egressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
+	if err := egressTier3DefaultFlow.Next(p.egressMetricTable); err != nil {
 		return fmt.Errorf("failed to install egress tier3 default flow, error: %v", err)
+	}
+
+	egressMetricTableDefaultFlow, _ := p.egressMetricTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := egressMetricTableDefaultFlow.Next(p.ctCommitTable); err != nil {
+		return fmt.Errorf("failed to install egressMetric table default flow, error: %v", err)
 	}
 
 	// ingress policy table
@@ -373,8 +387,15 @@ func (p *PolicyBridge) initPolicyTable() error {
 	ingressTier3DefaultFlow, _ := p.ingressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ingressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
+	if err := ingressTier3DefaultFlow.Next(p.ingressMetricTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier3 default flow, error: %v", err)
+	}
+
+	ingressMetricTableDefaultFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := ingressMetricTableDefaultFlow.Next(p.ctCommitTable); err != nil {
+		return fmt.Errorf("failed to install ingressMetric table default flow, error: %v", err)
 	}
 
 	// sfc policy table
@@ -449,13 +470,13 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			switch tier {
 			case POLICY_TIER1:
 				policyTable = p.egressTier1PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.egressMetricTable
 			case POLICY_TIER2:
 				policyTable = p.egressTier2PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.egressMetricTable
 			case POLICY_TIER3:
 				policyTable = p.egressTier3PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.egressMetricTable
 			default:
 				return nil, nil, errors.New("unknown policy tier")
 			}
@@ -463,13 +484,13 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			switch tier {
 			case POLICY_TIER1:
 				policyTable = p.ingressTier1PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.ingressMetricTable
 			case POLICY_TIER2:
 				policyTable = p.ingressTier2PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.ingressMetricTable
 			case POLICY_TIER3:
 				policyTable = p.ingressTier3PolicyTable
-				nextTable = p.ctCommitTable
+				nextTable = p.ingressMetricTable
 			default:
 				return nil, nil, errors.New("unknown policy tier")
 			}
@@ -596,6 +617,10 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			if err := ruleFlow.LoadField("nxm_nx_reg0", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 				return nil, err
 			}
+			// add telemetry tracepoint info
+			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier1PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unknown action")
 		}
@@ -605,6 +630,21 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		}
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(60, 87)); err != nil {
 			return nil, err
+		}
+
+		// add telemetry tracepoint info
+		switch tier {
+		case POLICY_TIER1:
+		case POLICY_TIER2:
+			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier2PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+				return nil, err
+			}
+		case POLICY_TIER3:
+			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier3PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unknow tier")
 		}
 
 		if err := ruleFlow.Next(nextTable); err != nil {
@@ -621,6 +661,45 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 
 func (p *PolicyBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
+}
+
+func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
+	var activeProbeFlows []*FlowEntry
+
+	ingressActiveProbeFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY,
+		IpDscp:   tag,
+	})
+	if err := ingressActiveProbeFlow.SendToController(ingressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
+		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
+	}
+	if err := ingressActiveProbeFlow.Resubmit(nil, &p.ctCommitTable.TableId); err != nil {
+		return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
+	}
+	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
+		Table:    ingressActiveProbeFlow.Table,
+		Priority: ingressActiveProbeFlow.Match.Priority,
+		FlowID:   ingressActiveProbeFlow.FlowID,
+	})
+
+	egressActiveProbeFlow, _ := p.egressMetricTable.NewFlow(ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY,
+		IpDscp:   tag,
+	})
+	if err := egressActiveProbeFlow.SendToController(egressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
+		return nil, fmt.Errorf("failed to install send to controller action for egress active probe flow, error: %v", err)
+	}
+	if err := egressActiveProbeFlow.Resubmit(nil, &p.ctCommitTable.TableId); err != nil {
+		return nil, fmt.Errorf("failed to install resubmit egress active probe flow, error: %v", err)
+	}
+
+	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
+		Table:    egressActiveProbeFlow.Table,
+		Priority: egressActiveProbeFlow.Match.Priority,
+		FlowID:   egressActiveProbeFlow.FlowID,
+	})
+
+	return activeProbeFlows, nil
 }
 
 func (p *PolicyBridge) AddVNFInstance() error {

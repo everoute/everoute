@@ -139,6 +139,10 @@ const (
 	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/egress/-"
 
 	MaxRoundNum = 15
+
+	Tier1PolicyMatch = 1
+	Tier2PolicyMatch = 2
+	Tier3PolicyMatch = 3
 )
 
 type Bridge interface {
@@ -210,7 +214,8 @@ type DpManager struct {
 
 	ArpChan chan protocol.ARP
 
-	AgentInfo *AgentConf
+	AgentInfo          *AgentConf
+	ActiveProbeFlowMap map[uint8][]*FlowEntry
 }
 
 type AgentConf struct {
@@ -310,6 +315,7 @@ func NewDatapathManager(datapathConfig *Config, arpChan chan protocol.ARP, ofPor
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
 	datapathManager.ArpChan = arpChan
+	datapathManager.ActiveProbeFlowMap = make(map[uint8][]*FlowEntry)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -890,6 +896,35 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 
 	if pRule.PolicyRuleReference.Len() == 0 {
 		delete(datapathManager.Rules, ruleID)
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag uint8) error {
+	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
+		if brName == ovsbrName {
+			flowEntries, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).InstallActiveProbeFlow(tag)
+			if err != nil {
+				return err
+			}
+			datapathManager.ActiveProbeFlowMap[tag] = flowEntries
+		}
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) UninstallActiveProbeFlows(ovsbrName string, tag uint8) error {
+	for _, brName := range datapathManager.datapathConfig.ManagedVDSMap {
+		if brName == ovsbrName {
+			for _, flow := range datapathManager.ActiveProbeFlowMap[tag] {
+				if err := ofctrl.DeleteFlow(flow.Table, flow.Priority, flow.FlowID); err != nil {
+					return fmt.Errorf("failed to delete active probe flow: %v, error: %v", flow, err)
+				}
+			}
+			delete(datapathManager.ActiveProbeFlowMap, tag)
+		}
 	}
 
 	return nil
