@@ -45,8 +45,9 @@ const (
 	RuleDirectionIn  RuleDirection = "Ingress"
 	RuleDirectionOut RuleDirection = "Egress"
 
-	NormalPolicy PolicyType = "normal"
-	GlobalPolicy PolicyType = "global"
+	NormalPolicy   PolicyType = "normal"
+	GlobalPolicy   PolicyType = "global"
+	InternalPolicy PolicyType = "internal"
 )
 
 type PolicyRule struct {
