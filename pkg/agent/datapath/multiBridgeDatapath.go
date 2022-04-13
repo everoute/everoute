@@ -135,8 +135,8 @@ const (
 	ClsBridgeL2ForwardingTableIdleTimeout   = 300
 	MaxIPAddressLearningFrenquency          = 5
 
-	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/ingress/-"
-	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/egress/-"
+	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/internal/ingress/-"
+	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/internal/egress/-"
 
 	MaxRoundNum = 15
 )
