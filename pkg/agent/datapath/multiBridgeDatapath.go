@@ -177,6 +177,30 @@ type Bridge interface {
 	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
 }
 
+type PacketInHandler interface {
+	HandlePacketIn(packetIn *ofctrl.PacketIn)
+}
+
+type PacketInHandlerFuncs struct {
+	PacketInHandlerFunc func(packetIn *ofctrl.PacketIn)
+}
+
+func (handler PacketInHandlerFuncs) HandlePacketIn(packetIn *ofctrl.PacketIn) {
+	if handler.PacketInHandlerFunc != nil {
+		handler.PacketInHandlerFunc(packetIn)
+	}
+}
+
+func (datapathManager *DpManager) RegisterPacketInHandler(handler PacketInHandler) {
+	if handler == nil {
+		log.Fatalf("Failed to register pakcetInHandler: register nil PacketInHandler is not allow")
+	}
+	if datapathManager.PacketInHandler != nil {
+		log.Fatalf("Failed to register PacketInHandler: datapathManager PacketInHandler already register")
+	}
+	datapathManager.PacketInHandler = handler
+}
+
 type Packet struct {
 	SrcMac     net.HardwareAddr
 	DstMac     net.HardwareAddr
@@ -216,6 +240,7 @@ type DpManager struct {
 
 	AgentInfo          *AgentConf
 	ActiveProbeFlowMap map[uint8][]*FlowEntry
+	PacketInHandler    PacketInHandler
 }
 
 type AgentConf struct {

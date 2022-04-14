@@ -113,6 +113,9 @@ func (p *PolicyBridge) WaitForSwitchConnection() {
 }
 
 func (p *PolicyBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+	if p.datapathManager.PacketInHandler != nil {
+		p.datapathManager.PacketInHandler.HandlePacketIn(pkt)
+	}
 }
 
 func (p *PolicyBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {
