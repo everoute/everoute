@@ -37,8 +37,11 @@ const (
 	FROM_LOCAL_REDIRECT_TABLE          = 15
 	FROM_LOCAL_ARP_PASS_TABLE          = 20
 	FROM_LOCAL_ARP_TO_CONTROLLER_TABLE = 25
+	CNI_CT_COMMIT_TABLE                = 100
+	CNI_CT_REDIRECT_TABLE              = 105
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 	P_NONE                             = 0xffff
+	CNI_CONNTRACK_ZONE                 = 65510
 )
 
 type LocalBridge struct {
@@ -52,6 +55,8 @@ type LocalBridge struct {
 	fromLocalRedirectTable         *ofctrl.Table // Table 15
 	fromLocalArpPassTable          *ofctrl.Table // Table 20
 	fromLocalArpSendToCtrlTable    *ofctrl.Table // Table 25
+	cniConntrackCommitTable        *ofctrl.Table // Table 100
+	cniConntrackRedirectTable      *ofctrl.Table // Table 105
 
 	// Table 0
 	fromLocalEndpointFlow map[uint32]*ofctrl.Flow // map local endpoint interface ofport to its fromLocalEndpointFlow
@@ -306,6 +311,9 @@ func (l *LocalBridge) BridgeInit() {
 func (l *LocalBridge) BridgeInitCNI() {
 	if l.datapathManager.AgentInfo.EnableCNI {
 		sw := l.OfSwitch
+		l.cniConntrackCommitTable, _ = sw.NewTable(CNI_CT_COMMIT_TABLE)
+		l.cniConntrackRedirectTable, _ = sw.NewTable(CNI_CT_REDIRECT_TABLE)
+
 		if err := l.initCniRelatedFlow(sw); err != nil {
 			log.Fatalf("Failed to init cni related flows, error: %v", err)
 		}
@@ -435,6 +443,39 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	}
 	if err := outToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from outToLocalGw flow, error: %v", err)
+	}
+
+	// Commit CT for traffic from Pod (These traffic will bypass local gateway)
+
+	// Bypass default with higher priority, transmit all ip pkt to ct commit table
+	var cniConntrackZone uint16 = CNI_CONNTRACK_ZONE
+	var cniCommitTalbe uint8 = CNI_CT_COMMIT_TABLE
+	ctAction := ofctrl.NewConntrackAction(false, false, &cniCommitTalbe, &cniConntrackZone)
+	cniDefaultNoraml, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+	})
+	_ = cniDefaultNoraml.SetConntrack(ctAction)
+
+	// Commit all traffic to CNI CT zone
+	// This CT commit is in OVS, but the reverse traffic will process by netfilter.
+	// So this flow do not match ct state, and commit all traffic to CT. It will avoid the state miss
+	// match like TCP syn_sent,syn_recv which is not OVS.
+	var cniRedirectTable uint8 = CNI_CT_REDIRECT_TABLE
+	cniCommitCT, _ := l.cniConntrackCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+	})
+	ctCommitAction := ofctrl.NewConntrackAction(true, false, &cniRedirectTable, &cniConntrackZone)
+	_ = cniCommitCT.SetConntrack(ctCommitAction)
+
+	// Redirect traffic back to policy bridge
+	cniConntrackRedirect, _ := l.cniConntrackRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	})
+	outputPortPolicy, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
+	if err := cniConntrackRedirect.Next(outputPortPolicy); err != nil {
+		return fmt.Errorf("failed to install cniConntrackRedirect localGwToPolicy flow, error: %v", err)
 	}
 
 	return nil
