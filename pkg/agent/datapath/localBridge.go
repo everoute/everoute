@@ -409,6 +409,21 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
 	}
 
+	// consider hostIP as service traffic
+	localToLocalGwHostIP, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &l.datapathManager.AgentInfo.NodeIP,
+		IpDaMask:  &net.IPv4bcast,
+	})
+	_ = localToLocalGwHostIP.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+		openflow13.NewNXRange(0, 47))
+	_ = localToLocalGwHostIP.LoadField("nxm_nx_pkt_mark", 0x1,
+		openflow13.NewNXRange(0, 0))
+	if err := localToLocalGwHostIP.Next(outputPortLocalGateWay); err != nil {
+		return fmt.Errorf("failed to install from localToLocalGwHostIP flow, error: %v", err)
+	}
+
 	pktMarkMask := uint32(0x01)
 	outToLocalGwBypassLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,

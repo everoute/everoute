@@ -173,6 +173,7 @@ type AgentConf struct {
 	EnableCNI bool // enable CNI in Everoute
 
 	NodeName   string
+	NodeIP     net.IP
 	PodCIDR    []cnitypes.IPNet
 	BridgeName string
 

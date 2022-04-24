@@ -277,6 +277,18 @@ func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev
 			klog.Errorf("Append filter FORWARD error, err: %s", err)
 		}
 	}
+
+	// bypass nodeport snat from gw-local
+	if exist, err = ipt.Exists("nat", "POSTROUTING", "-o", r.DatapathManager.AgentInfo.LocalGwName,
+		"-m", "mark", "--mark", "0x01/0x01", "-j", "ACCEPT"); err != nil {
+		klog.Errorf("Check net POSTROUTING error, err: %s", err)
+	}
+	if !exist {
+		if err = ipt.Insert("nat", "POSTROUTING", 1, "-o", r.DatapathManager.AgentInfo.LocalGwName,
+			"-m", "mark", "--mark", "0x01/0x01", "-j", "ACCEPT"); err != nil {
+			klog.Errorf("Check net POSTROUTING error, err: %s", err)
+		}
+	}
 }
 
 func (r *NodeReconciler) UpdateNetwork() {

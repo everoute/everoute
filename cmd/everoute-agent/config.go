@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"strings"
 
@@ -101,6 +102,13 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	}
 	if len(agentInfo.PodCIDR) == 0 {
 		klog.Fatalf("PodCIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --pod-network-cidr 10.0.0.0/16`")
+	}
+
+	// get node ip
+	for _, nodeAddr := range node.Status.Addresses {
+		if nodeAddr.Type == corev1.NodeInternalIP {
+			agentInfo.NodeIP = net.ParseIP(nodeAddr.Address)
+		}
 	}
 
 	// get cluster CIDR
