@@ -110,7 +110,6 @@ func (s *Server) start() error {
 	}
 
 	serveErr := make(chan error)
-	defer close(serveErr)
 
 	go func() {
 		err := server.Serve(s.listener)
@@ -118,6 +117,7 @@ func (s *Server) start() error {
 		case serveErr <- err:
 		default:
 		}
+		close(serveErr)
 	}()
 
 	select {
