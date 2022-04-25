@@ -33,3 +33,10 @@ func TestServer_ServeStop(t *testing.T) {
 		}
 	}
 }
+
+func TestServeStop(t *testing.T) {
+	server := NewServer()
+	// should no data race when server immediately stop, see issue: #430
+	server.Serve()
+	defer server.Stop()
+}
