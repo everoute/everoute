@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -138,16 +139,17 @@ func (p *PolicyBridge) BridgeInit() {
 }
 
 func (p *PolicyBridge) initDirectionSelectionTable() error {
+	localBrName := strings.TrimSuffix(p.name, "-policy")
 	fromLocalToEgressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_LOCAL_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
 	})
 	if err := fromLocalToEgressFlow.Next(p.egressTier0PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_CLS_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 	})
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier0PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
@@ -159,6 +161,7 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 	var ctStateTableID uint8 = CT_STATE_TABLE
 	var policyConntrackZone uint16 = 65520
+	localBrName := strings.TrimSuffix(p.name, "-policy")
 	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
@@ -169,9 +172,9 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_LOCAL_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
 	})
-	outputPort, _ := sw.OutputPort(POLICY_TO_CLS_PORT)
+	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
 	if err := inputFromLocalFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install input from local flow, error: %v", err)
 	}
@@ -179,9 +182,9 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 	// Table 0, from cls bridge flow
 	inputFromUpstreamFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_CLS_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 	})
-	outputPort, _ = sw.OutputPort(POLICY_TO_LOCAL_PORT)
+	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
 	if err := inputFromUpstreamFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install input from upstream flow, error: %v", err)
 	}
@@ -309,10 +312,11 @@ func (p *PolicyBridge) initPolicyTable() error {
 }
 
 func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
+	localBrName := strings.TrimSuffix(p.name, "-policy")
 	// policy forwarding table
 	fromLocalOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_LOCAL_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: 6,
@@ -321,14 +325,14 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 			},
 		},
 	})
-	outputPort, _ := sw.OutputPort(POLICY_TO_CLS_PORT)
+	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
 	if err := fromLocalOutputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from local output flow, error: %v", err)
 	}
 
 	fromUpstreamOuputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(POLICY_TO_CLS_PORT),
+		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: 6,
@@ -337,7 +341,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 			},
 		},
 	})
-	outputPort, _ = sw.OutputPort(POLICY_TO_LOCAL_PORT)
+	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
 	if err := fromUpstreamOuputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}

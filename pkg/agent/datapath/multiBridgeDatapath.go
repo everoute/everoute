@@ -57,13 +57,7 @@ const (
 
 //nolint
 const (
-	LOCAL_TO_POLICY_PORT = 101
-	POLICY_TO_LOCAL_PORT = 102
-	POLICY_TO_CLS_PORT   = 201
-	CLS_TO_POLICY_PORT   = 202
-	CLS_TO_UPLINK_PORT   = 301
-	UPLINK_TO_CLS_PORT   = 302
-	LOCAL_GATEWAY_PORT   = 10
+	LOCAL_GATEWAY_PORT = 10
 )
 
 //nolint
@@ -117,6 +111,13 @@ const (
 	ClsBridgeL2ForwardingTableHardTimeout   = 300
 	ClsBridgeL2ForwardingTableIdleTimeout   = 300
 	MaxIPAddressLearningFrenquency          = 5
+
+	LocalToPolicySuffix = "local-to-policy"
+	PolicyToLocalSuffix = "policy-to-local"
+	PolicyToClsSuffix   = "policy-to-cls"
+	ClsToPolicySuffix   = "cls-to-policy"
+	ClsToUplinkSuffix   = "cls-to-uplink"
+	UplinkToClsSuffix   = "uplink-to-cls"
 )
 
 type Bridge interface {
@@ -152,10 +153,11 @@ type Bridge interface {
 }
 
 type DpManager struct {
-	DpManagerMutex sync.Mutex
-	BridgeChainMap map[string]map[string]Bridge                 // map vds to bridge instance map
-	OvsdbDriverMap map[string]map[string]*ovsdbDriver.OvsDriver // map vds to bridge ovsdbDriver map
-	ControllerMap  map[string]map[string]*ofctrl.Controller
+	DpManagerMutex     sync.Mutex
+	BridgeChainMap     map[string]map[string]Bridge                 // map vds to bridge instance map
+	OvsdbDriverMap     map[string]map[string]*ovsdbDriver.OvsDriver // map vds to bridge ovsdbDriver map
+	ControllerMap      map[string]map[string]*ofctrl.Controller
+	BridgeChainPortMap map[string]map[string]uint32 // map vds to patch port to ofport-num map
 
 	controllerIDSets          sets.String
 	localEndpointDB           cmap.ConcurrentMap     // list of local endpoint map
@@ -239,6 +241,7 @@ type RoundInfo struct {
 func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
+	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.controllerIDSets = sets.NewString()
@@ -272,12 +275,12 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	}
 
 	var wg sync.WaitGroup
-	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
+	for vdsID, ovsbrName := range datapathManager.datapathConfig.ManagedVDSMap {
 		wg.Add(1)
-		go func(vdsID string) {
+		go func(vdsID, ovsbrName string) {
 			defer wg.Done()
-			InitializeVDS(datapathManager, vdsID, stopChan)
-		}(vdsID)
+			InitializeVDS(datapathManager, vdsID, ovsbrName, stopChan)
+		}(vdsID, ovsbrName)
 	}
 	wg.Wait()
 
@@ -418,13 +421,46 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 		log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
 	}
 
+	portMap := make(map[string]uint32)
+	localToPolicyOfPort, err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToPolicySuffix))
+	if err != nil {
+		log.Fatalf("Failed to get localToPolicyOfPort of ovsbrname %v, error: %v", ovsbrname, err)
+	}
+	policyToLocalOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, PolicyToLocalSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get policyToLocalOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+	}
+	policyToClsOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, PolicyToClsSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get policyToClsOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+	}
+	clsToPolicyOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, ClsToPolicySuffix))
+	if err != nil {
+		log.Fatalf("Failed to get clsToPolicyOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+	}
+	clsToUplinkOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, ClsToUplinkSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+	}
+	uplinkToClsOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, ClsToUplinkSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
+	}
+	portMap[LocalToPolicySuffix] = localToPolicyOfPort
+	portMap[PolicyToLocalSuffix] = policyToLocalOfPort
+	portMap[PolicyToClsSuffix] = policyToClsOfPort
+	portMap[ClsToPolicySuffix] = clsToPolicyOfPort
+	portMap[ClsToUplinkSuffix] = clsToUplinkOfPort
+	portMap[UplinkToClsSuffix] = uplinkToClsOfPort
+	datapathManager.BridgeChainPortMap[ovsbrname] = portMap
+
 	go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, localBridge.name, ovsVswitchdUnixDomainSockSuffix))
 	go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, policyBridge.name, ovsVswitchdUnixDomainSockSuffix))
 	go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, clsBridge.name, ovsVswitchdUnixDomainSockSuffix))
 	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.name, ovsVswitchdUnixDomainSockSuffix))
 }
 
-func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan struct{}) {
+func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, stopChan <-chan struct{}) {
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
 		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
@@ -453,7 +489,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, stopChan <-chan str
 		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
 
 	if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
-		LOCAL_TO_POLICY_PORT); err != nil {
+		int(datapathManager.BridgeChainPortMap[ovsbrName][LocalToPolicySuffix])); err != nil {
 		log.Fatalf("Failed to set local to policy port with no flood port mode, %v", err)
 	}
 
