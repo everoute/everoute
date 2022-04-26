@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,15 +144,16 @@ func (c *ClsBridge) InitVlanMacLearningAction(learnAction *ofctrl.LearnAction, l
 }
 
 func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
+	localBrName := strings.TrimSuffix(c.name, "-cls")
 	// clsBridge fromLocalLearningFlow
 	fromLocalLearningFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(CLS_TO_POLICY_PORT),
+		InputPort: uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]),
 	})
 
 	fromLocalLearnAction := ofctrl.NewLearnAction(CLSBRIDGE_FORWARDING_TABLE_ID, NORMAL_MATCH_FLOW_PRIORITY,
 		ClsBridgeL2ForwardingTableIdleTimeout, ClsBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
-	err := c.InitVlanMacLearningAction(fromLocalLearnAction, "nxm_nx_reg0", 16, uint16(CLS_TO_POLICY_PORT))
+	err := c.InitVlanMacLearningAction(fromLocalLearnAction, "nxm_nx_reg0", 16, uint16(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]))
 	if err != nil {
 		return fmt.Errorf("failed to add from local learning flow, error: %v", err)
 	}
@@ -173,18 +175,18 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 	// clsBridge fromUplinkLearningFlow
 	fromUplinkLearningFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(CLS_TO_UPLINK_PORT),
+		InputPort: uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]),
 	})
 	fromUplinkLearnAction := ofctrl.NewLearnAction(uint8(CLSBRIDGE_FORWARDING_TABLE_ID), NORMAL_MATCH_FLOW_PRIORITY,
 		ClsBridgeL2ForwardingTableIdleTimeout, ClsBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
-	err = c.InitVlanMacLearningAction(fromUplinkLearnAction, "nxm_nx_reg0", 16, CLS_TO_UPLINK_PORT)
+	err = c.InitVlanMacLearningAction(fromUplinkLearnAction, "nxm_nx_reg0", 16, uint16(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]))
 	if err != nil {
 		return fmt.Errorf("failed to add from uplink learning flow, error: %v", err)
 	}
 	if err := fromUplinkLearningFlow.Learn(fromUplinkLearnAction); err != nil {
 		return fmt.Errorf("failed to add from uplink learn flow learn action, error: %v", err)
 	}
-	outputPort, _ := sw.OutputPort(uint32(CLS_TO_POLICY_PORT))
+	outputPort, _ := sw.OutputPort(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix])
 	if err := fromUplinkLearningFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from uplink learning flow, error: %v", err)
 	}
@@ -230,6 +232,7 @@ func (c *ClsBridge) initForwardingTable() error {
 }
 
 func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
+	localBrName := strings.TrimSuffix(c.name, "-cls")
 	// clsBridgeOutputTable floodingOutputFlow
 	floodingOutputFlow, _ := c.clsBridgeOutputTable.NewFlow(ofctrl.FlowMatch{
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
@@ -243,7 +246,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 	})
 
 	outputAction1 := ofctrl.NewOutputAction("outputAction", uint32(openflow13.P_IN_PORT))
-	outputAction2 := ofctrl.NewOutputAction("outputAction", uint32(CLS_TO_UPLINK_PORT))
+	outputAction2 := ofctrl.NewOutputAction("outputAction", c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
 	_ = floodingOutputFlow.Output(outputAction1)
 	_ = floodingOutputFlow.Output(outputAction2)
 	if err := floodingOutputFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -256,7 +259,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: 0,
-				Data:  uint32(CLS_TO_POLICY_PORT),
+				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]),
 				Range: openflow13.NewNXRange(0, 15),
 			},
 		},
@@ -272,12 +275,12 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: 0,
-				Data:  uint32(CLS_TO_UPLINK_PORT),
+				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]),
 				Range: openflow13.NewNXRange(0, 15),
 			},
 		},
 	})
-	outputPort, _ = sw.OutputPort(CLS_TO_UPLINK_PORT)
+	outputPort, _ = sw.OutputPort(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
 	if err := learnedLocalToRemoteOuputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install cls bridge learnedLocalToRemoteOuputFlow, error: %v", err)
 	}
