@@ -421,7 +421,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	outToLocalGwBypassLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype:   PROTOCOL_IP,
-		InputPort:   uint32(LOCAL_TO_POLICY_PORT),
+		InputPort:   uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
 		PktMark:     0x01,
 		PktMarkMask: &pktMarkMask,
 	})
@@ -435,7 +435,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	outToLocalGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		InputPort: uint32(LOCAL_TO_POLICY_PORT),
+		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
 	})
 	if err := outToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
@@ -473,7 +473,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	cniConntrackRedirect, _ := l.cniConntrackRedirectTable.NewFlow(ofctrl.FlowMatch{
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 	})
-	outputPortPolicy, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
+	outputPortPolicy, _ := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := cniConntrackRedirect.Next(outputPortPolicy); err != nil {
 		return fmt.Errorf("failed to install cniConntrackRedirect localGwToPolicy flow, error: %v", err)
 	}
@@ -494,7 +494,7 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
-	outputPortPolicy, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
+	outputPortPolicy, _ := sw.OutputPort(uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]))
 	if err := localGwToPolicy.Next(outputPortPolicy); err != nil {
 		return fmt.Errorf("failed to install localGwToPolicy flow, error: %v", err)
 	}
@@ -581,7 +581,7 @@ func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
 	// vlanInput table
 	fromUpstreamFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(LOCAL_TO_POLICY_PORT),
+		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
 	})
 	if err := fromUpstreamFlow.Next(l.localEndpointL2ForwardingTable); err != nil {
 		return fmt.Errorf("failed to install from upstream flow, error: %v", err)
@@ -659,7 +659,7 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	fromLocalOtherRedirectFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
 		Priority: MID_MATCH_FLOW_PRIORITY,
 	})
-	outputPort, _ := sw.OutputPort(LOCAL_TO_POLICY_PORT)
+	outputPort, _ := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := fromLocalOtherRedirectFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from local other redirect flow, error: %v", err)
 	}
@@ -672,7 +672,7 @@ func (l *LocalBridge) initFromLocalArpPassTable(sw *ofctrl.OFSwitch) error {
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_ARP,
 	})
-	outputPort, _ := l.OfSwitch.OutputPort(LOCAL_TO_POLICY_PORT)
+	outputPort, _ := l.OfSwitch.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := fromLocalArpPassFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from local arp pass flow, error: %v", err)
 	}
