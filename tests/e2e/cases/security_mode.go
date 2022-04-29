@@ -150,14 +150,14 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(ingressGroupPort.Protocol))
 
 				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, *ingressNextTableID)
 				} else if ingressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
 						*ingressNextTableID)
 					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask,
 							*ingressNextTableID)
 					}
@@ -178,13 +178,13 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(egressGroupPort.Protocol))
 
 				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 						*egressTableID, priority, protocol, appliedToIP, dstIP, *egressNextTableID)
 				} else if egressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, *egressNextTableID)
 					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:%d",
 							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask,
 							*egressNextTableID)
 					}
@@ -215,12 +215,12 @@ func getTableIds(tier string) (*int, *int, *int, *int, error) {
 		egressTableID = 25
 		egressNextTableID = 70
 		ingressTableID = 55
-		ingressNextTableID = 70
+		ingressNextTableID = 65
 	case "tier2":
 		egressTableID = 30
-		egressNextTableID = 70
+		egressNextTableID = 35
 		ingressTableID = 60
-		ingressNextTableID = 70
+		ingressNextTableID = 65
 	default:
 		return nil, nil, nil, nil, fmt.Errorf("failed to get tableId")
 	}

@@ -85,7 +85,7 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch enpoint status from agentinfo.
-	expectStatus, err := r.fetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
+	expectStatus, err := r.FetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
 	if err != nil {
 		klog.Errorf("while fetch endpoint status: %s", err.Error())
 		return ctrl.Result{}, err
@@ -191,6 +191,8 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
 					ipLastUpdateTimeMap: ovsIface.IPMap,
+					bridgeName:          bridge.Name,
+					ofport:              ovsIface.Ofport,
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -227,6 +229,8 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
 					ipLastUpdateTimeMap: ovsIface.IPMap,
+					bridgeName:          bridge.Name,
+					ofport:              ovsIface.Ofport,
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -411,7 +415,7 @@ func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string
 	}
 }
 
-func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
+func (r *EndpointReconciler) FetchEndpointStatusFromAgentInfo(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
 
@@ -437,6 +441,8 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		}
 		endpointStatus := &securityv1alpha1.EndpointStatus{
 			MacAddress: ifaces[0].(*iface).mac,
+			BridgeName: ifaces[0].(*iface).bridgeName,
+			Ofport:     ifaces[0].(*iface).ofport,
 			Agents:     agentSets.List(),
 		}
 		for _, ip := range ipsets.List() {
@@ -514,6 +520,9 @@ type iface struct {
 	externalIDs         map[string]string
 	mac                 string
 	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
+
+	bridgeName string
+	ofport     int32
 }
 
 func (i *iface) String() string {
