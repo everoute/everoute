@@ -88,3 +88,17 @@ rules:
   - list
   - watch
   - create
+- apiGroups:
+    - activeprobe.everoute.io
+  resources:
+    - activeprobes
+    - activeprobes/status
+  verbs:
+    - patch
+    - create
+    - update
+    - delete
+    - get
+    - list
+    - watch
+

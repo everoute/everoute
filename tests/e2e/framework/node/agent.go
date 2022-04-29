@@ -64,10 +64,18 @@ func (n *Agent) DumpFlow() ([]string, error) {
 			fstr := strings.Join(felem, " ")
 
 			// replace roundNum and sequenceNum with static format
-			expr := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
-			re, _ := regexp.Compile(expr)
+			exprXXReg0 := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
+			reXXReg0, _ := regexp.Compile(exprXXReg0)
+			actualXXReg0 := reXXReg0.ReplaceAllString(fstr, "load:0x->NXM_NX_XXREG0")
 
-			flowList = append(flowList, re.ReplaceAllString(fstr, "load:0x->NXM_NX_XXREG0"))
+			exprReg4 := `load:0x[0-9,a-f]+?->NXM_NX_REG4`
+			reReg4, _ := regexp.Compile(exprReg4)
+			actualReg4 := reReg4.ReplaceAllString(actualXXReg0, "load:0x->NXM_NX_REG4")
+
+			exprReg5 := `load:0x[0-9,a-f]+?->NXM_NX_REG5`
+			reReg5, _ := regexp.Compile(exprReg5)
+			actual := reReg5.ReplaceAllString(actualReg4, "load:0x->NXM_NX_REG5")
+			flowList = append(flowList, actual)
 		}
 	}
 

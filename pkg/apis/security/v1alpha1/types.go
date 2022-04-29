@@ -307,7 +307,9 @@ type EndpointStatus struct {
 	// MacAddress of an endpoint.
 	MacAddress string `json:"macAddress,omitempty"`
 	// Agents where this endpoint is currently located
-	Agents []string `json:"agents,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	BridgeName string   `json:"bridgeName,omitempty"`
+	Ofport     int32    `json:"ofport,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

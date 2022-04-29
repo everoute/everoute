@@ -38,23 +38,38 @@ spec:
             properties:
               destination:
                 properties:
+                  agentname:
+                    type: string
+                  bridgename:
+                    type: string
                   endpoint:
                     type: string
                   ip:
                     type: string
+                  mac:
+                    type: string
                   namespace:
                     type: string
+                  ofport:
+                    format: int32
+                    type: integer
                   service:
                     type: string
                 type: object
               packet:
+                description: Packet includes header info.
                 properties:
                   dstip:
                     type: string
                   headerlength:
+                    description: Length is the IP packet length (include the IPv4
+                      header length).
                     type: integer
                   ipheader:
                     properties:
+                      dscp:
+                        format: int32
+                        type: integer
                       flags:
                         format: int32
                         type: integer
@@ -67,7 +82,7 @@ spec:
                     type: object
                   srcip:
                     type: string
-                  tranportHeader:
+                  transportHeader:
                     properties:
                       icmp:
                         properties:
@@ -101,39 +116,131 @@ spec:
                         type: object
                     type: object
                 type: object
+              probeTimes:
+                format: int32
+                type: integer
               source:
                 properties:
+                  agentname:
+                    type: string
+                  bridgename:
+                    type: string
                   endpoint:
                     type: string
                   ip:
                     type: string
+                  mac:
+                    type: string
                   namespace:
                     type: string
+                  ofport:
+                    format: int32
+                    type: integer
                 type: object
             required:
             - packet
+            - probeTimes
             type: object
           status:
             description: Active probe status store collected telemetry info into it
             properties:
-              results:
-                items:
-                  properties:
-                    agentname:omitempty:
-                      type: string
-                    agentprobepath:
-                      items:
+              capturedPacket:
+                description: Packet includes header info.
+                properties:
+                  dstip:
+                    type: string
+                  headerlength:
+                    description: Length is the IP packet length (include the IPv4
+                      header length).
+                    type: integer
+                  ipheader:
+                    properties:
+                      dscp:
+                        format: int32
+                        type: integer
+                      flags:
+                        format: int32
+                        type: integer
+                      protocol:
+                        format: int32
+                        type: integer
+                      ttl:
+                        format: int32
+                        type: integer
+                    type: object
+                  srcip:
+                    type: string
+                  transportHeader:
+                    properties:
+                      icmp:
                         properties:
-                          action':
-                            type: string
-                          tracepoint:
-                            type: string
+                          id:
+                            format: int32
+                            type: integer
+                          sequence:
+                            format: int32
+                            type: integer
                         type: object
-                      type: array
-                  required:
-                  - agentname:omitempty
-                  type: object
-                type: array
+                      tcp:
+                        properties:
+                          dstport:
+                            format: int32
+                            type: integer
+                          flags:
+                            format: int32
+                            type: integer
+                          srcport:
+                            format: int32
+                            type: integer
+                        type: object
+                      udp:
+                        properties:
+                          dstport:
+                            format: int32
+                            type: integer
+                          srcport:
+                            format: int32
+                            type: integer
+                        type: object
+                    type: object
+                type: object
+              dstSucceedTimes:
+                format: int32
+                type: integer
+              reason:
+                type: string
+              results:
+                additionalProperties:
+                  items:
+                    properties:
+                      AgentNameTemp:
+                        type: string
+                      agentprobepath:
+                        items:
+                          properties:
+                            action:
+                              type: string
+                            inport:
+                              format: int32
+                              type: integer
+                            tracepoint:
+                              type: string
+                          type: object
+                        type: array
+                      agentprobestate:
+                        type: string
+                      numberoftimes:
+                        format: int32
+                        type: integer
+                    type: object
+                  type: array
+                type: object
+              srcSucceedTimes:
+                format: int32
+                type: integer
+              startTime:
+                format: date-time
+                type: string
               state:
                 type: string
               tag:

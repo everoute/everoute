@@ -487,8 +487,14 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeSpec(ref common.ReferenceCa
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet"),
 						},
 					},
+					"probeTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 				},
-				Required: []string{"packet"},
+				Required: []string{"packet", "probeTimes"},
 			},
 		},
 		Dependencies: []string{
@@ -508,6 +514,29 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 							Format: "",
 						},
 					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"startTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"srcSucceedTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"dstSucceedTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"tag": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
@@ -516,14 +545,28 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 					},
 					"results": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult"),
+										Type: []string{"array"},
+										Items: &spec.SchemaOrArray{
+											Schema: &spec.Schema{
+												SchemaProps: spec.SchemaProps{
+													Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult"),
+												},
+											},
+										},
 									},
 								},
 							},
+						},
+					},
+					"capturedPacket": {
+						SchemaProps: spec.SchemaProps{
+							Description: "[]map[string]*AgentProbeResult",
+							Ref:         ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet"),
 						},
 					},
 				},
@@ -531,7 +574,7 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult"},
+			"github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult", "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
@@ -541,13 +584,19 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeTracePoint(ref common.Refer
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"inport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"tracepoint": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
 						},
 					},
-					"action'": {
+					"action": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
@@ -565,7 +614,19 @@ func schema_pkg_apis_activeprobe_v1alpha1_AgentProbeResult(ref common.ReferenceC
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
-					"agentname:omitempty": {
+					"AgentNameTemp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"numberoftimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"agentprobestate": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
@@ -613,6 +674,30 @@ func schema_pkg_apis_activeprobe_v1alpha1_Destination(ref common.ReferenceCallba
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+					"mac": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"agentname": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"bridgename": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"ofport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 					"service": {
@@ -675,6 +760,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_IPHeader(ref common.ReferenceCallback)
 							Format: "int64",
 						},
 					},
+					"dscp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 				},
 			},
 		},
@@ -685,7 +776,8 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "Packet includes header info.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"srcip": {
 						SchemaProps: spec.SchemaProps{
@@ -701,8 +793,9 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 					},
 					"headerlength": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Description: "Length is the IP packet length (include the IPv4 header length).",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 					"ipheader": {
@@ -710,7 +803,7 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.IPHeader"),
 						},
 					},
-					"tranportHeader": {
+					"transportHeader": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.TransportHeader"),
 						},
@@ -745,6 +838,30 @@ func schema_pkg_apis_activeprobe_v1alpha1_Source(ref common.ReferenceCallback) c
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+					"mac": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"agentname": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"bridgename": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"ofport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 				},
@@ -1889,6 +2006,18 @@ func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallba
 									},
 								},
 							},
+						},
+					},
+					"bridgeName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"ofport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 				},

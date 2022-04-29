@@ -82,7 +82,7 @@ var (
 	}
 
 	rule1Flow = `table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 ` +
-		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
+		`actions=load:0x->NXM_NX_REG5[0..8],load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_REG4[0..15],goto_table:65`
 	ep1VlanInputFlow    = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 )
@@ -240,9 +240,18 @@ func flowValidator(expectedFlows []string) error {
 	for _, expectedFlow := range expectedFlows {
 		isExpectedFlowExists := false
 		for _, actualFlow := range currentFlowList {
-			expr := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
-			re, _ := regexp.Compile(expr)
-			actual := re.ReplaceAllString(actualFlow, "load:0x->NXM_NX_XXREG0")
+			exprXXReg0 := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
+			reXXReg0, _ := regexp.Compile(exprXXReg0)
+			actualXXReg0 := reXXReg0.ReplaceAllString(actualFlow, "load:0x->NXM_NX_XXREG0")
+
+			exprReg4 := `load:0x[0-9,a-f]+?->NXM_NX_REG4`
+			reReg4, _ := regexp.Compile(exprReg4)
+			actualReg4 := reReg4.ReplaceAllString(actualXXReg0, "load:0x->NXM_NX_REG4")
+
+			exprReg5 := `load:0x[0-9,a-f]+?->NXM_NX_REG5`
+			reReg5, _ := regexp.Compile(exprReg5)
+			actual := reReg5.ReplaceAllString(actualReg4, "load:0x->NXM_NX_REG5")
+
 			if strings.Contains(expectedFlow, actual) {
 				isExpectedFlowExists = true
 			}

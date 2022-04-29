@@ -44,32 +44,44 @@ type ActiveProbeSpec struct {
 	Source      Source      `json:"source,omitempty"`
 	Destination Destination `json:"destination,omitempty"`
 	Packet      Packet      `json:"packet"`
+	ProbeTimes  uint32      `json:"probeTimes"`
 }
 
 type ActiveProbeStatus struct {
-	State   ActiveProbeState   `json:"state"`
-	Tag     uint8              `json:"tag"`
-	Results []AgentProbeResult `json:"results,omitempty"`
+	State           ActiveProbeState           `json:"state"`
+	Reason          string                     `json:"reason,omitempty"`
+	StartTime       *metav1.Time               `json:"startTime,omitempty"`
+	SrcSucceedTimes uint32                     `json:"srcSucceedTimes,omitempty"`
+	DstSucceedTimes uint32                     `json:"dstSucceedTimes,omitempty"`
+	Tag             uint8                      `json:"tag"`
+	Results         map[string]AgenProbeRecord `json:"results,omitempty"` // []map[string]*AgentProbeResult
+	CapturedPacket  *Packet                    `json:"capturedPacket,omitempty"`
 }
 
+type AgenProbeRecord []*AgentProbeResult
+
 type AgentProbeResult struct {
-	AgentName      string                  `json:"agentname:omitempty"`
-	AgentProbePath []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
+	AgentNameTemp   string                  `json:"AgentNameTemp,omitempty"`
+	NumberOfTimes   uint32                  `json:"numberoftimes,omitempty"`
+	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
+	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
 }
 
 type ActiveProbeTracePoint struct {
+	Inport     uint32              `json:"inport,omitempty"`
 	TracePoint TelemetryTracePoint `json:"tracepoint,omitempty"`
-	Action     ActiveProbeAction   `json:"action',omitempty"`
+	Action     ActiveProbeAction   `json:"action,omitempty"`
 }
 
 type ActiveProbeState string
 
 const (
-	ActiveProbeReady     ActiveProbeState = "ready"
-	ActiveProbeRunning   ActiveProbeState = "running"
-	ActiveProbeCompleted ActiveProbeState = "completed"
-	ActiveProbeFailed    ActiveProbeState = "failed"
-	ActiveProbeUnknown   ActiveProbeState = "unknown"
+	ActiveProbeReady       ActiveProbeState = "ready"
+	ActiveProbeRunning     ActiveProbeState = "running"
+	ActiveProbeSendFinshed ActiveProbeState = "sendFinished"
+	ActiveProbeCompleted   ActiveProbeState = "completed"
+	ActiveProbeFailed      ActiveProbeState = "failed"
+	ActiveProbeUnknown     ActiveProbeState = "unknown"
 )
 
 type TelemetryTracePoint string
@@ -80,7 +92,7 @@ const (
 	IsolationPolicyIngress TelemetryTracePoint = "isolationpolicyingress"
 	IsolationPolicyEgress  TelemetryTracePoint = "isolationpolicyegress"
 	ForensicPolicyIngress  TelemetryTracePoint = "forensicpolicyingress"
-	FroensicPolicyEgress   TelemetryTracePoint = "forensicpolicyegress"
+	ForensicPolicyEgress   TelemetryTracePoint = "forensicpolicyegress"
 
 	LocalFrowarding TelemetryTracePoint = "localforwarding"
 	ClsForwarding   TelemetryTracePoint = "clsforwarding"
@@ -96,22 +108,31 @@ const (
 )
 
 type Source struct {
-	Endpoint  string `json:"endpoint,omitempty"`
-	NameSpace string `json:"namespace,omitempty"`
-	IP        string `json:"ip,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	NameSpace  string `json:"namespace,omitempty"`
+	IP         string `json:"ip,omitempty"`
+	MAC        string `json:"mac,omitempty"`
+	AgentName  string `json:"agentname,omitempty"`
+	BridgeName string `json:"bridgename,omitempty"`
+	Ofport     int32  `json:"ofport,omitempty"`
 }
 
 type Destination struct {
-	Endpoint  string `json:"endpoint,omitempty"`
-	NameSpace string `json:"namespace,omitempty"`
-	IP        string `json:"ip,omitempty"`
-	Service   string `json:"service,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	NameSpace  string `json:"namespace,omitempty"`
+	IP         string `json:"ip,omitempty"`
+	MAC        string `json:"mac,omitempty"`
+	AgentName  string `json:"agentname,omitempty"`
+	BridgeName string `json:"bridgename,omitempty"`
+	Ofport     int32  `json:"ofport,omitempty"`
+	Service    string `json:"service,omitempty"`
 }
 
 type IPHeader struct {
 	Protocol uint32 `json:"protocol,omitempty"`
 	TTL      uint32 `json:"ttl,omitempty"`
 	Flags    uint32 `json:"flags,omitempty"`
+	DSCP     uint32 `json:"dscp,omitempty"`
 }
 
 type TransportHeader struct {
@@ -136,12 +157,14 @@ type TCPHeader struct {
 	Flags   uint32 `json:"flags,omitempty"`
 }
 
+// Packet includes header info.
 type Packet struct {
-	SrcIP           string          `json:"srcip,omitempty"`
-	DstIP           string          `json:"dstip,omitempty"`
-	HeaderLength    uint16          `json:"headerlength,omitempty"`
+	SrcIP string `json:"srcip,omitempty"`
+	DstIP string `json:"dstip,omitempty"`
+	// Length is the IP packet length (include the IPv4 header length).
+	Length          uint16          `json:"headerlength,omitempty"`
 	IPHeader        IPHeader        `json:"ipheader,omitempty"`
-	TransportHeader TransportHeader `json:"tranportHeader,omitempty"`
+	TransportHeader TransportHeader `json:"transportHeader,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
