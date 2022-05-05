@@ -14,54 +14,64 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package conn
+package conn_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/conn"
 )
 
-func TestListener(t *testing.T) {
+func TestBuffListenerDialer(t *testing.T) {
+	tests := []conn.ListenerDialer{
+		conn.NewBuff(),
+		conn.MustNewTCP(fmt.Sprintf(":%d", rand.IntnRange(30000, 65535))),
+	}
+
+	for index, tt := range tests {
+		t.Run(fmt.Sprintf("test%d", index), func(t *testing.T) {
+			listenAndDialWithTestingT(t, tt)
+		})
+	}
+}
+
+func listenAndDialWithTestingT(t *testing.T, ld conn.ListenerDialer) {
 	RegisterTestingT(t)
+	server := newServer()
 
-	server := fakeServer()
-	listener := Listen()
-
-	// run server with buff listener
-	go func() {
-		err := server.Serve(listener)
-		Expect(err).Should(Succeed())
-	}()
+	go server.Serve(ld) // nolint: errcheck
 	defer func() {
-		err := server.Shutdown(context.Background())
-		Expect(err).Should(Succeed())
+		Expect(server.Shutdown(context.Background())).Should(Succeed())
 	}()
 
-	client := http.Client{Transport: listener}
-
-	req, err := http.NewRequestWithContext(context.TODO(), "GET", "http://localhost:0/fake", nil)
-	Expect(err).Should(Succeed())
-
-	resp, err := client.Do(req)
+	resp, err := (&http.Client{
+		Transport: &http.Transport{DialContext: ld.DialContext},
+	}).Do(&http.Request{
+		Method: "GET",
+		URL:    &url.URL{Scheme: "http", Host: "localhost:0", Path: "/foo/bar"},
+	})
 	Expect(err).Should(Succeed())
 	Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 
-	body, err := ioutil.ReadAll(resp.Body)
-	Expect(err).Should(Succeed())
-	Expect(body).Should(Equal([]byte("ok")))
+	body, _ := ioutil.ReadAll(resp.Body)
+	Expect(body).Should(Equal([]byte{'o', 'k'}))
 	Expect(resp.Body.Close()).Should(Succeed())
 }
 
-func fakeServer() *http.Server {
-	var fakeHandler = func(resp http.ResponseWriter, _ *http.Request) {
+func newServer() *http.Server {
+	var handler = func(resp http.ResponseWriter, _ *http.Request) {
 		resp.WriteHeader(http.StatusOK)
 		_, _ = resp.Write([]byte("ok"))
 	}
 	return &http.Server{
-		Handler: http.HandlerFunc(fakeHandler),
+		Handler: http.HandlerFunc(handler),
 	}
 }
