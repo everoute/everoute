@@ -17,7 +17,7 @@ FROM ubuntu:20.04
 
 # install openvswitch and dependencies
 RUN apt update && \
-    apt install -y --no-install-recommends make sudo ca-certificates gcc libc6-dev openvswitch-switch=2.13.* && \
+    apt install -y --no-install-recommends iptables make sudo ca-certificates gcc libc6-dev openvswitch-switch=2.13.* && \
     apt clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 COPY --from=downloader /usr/local/bin/kube-apiserver /usr/local/bin/etcd /usr/local/kubebuilder/bin/
