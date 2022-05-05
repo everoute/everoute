@@ -30,7 +30,7 @@ import (
 )
 
 func TestWaitForTask(t *testing.T) {
-	server := fakeserver.NewServer()
+	server := fakeserver.NewServer(nil)
 	server.Serve()
 
 	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0)
