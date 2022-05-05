@@ -20,29 +20,60 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"time"
 
 	"google.golang.org/grpc/test/bufconn"
 )
 
-// Listener implements net.Listener and http.RoundTripper localed. It can used to
-// start a mock server, client connect to server with its transport or dial func.
-type Listener struct {
-	timeout time.Duration
-
-	*bufconn.Listener
-	http.RoundTripper
+// ListenerDialer embeds net.Listener and DialContext,
+// DialContext create a new connection to the listener
+type ListenerDialer interface {
+	net.Listener
+	DialContext(ctx context.Context, _, _ string) (net.Conn, error)
 }
 
-func Listen() *Listener {
-	l := &Listener{timeout: 5 * time.Second, Listener: bufconn.Listen(1 << 12)} // 4 KB
-	l.RoundTripper = &http.Transport{DialContext: l.DialContext}
+// TCP listens and dials on a TCP address
+type TCP struct {
+	net.Listener
+	addr string
+}
+
+func (l *TCP) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+	return (&net.Dialer{}).DialContext(ctx, "tcp", l.addr)
+}
+
+// NewTCP returns a ListenerDialer that listens and dial on TCP
+func NewTCP(addr string) (ListenerDialer, error) {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return &TCP{Listener: listener, addr: addr}, nil
+}
+
+// MustNewTCP returns a ListenerDialer or panic on error
+func MustNewTCP(addr string) ListenerDialer {
+	listener, err := NewTCP(addr)
+	if err != nil {
+		panic(err.Error())
+	}
+	return listener
+}
+
+// Buff implements ListenerDialer localed. It can use to start a mock server,
+// client connect to server with its transport or dial func.
+type Buff struct {
+	*bufconn.Listener
+	timeout time.Duration
+}
+
+func NewBuff() ListenerDialer {
+	l := &Buff{timeout: 5 * time.Second, Listener: bufconn.Listen(1 << 12)} // 4 KB
 	return l
 }
 
-// DialContext return new net.Conn connection to Listener.
-func (l *Listener) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+// DialContext return new net.Conn connection to the Buff Listener
+func (l *Buff) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 	var done = make(chan struct{})
