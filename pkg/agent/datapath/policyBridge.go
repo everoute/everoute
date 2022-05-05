@@ -670,15 +670,23 @@ func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
 	var activeProbeFlows []*FlowEntry
 
 	ingressActiveProbeFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY,
-		IpDscp:   tag,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDscp:    tag,
 	})
 	if err := ingressActiveProbeFlow.SendToController(ingressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
+		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
+	}
+	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
 	}
 	if err := ingressActiveProbeFlow.Resubmit(nil, &p.ctCommitTable.TableId); err != nil {
 		return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
 	}
+	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
+	}
+
 	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
 		Table:    ingressActiveProbeFlow.Table,
 		Priority: ingressActiveProbeFlow.Match.Priority,
@@ -686,13 +694,20 @@ func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
 	})
 
 	egressActiveProbeFlow, _ := p.egressMetricTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY,
-		IpDscp:   tag,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDscp:    tag,
 	})
 	if err := egressActiveProbeFlow.SendToController(egressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
 		return nil, fmt.Errorf("failed to install send to controller action for egress active probe flow, error: %v", err)
 	}
+	if err := egressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return nil, fmt.Errorf("failed to install send to controller action for egress active probe flow, error: %v", err)
+	}
 	if err := egressActiveProbeFlow.Resubmit(nil, &p.ctCommitTable.TableId); err != nil {
+		return nil, fmt.Errorf("failed to install resubmit egress active probe flow, error: %v", err)
+	}
+	if err := egressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return nil, fmt.Errorf("failed to install resubmit egress active probe flow, error: %v", err)
 	}
 

@@ -193,7 +193,7 @@ func (handler PacketInHandlerFuncs) HandlePacketIn(packetIn *ofctrl.PacketIn) {
 
 func (datapathManager *DpManager) RegisterPacketInHandler(handler PacketInHandler) {
 	if handler == nil {
-		log.Fatalf("Failed to register pakcetInHandler: register nil PacketInHandler is not allow")
+		log.Fatalf("Failed to register packetInHandler: register nil PacketInHandler is not allow")
 	}
 	if datapathManager.PacketInHandler != nil {
 		log.Fatalf("Failed to register PacketInHandler: datapathManager PacketInHandler already register")
@@ -968,7 +968,22 @@ func (datapathManager *DpManager) SendActiveProbePacket(ovsbrName string, packet
 
 func toOfctrlPacket(packet Packet) *ofctrl.Packet {
 	return &ofctrl.Packet{
-		// TODO convert everoute packet to ofctrl packet.
+		// TODO convert everoute packet to ofctrl packet
+		SrcMac:      packet.SrcMac,
+		DstMac:      packet.DstMac,
+		SrcIP:       packet.SrcIP,
+		DstIP:       packet.DstIP,
+		IPProtocol:  packet.IPProtocol,
+		IPLength:    packet.IPLength,
+		IPFlags:     packet.IPFlags,
+		TTL:         packet.TTL,
+		SrcPort:     packet.SrcPort,
+		DstPort:     packet.DstPort,
+		TCPFlags:    packet.TCPFlags,
+		ICMPType:    packet.ICMPType,
+		ICMPCode:    packet.ICMPCode,
+		ICMPEchoID:  packet.ICMPEchoID,
+		ICMPEchoSeq: packet.ICMPEchoSeq,
 	}
 }
 
