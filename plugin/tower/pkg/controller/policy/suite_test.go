@@ -53,7 +53,7 @@ func TestPolicyController(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	By("create fake server and fake client")
-	server = fakeserver.NewServer()
+	server = fakeserver.NewServer(nil)
 	server.Serve()
 	crdClient = fake.NewSimpleClientset()
 

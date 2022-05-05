@@ -33,7 +33,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	server = fake.NewServer()
+	server = fake.NewServer(nil)
 	server.Serve()
 
 	os.Exit(m.Run())

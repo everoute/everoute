@@ -72,7 +72,7 @@ type VM struct {
 func TestReflectorWithNotExistField(t *testing.T) {
 	RegisterTestingT(t)
 
-	server := fake.NewServer()
+	server := fake.NewServer(nil)
 	server.Serve()
 	defer server.Stop()
 
