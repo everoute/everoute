@@ -23,7 +23,7 @@ import (
 )
 
 func TestServer_ServeStop(t *testing.T) {
-	server := NewServer()
+	server := NewServer(nil)
 
 	for i := 0; i < 20; i++ {
 		if rand.IntnRange(1, 2)%2 == 0 {
@@ -35,7 +35,7 @@ func TestServer_ServeStop(t *testing.T) {
 }
 
 func TestServeStop(t *testing.T) {
-	server := NewServer()
+	server := NewServer(nil)
 	// should no data race when server immediately stop, see issue: #430
 	server.Serve()
 	defer server.Stop()
