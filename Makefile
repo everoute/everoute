@@ -6,13 +6,13 @@ bin: controller agent cni
 images: image image-generate
 
 image:
-	docker buildx build -f build/images/release/Dockerfile -t everoute/release .
+	docker buildx build -f build/images/release/Dockerfile -t everoute/release . --load
 
 image-generate:
-	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/
+	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/ --load
 
 image-test:
-	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/
+	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
 
 yaml:
 	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
