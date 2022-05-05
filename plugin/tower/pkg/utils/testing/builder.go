@@ -289,3 +289,27 @@ func NewSecurityGroup(clusterID string) *schema.SecurityGroup {
 		EverouteCluster: schema.ObjectReference{ID: clusterID},
 	}
 }
+
+// NewRandomHost creates a random Host
+func NewRandomHost() *schema.Host {
+	return &schema.Host{
+		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
+		Name:       rand.String(10),
+	}
+}
+
+// NewRandomNicAttachedTo creates a random NIC attached to the given Host
+func NewRandomNicAttachedTo(host *schema.Host, name string) *schema.Nic {
+	if name == "" {
+		name = rand.String(10)
+	}
+
+	nic := schema.Nic{
+		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
+		Name:       name,
+		IPAddress:  NewRandomIP().String(),
+	}
+
+	host.Nics = append(host.Nics, nic)
+	return &nic
+}
