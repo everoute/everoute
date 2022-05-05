@@ -38,15 +38,18 @@ type Server struct {
 	serveLock sync.Mutex
 	stopCh    chan struct{}
 
-	resolvers *resolver.Resolver
-	listener  *conn.Listener
+	resolvers      *resolver.Resolver
+	listenerDialer conn.ListenerDialer
 }
 
 // NewServer creates a new instance of Server.
-func NewServer() *Server {
+func NewServer(ld conn.ListenerDialer) *Server {
+	if ld == nil {
+		ld = conn.NewBuff()
+	}
 	return &Server{
-		resolvers: resolver.New(),
-		listener:  conn.Listen(),
+		resolvers:      resolver.New(),
+		listenerDialer: ld,
 	}
 }
 
@@ -54,8 +57,8 @@ func NewServer() *Server {
 func (s *Server) NewClient() *client.Client {
 	return &client.Client{
 		URL:        "ws://127.0.0.1:0",
-		Dialer:     &websocket.Dialer{NetDialContext: s.listener.DialContext},
-		HTTPClient: &http.Client{Transport: s.listener},
+		Dialer:     &websocket.Dialer{NetDialContext: s.listenerDialer.DialContext},
+		HTTPClient: &http.Client{Transport: &http.Transport{DialContext: s.listenerDialer.DialContext}},
 	}
 }
 
@@ -79,7 +82,7 @@ func (s *Server) Serve() {
 	}
 }
 
-// Serve stop Server if is running.
+// Stop the Server if it is running.
 func (s *Server) Stop() {
 	s.serveLock.Lock()
 	defer s.serveLock.Unlock()
@@ -112,7 +115,7 @@ func (s *Server) start() error {
 	serveErr := make(chan error)
 
 	go func() {
-		err := server.Serve(s.listener)
+		err := server.Serve(s.listenerDialer)
 		select {
 		case serveErr <- err:
 		default:
