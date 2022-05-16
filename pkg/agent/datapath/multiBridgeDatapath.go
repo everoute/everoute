@@ -180,7 +180,7 @@ type DpManager struct {
 	ofPortIPAddressUpdateChan chan map[string]net.IP // map bridgename-ofport to endpoint ips
 	datapathConfig            *Config
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
-	FlowIdToRules             map[uint64]*EveroutePolicyRuleEntry
+	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
@@ -279,7 +279,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.controllerIDSets = sets.NewString()
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
-	datapathManager.FlowIdToRules = make(map[uint64]*EveroutePolicyRuleEntry)
+	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.datapathConfig = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.AgentInfo = new(AgentConf)
@@ -321,12 +321,14 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	// add rules for internalIP
 	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
 		// internal ingress rule
-		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP), InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP),
+			InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
 		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP), InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP),
+			InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		if err != nil {
 			log.Fatalf("Failed to add internal whitelist: %v", err)
 		}
@@ -367,7 +369,7 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 		if id == 0 {
 			continue
 		}
-		item := datapathManager.FlowIdToRules[id]
+		item := datapathManager.FlowIDToRules[id]
 		if item != nil {
 			policyInfo := &PolicyInfo{
 				Dir:    item.Direction,
@@ -833,9 +835,8 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 			datapathManager.Rules[rule.RuleID].PolicyRuleReference.Insert(ruleName)
 			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.EveroutePolicyRule)
 			return nil
-		} else {
-			log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
 		}
+		log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
 	}
 
 	log.Infof("Received AddRule: %+v", rule)
@@ -864,7 +865,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 	// save flowID reference
 	for _, v := range ruleEntry.RuleFlowMap {
-		datapathManager.FlowIdToRules[v.FlowID] = ruleEntry
+		datapathManager.FlowIDToRules[v.FlowID] = ruleEntry
 		log.Info(v.FlowID)
 	}
 
@@ -901,7 +902,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 			return err
 		}
 		// remove flowID reference
-		delete(datapathManager.FlowIdToRules, pRule.RuleFlowMap[vdsID].FlowID)
+		delete(datapathManager.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
 	}
 
 	if pRule.PolicyRuleReference.Len() == 0 {
