@@ -23,10 +23,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/labels"
-	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
@@ -190,8 +190,8 @@ func LabelsAsSelector(selectors ...*schema.Label) *labels.Selector {
 		if len(valueSet) != 1 {
 			continue
 		}
-		isValid := endpoint.ValidKubernetesLabel(&schema.Label{Key: key, Value: valueSet[0]})
-		if isValid {
+		if len(validation.IsQualifiedName(key)) == 0 &&
+			len(validation.IsValidLabelValue(valueSet[0])) == 0 {
 			matchLabels[key] = valueSet[0]
 			delete(extendMatchLabels, key)
 		}
