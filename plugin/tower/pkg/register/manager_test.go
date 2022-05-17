@@ -37,9 +37,10 @@ func TestInitFlags(t *testing.T) {
 		"should prase default options": {
 			expectOptions: &Options{
 				Enable:       &boolFalse,
-				Client:       &client.Client{UserInfo: &client.UserInfo{}},
+				Client:       &client.Client{UserInfo: &client.UserInfo{}, AllowInsecure: true},
 				ResyncPeriod: 10 * time.Hour,
 				WorkerNumber: 10,
+				Namespace:    "tower-space",
 			},
 		},
 		"should prase normal options with prefix": {
@@ -49,6 +50,8 @@ func TestInitFlags(t *testing.T) {
 				"--plugins.tower.address=127.0.0.1:8800",
 				"--plugins.tower.resync-period=1s",
 				"--plugins.tower.worker-number=1",
+				"--plugins.tower.allow-insecure=false",
+				"--plugins.tower.namespace=test-namespace",
 			},
 			expectOptions: &Options{
 				Enable: &boolTrue,
@@ -58,6 +61,7 @@ func TestInitFlags(t *testing.T) {
 				},
 				ResyncPeriod: time.Second,
 				WorkerNumber: 1,
+				Namespace:    "test-namespace",
 			},
 		},
 	}
