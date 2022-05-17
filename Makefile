@@ -41,14 +41,14 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
-	go test ./plugin/tower/pkg/controller/... ./pkg/... -v
+	go test ./plugin/... ./pkg/... -v
 
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
 
 cover-test: agent-uuid
-	go test ./plugin/tower/pkg/controller/... ./pkg/... -coverprofile=coverage.out \
+	go test ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 
 docker-cover-test: image-test
@@ -56,7 +56,7 @@ docker-cover-test: image-test
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make cover-test
 
 race-test: agent-uuid
-	go test ./plugin/tower/pkg/controller/... ./pkg/... -race
+	go test ./plugin/... ./pkg/... -race
 
 docker-race-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
