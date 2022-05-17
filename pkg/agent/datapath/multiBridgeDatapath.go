@@ -34,6 +34,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/contiv/libOpenflow/openflow13"
+	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
@@ -134,6 +135,8 @@ const (
 	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/internal/egress/-"
 
 	MaxRoundNum = 15
+
+	MaxArpChanCache = 100
 )
 
 type Bridge interface {
@@ -184,6 +187,8 @@ type DpManager struct {
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
+
+	ArpChan chan protocol.ARP
 
 	AgentInfo *AgentConf
 }
@@ -287,6 +292,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
+	datapathManager.ArpChan = make(chan protocol.ARP, MaxArpChanCache)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
