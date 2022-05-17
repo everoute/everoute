@@ -33,6 +33,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
+	"github.com/everoute/everoute/pkg/agent/rpcserver"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/monitor"
@@ -131,6 +132,9 @@ func main() {
 
 	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
 	go agentmonitor.Run(stopChan)
+
+	rpcServer := rpcserver.Initialize(datapathManager)
+	go rpcServer.Run(stopChan)
 
 	<-stopChan
 }
