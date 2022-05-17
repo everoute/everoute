@@ -18,8 +18,6 @@ package datapath
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -44,6 +42,7 @@ import (
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 //nolint
@@ -175,7 +174,6 @@ type DpManager struct {
 	ControllerMap      map[string]map[string]*ofctrl.Controller
 	BridgeChainPortMap map[string]map[string]uint32 // map vds to patch port to ofport-num map
 
-	controllerIDSets          sets.String
 	localEndpointDB           cmap.ConcurrentMap     // list of local endpoint map
 	ofPortIPAddressUpdateChan chan map[string]net.IP // map bridgename-ofport to endpoint ips
 	datapathConfig            *Config
@@ -277,7 +275,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
-	datapathManager.controllerIDSets = sets.NewString()
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.datapathConfig = datapathConfig
@@ -402,25 +399,6 @@ func (datapathManager *DpManager) InitializeCNI() {
 	wg.Wait()
 }
 
-func (datapathManager *DpManager) GenerateControllerID() uint16 {
-	datapathManager.DpManagerMutex.Lock()
-	defer datapathManager.DpManagerMutex.Unlock()
-
-	var ctrlID uint16
-	for {
-		err := binary.Read(rand.Reader, binary.LittleEndian, &ctrlID)
-		if err != nil {
-			log.Infof("get random ID from rand.Reader: %s", err)
-			continue
-		}
-		if datapathManager.controllerIDSets.Has(strconv.Itoa(int(ctrlID))) {
-			continue
-		}
-		datapathManager.controllerIDSets.Insert(strconv.Itoa(int(ctrlID)))
-		return ctrlID
-	}
-}
-
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -435,10 +413,10 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 	// initialize of controller
 	vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, datapathManager.GenerateControllerID())
-	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, datapathManager.GenerateControllerID())
-	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, datapathManager.GenerateControllerID())
-	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, datapathManager.GenerateControllerID())
+	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, utils.GenerateControllerID())
+	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, utils.GenerateControllerID())
+	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, utils.GenerateControllerID())
+	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, utils.GenerateControllerID())
 
 	// initialize ovsdbDriver
 	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)

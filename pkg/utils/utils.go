@@ -1,15 +1,21 @@
 package utils
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/alexflint/go-filemutex"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
@@ -100,4 +106,64 @@ func CurrentAgentName() string {
 
 	klog.Infof("Current AgentName: %s", currentAgentName)
 	return currentAgentName
+}
+
+const controllerIDPath = "/var/run/everoute/controllerID"
+
+var _instance *filemutex.FileMutex
+var _once sync.Once
+
+func getCtrlPathMutex() *filemutex.FileMutex {
+	_once.Do(func() {
+		// create path
+		if _, err := os.Stat(controllerIDPath); os.IsNotExist(err) {
+			if err := os.MkdirAll(controllerIDPath, os.ModePerm); err != nil {
+				klog.Fatalf("fail to create %s", controllerIDPath)
+			}
+			if err := os.Chmod(controllerIDPath, os.ModePerm); err != nil {
+				klog.Fatalf("fail to chmod %s", controllerIDPath)
+			}
+		}
+
+		// use file mutex to ensure cocurrency
+		mutex, err := filemutex.New(path.Join(controllerIDPath, "lock"))
+		if err != nil {
+			klog.Fatal("Fail to create ControllerID file lock")
+		}
+		_instance = mutex
+	})
+	return _instance
+}
+
+func GenerateControllerID() uint16 {
+	mutex := getCtrlPathMutex()
+
+	_ = mutex.Lock()
+	defer func() {
+		_ = mutex.Unlock()
+	}()
+
+	var ctrlID uint16
+	for {
+		// genereate new ID
+		err := binary.Read(rand.Reader, binary.LittleEndian, &ctrlID)
+		if err != nil {
+			klog.Errorf("get random ID from rand.Reader: %s", err)
+			continue
+		}
+		targetFile := path.Join(controllerIDPath, strconv.Itoa(int(ctrlID)))
+
+		// check if id existed
+		if _, err := os.Stat(targetFile); err == nil {
+			continue
+		}
+
+		// record file in path
+		if _, err := os.Create(targetFile); err != nil {
+			klog.Errorf("create ctrlID file %s error: %s", targetFile, err)
+			continue
+		}
+
+		return ctrlID
+	}
 }
