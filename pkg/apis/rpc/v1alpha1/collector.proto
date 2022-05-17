@@ -1,0 +1,46 @@
+syntax = "proto3";
+package everoute_io.pkg.apis.rpc.v1alpha1;
+option go_package = "pkg/apis/rpc/v1alpha1";
+
+import "google/protobuf/empty.proto";
+
+message ArpResponse {
+  bytes pkt = 1;
+}
+
+message PolicyRequest{
+  repeated uint64 flowIDs = 1;
+}
+
+message PolicyResponse{
+  repeated PolicyList list = 1;
+}
+
+message PolicyList{
+  uint32 dir = 1;
+  string action = 2;
+  string mode = 3; 
+  repeated PolicyItem items = 4;
+}
+
+message PolicyItem{
+  string name = 1;
+  string namespace = 2;
+  string policyType = 3;
+}
+
+
+message ChainBridgeResp{
+  repeated string bridge = 1;
+}
+
+service Collector {
+  rpc ArpStream (google.protobuf.Empty) returns (stream ArpResponse) {
+  }
+
+  rpc Policy (PolicyRequest) returns (PolicyResponse) {
+  }
+
+  rpc GetChainBridge (google.protobuf.Empty) returns (ChainBridgeResp){
+  }
+}

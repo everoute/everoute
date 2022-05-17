@@ -157,6 +157,11 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
 
+		select {
+		case l.datapathManager.ArpChan <- arpIn:
+		default: // Non-block when arpChan is full
+		}
+
 		l.learnedIPAddressMapMutex.Lock()
 		defer l.learnedIPAddressMapMutex.Unlock()
 		l.setLocalEndpointIPAddr(arpIn, inPort)
