@@ -39,6 +39,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -1146,7 +1147,7 @@ func newTestEndpoint(ip types.IPAddress, agent ...string) *securityv1alpha1.Endp
 
 type testGroup struct {
 	*groupv1alpha1.GroupMembers
-	endpointSelector *metav1.LabelSelector
+	endpointSelector *labels.Selector
 }
 
 func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) *testGroup {
@@ -1158,9 +1159,9 @@ func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) 
 		groupMembers = append(groupMembers, *member)
 	}
 
-	testGroup.endpointSelector = &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			rand.String(10): rand.String(10),
+	testGroup.endpointSelector = &labels.Selector{
+		ExtendMatchLabels: map[string][]string{
+			rand.String(10): {rand.String(10)},
 		},
 	}
 

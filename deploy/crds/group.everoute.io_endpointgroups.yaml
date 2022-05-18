@@ -52,7 +52,7 @@ spec:
                 type: object
               endpointSelector:
                 description: "EndpointSelector selects endpoints. This field follows
-                  standard label selector semantics; if present but empty, it selects
+                  extend label selector semantics; if present but empty, it selects
                   all endpoints. \n If NamespaceSelector is set, then the EndpointGroup
                   would select the endpoints matching EndpointSelector in the Namespaces
                   selected by NamespaceSelector. If Namespace is set, then the EndpointGroup
@@ -60,6 +60,15 @@ spec:
                   Namespace. If neither of NamespaceSelector or Namespace set, then
                   the EndpointGroup would select the endpoints in all namespaces."
                 properties:
+                  extendMatchLabels:
+                    additionalProperties:
+                      items:
+                        type: string
+                      type: array
+                    description: 'ExtendMatchLabels allows match labels with the same
+                      key but different value. e.g. {key: [value1, value2]} matches
+                      labels: {key: value1, key: value2}'
+                    type: object
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
                       The requirements are ANDed.

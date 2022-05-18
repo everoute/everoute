@@ -39,6 +39,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -1097,22 +1098,37 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 	return policyPeers, policyPorts, nil
 }
 
-func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*metav1.LabelSelector, error) {
-	endpointSelector := metav1.LabelSelector{
-		MatchLabels: make(map[string]string, len(selectors)),
-	}
+func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*labels.Selector, error) {
+	var matchLabels = make(map[string]string)
+	var extendMatchLabels = make(map[string][]string)
+
 	for _, labelRef := range selectors {
 		obj, exist, err := c.labelLister.GetByKey(labelRef.ID)
-		if err != nil {
-			return nil, fmt.Errorf("unable get label %s: %s", labelRef.ID, err)
-		}
-		if !exist {
+		if err != nil || !exist {
 			return nil, fmt.Errorf("label %s not found", labelRef.ID)
 		}
 		label := obj.(*schema.Label)
-		endpointSelector.MatchLabels[label.Key] = label.Value
+		extendMatchLabels[label.Key] = append(extendMatchLabels[label.Key], label.Value)
 	}
-	return &endpointSelector, nil
+
+	// For backward compatibility, we set valid labels in selector.matchLabels,
+	// and for other labels, we set them in selector.extendMatchLabels.
+	for key, valueSet := range extendMatchLabels {
+		if len(valueSet) != 1 {
+			continue
+		}
+		isValid := endpoint.ValidKubernetesLabel(&schema.Label{Key: key, Value: valueSet[0]})
+		if isValid {
+			matchLabels[key] = valueSet[0]
+			delete(extendMatchLabels, key)
+		}
+	}
+
+	labelSelector := labels.Selector{
+		LabelSelector:     metav1.LabelSelector{MatchLabels: matchLabels},
+		ExtendMatchLabels: extendMatchLabels,
+	}
+	return &labelSelector, nil
 }
 
 func (c *Controller) getSystemEndpointsPolicyKey() string {

@@ -14,6 +14,8 @@ run:
   issues-exit-code: 1
   skip-dirs:
     - tests/e2e
+  skip-files:
+    - ".*_test.go$"
 
 linters:
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint

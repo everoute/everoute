@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -115,7 +116,7 @@ type EndpointGroup struct {
 
 // EndpointGroupSpec defines the desired state for EndpointGroup.
 type EndpointGroupSpec struct {
-	// EndpointSelector selects endpoints. This field follows standard label
+	// EndpointSelector selects endpoints. This field follows extend label
 	// selector semantics; if present but empty, it selects all endpoints.
 	//
 	// If NamespaceSelector is set, then the EndpointGroup would select the endpoints
@@ -125,7 +126,7 @@ type EndpointGroupSpec struct {
 	// If neither of NamespaceSelector or Namespace set, then the EndpointGroup
 	// would select the endpoints in all namespaces.
 	// +optional
-	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
+	EndpointSelector *labels.Selector `json:"endpointSelector,omitempty"`
 
 	// NamespaceSelector selects namespaces. This field follows standard label
 	// selector semantics; if present but empty, it selects all namespaces.

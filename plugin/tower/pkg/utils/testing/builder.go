@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/labels"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
@@ -56,10 +58,14 @@ func NewRandomVMNicAttachedTo(vm *schema.VM) *schema.VMNic {
 }
 
 func NewRandomLabel() *schema.Label {
+	return NewLabel(rand.String(10), rand.String(10))
+}
+
+func NewLabel(key string, value string) *schema.Label {
 	return &schema.Label{
 		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
-		Key:        rand.String(10),
-		Value:      rand.String(10),
+		Key:        key,
+		Value:      value,
 	}
 }
 
@@ -134,9 +140,7 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock string, selecto
 
 	if len(selectors) != 0 {
 		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{
-			EndpointSelector: &metav1.LabelSelector{
-				MatchLabels: AggregateLabels(selectors...),
-			},
+			EndpointSelector: LabelsAsSelector(selectors...),
 		})
 	}
 
@@ -163,9 +167,7 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock string, selector
 
 	if len(selectors) != 0 {
 		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{
-			EndpointSelector: &metav1.LabelSelector{
-				MatchLabels: AggregateLabels(selectors...),
-			},
+			EndpointSelector: LabelsAsSelector(selectors...),
 		})
 	}
 
@@ -178,11 +180,34 @@ func NewSecurityPolicyApplyPeer(endpoint string, selectors ...*schema.Label) v1a
 		peer.Endpoint = &endpoint
 	}
 	if len(selectors) != 0 {
-		peer.EndpointSelector = &metav1.LabelSelector{
-			MatchLabels: AggregateLabels(selectors...),
-		}
+		peer.EndpointSelector = LabelsAsSelector(selectors...)
 	}
 	return peer
+}
+
+func LabelsAsSelector(selectors ...*schema.Label) *labels.Selector {
+	var matchLabels = make(map[string]string)
+	var extendMatchLabels = make(map[string][]string)
+
+	for _, label := range selectors {
+		extendMatchLabels[label.Key] = append(extendMatchLabels[label.Key], label.Value)
+	}
+
+	for key, valueSet := range extendMatchLabels {
+		if len(valueSet) != 1 {
+			continue
+		}
+		isValid := endpoint.ValidKubernetesLabel(&schema.Label{Key: key, Value: valueSet[0]})
+		if isValid {
+			matchLabels[key] = valueSet[0]
+			delete(extendMatchLabels, key)
+		}
+	}
+
+	return &labels.Selector{
+		LabelSelector:     metav1.LabelSelector{MatchLabels: matchLabels},
+		ExtendMatchLabels: extendMatchLabels,
+	}
 }
 
 func LabelAsReference(labels ...*schema.Label) []schema.ObjectReference {

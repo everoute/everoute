@@ -30,6 +30,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
@@ -348,7 +349,7 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 	return vm, m.waitForVMReady(context.Background(), vm.ID)
 }
 
-func (m *provider) mutationVMLabels(vmID string, labels map[string]string) error {
+func (m *provider) mutationVMLabels(vmID string, labels map[string][]string) error {
 	var errList []error
 
 	m.mutationLabelLock.Lock()
@@ -359,23 +360,25 @@ func (m *provider) mutationVMLabels(vmID string, labels map[string]string) error
 		return fmt.Errorf("failed to query labels: %s", err)
 	}
 
-	for key, value := range labels {
-		if label := findLabelByKeyValue(allTowerLabels, key, value); label != nil {
-			if vm := findVMByID(label.VMs, vmID); vm != nil {
-				// the vm already has this label
-				continue
+	for key, valueSet := range labels {
+		for _, value := range valueSet {
+			if label := findLabelByKeyValue(allTowerLabels, key, value); label != nil {
+				if vm := findVMByID(label.VMs, vmID); vm != nil {
+					// the vm already has this label
+					continue
+				}
+				_, err = mutationUpdateLabel(m.towerClient, &LabelUpdateInput{VMs: ConnectManyInput{Connect: []UniqueInput{{ID: &vmID}}}}, &LabelWhereUniqueInput{ID: &label.ID})
+				errList = append(errList, err)
+			} else {
+				_, err = mutationCreateLabel(m.towerClient, &LabelCreateInput{Key: key, Value: &value, VMs: ConnectManyInput{Connect: []UniqueInput{{ID: &vmID}}}})
+				errList = append(errList, err)
 			}
-			_, err = mutationUpdateLabel(m.towerClient, &LabelUpdateInput{VMs: ConnectManyInput{Connect: []UniqueInput{{ID: &vmID}}}}, &LabelWhereUniqueInput{ID: &label.ID})
-			errList = append(errList, err)
-		} else {
-			_, err = mutationCreateLabel(m.towerClient, &LabelCreateInput{Key: key, Value: &value, VMs: ConnectManyInput{Connect: []UniqueInput{{ID: &vmID}}}})
-			errList = append(errList, err)
 		}
 	}
 
 	// disconnect vm from label if vm don't have the label
 	for _, label := range allTowerLabels {
-		if value, ok := labels[label.Key]; !(ok || label.Value == value) {
+		if valueSet, ok := labels[label.Key]; !ok || sets.NewString(valueSet...).Has(label.Value) {
 			if vm := findVMByID(label.VMs, vmID); vm == nil {
 				continue
 			}

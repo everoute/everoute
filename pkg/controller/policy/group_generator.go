@@ -36,6 +36,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 )
 
 // GroupGenerateReconcile generate EndpointGroups by SecurityPolicy selector.
@@ -183,7 +184,7 @@ func PeerAsEndpointGroup(namespace string, peer securityv1alpha1.SecurityPolicyP
 		if peer.EndpointSelector == nil {
 			// If EndpointSelector is nil, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
 			// It has the same semantics with empty LabelSelector (An empty label selector matches all objects).
-			endpointSelector = new(metav1.LabelSelector)
+			endpointSelector = new(labels.Selector)
 		}
 		// If NamespaceSelector is also set, then the Rule would select the endpoints
 		// matching EndpointSelector in the Namespaces selected by NamespaceSelector.

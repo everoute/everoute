@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	kubeerror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -474,7 +476,7 @@ func (c *Controller) syncEndpoint(key string) error {
 func (c *Controller) processEndpointDelete(key string) error {
 	_, exists, err := c.endpointLister.GetByKey(fmt.Sprintf("%s/%s", c.namespace, key))
 	if err == nil && !exists {
-		// object has been delete already
+		// object has been deleted already
 		return nil
 	}
 
@@ -497,7 +499,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 	}
 
 	// use vm labels as vm's vnic labels
-	vmLabels, err := c.getVMLabels(vm.ID)
+	vmLabels, extendLables, err := c.getVMLabels(vm.ID)
 	if err != nil {
 		return fmt.Errorf("list labels for vm %s: %s", vm.ID, err)
 	}
@@ -509,7 +511,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 
 	if !exists {
 		ep := &v1alpha1.Endpoint{}
-		c.setEndpoint(ep, vnic, vmLabels)
+		c.setEndpoint(ep, vnic, vmLabels, extendLables)
 
 		klog.Infof("will add endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
 		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Create(context.Background(), ep, metav1.CreateOptions{})
@@ -517,7 +519,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 	}
 
 	ep := obj.(*v1alpha1.Endpoint).DeepCopy()
-	if c.setEndpoint(ep, vnic, vmLabels) {
+	if c.setEndpoint(ep, vnic, vmLabels, extendLables) {
 		klog.Infof("will update endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
 
 		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Update(context.Background(), ep, metav1.UpdateOptions{})
@@ -593,28 +595,34 @@ func (c *Controller) getStaticIP(key string) string {
 	return ""
 }
 
-func (c *Controller) getVMLabels(vmID string) (map[string]string, error) {
+func (c *Controller) getVMLabels(vmID string) (map[string]string, map[string][]string, error) {
 	labels, err := c.labelLister.ByIndex(vmIndex, vmID)
 	if err != nil {
-		return nil, fmt.Errorf("list labels for vm %s: %s", vmID, err)
+		return nil, nil, fmt.Errorf("list labels for vm %s: %s", vmID, err)
 	}
 
-	labelsMap := make(map[string]string, len(labels))
-	for _, label := range labels {
-		if !ValidKubernetesLabel(label.(*schema.Label)) {
-			klog.Infof("ignore vm %s valid kubernetes labels %+v", vmID, label)
+	var labelsMap = make(map[string]string)
+	var extendLabelsMap = make(map[string][]string)
+
+	for _, obj := range labels {
+		label := obj.(*schema.Label)
+		extendLabelsMap[label.Key] = append(extendLabelsMap[label.Key], label.Value)
+	}
+
+	// For backward compatibility, we set valid labels to endpoint.labels,
+	// and for other labels, we set them as endpoint.spec.extendLabels.
+	for key, valueSet := range extendLabelsMap {
+		if len(valueSet) != 1 {
 			continue
 		}
-		labelsMap[label.(*schema.Label).Key] = label.(*schema.Label).Value
+		isValid := ValidKubernetesLabel(&schema.Label{Key: key, Value: valueSet[0]})
+		if isValid {
+			labelsMap[key] = valueSet[0]
+			delete(extendLabelsMap, key)
+		}
 	}
 
-	if len(labelsMap) == 0 {
-		// If labels length is zero, would return nil instead of an empty map.
-		// Consistent with the empty labels returned by the apiserver.
-		return nil, nil
-	}
-
-	return labelsMap, nil
+	return labelsMap, extendLabelsMap, nil
 }
 
 func GetCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance) string {
@@ -626,18 +634,20 @@ func GetSystemEndpointName(key string) string {
 }
 
 // set endpoint return false if endpoint not changes
-func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labels map[string]string) bool {
+func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labels map[string]string, extendLabels map[string][]string) bool {
 	var epCopy = ep.DeepCopy()
 
 	ep.Name = vnic.ID
 	ep.Labels = labels
 	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
+	ep.Spec.ExtendLabels = extendLabels
 	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID
 	ep.Spec.Type = v1alpha1.EndpointDynamic
 
-	return !reflect.DeepEqual(ep, epCopy)
+	lessFunc := func(x, y string) bool { return x < y }
+	return !cmp.Equal(ep, epCopy, cmpopts.SortSlices(lessFunc), cmpopts.EquateEmpty())
 }
 
 func fetchVnic(vm *schema.VM, vnicKey string) (*schema.VMNic, bool) {

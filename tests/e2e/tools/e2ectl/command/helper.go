@@ -21,26 +21,29 @@ import (
 	"strings"
 )
 
-func mapJoin(m map[string]string, connector string, separator string) string {
+func mapJoin(m map[string][]string, connector string, separator string) string {
 	var str string
 
-	for key, value := range m {
-		if str != "" {
-			str = str + separator
+	for key, valueSet := range m {
+		for _, value := range valueSet {
+			if str != "" {
+				str = str + separator
+			}
+			str += fmt.Sprintf("%s%s%s", key, connector, value)
 		}
-		str += fmt.Sprintf("%s%s%s", key, connector, value)
 	}
 
 	return str
 }
 
-func labelsFromString(labels string) map[string]string {
+func labelsFromString(labels string) map[string][]string {
 	var list = strings.Split(labels, ",")
-	var labelMap = make(map[string]string, len(list))
+	var labelMap = make(map[string][]string)
 
 	for _, label := range list {
 		if len(label) != 0 {
-			labelMap[strings.Split(label, "=")[0]] = strings.Split(label, "=")[1]
+			key, value := strings.Split(label, "=")[0], strings.Split(label, "=")[1]
+			labelMap[key] = append(labelMap[key], value)
 		}
 	}
 

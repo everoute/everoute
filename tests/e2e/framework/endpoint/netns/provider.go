@@ -375,13 +375,13 @@ func toCrdEndpoint(endpoint *model.Endpoint, resourceVersion string) *v1alpha1.E
 	var securityEp = v1alpha1.Endpoint{}
 
 	securityEp.Name = endpoint.Name
-	securityEp.Labels = endpoint.Labels
 	securityEp.ResourceVersion = resourceVersion
 
 	data, _ := json.Marshal(endpoint)
 	securityEp.Annotations = map[string]string{endpointLastStatusAnnotation: string(data)}
 
 	securityEp.Spec = v1alpha1.EndpointSpec{
+		ExtendLabels: endpoint.Labels,
 		Reference: v1alpha1.EndpointReference{
 			ExternalIDName:  "iface-id",
 			ExternalIDValue: fmt.Sprintf("uuid-%s", endpoint.Status.LocalID),

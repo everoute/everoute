@@ -46,8 +46,8 @@ var _ = Describe("PolicyController", func() {
 		ctx = context.Background()
 
 		labelA = NewRandomLabel()
-		labelB = NewRandomLabel()
-		labelC = NewRandomLabel()
+		labelB = NewLabel("@中文标签", "=>中文标签值")
+		labelC = NewLabel("@中文标签", "@#!@$%^*)")
 
 		By(fmt.Sprintf("create labels: %+v, %+v, %+v", labelA, labelB, labelC))
 		server.TrackerFactory().Label().CreateOrUpdate(labelA)

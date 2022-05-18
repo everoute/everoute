@@ -835,8 +835,8 @@ func schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref common.ReferenceCallba
 				Properties: map[string]spec.Schema{
 					"endpointSelector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "EndpointSelector selects endpoints. This field follows standard label selector semantics; if present but empty, it selects all endpoints.\n\nIf NamespaceSelector is set, then the EndpointGroup would select the endpoints matching EndpointSelector in the Namespaces selected by NamespaceSelector. If Namespace is set, then the EndpointGroup would select the endpoints matching EndpointSelector in the specific Namespace. If neither of NamespaceSelector or Namespace set, then the EndpointGroup would select the endpoints in all namespaces.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+							Description: "EndpointSelector selects endpoints. This field follows extend label selector semantics; if present but empty, it selects all endpoints.\n\nIf NamespaceSelector is set, then the EndpointGroup would select the endpoints matching EndpointSelector in the Namespaces selected by NamespaceSelector. If Namespace is set, then the EndpointGroup would select the endpoints matching EndpointSelector in the specific Namespace. If neither of NamespaceSelector or Namespace set, then the EndpointGroup would select the endpoints in all namespaces.",
+							Ref:         ref("github.com/everoute/everoute/pkg/labels.Selector"),
 						},
 					},
 					"namespaceSelector": {
@@ -861,7 +861,7 @@ func schema_pkg_apis_group_v1alpha1_EndpointGroupSpec(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamespacedName", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamespacedName", "github.com/everoute/everoute/pkg/labels.Selector", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 
@@ -1203,15 +1203,15 @@ func schema_pkg_apis_security_v1alpha1_ApplyToPeer(ref common.ReferenceCallback)
 					},
 					"endpointSelector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "EndpointSelector selects endpoints. This field follows standard label selector semantics; if present but empty, it selects all endpoints.\n\nIf EndpointSelector is set, then the SecurityPolicy would apply to the endpoints matching EndpointSelector in the SecurityPolicy Namespace. If this field is set then neither of the other fields can be.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+							Description: "EndpointSelector selects endpoints. This field follows extend label selector semantics; if present but empty, it selects all endpoints.\n\nIf EndpointSelector is set, then the SecurityPolicy would apply to the endpoints matching EndpointSelector in the SecurityPolicy Namespace. If this field is set then neither of the other fields can be.",
+							Ref:         ref("github.com/everoute/everoute/pkg/labels.Selector"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/everoute/everoute/pkg/labels.Selector"},
 	}
 }
 
@@ -1349,6 +1349,28 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 							Description: "VID describe the endpoint in which VLAN",
 							Type:        []string{"integer"},
 							Format:      "int64",
+						},
+					},
+					"extendLabels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ExtendLabels contains extend labels of endpoint. Each key in the labels could have multiple values, but at least one should be specified. The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type: []string{"array"},
+										Items: &spec.SchemaOrArray{
+											Schema: &spec.Schema{
+												SchemaProps: spec.SchemaProps{
+													Type:   []string{"string"},
+													Format: "",
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 					"reference": {
@@ -1726,8 +1748,8 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPeer(ref common.ReferenceCa
 					},
 					"endpointSelector": {
 						SchemaProps: spec.SchemaProps{
-							Description: "EndpointSelector selects endpoints. This field follows standard label selector semantics; if present but empty, it selects all endpoints.\n\nIf NamespaceSelector is also set, then the Rule would select the endpoints matching EndpointSelector in the Namespaces selected by NamespaceSelector. Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+							Description: "EndpointSelector selects endpoints. This field follows extend label selector semantics; if present but empty, it selects all endpoints.\n\nIf NamespaceSelector is also set, then the Rule would select the endpoints matching EndpointSelector in the Namespaces selected by NamespaceSelector. Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.",
+							Ref:         ref("github.com/everoute/everoute/pkg/labels.Selector"),
 						},
 					},
 					"namespaceSelector": {
@@ -1740,7 +1762,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPeer(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamespacedName", "k8s.io/api/networking/v1.IPBlock", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamespacedName", "github.com/everoute/everoute/pkg/labels.Selector", "k8s.io/api/networking/v1.IPBlock", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 

@@ -42,6 +42,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
+	"github.com/everoute/everoute/pkg/labels"
 )
 
 // CRDValidate maintains list of validator for validate everoute objects.
@@ -205,19 +206,10 @@ type resourceValidator struct {
 type endpointValidator resourceValidator
 
 func (v endpointValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
-	endpoint := curObj.(*securityv1alpha1.Endpoint)
-
-	if endpoint.Spec.Reference.ExternalIDName == "" || endpoint.Spec.Reference.ExternalIDValue == "" {
-		return "create endpoint with empty id not allowed", false
+	err := v.validateEndpoint(curObj.(*securityv1alpha1.Endpoint))
+	if err != nil {
+		return err.Error(), false
 	}
-
-	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDName, ctrltypes.Separator) {
-		return "externalIDName contains rune / not allow", false
-	}
-	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDValue, ctrltypes.Separator) {
-		return "externalIDValue contains rune / not allow", false
-	}
-
 	return "", true
 }
 
@@ -228,11 +220,29 @@ func (v endpointValidator) updateValidate(oldObj, curObj runtime.Object, userInf
 	if curEndpoint.Spec.Reference != oldEndpoint.Spec.Reference {
 		return "update endpoint externalID not allowed", false
 	}
+	err := v.validateEndpoint(curEndpoint)
+	if err != nil {
+		return err.Error(), false
+	}
 	return "", true
 }
 
 func (v endpointValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	return "", true
+}
+
+func (v *endpointValidator) validateEndpoint(endpoint *securityv1alpha1.Endpoint) error {
+	if endpoint.Spec.Reference.ExternalIDName == "" || endpoint.Spec.Reference.ExternalIDValue == "" {
+		return fmt.Errorf("endpoint with empty not allowed")
+	}
+	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDName, ctrltypes.Separator) {
+		return fmt.Errorf("externalIDName contains rune / not allow")
+	}
+	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDValue, ctrltypes.Separator) {
+		return fmt.Errorf("externalIDValue contains rune / not allow")
+	}
+	_, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels)
+	return err
 }
 
 type endpointGroupValidator resourceValidator
@@ -268,10 +278,12 @@ func (v endpointGroupValidator) validateGroupSpec(spec *groupv1alpha1.EndpointGr
 		return fmt.Errorf("NamespaceSelector and Namespace cannot be set at the same time")
 	}
 
-	errs := metav1validation.ValidateLabelSelector(spec.EndpointSelector, field.NewPath("EndpointSelector"))
-	allErrs = append(allErrs, errs...)
+	valid, message := spec.EndpointSelector.IsValid()
+	if !valid {
+		allErrs = append(allErrs, &field.Error{Type: field.ErrorTypeInvalid, Detail: message})
+	}
 
-	errs = metav1validation.ValidateLabelSelector(spec.NamespaceSelector, field.NewPath("NamespaceSelector"))
+	errs := metav1validation.ValidateLabelSelector(spec.NamespaceSelector, field.NewPath("NamespaceSelector"))
 	allErrs = append(allErrs, errs...)
 
 	return allErrs.ToAggregate()
@@ -341,9 +353,9 @@ func (v *securityPolicyValidator) validateAppliedTo(appliedTo []securityv1alpha1
 			}
 		}
 		if peer.EndpointSelector != nil {
-			errs := metav1validation.ValidateLabelSelector(peer.EndpointSelector, field.NewPath("EndpointSelector"))
-			if len(errs) != 0 {
-				return fmt.Errorf("%+v not a available selector: %+v", peer.EndpointSelector, errs)
+			valid, message := peer.EndpointSelector.IsValid()
+			if !valid {
+				return fmt.Errorf("%+v not a available selector: %s", peer.EndpointSelector, message)
 			}
 		}
 	}
@@ -426,11 +438,9 @@ func (v *securityPolicyValidator) validateRulePeer(peer *securityv1alpha1.Securi
 		return fmt.Errorf("at least one field should be set in SecurityPolicyPeer")
 	}
 
-	if peer.EndpointSelector != nil {
-		errs := metav1validation.ValidateLabelSelector(peer.EndpointSelector, field.NewPath("EndpointSelector"))
-		if len(errs) != 0 {
-			return fmt.Errorf("%+v not a available selector: %+v", peer.EndpointSelector, errs)
-		}
+	valid, message := peer.EndpointSelector.IsValid()
+	if !valid {
+		return fmt.Errorf("%+v not a available selector: %s", peer.EndpointSelector, message)
 	}
 
 	if peer.NamespaceSelector != nil {

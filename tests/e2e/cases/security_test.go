@@ -26,13 +26,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/tests/e2e/framework/matcher"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
@@ -52,22 +52,22 @@ var _ = Describe("SecurityPolicy", func() {
 	//
 	Context("environment with endpoints provide public http service [Feature:TCP] [Feature:ICMP]", func() {
 		var nginx, server01, server02, db01, db02, client *model.Endpoint
-		var nginxSelector, serverSelector, dbSelector *metav1.LabelSelector
+		var nginxSelector, serverSelector, dbSelector *labels.Selector
 		var nginxPort, serverPort, dbPort int
 
 		BeforeEach(func() {
 			nginxPort, serverPort, dbPort = 443, 443, 3306
 
-			nginx = &model.Endpoint{Name: "nginx", TCPPort: nginxPort, Labels: map[string]string{"component": "nginx"}}
-			server01 = &model.Endpoint{Name: "server01", TCPPort: serverPort, Labels: map[string]string{"component": "webserver"}}
-			server02 = &model.Endpoint{Name: "server02", TCPPort: serverPort, Labels: map[string]string{"component": "webserver"}}
-			db01 = &model.Endpoint{Name: "db01", TCPPort: dbPort, Labels: map[string]string{"component": "database"}}
-			db02 = &model.Endpoint{Name: "db02", TCPPort: dbPort, Labels: map[string]string{"component": "database"}}
+			nginx = &model.Endpoint{Name: "nginx", TCPPort: nginxPort, Labels: map[string][]string{"component": {"nginx"}}}
+			server01 = &model.Endpoint{Name: "server01", TCPPort: serverPort, Labels: map[string][]string{"component": {"webserver"}}}
+			server02 = &model.Endpoint{Name: "server02", TCPPort: serverPort, Labels: map[string][]string{"component": {"webserver"}}}
+			db01 = &model.Endpoint{Name: "db01", TCPPort: dbPort, Labels: map[string][]string{"component": {"database"}}}
+			db02 = &model.Endpoint{Name: "db02", TCPPort: dbPort, Labels: map[string][]string{"component": {"database"}}}
 			client = &model.Endpoint{Name: "client"}
 
-			nginxSelector = newSelector(map[string]string{"component": "nginx"})
-			serverSelector = newSelector(map[string]string{"component": "webserver"})
-			dbSelector = newSelector(map[string]string{"component": "database"})
+			nginxSelector = newSelector(map[string][]string{"component": {"nginx"}})
+			serverSelector = newSelector(map[string][]string{"component": {"webserver"}})
+			dbSelector = newSelector(map[string][]string{"component": {"database"}})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, nginx, server01, server02, db01, db02, client)).Should(Succeed())
 		})
@@ -109,7 +109,7 @@ var _ = Describe("SecurityPolicy", func() {
 				var db03 *model.Endpoint
 
 				BeforeEach(func() {
-					db03 = &model.Endpoint{Name: "db03", TCPPort: 3306, Labels: map[string]string{"component": "database"}}
+					db03 = &model.Endpoint{Name: "db03", TCPPort: 3306, Labels: map[string][]string{"component": {"database"}}}
 					Expect(e2eEnv.EndpointManager().SetupMany(ctx, db03)).Should(Succeed())
 				})
 
@@ -143,7 +143,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 			When("remove endpoint from the webserver group", func() {
 				BeforeEach(func() {
-					server02.Labels = map[string]string{}
+					server02.Labels = map[string][]string{}
 					Expect(e2eEnv.EndpointManager().UpdateMany(ctx, server02)).Should(Succeed())
 				})
 
@@ -207,8 +207,8 @@ var _ = Describe("SecurityPolicy", func() {
 
 	Context("endpoint isolation [Feature:ISOLATION]", func() {
 		var ep01, ep02, ep03, ep04 *model.Endpoint
-		var forensicGroup *metav1.LabelSelector
-		var forensicGroup2 *metav1.LabelSelector
+		var forensicGroup *labels.Selector
+		var forensicGroup2 *labels.Selector
 		var tcpPort int
 
 		BeforeEach(func() {
@@ -222,8 +222,8 @@ var _ = Describe("SecurityPolicy", func() {
 			ep03 = &model.Endpoint{Name: "ep03", TCPPort: tcpPort}
 			ep04 = &model.Endpoint{Name: "ep04", TCPPort: tcpPort}
 
-			forensicGroup = newSelector(map[string]string{"component": "forensic"})
-			forensicGroup2 = newSelector(map[string]string{"component": "forensic2"})
+			forensicGroup = newSelector(map[string][]string{"component": {"forensic"}})
+			forensicGroup2 = newSelector(map[string][]string{"component": {"forensic2"}})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ep01, ep02, ep03, ep04)).Should(Succeed())
 		})
@@ -267,7 +267,7 @@ var _ = Describe("SecurityPolicy", func() {
 				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				// set ep02 as forensic endpoint
-				ep02.Labels = map[string]string{"component": "forensic"}
+				ep02.Labels = map[string][]string{"component": {"forensic"}}
 
 				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep02)).Should(Succeed())
 				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy1, forensicPolicy2)).Should(Succeed())
@@ -327,7 +327,7 @@ var _ = Describe("SecurityPolicy", func() {
 				forensicPolicy2.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 				// set ep02 as forensic endpoint
-				ep01.Labels = map[string]string{"component": "forensic"}
+				ep01.Labels = map[string][]string{"component": {"forensic"}}
 
 				Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep01)).Should(Succeed())
 				Expect(e2eEnv.SetupObjects(ctx, forensicPolicy1, forensicPolicy2)).Should(Succeed())
@@ -365,7 +365,7 @@ var _ = Describe("SecurityPolicy", func() {
 					forensicPolicy4.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
 
 					// set ep02 as forensic endpoint
-					ep02.Labels = map[string]string{"component": "forensic2"}
+					ep02.Labels = map[string][]string{"component": {"forensic2"}}
 
 					Expect(e2eEnv.EndpointManager().UpdateMany(ctx, ep02)).Should(Succeed())
 					Expect(e2eEnv.SetupObjects(ctx, forensicPolicy3, forensicPolicy4)).Should(Succeed())
@@ -404,7 +404,7 @@ var _ = Describe("SecurityPolicy", func() {
 	//
 	Context("environment with endpoints provide internal udp service [Feature:UDP] [Feature:IPBlocks]", func() {
 		var ntp01, ntp02, client01, client02 *model.Endpoint
-		var ntpProductionSelector, ntpDevelopmentSelector *metav1.LabelSelector
+		var ntpProductionSelector, ntpDevelopmentSelector *labels.Selector
 
 		var ntpPort int
 		var productionCidr, developmentCidr string
@@ -416,11 +416,11 @@ var _ = Describe("SecurityPolicy", func() {
 
 			client01 = &model.Endpoint{Name: "ntp-client01", ExpectSubnet: productionCidr}
 			client02 = &model.Endpoint{Name: "ntp-client02", ExpectSubnet: developmentCidr}
-			ntp01 = &model.Endpoint{Name: "ntp01-server", ExpectSubnet: productionCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "production"}}
-			ntp02 = &model.Endpoint{Name: "ntp02-server", ExpectSubnet: developmentCidr, UDPPort: ntpPort, Labels: map[string]string{"component": "ntp", "env": "development"}}
+			ntp01 = &model.Endpoint{Name: "ntp01-server", ExpectSubnet: productionCidr, UDPPort: ntpPort, Labels: map[string][]string{"component": {"ntp"}, "env": {"production"}}}
+			ntp02 = &model.Endpoint{Name: "ntp02-server", ExpectSubnet: developmentCidr, UDPPort: ntpPort, Labels: map[string][]string{"component": {"ntp"}, "env": {"development"}}}
 
-			ntpProductionSelector = newSelector(map[string]string{"component": "ntp", "env": "production"})
-			ntpDevelopmentSelector = newSelector(map[string]string{"component": "ntp", "env": "development"})
+			ntpProductionSelector = newSelector(map[string][]string{"component": {"ntp"}, "env": {"production"}})
+			ntpDevelopmentSelector = newSelector(map[string][]string{"component": {"ntp"}, "env": {"development"}})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ntp01, ntp02, client01, client02)).Should(Succeed())
 		})
@@ -462,7 +462,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 	Context("Complicated securityPolicy definition that contains semanticly conflict policyrules", func() {
 		var group1Endpoint1, group2Endpoint01, group3Endpoint01 *model.Endpoint
-		var group1, group2, group3 *metav1.LabelSelector
+		var group1, group2, group3 *labels.Selector
 		var epTCPPort int
 
 		BeforeEach(func() {
@@ -471,22 +471,22 @@ var _ = Describe("SecurityPolicy", func() {
 			group1Endpoint1 = &model.Endpoint{
 				Name:    "group1-ep01",
 				TCPPort: epTCPPort,
-				Labels:  map[string]string{"group": "group1"},
+				Labels:  map[string][]string{"group": {"group1"}},
 			}
 			group2Endpoint01 = &model.Endpoint{
 				Name:    "group2-ep01",
 				TCPPort: epTCPPort,
-				Labels:  map[string]string{"group": "group2"},
+				Labels:  map[string][]string{"group": {"group2"}},
 			}
 			group3Endpoint01 = &model.Endpoint{
 				Name:    "group3-ep01",
 				TCPPort: epTCPPort,
-				Labels:  map[string]string{"group": "group3"},
+				Labels:  map[string][]string{"group": {"group3"}},
 			}
 
-			group1 = newSelector(map[string]string{"group": "group1"})
-			group2 = newSelector(map[string]string{"group": "group2"})
-			group3 = newSelector(map[string]string{"group": "group3"})
+			group1 = newSelector(map[string][]string{"group": {"group1"}})
+			group2 = newSelector(map[string][]string{"group": {"group2"}})
+			group3 = newSelector(map[string][]string{"group": {"group3"}})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, group1Endpoint1, group2Endpoint01, group3Endpoint01)).Should(Succeed())
 		})
@@ -531,7 +531,7 @@ var _ = Describe("SecurityPolicy", func() {
 
 	// This case would setup endpoints in random vlan, and check reachable between them.
 	Context("environment with endpoints from specify vlan [Feature:VLAN]", func() {
-		var groupA, groupB *metav1.LabelSelector
+		var groupA, groupB *labels.Selector
 		var endpointA, endpointB, endpointC *model.Endpoint
 		var tcpPort, vlanID int
 
@@ -539,12 +539,56 @@ var _ = Describe("SecurityPolicy", func() {
 			tcpPort = rand.IntnRange(1000, 5000)
 			vlanID = rand.IntnRange(0, 4095)
 
-			endpointA = &model.Endpoint{Name: "ep.a", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gx"}}
-			endpointB = &model.Endpoint{Name: "ep.b", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gy"}}
-			endpointC = &model.Endpoint{Name: "ep.c", VID: vlanID, TCPPort: tcpPort, Labels: map[string]string{"group": "gz"}}
+			endpointA = &model.Endpoint{Name: "ep.a", VID: vlanID, TCPPort: tcpPort, Labels: map[string][]string{"group": {"gx"}}}
+			endpointB = &model.Endpoint{Name: "ep.b", VID: vlanID, TCPPort: tcpPort, Labels: map[string][]string{"group": {"gy"}}}
+			endpointC = &model.Endpoint{Name: "ep.c", VID: vlanID, TCPPort: tcpPort, Labels: map[string][]string{"group": {"gz"}}}
 
-			groupA = newSelector(map[string]string{"group": "gx"})
-			groupB = newSelector(map[string]string{"group": "gy"})
+			groupA = newSelector(map[string][]string{"group": {"gx"}})
+			groupB = newSelector(map[string][]string{"group": {"gy"}})
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
+		})
+
+		When("limits tcp packets between components", func() {
+			var groupPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				// allow traffic from groupA to groupB
+				groupPolicy = newPolicy("group-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, groupA)
+				addEngressRule(groupPolicy, "TCP", tcpPort, groupB)
+				Expect(e2eEnv.SetupObjects(ctx, groupPolicy)).Should(Succeed())
+			})
+
+			It("should allow normal packets and limits illegal packets", func() {
+				securityModel := &SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{groupPolicy},
+					Endpoints: []*model.Endpoint{endpointA, endpointB, endpointC},
+				}
+
+				By("verify reachable between endpoints")
+				expectedTruthTable := securityModel.NewEmptyTruthTable(true)
+				expectedTruthTable.SetAllFrom(endpointA.Name, false)
+				expectedTruthTable.SetAllTo(endpointA.Name, false)
+				expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
+				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
+			})
+		})
+	})
+
+	Context("environment with endpoints has multiple labels with same key [Feature:ExtendLabels]", func() {
+		var groupA, groupB *labels.Selector
+		var endpointA, endpointB, endpointC *model.Endpoint
+		var tcpPort int
+
+		BeforeEach(func() {
+			tcpPort = rand.IntnRange(1000, 5000)
+
+			endpointA = &model.Endpoint{Name: "ep.a", TCPPort: tcpPort, Labels: map[string][]string{"@中文标签": {"&单标签值"}}}
+			endpointB = &model.Endpoint{Name: "ep.b", TCPPort: tcpPort, Labels: map[string][]string{"@中文标签": {"?@!#@@$$$"}}}
+			endpointC = &model.Endpoint{Name: "ep.c", TCPPort: tcpPort, Labels: map[string][]string{"@中文标签": {"?@!#@@$$$", "=>多标签值"}}}
+
+			groupA = newSelector(map[string][]string{"@中文标签": {"&单标签值"}})
+			groupB = newSelector(map[string][]string{"@中文标签": {"?@!#@@$$$"}})
 
 			Expect(e2eEnv.EndpointManager().SetupMany(ctx, endpointA, endpointB, endpointC)).Should(Succeed())
 		})
@@ -719,9 +763,9 @@ var _ = Describe("GlobalPolicy", func() {
 	})
 })
 
-func newSelector(selector map[string]string) *metav1.LabelSelector {
-	return &metav1.LabelSelector{
-		MatchLabels: selector,
+func newSelector(selector map[string][]string) *labels.Selector {
+	return &labels.Selector{
+		ExtendMatchLabels: selector,
 	}
 }
 
@@ -739,7 +783,7 @@ func newPolicy(name, tier string, defaultRule securityv1alpha1.DefaultRuleType, 
 	for _, appliedPeer := range appliedPeers {
 		switch peer := appliedPeer.(type) {
 
-		case *metav1.LabelSelector:
+		case *labels.Selector:
 			policy.Spec.AppliedTo = append(policy.Spec.AppliedTo, securityv1alpha1.ApplyToPeer{
 				EndpointSelector: peer,
 			})
@@ -793,7 +837,7 @@ func getPolicyPeer(policyPeers ...interface{}) []securityv1alpha1.SecurityPolicy
 	for _, policyPeer := range policyPeers {
 		switch peer := policyPeer.(type) {
 
-		case *metav1.LabelSelector:
+		case *labels.Selector:
 			peerList = append(peerList, securityv1alpha1.SecurityPolicyPeer{
 				EndpointSelector: peer,
 			})
