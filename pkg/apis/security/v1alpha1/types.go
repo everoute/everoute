@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -109,14 +110,14 @@ type ApplyToPeer struct {
 	// +optional
 	Endpoint *string `json:"endpoint,omitempty"`
 
-	// EndpointSelector selects endpoints. This field follows standard label
+	// EndpointSelector selects endpoints. This field follows extend label
 	// selector semantics; if present but empty, it selects all endpoints.
 	//
 	// If EndpointSelector is set, then the SecurityPolicy would apply to the
 	// endpoints matching EndpointSelector in the SecurityPolicy Namespace.
 	// If this field is set then neither of the other fields can be.
 	// +optional
-	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
+	EndpointSelector *labels.Selector `json:"endpointSelector,omitempty"`
 }
 
 // Rule describes a particular set of traffic that is allowed from/to the endpoints
@@ -165,14 +166,14 @@ type SecurityPolicyPeer struct {
 	// +optional
 	Endpoint *NamespacedName `json:"endpoint,omitempty"`
 
-	// EndpointSelector selects endpoints. This field follows standard label
+	// EndpointSelector selects endpoints. This field follows extend label
 	// selector semantics; if present but empty, it selects all endpoints.
 	//
 	// If NamespaceSelector is also set, then the Rule would select the endpoints
 	// matching EndpointSelector in the Namespaces selected by NamespaceSelector.
 	// Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
 	// +optional
-	EndpointSelector *metav1.LabelSelector `json:"endpointSelector,omitempty"`
+	EndpointSelector *labels.Selector `json:"endpointSelector,omitempty"`
 
 	// NamespaceSelector selects namespaces. This field follows standard label
 	// selector semantics; if present but empty, it selects all namespaces.
@@ -237,10 +238,10 @@ type SecurityPolicyList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="ExternalName",type="string",JSONPath=".spec.reference.externalIDName"
-// +kubebuilder:printcolumn:name="ExternalValue",type="string",JSONPath=".spec.reference.externalIDValue"
-// +kubebuilder:printcolumn:name="IPAddr",type="string",JSONPath=".status.ips"
-// +kubebuilder:printcolumn:name="MAC",type="string",JSONPath=".status.macAddress"
+// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".spec.reference.externalIDName"
+// +kubebuilder:printcolumn:name="EXTERNAL-VALUE",type="string",JSONPath=".spec.reference.externalIDValue"
+// +kubebuilder:printcolumn:name="IPADDR",type="string",JSONPath=".status.ips"
+// +kubebuilder:printcolumn:name="EXTEND-LABELS",type="string",JSONPath=".spec.extendLabels"
 
 // Endpoint is a network communication entity. It's provided by the endpoint provider,
 // it could be a virtual network interface, a pod, an ovs port or other entities.
@@ -270,6 +271,12 @@ const (
 type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
 	VID uint32 `json:"vid"`
+
+	// ExtendLabels contains extend labels of endpoint. Each key in the labels
+	// could have multiple values, but at least one should be specified.
+	// The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.
+	// +optional
+	ExtendLabels map[string][]string `json:"extendLabels,omitempty"`
 
 	// Reference of an endpoint, also the external_id of an ovs interface.
 	// We map between endpoint and ovs interface use the Reference.

@@ -21,14 +21,13 @@ import (
 	"net"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 
 	policyagent "github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
 
@@ -118,11 +117,11 @@ func (m *SecurityModel) getPeerIPs(peer *securityv1alpha1.SecurityPolicyPeer) []
 }
 
 func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model.Endpoint) []*model.Endpoint {
-	var selector, _ = metav1.LabelSelectorAsSelector(peer.EndpointSelector)
 	var matchEp []*model.Endpoint
 
 	for _, ep := range endpoints {
-		if selector.Matches(labels.Set(ep.Labels)) {
+		labelsSet, _ := labels.AsSet(nil, ep.Labels)
+		if peer.EndpointSelector.Matches(labelsSet) {
 			matchEp = append(matchEp, ep)
 		}
 		if peer.Endpoint != nil && peer.Endpoint.Name == ep.Name {

@@ -19,6 +19,7 @@ require (
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
+	github.com/google/go-cmp v0.5.5
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2

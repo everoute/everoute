@@ -42,7 +42,7 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
-	go test ./plugin/tower/pkg/controller/... ./pkg/... -v
+	go test ./plugin/tower/pkg/controller/... ./pkg/...
 
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
@@ -72,6 +72,7 @@ codegen: manifests
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
 		--api-versions security/v1alpha1
+	deepcopy-gen --go-header-file hack/boilerplate.go.txt -O zz_generated.deepcopy --input-dirs ./pkg/labels/...
 
 # Generate plugin-tower gql codes
 gqlgen:

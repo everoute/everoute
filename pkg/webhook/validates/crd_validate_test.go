@@ -33,6 +33,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 )
 
 func init() {
@@ -71,7 +72,7 @@ var initObject = func() {
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier: constants.Tier1,
 			AppliedTo: []securityv1alpha1.ApplyToPeer{{
-				EndpointSelector: &metav1.LabelSelector{},
+				EndpointSelector: &labels.Selector{},
 			}},
 			IngressRules: []securityv1alpha1.Rule{
 				{
@@ -104,7 +105,7 @@ var initObject = func() {
 		Spec: securityv1alpha1.SecurityPolicySpec{
 			Tier: constants.Tier1,
 			AppliedTo: []securityv1alpha1.ApplyToPeer{{
-				EndpointSelector: &metav1.LabelSelector{},
+				EndpointSelector: &labels.Selector{},
 			}},
 			EgressRules: []securityv1alpha1.Rule{
 				{
@@ -159,9 +160,11 @@ var initObject = func() {
 			},
 		},
 		Spec: groupv1alpha1.EndpointGroupSpec{
-			EndpointSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"key1": "value1",
+			EndpointSelector: &labels.Selector{
+				LabelSelector: metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"key1": "value1",
+					},
 				},
 			},
 		},
@@ -178,11 +181,13 @@ var initObject = func() {
 			},
 		},
 		Spec: groupv1alpha1.EndpointGroupSpec{
-			EndpointSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      "key2",
-						Operator: metav1.LabelSelectorOpExists,
+			EndpointSelector: &labels.Selector{
+				LabelSelector: metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "key2",
+							Operator: metav1.LabelSelectorOpExists,
+						},
 					},
 				},
 			},
@@ -280,7 +285,7 @@ var _ = Describe("CRD Validate", func() {
 		It("Create EndpointGroup with wrong selector should not allowed", func() {
 			endpointGroup := endpointGroupA.DeepCopy()
 			endpointGroup.Name = "endpointgroup"
-			endpointGroup.Spec.EndpointSelector.MatchLabels["&$XXXX"] = "^*xxxxx"
+			endpointGroup.Spec.EndpointSelector.ExtendMatchLabels = map[string][]string{"foo": {}}
 			Expect(validate.Validate(fakeAdmissionReview(endpointGroup, nil, "")).Allowed).Should(BeFalse())
 		})
 		It("Create EndpointGroup with both Namespace and NamespaceSelector set should not allowed", func() {
@@ -311,6 +316,13 @@ var _ = Describe("CRD Validate", func() {
 			endpointB.Spec.Reference.ExternalIDName = ""
 			Expect(validate.Validate(fakeAdmissionReview(endpointB, nil, "")).Allowed).Should(BeFalse())
 		})
+		It("Create endpoint with invalid labels should not allow", func() {
+			endpointB := endpointA.DeepCopy()
+			endpointB.Name = "endpointB"
+			endpointB.Labels = map[string]string{"foo": "bar"}
+			endpointB.Spec.ExtendLabels = map[string][]string{"foo": {"bar", "baz"}}
+			Expect(validate.Validate(fakeAdmissionReview(endpointB, nil, "")).Allowed).Should(BeFalse())
+		})
 		It("Create validate endpoint should allowed", func() {
 			endpointB := endpointA.DeepCopy()
 			endpointB.Name = "endpointB"
@@ -319,6 +331,12 @@ var _ = Describe("CRD Validate", func() {
 		It("Update endpoint id should not allowed", func() {
 			endpointB := endpointA.DeepCopy()
 			endpointB.Spec.Reference.ExternalIDValue = "update-id-value"
+			Expect(validate.Validate(fakeAdmissionReview(endpointB, endpointA, "")).Allowed).Should(BeFalse())
+		})
+		It("Update endpoint with invalid labels should not allow", func() {
+			endpointB := endpointA.DeepCopy()
+			endpointB.Labels = map[string]string{"foo": "bar"}
+			endpointB.Spec.ExtendLabels = map[string][]string{"foo": {"bar", "baz"}}
 			Expect(validate.Validate(fakeAdmissionReview(endpointB, endpointA, "")).Allowed).Should(BeFalse())
 		})
 		It("Delete endpoint should always allowed", func() {
@@ -360,10 +378,8 @@ var _ = Describe("CRD Validate", func() {
 			})
 			It("Create policy with error format of applied to peer EndpointSelector should not allowed", func() {
 				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
-					EndpointSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"label.key": "@error$format%label",
-						},
+					EndpointSelector: &labels.Selector{
+						ExtendMatchLabels: map[string][]string{"foo": {}},
 					},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
@@ -375,7 +391,7 @@ var _ = Describe("CRD Validate", func() {
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 
 				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
-					EndpointSelector: &metav1.LabelSelector{},
+					EndpointSelector: &labels.Selector{},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 			})
@@ -417,7 +433,7 @@ var _ = Describe("CRD Validate", func() {
 			It("Create policy with error fields set in SecurityPolicyPeer should not allowed", func() {
 				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
 					IPBlock:          &networkingv1.IPBlock{CIDR: "0.0.0.0/0"},
-					EndpointSelector: &metav1.LabelSelector{},
+					EndpointSelector: &labels.Selector{},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 
@@ -426,7 +442,7 @@ var _ = Describe("CRD Validate", func() {
 						Name:      endpointA.GetName(),
 						Namespace: endpointA.GetNamespace(),
 					},
-					EndpointSelector: &metav1.LabelSelector{},
+					EndpointSelector: &labels.Selector{},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 			})
@@ -449,7 +465,7 @@ var _ = Describe("CRD Validate", func() {
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 
 				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
-					EndpointSelector: &metav1.LabelSelector{},
+					EndpointSelector: &labels.Selector{},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 
@@ -459,7 +475,7 @@ var _ = Describe("CRD Validate", func() {
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 
 				policy.Spec.IngressRules[0].From[0] = securityv1alpha1.SecurityPolicyPeer{
-					EndpointSelector:  &metav1.LabelSelector{},
+					EndpointSelector:  &labels.Selector{},
 					NamespaceSelector: &metav1.LabelSelector{},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())

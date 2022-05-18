@@ -65,13 +65,21 @@ spec:
                       type: string
                     endpointSelector:
                       description: "EndpointSelector selects endpoints. This field
-                        follows standard label selector semantics; if present but
-                        empty, it selects all endpoints. \n If EndpointSelector is
-                        set, then the SecurityPolicy would apply to the endpoints
-                        matching EndpointSelector in the SecurityPolicy Namespace.
-                        If this field is set then neither of the other fields can
-                        be."
+                        follows extend label selector semantics; if present but empty,
+                        it selects all endpoints. \n If EndpointSelector is set, then
+                        the SecurityPolicy would apply to the endpoints matching EndpointSelector
+                        in the SecurityPolicy Namespace. If this field is set then
+                        neither of the other fields can be."
                       properties:
+                        extendMatchLabels:
+                          additionalProperties:
+                            items:
+                              type: string
+                            type: array
+                          description: 'ExtendMatchLabels allows match labels with
+                            the same key but different value. e.g. {key: [value1,
+                            value2]} matches labels: {key: value1, key: value2}'
+                          type: object
                         matchExpressions:
                           description: matchExpressions is a list of label selector
                             requirements. The requirements are ANDed.
@@ -165,13 +173,23 @@ spec:
                             type: object
                           endpointSelector:
                             description: "EndpointSelector selects endpoints. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all endpoints. \n If NamespaceSelector
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
                               is also set, then the Rule would select the endpoints
                               matching EndpointSelector in the Namespaces selected
                               by NamespaceSelector. Otherwise, it selects the Endpoints
                               matching EndpointSelector in the policy's own Namespace."
                             properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [value1, value2]} matches labels: {key: value1,
+                                  key: value2}'
+                                type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
@@ -358,13 +376,23 @@ spec:
                             type: object
                           endpointSelector:
                             description: "EndpointSelector selects endpoints. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all endpoints. \n If NamespaceSelector
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
                               is also set, then the Rule would select the endpoints
                               matching EndpointSelector in the Namespaces selected
                               by NamespaceSelector. Otherwise, it selects the Endpoints
                               matching EndpointSelector in the policy's own Namespace."
                             properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [value1, value2]} matches labels: {key: value1,
+                                  key: value2}'
+                                type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
@@ -526,13 +554,23 @@ spec:
                             type: object
                           endpointSelector:
                             description: "EndpointSelector selects endpoints. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all endpoints. \n If NamespaceSelector
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
                               is also set, then the Rule would select the endpoints
                               matching EndpointSelector in the Namespaces selected
                               by NamespaceSelector. Otherwise, it selects the Endpoints
                               matching EndpointSelector in the policy's own Namespace."
                             properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [value1, value2]} matches labels: {key: value1,
+                                  key: value2}'
+                                type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
@@ -719,13 +757,23 @@ spec:
                             type: object
                           endpointSelector:
                             description: "EndpointSelector selects endpoints. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all endpoints. \n If NamespaceSelector
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
                               is also set, then the Rule would select the endpoints
                               matching EndpointSelector in the Namespaces selected
                               by NamespaceSelector. Otherwise, it selects the Endpoints
                               matching EndpointSelector in the policy's own Namespace."
                             properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [value1, value2]} matches labels: {key: value1,
+                                  key: value2}'
+                                type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.

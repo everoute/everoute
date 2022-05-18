@@ -25,6 +25,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	labels "github.com/everoute/everoute/pkg/labels"
 	types "github.com/everoute/everoute/pkg/types"
 )
 
@@ -93,7 +94,7 @@ func (in *EndpointGroupSpec) DeepCopyInto(out *EndpointGroupSpec) {
 	*out = *in
 	if in.EndpointSelector != nil {
 		in, out := &in.EndpointSelector, &out.EndpointSelector
-		*out = new(v1.LabelSelector)
+		*out = new(labels.Selector)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.NamespaceSelector != nil {

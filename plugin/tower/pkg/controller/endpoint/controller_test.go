@@ -19,9 +19,10 @@ package endpoint_test
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,7 +76,7 @@ var _ = Describe("EndpointController", func() {
 			})
 			It("should create endpoint", func() {
 				assertEndpointsNum(ctx, 1)
-				assertHasEndpoint(ctx, vnic.GetID(), nil, vnic.InterfaceID)
+				assertHasEndpoint(ctx, matchDynamic(vnic.GetID(), vnic.InterfaceID, nil, nil))
 			})
 
 			When("delete vm", func() {
@@ -115,8 +116,8 @@ var _ = Describe("EndpointController", func() {
 			})
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 2)
-				assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
-				assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB), vnicB.InterfaceID)
+				assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
+				assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB), nil))
 			})
 
 			When("add vnic to vm", func() {
@@ -129,7 +130,7 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should create endpoints", func() {
 					assertEndpointsNum(ctx, 3)
-					assertHasEndpoint(ctx, newVNic.GetID(), AggregateLabels(labelA, labelB), newVNic.InterfaceID)
+					assertHasEndpoint(ctx, matchDynamic(newVNic.GetID(), newVNic.InterfaceID, AggregateLabels(labelA, labelB), nil))
 				})
 			})
 
@@ -141,7 +142,7 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should remove endpoint", func() {
 					assertEndpointsNum(ctx, 1)
-					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
+					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
 					assertNoEnpoint(ctx, vnicB.GetID())
 				})
 			})
@@ -154,8 +155,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB, labelC), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB, labelC), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB, labelC), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB, labelC), nil))
 				})
 			})
 
@@ -167,8 +168,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA), nil))
 				})
 			})
 
@@ -180,8 +181,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, vnicA.GetID(), AggregateLabels(labelA, labelB), vnicA.InterfaceID)
-					assertHasEndpoint(ctx, vnicB.GetID(), AggregateLabels(labelA, labelB), vnicB.InterfaceID)
+					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB), nil))
 				})
 			})
 
@@ -197,6 +198,52 @@ var _ = Describe("EndpointController", func() {
 			})
 		})
 
+	})
+
+	Context("has some invalid kubernetes labels", func() {
+		var labelA, labelB, labelC, labelD *schema.Label
+
+		BeforeEach(func() {
+			labelA = NewRandomLabel()
+			labelB = NewLabel("@中文标签", "@invalid-char")
+			labelC = NewLabel("@中文标签", "中文=>标签值？")
+			labelD = NewLabel("&^$*!@#3", "中文=>标签值？")
+
+			By(fmt.Sprintf("create labels: %+v, %+v, %+v, %+v", labelA, labelB, labelC, labelD))
+			server.TrackerFactory().Label().CreateOrUpdate(labelA)
+			server.TrackerFactory().Label().CreateOrUpdate(labelB)
+			server.TrackerFactory().Label().CreateOrUpdate(labelC)
+			server.TrackerFactory().Label().CreateOrUpdate(labelD)
+		})
+
+		When("create vm with multiple vnics and labels", func() {
+			var vm *schema.VM
+			var vnicA, vnicB *schema.VMNic
+
+			BeforeEach(func() {
+				vm = NewRandomVM()
+				vnicA = NewRandomVMNicAttachedTo(vm)
+				vnicB = NewRandomVMNicAttachedTo(vm)
+
+				labelA.VMs = append(labelA.VMs, schema.ObjectReference{ID: vm.GetID()})
+				labelB.VMs = append(labelA.VMs, schema.ObjectReference{ID: vm.GetID()})
+				labelC.VMs = append(labelC.VMs, schema.ObjectReference{ID: vm.GetID()})
+				labelD.VMs = append(labelD.VMs, schema.ObjectReference{ID: vm.GetID()})
+
+				By(fmt.Sprintf("create vm %+v and update labels: %+v, %+v, %+v, %+v", vm, labelA, labelB, labelC, labelD))
+				server.TrackerFactory().VM().CreateOrUpdate(vm)
+				server.TrackerFactory().Label().CreateOrUpdate(labelA)
+				server.TrackerFactory().Label().CreateOrUpdate(labelB)
+				server.TrackerFactory().Label().CreateOrUpdate(labelC)
+				server.TrackerFactory().Label().CreateOrUpdate(labelD)
+			})
+			It("should create endpoints", func() {
+				assertEndpointsNum(ctx, 2)
+				expectExtendLabels := map[string][]string{labelB.Key: {labelB.Value, labelC.Value}, labelD.Key: {labelD.Value}}
+				assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA), expectExtendLabels))
+				assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA), expectExtendLabels))
+			})
+		})
 	})
 })
 
@@ -226,8 +273,8 @@ var _ = Describe("SystemEndpointController", func() {
 			})
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 2)
-				assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[0].IP)
-				assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[1].IP)
+				assertHasEndpoint(ctx, matchStatic(randomSystemEndpoints.IPPortEndpoints[0].IP))
+				assertHasEndpoint(ctx, matchStatic(randomSystemEndpoints.IPPortEndpoints[1].IP))
 			})
 
 			When("update systemEndpoints", func() {
@@ -238,8 +285,8 @@ var _ = Describe("SystemEndpointController", func() {
 				})
 				It("should update related endpoints", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[0].IP)
-					assertHasStaticEndpoint(ctx, randomSystemEndpoints.IPPortEndpoints[1].IP)
+					assertHasEndpoint(ctx, matchStatic(randomSystemEndpoints.IPPortEndpoints[0].IP))
+					assertHasEndpoint(ctx, matchStatic(randomSystemEndpoints.IPPortEndpoints[1].IP))
 				})
 			})
 
@@ -264,9 +311,9 @@ var _ = Describe("SystemEndpointController", func() {
 			})
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 3)
-				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[0].IPAddr)
-				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[1].IPAddr)
-				assertHasStaticEndpoint(ctx, cluster.ControllerInstances[2].IPAddr)
+				assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[0].IPAddr))
+				assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[1].IPAddr))
+				assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[2].IPAddr))
 			})
 
 			When("update everouteCluster", func() {
@@ -277,9 +324,9 @@ var _ = Describe("SystemEndpointController", func() {
 				})
 				It("should update related endpoints", func() {
 					assertEndpointsNum(ctx, 3)
-					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[0].IPAddr)
-					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[1].IPAddr)
-					assertHasStaticEndpoint(ctx, cluster.ControllerInstances[2].IPAddr)
+					assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[0].IPAddr))
+					assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[1].IPAddr))
+					assertHasEndpoint(ctx, matchStatic(cluster.ControllerInstances[2].IPAddr))
 				})
 			})
 
@@ -352,16 +399,15 @@ func assertEndpointsNum(ctx context.Context, numOfEndpoints int) {
 	}, timeout, interval).Should(Equal(numOfEndpoints))
 }
 
-func assertHasEndpoint(ctx context.Context, epName string, labels map[string]string, externalIDValue string) {
+type matchEndpointFunc func(endpoint *v1alpha1.Endpoint) bool
+
+func assertHasEndpoint(ctx context.Context, matchFunc matchEndpointFunc) {
 	Eventually(func() bool {
 		endpointList, err := crdClient.SecurityV1alpha1().Endpoints(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		for _, endpoint := range endpointList.Items {
-			if endpoint.GetName() == epName &&
-				reflect.DeepEqual(endpoint.GetLabels(), labels) &&
-				endpoint.Spec.Reference.ExternalIDName == controller.ExternalIDName &&
-				endpoint.Spec.Reference.ExternalIDValue == externalIDValue {
+			if matchFunc(&endpoint) {
 				return true
 			}
 		}
@@ -369,19 +415,24 @@ func assertHasEndpoint(ctx context.Context, epName string, labels map[string]str
 	}, timeout, interval).Should(BeTrue())
 }
 
-func assertHasStaticEndpoint(ctx context.Context, ip string) {
-	Eventually(func() bool {
-		endpointList, err := crdClient.SecurityV1alpha1().Endpoints(namespace).List(ctx, metav1.ListOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
+func matchStatic(ip string) matchEndpointFunc {
+	return func(endpoint *v1alpha1.Endpoint) bool {
+		return len(endpoint.Status.IPs) == 1 &&
+			endpoint.Status.IPs[0].String() == ip &&
+			endpoint.Spec.Type == v1alpha1.EndpointStatic
+	}
+}
 
-		for _, endpoint := range endpointList.Items {
-			if endpoint.Status.IPs[0].String() == ip &&
-				endpoint.Spec.Type == v1alpha1.EndpointStatic {
-				return true
-			}
-		}
-		return false
-	}, timeout, interval).Should(BeTrue())
+func matchDynamic(epName, externalIDValue string, labels map[string]string, extendLabels map[string][]string) matchEndpointFunc {
+	lessFunc := func(x, y string) bool { return x < y }
+	return func(endpoint *v1alpha1.Endpoint) bool {
+		return endpoint.GetName() == epName &&
+			cmp.Equal(endpoint.GetLabels(), labels, cmpopts.EquateEmpty()) &&
+			cmp.Equal(endpoint.Spec.ExtendLabels, extendLabels, cmpopts.EquateEmpty(), cmpopts.SortSlices(lessFunc)) &&
+			endpoint.Spec.Reference.ExternalIDName == controller.ExternalIDName &&
+			endpoint.Spec.Reference.ExternalIDValue == externalIDValue &&
+			endpoint.Spec.Type == v1alpha1.EndpointDynamic
+	}
 }
 
 func assertNoEnpoint(ctx context.Context, epName string) {

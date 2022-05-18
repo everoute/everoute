@@ -38,6 +38,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 )
 
 // NetworkPolicyReconciler watch network policy and sync to security policy
@@ -154,7 +155,7 @@ func getSecurityPolicy(networkPolicy *networkingv1.NetworkPolicy) *v1alpha1.Secu
 			Tier:          constants.Tier2,
 			SymmetricMode: false,
 			AppliedTo: []v1alpha1.ApplyToPeer{{
-				EndpointSelector: networkPolicy.Spec.PodSelector.DeepCopy(),
+				EndpointSelector: labels.FromLabelSelector(networkPolicy.Spec.PodSelector.DeepCopy()),
 			}},
 			PolicyTypes: append([]networkingv1.PolicyType{}, networkPolicy.Spec.PolicyTypes...),
 		},
@@ -226,7 +227,7 @@ func getSecurityPolicyPeer(networkPolicyPeer []networkingv1.NetworkPolicyPeer) [
 	for _, peer := range networkPolicyPeer {
 		netPeer := v1alpha1.SecurityPolicyPeer{
 			IPBlock:           peer.IPBlock.DeepCopy(),
-			EndpointSelector:  peer.PodSelector.DeepCopy(),
+			EndpointSelector:  labels.FromLabelSelector(peer.PodSelector.DeepCopy()),
 			NamespaceSelector: peer.NamespaceSelector.DeepCopy(),
 		}
 		securityPolicyPeer = append(securityPolicyPeer, netPeer)

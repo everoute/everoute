@@ -33,6 +33,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -78,7 +79,7 @@ var _ = Describe("GroupController", func() {
 	Context("an endpointgroup has been created", func() {
 		var epGroup *groupv1alpha1.EndpointGroup
 		BeforeEach(func() {
-			epGroup = newTestEndpointGroup(map[string]string{"label.key": "label.value"}, nil, "")
+			epGroup = newTestEndpointGroup(map[string]string{"label.key": "label.value"}, nil, nil, "")
 
 			By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.EndpointSelector))
 			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
@@ -89,7 +90,7 @@ var _ = Describe("GroupController", func() {
 				var namespace = metav1.NamespaceDefault
 
 				BeforeEach(func() {
-					ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1", "agent1")
+					ep = newTestEndpoint(namespace, "192.168.1.1", "agent1", map[string]string{"label.key": "label.value"}, nil)
 
 					By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 					Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -108,7 +109,7 @@ var _ = Describe("GroupController", func() {
 			var namespace = metav1.NamespaceDefault
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(namespace, map[string]string{"label.key": "label.value"}, "192.168.1.1", "agent1")
+				ep = newTestEndpoint(namespace, "192.168.1.1", "agent1", map[string]string{"label.key": "label.value"}, nil)
 
 				By(fmt.Sprintf("create endpoint %s with labels %v", ep.Name, ep.Labels))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -259,7 +260,7 @@ var _ = Describe("GroupController", func() {
 			var epGroup *groupv1alpha1.EndpointGroup
 
 			BeforeEach(func() {
-				epGroup = newTestEndpointGroup(map[string]string{}, nil, "")
+				epGroup = newTestEndpointGroup(map[string]string{}, nil, nil, "")
 
 				By(fmt.Sprintf("create endpointgroup %s with selector %v", epGroup.Name, epGroup.Spec.EndpointSelector))
 				Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
@@ -286,7 +287,7 @@ var _ = Describe("GroupController", func() {
 		BeforeEach(func() {
 			endpointLabel = map[string]string{"label.key": "label.value"}
 			namespaceLabel = map[string]string{"label.key": "label.value"}
-			epGroup = newTestEndpointGroup(endpointLabel, namespaceLabel, "")
+			epGroup = newTestEndpointGroup(endpointLabel, nil, namespaceLabel, "")
 
 			By(fmt.Sprintf("create endpointgroup %s with spec %v", epGroup.Name, epGroup.Spec))
 			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
@@ -298,7 +299,7 @@ var _ = Describe("GroupController", func() {
 
 			BeforeEach(func() {
 				namespace = newTestNamespace(namespaceLabel)
-				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1", "agent1")
+				ep = newTestEndpoint(namespace.GetName(), "192.168.1.1", "agent1", endpointLabel, nil)
 
 				By(fmt.Sprintf("create namespace %s", namespace))
 				Expect(k8sClient.Create(ctx, namespace)).Should(Succeed())
@@ -344,7 +345,7 @@ var _ = Describe("GroupController", func() {
 		BeforeEach(func() {
 			endpointLabel = map[string]string{"label.key": "label.value"}
 			namespace = newTestNamespace(nil)
-			epGroup = newTestEndpointGroup(endpointLabel, nil, namespace.GetName())
+			epGroup = newTestEndpointGroup(endpointLabel, nil, nil, namespace.GetName())
 
 			By(fmt.Sprintf("create endpointgroup %s with spec %v", epGroup.Name, epGroup.Spec))
 			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
@@ -361,7 +362,7 @@ var _ = Describe("GroupController", func() {
 			var ep *securityv1alpha1.Endpoint
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(namespace.GetName(), endpointLabel, "192.168.1.1", "agent1")
+				ep = newTestEndpoint(namespace.GetName(), "192.168.1.1", "agent1", endpointLabel, nil)
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -382,7 +383,7 @@ var _ = Describe("GroupController", func() {
 			var ep *securityv1alpha1.Endpoint
 
 			BeforeEach(func() {
-				ep = newTestEndpoint(metav1.NamespaceDefault, endpointLabel, "192.168.1.1", "agent1")
+				ep = newTestEndpoint(metav1.NamespaceDefault, "192.168.1.1", "agent1", endpointLabel, nil)
 
 				By(fmt.Sprintf("create endpoint %s in namespace %s with labels %v", ep.GetName(), ep.GetNamespace(), ep.GetLabels()))
 				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
@@ -417,6 +418,57 @@ var _ = Describe("GroupController", func() {
 			})
 		})
 	})
+
+	When("create EndpointGroup with extend endpoint selector", func() {
+		var epGroup *groupv1alpha1.EndpointGroup
+		var endpointSelector map[string]string
+		var extendEndpointSelector map[string][]string
+
+		BeforeEach(func() {
+			endpointSelector = map[string]string{"foo": "bar"}
+			extendEndpointSelector = map[string][]string{"foz": {"bar", "baz"}, "baz": {"bar"}}
+			epGroup = newTestEndpointGroup(endpointSelector, extendEndpointSelector, nil, "")
+
+			By(fmt.Sprintf("create endpointgroup %s with spec %v", epGroup.Name, epGroup.Spec))
+			Expect(k8sClient.Create(ctx, epGroup)).Should(Succeed())
+		})
+
+		When("create namespace and endpoint match group", func() {
+			var ep *securityv1alpha1.Endpoint
+			var namespace = metav1.NamespaceDefault
+
+			BeforeEach(func() {
+				endpointLabel := map[string]string{"foo": "bar", "baz": "bar"}
+				endpointExtendLabel := map[string][]string{"foz": {"bar", "baz"}}
+				ep = newTestEndpoint(namespace, "192.168.1.1", "agent1", endpointLabel, endpointExtendLabel)
+
+				By(fmt.Sprintf("create endpoint %#v in namespace %s", ep, ep.GetNamespace()))
+				Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+			})
+
+			It("should create patch add the endpoint", func() {
+				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+			It("should update groupmembers contains the endpoint", func() {
+				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+			})
+
+			When("update endpoint extend labels unmatch group", func() {
+				BeforeEach(func() {
+					updateEndpoint := ep.DeepCopy()
+					updateEndpoint.Spec.ExtendLabels = map[string][]string{"foz": {"bar", "baz", "baz1"}}
+
+					By(fmt.Sprintf("update endpoint %s extend labels to %#v", ep.GetName(), ep.Spec.ExtendLabels))
+					Expect(k8sClient.Patch(ctx, updateEndpoint, client.MergeFrom(ep))).Should(Succeed())
+				})
+
+				It("should update groupmembers contains no endpoints", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+				})
+			})
+		})
+	})
 })
 
 // endpointToGroupMember conversion endpoint to GroupMember.
@@ -447,7 +499,7 @@ func getLatestPatch(patchList groupv1alpha1.GroupMembersPatchList) *groupv1alpha
 	return patch
 }
 
-func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddress, agent string) *securityv1alpha1.Endpoint {
+func newTestEndpoint(namespace, ip, agent string, labels map[string]string, extendLabels map[string][]string) *securityv1alpha1.Endpoint {
 	name := "endpoint-test-" + string(uuid.NewUUID())
 	id := name
 	labels[TestLabelKey] = TestLabelValue
@@ -459,13 +511,14 @@ func newTestEndpoint(namespace string, labels map[string]string, ip types.IPAddr
 			Labels:    labels,
 		},
 		Spec: securityv1alpha1.EndpointSpec{
+			ExtendLabels: extendLabels,
 			Reference: securityv1alpha1.EndpointReference{
 				ExternalIDName:  id,
 				ExternalIDValue: id,
 			},
 		},
 		Status: securityv1alpha1.EndpointStatus{
-			IPs:    []types.IPAddress{ip},
+			IPs:    []types.IPAddress{types.IPAddress(ip)},
 			Agents: []string{agent},
 		},
 	}
@@ -482,7 +535,7 @@ func newTestNamespace(labels map[string]string) *corev1.Namespace {
 	}
 }
 
-func newTestEndpointGroup(epSelector map[string]string, nsSelector map[string]string, namespace string) *groupv1alpha1.EndpointGroup {
+func newTestEndpointGroup(epSelector map[string]string, extendEpSelector map[string][]string, nsSelector map[string]string, namespace string) *groupv1alpha1.EndpointGroup {
 	name := "endpointgroup-test-" + string(uuid.NewUUID())
 	epGroup := &groupv1alpha1.EndpointGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -492,8 +545,11 @@ func newTestEndpointGroup(epSelector map[string]string, nsSelector map[string]st
 	}
 
 	if epSelector != nil {
-		epGroup.Spec.EndpointSelector = &metav1.LabelSelector{
-			MatchLabels: epSelector,
+		epGroup.Spec.EndpointSelector = &labels.Selector{
+			LabelSelector: metav1.LabelSelector{
+				MatchLabels: epSelector,
+			},
+			ExtendMatchLabels: extendEpSelector,
 		}
 	}
 

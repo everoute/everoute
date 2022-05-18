@@ -31,6 +31,7 @@ import (
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/labels"
 )
 
 const (
@@ -64,10 +65,10 @@ var _ = Describe("GroupGenerator", func() {
 
 	Context("create SecurityPolicy with applied to EndpointSelector", func() {
 		var policy *securityv1alpha1.SecurityPolicy
-		var endpointSelector *metav1.LabelSelector
+		var endpointSelector *labels.Selector
 
 		BeforeEach(func() {
-			endpointSelector = newRandomSelector()
+			endpointSelector = labels.FromLabelSelector(newRandomSelector())
 			policy = newTestPolicyWithoutRule(namespace, endpointSelector, nil)
 
 			By(fmt.Sprintf("create SecurityPolicy %+v", policy))
@@ -82,10 +83,10 @@ var _ = Describe("GroupGenerator", func() {
 		})
 
 		When("update SecurityPolicy applied to another EndpointSelector", func() {
-			var newEndpointSelector *metav1.LabelSelector
+			var newEndpointSelector *labels.Selector
 
 			BeforeEach(func() {
-				newEndpointSelector = newRandomSelector()
+				newEndpointSelector = labels.FromLabelSelector(newRandomSelector())
 				updatePolicy := policy.DeepCopy()
 				updatePolicy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
 					EndpointSelector: newEndpointSelector,
@@ -126,11 +127,12 @@ var _ = Describe("GroupGenerator", func() {
 
 		When("add ingress with NamespaceSelector and EndpointSelector peer", func() {
 			var ingress *securityv1alpha1.Rule
-			var namespaceSelector, peerEndpointSelector *metav1.LabelSelector
+			var namespaceSelector *metav1.LabelSelector
+			var peerEndpointSelector *labels.Selector
 
 			BeforeEach(func() {
 				namespaceSelector = newRandomSelector()
-				peerEndpointSelector = newRandomSelector()
+				peerEndpointSelector = labels.FromLabelSelector(newRandomSelector())
 				ingress = &securityv1alpha1.Rule{From: []securityv1alpha1.SecurityPolicyPeer{{
 					EndpointSelector:  peerEndpointSelector,
 					NamespaceSelector: namespaceSelector,
@@ -166,16 +168,16 @@ var _ = Describe("GroupGenerator", func() {
 			It("should reconcile EndpointGroup used by SecurityPolicy", func() {
 				assertEndpointGroupNum(ctx, 2)
 				assertHasEndpointGroup(ctx, endpointSelector, nil, &namespace, nil)
-				assertHasEndpointGroup(ctx, new(metav1.LabelSelector), namespaceSelector, nil, nil)
+				assertHasEndpointGroup(ctx, new(labels.Selector), namespaceSelector, nil, nil)
 			})
 		})
 
 		When("add ingress with EndpointSelector only peer", func() {
 			var ingress *securityv1alpha1.Rule
-			var peerEndpointSelector *metav1.LabelSelector
+			var peerEndpointSelector *labels.Selector
 
 			BeforeEach(func() {
-				peerEndpointSelector = newRandomSelector()
+				peerEndpointSelector = labels.FromLabelSelector(newRandomSelector())
 				ingress = &securityv1alpha1.Rule{From: []securityv1alpha1.SecurityPolicyPeer{{
 					EndpointSelector: peerEndpointSelector,
 				}}}
@@ -225,10 +227,10 @@ var _ = Describe("GroupGenerator", func() {
 		})
 
 		When("update SecurityPolicy applied to an EndpointSelector", func() {
-			var endpointSelector *metav1.LabelSelector
+			var endpointSelector *labels.Selector
 
 			BeforeEach(func() {
-				endpointSelector = newRandomSelector()
+				endpointSelector = labels.FromLabelSelector(newRandomSelector())
 				updatePolicy := policy.DeepCopy()
 				updatePolicy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
 					EndpointSelector: endpointSelector,
@@ -246,10 +248,10 @@ var _ = Describe("GroupGenerator", func() {
 
 	When("create multiple SecurityPolicy with same selector", func() {
 		var policy01, policy02 *securityv1alpha1.SecurityPolicy
-		var endpointSelector *metav1.LabelSelector
+		var endpointSelector *labels.Selector
 
 		BeforeEach(func() {
-			endpointSelector = newRandomSelector()
+			endpointSelector = labels.FromLabelSelector(newRandomSelector())
 			policy01 = newTestPolicyWithoutRule(namespace, endpointSelector, nil)
 			policy02 = newTestPolicyWithoutRule(namespace, endpointSelector, nil)
 
@@ -286,7 +288,7 @@ var _ = Describe("GroupGenerator", func() {
 	})
 })
 
-func newTestPolicyWithoutRule(namespace string, endpointSelector *metav1.LabelSelector, endpoint *string) *securityv1alpha1.SecurityPolicy {
+func newTestPolicyWithoutRule(namespace string, endpointSelector *labels.Selector, endpoint *string) *securityv1alpha1.SecurityPolicy {
 	policy := new(securityv1alpha1.SecurityPolicy)
 	policy.Name = rand.String(10)
 	policy.Namespace = namespace
@@ -312,7 +314,7 @@ func newRandomSelector() *metav1.LabelSelector {
 	}
 }
 
-func assertHasEndpointGroup(ctx context.Context, endpointSelector, namespaceSelector *metav1.LabelSelector,
+func assertHasEndpointGroup(ctx context.Context, endpointSelector *labels.Selector, namespaceSelector *metav1.LabelSelector,
 	namespace *string, endpoint *securityv1alpha1.NamespacedName) {
 	Eventually(func() bool {
 		groupList := groupv1alpha1.EndpointGroupList{}
@@ -332,7 +334,8 @@ func assertHasEndpointGroup(ctx context.Context, endpointSelector, namespaceSele
 	}, timeout, interval).Should(BeTrue())
 }
 
-func assertNoEndpointGroup(ctx context.Context, endpointSelector, namespaceSelector *metav1.LabelSelector, namespace *string) {
+func assertNoEndpointGroup(ctx context.Context, endpointSelector *labels.Selector, namespaceSelector *metav1.LabelSelector,
+	namespace *string) {
 	Eventually(func() bool {
 		groupList := groupv1alpha1.EndpointGroupList{}
 		Expect(k8sClient.List(ctx, &groupList)).Should(Succeed())

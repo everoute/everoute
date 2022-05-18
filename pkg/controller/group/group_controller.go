@@ -24,7 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -41,6 +41,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -154,7 +155,8 @@ func (r *GroupReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLi
 		return
 	}
 
-	if labels.Equals(newEndpoint.Labels, oldEndpoint.Labels) &&
+	if k8slabels.Equals(newEndpoint.Labels, oldEndpoint.Labels) &&
+		labels.Equals(newEndpoint.Spec.ExtendLabels, oldEndpoint.Spec.ExtendLabels) &&
 		utils.EqualIPs(newEndpoint.Status.IPs, oldEndpoint.Status.IPs) &&
 		utils.EqualStringSlice(newEndpoint.Status.Agents, oldEndpoint.Status.Agents) {
 		return
@@ -293,7 +295,7 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 	var (
 		groupNameSet            = sets.String{}
 		groupList               groupv1alpha1.EndpointGroupList
-		endpointNamespaceLabels labels.Set
+		endpointNamespaceLabels k8slabels.Set
 	)
 
 	err := r.List(ctx, &groupList)
@@ -338,13 +340,14 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 			}
 		}
 
-		endpointSelector, err := metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
+		labelSet, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels)
 		if err != nil {
+			// this should never happen, the labels has been validated by webhook
 			klog.Errorf("invalid enpoint selector %+v: %s", group.Spec.EndpointSelector, err)
 			continue
 		}
 
-		if !endpointSelector.Matches(labels.Set(endpoint.Labels)) {
+		if !group.Spec.EndpointSelector.Matches(labelSet) {
 			continue
 		}
 
@@ -358,7 +361,7 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 func (r *GroupReconciler) filterEndpointGroupsByNamespace(ctx context.Context, namespace *corev1.Namespace) sets.String {
 	var (
 		groupNameSet    = sets.String{}
-		namespaceLabels = labels.Set(namespace.Labels)
+		namespaceLabels = k8slabels.Set(namespace.Labels)
 		groupList       groupv1alpha1.EndpointGroupList
 	)
 
@@ -543,18 +546,23 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 	}
 
 	for _, namespace := range matchedNamespaces {
-		// filter endpoints in specify namespace
-		endpointSelector, err := metav1.LabelSelectorAsSelector(group.Spec.EndpointSelector)
+		endpointList := securityv1alpha1.EndpointList{}
+		err := r.List(ctx, &endpointList, client.InNamespace(namespace))
 		if err != nil {
 			return nil, err
 		}
 
-		endpointList := securityv1alpha1.EndpointList{}
-		err = r.List(ctx, &endpointList, client.MatchingLabelsSelector{Selector: endpointSelector}, client.InNamespace(namespace))
-		if err != nil {
-			return nil, err
+		// list API unsupport custom selector, so we need to filter endpoints here
+		for _, endpoint := range endpointList.Items {
+			labelSet, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels)
+			if err != nil {
+				// this should never happen, the labels has been validated by webhook
+				return nil, fmt.Errorf("invalid enpoint selector %+v: %s", group.Spec.EndpointSelector, err)
+			}
+			if group.Spec.EndpointSelector.Matches(labelSet) {
+				matchedEndpoints = append(matchedEndpoints, endpoint)
+			}
 		}
-		matchedEndpoints = append(matchedEndpoints, endpointList.Items...)
 	}
 
 	// conversion endpoint list to member list

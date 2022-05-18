@@ -18,16 +18,16 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.reference.externalIDName
-      name: ExternalName
+      name: EXTERNAL-NAME
       type: string
     - jsonPath: .spec.reference.externalIDValue
-      name: ExternalValue
+      name: EXTERNAL-VALUE
       type: string
     - jsonPath: .status.ips
-      name: IPAddr
+      name: IPADDR
       type: string
-    - jsonPath: .status.macAddress
-      name: MAC
+    - jsonPath: .spec.extendLabels
+      name: EXTEND-LABELS
       type: string
     name: v1alpha1
     schema:
@@ -51,6 +51,16 @@ spec:
           spec:
             description: Spec contains description of the endpoint
             properties:
+              extendLabels:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                description: ExtendLabels contains extend labels of endpoint. Each
+                  key in the labels could have multiple values, but at least one should
+                  be specified. The ExtendLabels could be selected by selector in
+                  SecurityPolicy or EndpointGroup.
+                type: object
               reference:
                 description: Reference of an endpoint, also the external_id of an
                   ovs interface. We map between endpoint and ovs interface use the

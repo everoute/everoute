@@ -26,8 +26,9 @@ import (
 type Endpoint struct {
 	// Name is the unique identity of endpoint
 	Name string
-	// Labels are key/value pairs that are attached to an endpoint
-	Labels map[string]string
+	// Labels are key/value pairs that are attached to an endpoint.
+	// Multiple values can be associated with the same key.
+	Labels map[string][]string
 
 	// The endpoint expect IP addr from the subnet
 	ExpectSubnet string

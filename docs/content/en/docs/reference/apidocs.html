@@ -88,6 +88,20 @@ uint32
 </tr>
 <tr>
 <td>
+<code>extendLabels</code><br/>
+<em>
+map[string][]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ExtendLabels contains extend labels of endpoint. Each key in the labels
+could have multiple values, but at least one should be specified.
+The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>reference</code><br/>
 <em>
 <a href="#security.everoute.io/v1alpha1.EndpointReference">
@@ -389,14 +403,12 @@ If this field is set then neither of the other fields can be.</p>
 <td>
 <code>endpointSelector</code><br/>
 <em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#labelselector-v1-meta">
-metav1.LabelSelector
-</a>
+github.com/everoute/everoute/pkg/labels.Selector
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>EndpointSelector selects endpoints. This field follows standard label
+<p>EndpointSelector selects endpoints. This field follows extend label
 selector semantics; if present but empty, it selects all endpoints.</p>
 <p>If EndpointSelector is set, then the SecurityPolicy would apply to the
 endpoints matching EndpointSelector in the SecurityPolicy Namespace.
@@ -496,6 +508,20 @@ uint32
 </td>
 <td>
 <p>VID describe the endpoint in which VLAN</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>extendLabels</code><br/>
+<em>
+map[string][]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ExtendLabels contains extend labels of endpoint. Each key in the labels
+could have multiple values, but at least one should be specified.
+The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.</p>
 </td>
 </tr>
 <tr>
@@ -860,14 +886,12 @@ neither of the other fields can be.</p>
 <td>
 <code>endpointSelector</code><br/>
 <em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#labelselector-v1-meta">
-metav1.LabelSelector
-</a>
+github.com/everoute/everoute/pkg/labels.Selector
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>EndpointSelector selects endpoints. This field follows standard label
+<p>EndpointSelector selects endpoints. This field follows extend label
 selector semantics; if present but empty, it selects all endpoints.</p>
 <p>If NamespaceSelector is also set, then the Rule would select the endpoints
 matching EndpointSelector in the Namespaces selected by NamespaceSelector.
