@@ -13,10 +13,11 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/everoute/everoute/plugin/tower/pkg/schema"
-	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
+	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 )
 
 // region    ************************** generated!.gotpl **************************

@@ -18,7 +18,6 @@ package cases
 
 import (
 	"fmt"
-	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"net"
 	"strings"
 
@@ -27,6 +26,7 @@ import (
 	"k8s.io/klog"
 
 	policyagent "github.com/everoute/everoute/pkg/agent/controller/policy"
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/tests/e2e/framework/model"

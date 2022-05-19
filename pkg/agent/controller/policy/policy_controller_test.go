@@ -19,7 +19,6 @@ package policy_test
 import (
 	"context"
 	"fmt"
-
 	"reflect"
 	"testing"
 	"time"

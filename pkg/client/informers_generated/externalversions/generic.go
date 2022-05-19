@@ -21,11 +21,12 @@ package externalversions
 import (
 	"fmt"
 
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	cache "k8s.io/client-go/tools/cache"
+
 	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	cache "k8s.io/client-go/tools/cache"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other

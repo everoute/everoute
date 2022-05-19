@@ -18,6 +18,7 @@ yaml:
 	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
 
 generate: codegen gqlgen protopb manifests yaml apidocs-gen
+	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
 
 docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)

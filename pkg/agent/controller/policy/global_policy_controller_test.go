@@ -19,12 +19,12 @@ package policy_test
 import (
 	"context"
 	"fmt"
-	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
