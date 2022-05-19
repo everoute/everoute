@@ -22,14 +22,15 @@ import (
 	"context"
 	time "time"
 
-	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
-	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
-	v1alpha1 "github.com/everoute/everoute/pkg/client/listers_generated/group/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
+	v1alpha1 "github.com/everoute/everoute/pkg/client/listers_generated/group/v1alpha1"
 )
 
 // GroupMembersInformer provides access to a shared informer and lister for

@@ -22,14 +22,15 @@ import (
 	"context"
 	time "time"
 
-	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
-	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
-	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
-	v1alpha1 "github.com/everoute/everoute/pkg/client/listers_generated/agent/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
+	v1alpha1 "github.com/everoute/everoute/pkg/client/listers_generated/agent/v1alpha1"
 )
 
 // AgentInfoInformer provides access to a shared informer and lister for
