@@ -19,9 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	rest "k8s.io/client-go/rest"
+
 	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
-	rest "k8s.io/client-go/rest"
 )
 
 type AgentV1alpha1Interface interface {
