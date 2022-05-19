@@ -4,6 +4,7 @@ RUN go install github.com/99designs/gqlgen@v0.13.0 && \
     go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.2 && \
     go install github.com/golang/protobuf/protoc-gen-go@v1.5.2 && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1 && \
+    go install github.com/daixiang0/gci@v0.3.3 && \
     go clean -cache
 
 ENV APISERVER_BOOT_RELEASE_URL=https://github.com/kubernetes-sigs/apiserver-builder-alpha/releases/download/v1.18.0/apiserver-builder-alpha-v1.18.0-linux-amd64.tar.gz

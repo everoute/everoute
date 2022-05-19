@@ -18,6 +18,7 @@ package monitor
 
 import (
 	ovsdb "github.com/contiv/libovsdb"
+
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 )
 
