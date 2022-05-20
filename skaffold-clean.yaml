@@ -1,0 +1,15 @@
+apiVersion: skaffold/v2beta26
+kind: Config
+metadata:
+  name: everoute
+build:
+  artifacts:
+    - image: everoute/release
+      docker:
+        dockerfile: build/images/release/Dockerfile
+  local:
+    useBuildkit: true
+deploy:
+  kubectl:
+    manifests:
+      - hack/clean.yaml
