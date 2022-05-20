@@ -10,11 +10,11 @@ on:
 
   schedule:
     # 7:00 UTC+8
-    - cron: '0 23 * * *'
+    - cron: "0 23 * * *"
 
 jobs:
   pr-check:
-    runs-on: [ ubuntu-20.04 ]
+    runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v2
       - name: run everoute unit test
@@ -27,7 +27,7 @@ jobs:
           files: ./coverage.out
 
   golint:
-    runs-on: [ ubuntu-20.04 ]
+    runs-on: [ubuntu-20.04]
     if: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v2
@@ -58,7 +58,7 @@ jobs:
         run: make deploy-test
 
   run-e2e:
-    runs-on: [ ubuntu-20.04 ]
+    runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v2
 
@@ -79,6 +79,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: clean old eveorute
+        run: sudo skaffold run -d=harbor.smartx.com/everoute -f skaffold-clean.yaml
+
+      - name: wait clean process ready
+        run: kubectl wait po -n kube-system --for=condition=Ready=True -l app=everoute -l component=everoute-clean --timeout=3m
+
+      - name: stop clean pods
+        run: kubectl delete -f hack/clean.yaml
+
       - name: build everoute and deploy
         run: sudo skaffold run -d=harbor.smartx.com/everoute
 
@@ -87,9 +96,9 @@ jobs:
 
       - uses: actions/checkout@v2
         with:
-          repository: 'kubernetes/kubernetes'
-          ref: 'v1.21.5'
-          path: './kubernetes'
+          repository: "kubernetes/kubernetes"
+          ref: "v1.21.5"
+          path: "./kubernetes"
 
       - name: apply e2e patch
         run: cd kubernetes && git apply ../hack/0001-test-e2e-add-sleep-before-cannot-conntect-test.patch
@@ -104,7 +113,7 @@ jobs:
         run: bash hack/run-k8s-e2e.sh
 
   generate-check:
-    runs-on: [ ubuntu-20.04 ]
+    runs-on: [ubuntu-20.04]
     steps:
       - uses: actions/checkout@v2
 
