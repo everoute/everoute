@@ -22,7 +22,7 @@ modprobe iptable_mangle
 
 # init ovs
 echo "init ovs"
-modprobe openvswitch || (echo "modprobe openvswitch error"; exit 1)
+modprobe openvswitch || depmod -a || modprobe openvswitch || (echo "modprobe openvswitch error"; exit 1)
 
 source /usr/share/openvswitch/scripts/ovs-lib
 

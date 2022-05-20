@@ -89,12 +89,6 @@ apidocs-gen:
 		--out-file docs/content/en/docs/reference/apidocs.html --template-dir docs/assets/templates/ \
 		--api-dir ./pkg/apis/security/v1alpha1
 
-deploy-test:
-	bash hack/deploy.sh
-
-deploy-test-clean:
-	bash hack/undeploy.sh
-
 # Generate CRD manifests
 manifests:
 	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/crds output:stdout
