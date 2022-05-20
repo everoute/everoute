@@ -1688,6 +1688,13 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+          readinessProbe:
+            exec:
+              command: ["/usr/share/openvswitch/scripts/ovs-ctl", "status"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
         - name: everoute-agent
           image: everoute/release
           imagePullPolicy: IfNotPresent
@@ -1695,6 +1702,7 @@ spec:
           args:
             - --enable-cni=true
             - -v=0
+            - --metrics-addr=127.0.0.1:30002
           env:
             - name: NODE_NAME
               valueFrom:
@@ -1702,6 +1710,15 @@ spec:
                   fieldPath: spec.nodeName
           securityContext:
             privileged: true
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              port: 30002
+              path: /metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
           volumeMounts:
             - name: everoute-agent
               mountPath: /var/lib/everoute/
@@ -1885,6 +1902,15 @@ spec:
             - --port=9443
             - --enable-cni=true
             - -v=0
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
