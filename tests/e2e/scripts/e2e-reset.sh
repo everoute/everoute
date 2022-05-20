@@ -18,22 +18,27 @@ set -o pipefail
 set -o nounset
 
 EVEROUTE_AGENT_HOSTLIST=${1:-127.0.0.1}
+
 DEFAULT_BRIDGE="ovsbr1"
+POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
+CLS_BRIDGE="${DEFAULT_BRIDGE}-cls"
+UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
 
 echo "clean everoute controlplane on localhost"
 eval kill -9 "$(pidof everoute-controller) $(pidof everoute-agent) $(pidof kube-apiserver) $(pidof etcd) $(pidof net-utils)"
 rm -rf /etc/everoute/
 
-for agent in $(IFS=','; echo ${EVEROUTE_AGENT_HOSTLIST}); do
-  printf "clean everoute-agent and ovsdb on host %s\n" ${agent}
-  ovs-vsctl del-br ${DEFAULT_BRIDGE}
-  ovs-vsctl del-br ${DEFAULT_BRIDGE}-policy
-  ovs-vsctl del-br ${DEFAULT_BRIDGE}-cls
-  ovs-vsctl del-br ${DEFAULT_BRIDGE}-uplink
+for agent in $(IFS=','; echo "${EVEROUTE_AGENT_HOSTLIST}"); do
+  printf "clean everoute-agent and ovsdb on host %s\n" "${agent}"
+  ovs-vsctl \
+			-- del-br ${DEFAULT_BRIDGE} \
+			-- del-br ${POLICY_BRIDGE} \
+			-- del-br ${CLS_BRIDGE} \
+			-- del-br ${UPLINK_BRIDGE}
 
   ssh_args="-o StrictHostKeyChecking=no"
 
-  ssh ${ssh_args} ${agent} 'bash -s' << "EOF"
+  ssh "${ssh_args}" "${agent}" 'bash -s' << "EOF"
     ovs-vsctl list-br | xargs -rl ovs-vsctl del-br
     ip netns list | awk '{print $1}' | xargs -rl ip netns pid | xargs -rl kill -9
     ip -all netns del
