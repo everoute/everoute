@@ -65,43 +65,46 @@ DEFAULT_BRIDGE=`cat ${AGENT_CONFIG_PATH} | grep datapathConfig: -A1 | grep -v da
 LOCAL_GW_IP=`cat ${AGENT_CONFIG_PATH} | grep localGwIP | awk -F ':' '{print $2}' | awk '$1=$1'`
 GW_IFACE=${DEFAULT_BRIDGE}-gw
 GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
+POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
+CLS_BRIDGE="${DEFAULT_BRIDGE}-cls"
+UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
 
-LOCAL_TO_POLICY_PATCH=$DEFAULT_BRIDGE"-local-to-policy"
-POLICY_TO_LOCAL_PATCH=$DEFAULT_BRIDGE"-policy-to-local"
-POLICY_TO_CLS_PATCH=$DEFAULT_BRIDGE"-policy-to-cls"
-CLS_TO_POLICY_PATCH=$DEFAULT_BRIDGE"-cls-to-policy"
-CLS_TO_UPLINK_PATCH=$DEFAULT_BRIDGE"-cls-to-uplink"
-UPLINK_TO_CLS_PATCH=$DEFAULT_BRIDGE"-uplink-to-cls"
+LOCAL_TO_POLICY_PATCH="${DEFAULT_BRIDGE}-local-to-policy"
+POLICY_TO_LOCAL_PATCH="${POLICY_BRIDGE}-policy-to-local"
+POLICY_TO_CLS_PATCH="${POLICY_BRIDGE}-policy-to-cls"
+CLS_TO_POLICY_PATCH="${CLS_BRIDGE}-cls-to-policy"
+CLS_TO_UPLINK_PATCH="${CLS_BRIDGE}-cls-to-uplink"
+UPLINK_TO_CLS_PATCH="${UPLINK_BRIDGE}-uplink-to-cls"
 
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
-ovs-vsctl add-br ${DEFAULT_BRIDGE}-policy -- set bridge ${DEFAULT_BRIDGE}-policy protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
-ovs-vsctl add-br ${DEFAULT_BRIDGE}-cls -- set bridge ${DEFAULT_BRIDGE}-cls protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
-ovs-vsctl add-br ${DEFAULT_BRIDGE}-uplink -- set bridge ${DEFAULT_BRIDGE}-uplink protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+ovs-vsctl add-br ${POLICY_BRIDGE} -- set bridge ${POLICY_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+ovs-vsctl add-br ${CLS_BRIDGE} -- set bridge ${CLS_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+ovs-vsctl add-br ${UPLINK_BRIDGE} -- set bridge ${UPLINK_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 
 ip link set ${DEFAULT_BRIDGE} up
-ip link set ${DEFAULT_BRIDGE}-policy up
-ip link set ${DEFAULT_BRIDGE}-cls up
-ip link set ${DEFAULT_BRIDGE}-uplink up
+ip link set ${POLICY_BRIDGE} up
+ip link set ${CLS_BRIDGE} up
+ip link set ${UPLINK_BRIDGE} up
 
 ovs-vsctl \
-    -- add-port $DEFAULT_BRIDGE $LOCAL_TO_POLICY_PATCH \
-    -- set interface $LOCAL_TO_POLICY_PATCH type=patch options:peer=$POLICY_TO_LOCAL_PATCH \
-    -- add-port ${DEFAULT_BRIDGE}-policy $POLICY_TO_LOCAL_PATCH \
-    -- set interface $POLICY_TO_LOCAL_PATCH type=patch options:peer=$LOCAL_TO_POLICY_PATCH
+    -- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_POLICY_PATCH} \
+    -- set interface ${LOCAL_TO_POLICY_PATCH} type=patch options:peer=${POLICY_TO_LOCAL_PATCH} \
+    -- add-port ${POLICY_BRIDGE} ${POLICY_TO_LOCAL_PATCH} \
+    -- set interface ${POLICY_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_POLICY_PATCH}
 
 ovs-vsctl \
-    -- add-port ${DEFAULT_BRIDGE}-policy $POLICY_TO_CLS_PATCH \
-    -- set interface $POLICY_TO_CLS_PATCH type=patch options:peer=$CLS_TO_POLICY_PATCH \
-    -- add-port ${DEFAULT_BRIDGE}-cls $CLS_TO_POLICY_PATCH \
-    -- set interface $CLS_TO_POLICY_PATCH type=patch options:peer=$POLICY_TO_CLS_PATCH
+    -- add-port ${POLICY_BRIDGE} ${POLICY_TO_CLS_PATCH} \
+    -- set interface ${POLICY_TO_CLS_PATCH} type=patch options:peer=${CLS_TO_POLICY_PATCH} \
+    -- add-port ${CLS_BRIDGE} ${CLS_TO_POLICY_PATCH} \
+    -- set interface ${CLS_TO_POLICY_PATCH} type=patch options:peer=${POLICY_TO_CLS_PATCH}
 
 ovs-vsctl \
-    -- add-port ${DEFAULT_BRIDGE}-uplink $UPLINK_TO_CLS_PATCH \
-    -- set interface $UPLINK_TO_CLS_PATCH type=patch options:peer=$CLS_TO_UPLINK_PATCH \
-    -- add-port ${DEFAULT_BRIDGE}-cls $CLS_TO_UPLINK_PATCH \
-    -- set interface $CLS_TO_UPLINK_PATCH type=patch options:peer=$UPLINK_TO_CLS_PATCH
+    -- add-port ${UPLINK_BRIDGE} ${UPLINK_TO_CLS_PATCH} \
+    -- set interface ${UPLINK_TO_CLS_PATCH} type=patch options:peer=${CLS_TO_UPLINK_PATCH} \
+    -- add-port ${CLS_BRIDGE} ${CLS_TO_UPLINK_PATCH} \
+    -- set interface ${CLS_TO_UPLINK_PATCH} type=patch options:peer=${UPLINK_TO_CLS_PATCH}
 
-ovs-vsctl add-port ${DEFAULT_BRIDGE}-uplink ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal -- set Interface ${GW_IFACE} ofport=${UPLINK_GATEWAY_OFPORT}
+ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal -- set Interface ${GW_IFACE} ofport=${UPLINK_GATEWAY_OFPORT}
 
 # add port gw-local
 ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal -- set Interface ${GW_LOCAL_IFACE} ofport=${LOCAL_GATEWAY_OFPORT}
