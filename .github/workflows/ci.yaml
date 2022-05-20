@@ -38,24 +38,6 @@ jobs:
           skip-build-cache: true
           skip-pkg-cache: true
 
-  run-deploy:
-    runs-on: [ ubuntu-20.04 ]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: install k8s
-        run: |
-          curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE=777 sh -
-          mkdir -p ~/.kube && cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-
-      - name: build and import image
-        run: |
-          make image
-          docker save everoute/release | sudo k3s ctr images import -
-
-      - name: make kubernetes deploy test
-        run: make deploy-test
-
   run-e2e:
     runs-on: [ ubuntu-20.04 ]
     steps:
@@ -119,13 +101,12 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,golint,run-deploy,run-e2e,run-k8s-e2e,generate-check ]
+    needs: [ pr-check,golint,run-e2e,run-k8s-e2e,generate-check ]
     runs-on: [ ubuntu-20.04 ]
     env:
       SLACK_COLOR: 2EA44F
       RESULT_PR_CHECK: ":white_check_mark:"
       RESULT_GOLINT: ":white_check_mark:"
-      RESULT_RUN_DEPLOY: ":white_check_mark:"
       RESULT_RUN_E2E: ":white_check_mark:"
       RESULT_RUN_K8S_E2E: ":white_check_mark:"
       RESULT_GENERATE_CHECK: ":white_check_mark:"
@@ -134,8 +115,6 @@ jobs:
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
       - if: ${{ needs.golint.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GOLINT=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-deploy.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_DEPLOY=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
@@ -147,8 +126,6 @@ jobs:
         run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.golint.result == 'cancelled'}}
         run: echo "RESULT_GOLINT=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-deploy.result == 'cancelled'}}
-        run: echo "RESULT_RUN_DEPLOY=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'cancelled'}}
         run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
@@ -203,10 +180,6 @@ jobs:
                       {
                         "type": "mrkdwn",
                         "text": "${{ env.RESULT_GOLINT }} => *golint*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_DEPLOY }} => *run-deploy*"
                       },
                       {
                         "type": "mrkdwn",

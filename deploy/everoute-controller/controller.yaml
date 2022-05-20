@@ -41,3 +41,12 @@ spec:
             - --port=9443
             - --enable-cni=true
             - -v=0
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
