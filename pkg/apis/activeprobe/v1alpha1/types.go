@@ -44,12 +44,16 @@ type ActiveProbeSpec struct {
 	Source      Source      `json:"source,omitempty"`
 	Destination Destination `json:"destination,omitempty"`
 	Packet      Packet      `json:"packet"`
+	ProbeTimes  uint32      `json:"probeTimes"`
 }
 
 type ActiveProbeStatus struct {
-	State   ActiveProbeState   `json:"state"`
-	Tag     uint8              `json:"tag"`
-	Results []AgentProbeResult `json:"results,omitempty"`
+	State          ActiveProbeState   `json:"state"`
+	Reason         string             `json:"reason,omitempty"`
+	StartTime      *metav1.Time       `json:"startTime,omitempty"`
+	Tag            uint8              `json:"tag"`
+	Results        []AgentProbeResult `json:"results,omitempty"`
+	CapturedPacket *Packet            `json:"capturedPacket,omitempty"`
 }
 
 type AgentProbeResult struct {
@@ -112,6 +116,7 @@ type IPHeader struct {
 	Protocol uint32 `json:"protocol,omitempty"`
 	TTL      uint32 `json:"ttl,omitempty"`
 	Flags    uint32 `json:"flags,omitempty"`
+	DSCP     uint32 `json:"dscp,omitempty"`
 }
 
 type TransportHeader struct {
@@ -136,12 +141,14 @@ type TCPHeader struct {
 	Flags   uint32 `json:"flags,omitempty"`
 }
 
+// Packet includes header info.
 type Packet struct {
-	SrcIP           string          `json:"srcip,omitempty"`
-	DstIP           string          `json:"dstip,omitempty"`
-	HeaderLength    uint16          `json:"headerlength,omitempty"`
+	SrcIP string `json:"srcip,omitempty"`
+	DstIP string `json:"dstip,omitempty"`
+	// Length is the IP packet length (include the IPv4 header length).
+	Length          uint16          `json:"headerlength,omitempty"`
 	IPHeader        IPHeader        `json:"ipheader,omitempty"`
-	TransportHeader TransportHeader `json:"tranportHeader,omitempty"`
+	TransportHeader TransportHeader `json:"transportHeader,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

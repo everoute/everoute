@@ -611,17 +611,11 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	case "work":
 		switch rule.Action {
 		case "allow":
-			if rule.Priority == GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY {
-				if err := ruleFlow.LoadField("nxm_nx_reg0", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
-					return nil, err
-				}
-			}
-		case "deny":
-			if err := ruleFlow.LoadField("nxm_nx_reg0", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_reg4", PolicyRuleActionAllow, openflow13.NewNXRange(0, 15)); err != nil {
 				return nil, err
 			}
-			// add telemetry tracepoint info
-			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier1PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+		case "deny":
+			if err := ruleFlow.LoadField("nxm_nx_reg4", PolicyRuleActionDeny, openflow13.NewNXRange(0, 15)); err != nil {
 				return nil, err
 			}
 		default:
@@ -638,12 +632,15 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		// add telemetry tracepoint info
 		switch tier {
 		case POLICY_TIER1:
+			if err := ruleFlow.LoadField("nxm_nx_reg5", uint64(Tier1PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+				return nil, err
+			}
 		case POLICY_TIER2:
-			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier2PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_reg5", uint64(Tier2PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
 				return nil, err
 			}
 		case POLICY_TIER3:
-			if err := ruleFlow.LoadField("nxm_nx_reg2", uint64(Tier3PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_reg5", uint64(Tier3PolicyMatch), openflow13.NewNXRange(0, 8)); err != nil {
 				return nil, err
 			}
 		default:
@@ -666,12 +663,13 @@ func (p *PolicyBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
 }
 
-func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
+func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8, ipDa *net.IP) ([]*FlowEntry, error) {
 	var activeProbeFlows []*FlowEntry
 
 	ingressActiveProbeFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
+		IpDa:      ipDa,
 		IpDscp:    tag,
 	})
 	if err := ingressActiveProbeFlow.SendToController(ingressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
@@ -680,12 +678,9 @@ func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
 	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
 	}
-	if err := ingressActiveProbeFlow.Resubmit(nil, &p.ctCommitTable.TableId); err != nil {
-		return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
-	}
-	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
-	}
+	//if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+	//	return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
+	//}
 
 	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
 		Table:    ingressActiveProbeFlow.Table,
@@ -696,6 +691,7 @@ func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8) ([]*FlowEntry, error) {
 	egressActiveProbeFlow, _ := p.egressMetricTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
+		IpDa:      ipDa,
 		IpDscp:    tag,
 	})
 	if err := egressActiveProbeFlow.SendToController(egressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {

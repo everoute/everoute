@@ -487,8 +487,14 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeSpec(ref common.ReferenceCa
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet"),
 						},
 					},
+					"probeTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 				},
-				Required: []string{"packet"},
+				Required: []string{"packet", "probeTimes"},
 			},
 		},
 		Dependencies: []string{
@@ -506,6 +512,17 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"startTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"tag": {
@@ -531,7 +548,7 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult"},
+			"github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.AgentProbeResult", "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
@@ -675,6 +692,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_IPHeader(ref common.ReferenceCallback)
 							Format: "int64",
 						},
 					},
+					"dscp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 				},
 			},
 		},
@@ -685,7 +708,8 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
+				Description: "Packet includes header info.",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"srcip": {
 						SchemaProps: spec.SchemaProps{
@@ -701,8 +725,9 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 					},
 					"headerlength": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Description: "Length is the IP packet length (include the IPv4 header length).",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 					"ipheader": {

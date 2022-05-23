@@ -18,12 +18,13 @@ package activeprobe
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/contiv/libOpenflow/protocol"
+	"github.com/contiv/ofnet/ofctrl"
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	"net"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,13 +34,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sync"
+)
 
-	"github.com/contiv/ofnet/ofctrl"
-	"github.com/everoute/everoute/pkg/agent/datapath"
-	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
-	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
-	v1alpha1 "github.com/everoute/everoute/pkg/client/listers_generated/activeprobe/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+const (
+	// Min and max data plane tag for traceflow. minTagNum is 7 (0b000111), maxTagNum is 59 (0b111011).
+	// As per RFC2474, 16 different DSCP values are we reserved for Experimental or Local Use, which we use as the 16 possible data plane tag values.
+	// tagStep is 4 (0b100) to keep last 2 bits at 0b11.
+	tagStep   uint8 = 0b100
+	minTagNum uint8 = 0b1*tagStep + 0b11
+	maxTagNum uint8 = 0b1110*tagStep + 0b11
 )
 
 type ActiveprobeController struct {
@@ -47,127 +51,10 @@ type ActiveprobeController struct {
 	K8sClient client.Client
 	Scheme    *runtime.Scheme
 
-	DatapathManager *datapath.DpManager
-
-	// for self registered controller
-	crdClient           clientset.Interface
-	activeProbeInformer cache.SharedIndexInformer
-	// TODO activeProbe lister
-	activeProbeLister         v1alpha1.ActiveProbeLister
-	activeProbeInformerSynced cache.InformerSynced
-	syncQueue                 workqueue.RateLimitingInterface
+	DatapathManager         *datapath.DpManager
+	RunningActiveprobeMutex sync.Mutex
+	RunningActiveprobe      map[uint8]string //tag->activeProbeName if ap.Status.State is Running
 }
-
-// NOTE if we use self registered controller,
-//func NewActiveProbeController(
-//	crdFactory crd.SharedInformerFactory,
-//	crdClient clientset.Interface,
-//	resyncPeriod time.Duration,
-//) *ActiveprobeController {
-//
-//	activeProbeInformer := crdFactory.Activeprobe().V1alpha1().ActiveProbes().Informer()
-//	c := &ActiveprobeController{
-//		crdClient:                 crdClient,
-//		activeProbeInformer:       activeProbeInformer,
-//		activeProbeLister:         crdFactory.Activeprobe().V1alpha1().ActiveProbes().Lister(),
-//		activeProbeInformerSynced: activeProbeInformer.HasSynced,
-//		syncQueue:                 workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-//	}
-//
-//	// NOTE just process active probe add ?
-//	activeProbeInformer.AddEventHandlerWithResyncPeriod(
-//		cache.ResourceEventHandlerFuncs{
-//			AddFunc:    c.AddActiveProbe,
-//			UpdateFunc: c.UpdateActiveProbe,
-//			DeleteFunc: c.DeleteActiveProbe,
-//		},
-//		resyncPeriod,
-//	)
-//
-//	c.RegisterPacketInHandlerForSelfCtrl()
-//
-//	return c
-//}
-//
-//func (a *ActiveprobeController) RegisterPacketInHandlerForSelfCtrl() {
-//	a.DatapathManager.RegisterPacketInHandler(datapath.PacketInHandlerFuncs{
-//		PacketInHandlerFunc: func(packetIn *ofctrl.PacketIn) {
-//			if err := a.HandlePacketIn(packetIn); err != nil {
-//				klog.Errorf("Failed to parsing packet in: %v, error: %v", packetIn, err)
-//			}
-//		},
-//	})
-//}
-//
-//// NOTE if we use self registered controller, this is entrence function
-//func (a *ActiveprobeController) Run(stopChan <-chan struct{}) {
-//	defer a.syncQueue.ShutDown()
-//
-//	go wait.Until(a.SyncActiveProbeWorker, 0, stopChan)
-//	<-stopChan
-//}
-//
-//func (a *ActiveprobeController) SyncActiveProbeWorker() {
-//	item, shutdown := a.syncQueue.Get()
-//	if shutdown {
-//		return
-//	}
-//	defer a.syncQueue.Done(item)
-//
-//	objKey, ok := item.(k8stypes.NamespacedName)
-//	if !ok {
-//		a.syncQueue.Forget(item)
-//		klog.Errorf("Activeprobe %v was not found in workqueue", objKey)
-//		return
-//	}
-//
-//	// TODO should support timeout and max retry
-//	if err := a.syncActiveProbe(objKey); err == nil {
-//		klog.Errorf("sync activeprobe  %v", objKey)
-//		a.syncQueue.Forget(item)
-//	} else {
-//		klog.Errorf("Failed to sync activeprobe %v, error: %v", objKey, err)
-//	}
-//}
-//
-//func (a *ActiveprobeController) syncActiveProbe(objKey k8stypes.NamespacedName) error {
-//	var err error
-//	ctx := context.Background()
-//	ap := activeprobev1alph1.ActiveProbe{}
-//	if err := a.K8sClient.Get(ctx, objKey, &ap); err != nil {
-//		klog.Errorf("unable to fetch activeprobe %s: %s", objKey, err.Error())
-//		// we'll ignore not-found errors, since they can't be fixed by an immediate
-//		// requeue (we'll need to wait for a new notification), and we can get them
-//		// on deleted requests.
-//		return client.IgnoreNotFound(err)
-//	}
-//
-//	switch ap.Status.State {
-//	case activeprobev1alph1.ActiveProbeRunning:
-//		err = a.runActiveProbe(&ap)
-//	// TODO other state process
-//	case activeprobev1alph1.ActiveProbeCompleted:
-//	case activeprobev1alph1.ActiveProbeFailed:
-//	default:
-//	}
-//
-//	return err
-//}
-//
-//func (a *ActiveprobeController) AddActiveProbe(new interface{}) {
-//	obj := new.(*activeprobev1alph1.ActiveProbe)
-//	a.syncQueue.Add(obj.GetName())
-//}
-//
-//func (a *ActiveprobeController) UpdateActiveProbe(new, old interface{}) {
-//	obj := new.(*activeprobev1alph1.ActiveProbe)
-//	a.syncQueue.Add(obj.GetName())
-//}
-//
-//func (a *ActiveprobeController) DeleteActiveProbe(old interface{}) {
-//	obj := old.(*activeprobev1alph1.ActiveProbe)
-//	a.syncQueue.Add(obj.GetName())
-//}
 
 // 1). received active probe request from work queue;
 // 2). parsing it;
@@ -222,31 +109,6 @@ func (a *ActiveprobeController) RegisterPacketInHandler(stopChan <-chan struct{}
 	}
 }
 
-func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
-	// In contoller runtime frame work, it's not easy to register packetIn callback in activeprobe controller
-	// but we need active probe controller process packetIn for telemetry result parsing.
-	// FIXME if runnable callback register func is not work, we need another module to parsing telemetry result
-	// and sync it to apiserver: update activeprobe status
-
-	// Parsing packetIn generate activeProbe status
-
-	//ap := activeprobev1alph1.ActiveProbe{}
-	status := activeprobev1alph1.ActiveProbeStatus{}
-	matchers := packetIn.GetMatches()
-	println("matchers: ", matchers)
-	if packetIn.Data.Ethertype == protocol.IPv4_MSG {
-		ipPacket, ok := packetIn.Data.Data.(*protocol.IPv4)
-		if !ok {
-			return errors.New("invalid IPv4 packet")
-		}
-		tag := ipPacket.DSCP
-		println("tag: ", tag)
-		status.Tag = tag
-	}
-
-	return nil
-}
-
 func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	klog.V(2).Infof("ActiveprobeController received activeprobe %s reconcile", req.NamespacedName)
@@ -265,89 +127,149 @@ func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Res
 
 func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe) (ctrl.Result, error) {
 	// sync ap until timeout
-	a.runActiveProbe(ap)
-	return ctrl.Result{}, nil
+	var err error
+	switch ap.Status.State {
+	case "", activeprobev1alph1.ActiveProbeRunning:
+		start := false
+		a.RunningActiveprobeMutex.Lock()
+		if _, ok := a.RunningActiveprobe[ap.Status.Tag]; !ok {
+			start = true
+		}
+		a.RunningActiveprobeMutex.Unlock()
+		if start {
+			err = a.runActiveProbe(ap)
+		}
+	default:
+		a.cleanupActiveProbe(ap.Name)
+	}
+	return ctrl.Result{}, err
 }
 
 func (a *ActiveprobeController) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
-	var err error
-	err = a.InstallActiveProbeRuleFlow()
-	err = a.SendActiveProbePacket(ap)
+	ovsbrName := "ovsbr1"
+	tag, err := a.allocateTag(ap.Name)
+	ipDa := net.ParseIP(ap.Spec.Destination.IP)
+	err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
+	err = a.SendActiveProbePacket(ap, tag)
 	return err
 }
 
-
-
-func (a *ActiveprobeController) GenerateProbePacket(ap *activeprobev1alph1.ActiveProbe) (*datapath.Packet, error) {
+func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *datapath.Packet {
+	// Generate ip src && dst from endpoint name(or uuid), should store interface cache that contains ip
 	var packet *datapath.Packet
-	//packet = a.ParseActiveProbeSpec(ap)
-	//TO BE ADDED
-	//packet.SrcMac =
-	//packet.DstMac =
-	//packet.SrcPort =
-	//packet.DstPort =
-	//packet.ICMPType =
-	//packet.ICMPCode =
+
 	srcMac, _ := net.ParseMAC("00:aa:aa:aa:aa:aa")
 	dstMac, _ := net.ParseMAC("00:aa:aa:aa:aa:ab")
-	srcIP := net.ParseIP("10.0.1.11")
-	dstIP := net.ParseIP("10.0.1.12")
+	//srcEndpointStr := ap.Spec.Source.Endpoint
+	//dstEndpointStr := ap.Spec.Destination.Endpoint
+	//srcNamespaceStr := ap.Spec.Source.NameSpace
+	//dstNamespaceStr := ap.Spec.Destination.NameSpace
+	//dstServiceStr := ap.Spec.Destination.Service
 
 	packet = &datapath.Packet{
+		SrcIP:      net.ParseIP(ap.Spec.Source.IP),
+		DstIP:      net.ParseIP(ap.Spec.Destination.IP),
 		SrcMac:     srcMac,
 		DstMac:     dstMac,
-		SrcIP:      srcIP,
-		DstIP:      dstIP,
-		IPProtocol: uint8(6),
-		IPLength:   uint16(5),
-		IPFlags:    uint16(0),
-		TTL:        uint8(60),
-		SrcPort:    uint16(8080),
-		DstPort:    uint16(80),
-		TCPFlags:   uint8(2),
+		IPProtocol: uint8(ap.Spec.Packet.IPHeader.Protocol),
+		IPLength:   ap.Spec.Packet.Length,
+		IPFlags:    uint16(ap.Spec.Packet.IPHeader.Flags),
+		TTL:        uint8(ap.Spec.Packet.IPHeader.TTL),
+		SrcPort:    8080,
+		DstPort:    80,
 	}
 
-	return packet, nil
+	if packet.IPProtocol == protocol.Type_ICMP {
+		packet.ICMPEchoID = uint16(ap.Spec.Packet.TransportHeader.ICMP.ID)
+		packet.ICMPEchoSeq = uint16(ap.Spec.Packet.TransportHeader.ICMP.Sequence)
+	} else if packet.IPProtocol == protocol.Type_TCP {
+		packet.SrcPort = uint16(ap.Spec.Packet.TransportHeader.TCP.SrcPort)
+		packet.DstPort = uint16(ap.Spec.Packet.TransportHeader.TCP.DstPort)
+		packet.TCPFlags = uint8(ap.Spec.Packet.TransportHeader.TCP.Flags)
+	} else if packet.IPProtocol == protocol.Type_UDP {
+		packet.SrcPort = uint16(ap.Spec.Packet.TransportHeader.UDP.SrcPort)
+		packet.DstPort = uint16(ap.Spec.Packet.TransportHeader.UDP.DstPort)
+	}
+
+	return packet
 }
 
-func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
+func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe, tag uint8) error {
 	// Send activeprobe packet from the bridge which contains with src endpoint in probe spec
 	// 1. ovsbr Name; 2. agent id
-	//var ovsbrName string
-	//var tag uint8
-	var packet datapath.Packet
-	//var inPort, outPort uint32
 	var err error
 
-	srcMac, _ := net.ParseMAC("00:aa:aa:aa:aa:aa")
-	dstMac, _ := net.ParseMAC("00:aa:aa:aa:aa:ab")
-	srcIP := net.ParseIP("10.0.1.11")
-	dstIP := net.ParseIP("10.0.1.12")
+	packet := a.ParseActiveProbeSpec(ap)
+	sendTimes := ap.Spec.ProbeTimes
 
-	packet = datapath.Packet{
-		SrcMac:     srcMac,
-		DstMac:     dstMac,
-		SrcIP:      srcIP,
-		DstIP:      dstIP,
-		IPProtocol: uint8(6),
-		IPLength:   uint16(5),
-		IPFlags:    uint16(0),
-		TTL:        uint8(60),
-		SrcPort:    uint16(8080),
-		DstPort:    uint16(80),
-		TCPFlags:   uint8(2),
+	for i := 0; i < int(sendTimes); i++ {
+		err = a.DatapathManager.SendActiveProbePacket("ovsbr1", *packet, tag, 1, nil)
 	}
-
-	err = a.DatapathManager.SendActiveProbePacket("ovsbr1", packet, 16, 10, nil)
 
 	return err
 }
 
-func (a *ActiveprobeController) InstallActiveProbeRuleFlow() error {
+func (a *ActiveprobeController) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
 	//var ovsbrName string
 	//var tag uint8
 	var err error
 
-	err = a.DatapathManager.InstallActiveProbeFlows("ovsbr1", 4)
+	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
+}
+
+func (a *ActiveprobeController) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, state activeprobev1alph1.ActiveProbeState, apResult *activeprobev1alph1.AgentProbeResult, reason string, tag uint8) error {
+	update := ap.DeepCopy()
+	update.Status.State = state
+	update.Status.Tag = tag
+	if reason != "" {
+		update.Status.Reason = reason
+	}
+	update.Status.Results = append(update.Status.Results, *apResult)
+	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	klog.Infof("Updated ActiveProbe %s: %+v", ap.Name, update.Status)
+	fmt.Printf("Updated ActiveProbe %s: %+v\n", ap.Name, update.Status)
+	return err
+}
+
+func (a *ActiveprobeController) allocateTag(name string) (uint8, error) {
+	a.RunningActiveprobeMutex.Lock()
+	defer a.RunningActiveprobeMutex.Unlock()
+
+	for _, n := range a.RunningActiveprobe {
+		if n == name {
+			//The ActiveProbe request has been processed already.
+			return 0, nil
+		}
+	}
+	for i := minTagNum; i <= maxTagNum; i += tagStep {
+		if _, ok := a.RunningActiveprobe[i]; !ok {
+			a.RunningActiveprobe[i] = name
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
+}
+
+func (a *ActiveprobeController) deleteActiveProbeByName(apName string) (*string, uint8) {
+	a.RunningActiveprobeMutex.Lock()
+	defer a.RunningActiveprobeMutex.Unlock()
+	for tag, name := range a.RunningActiveprobe {
+		if name == apName {
+			delete(a.RunningActiveprobe, tag)
+			return &name, tag
+		}
+	}
+	return nil, 0
+}
+
+func (a *ActiveprobeController) cleanupActiveProbe(apName string) {
+	activeProbeName, tag := a.deleteActiveProbeByName(apName)
+	ovsbrName := "ovsbr1"
+	if activeProbeName != nil {
+		err := a.DatapathManager.UninstallActiveProbeFlows(ovsbrName, tag)
+		if err != nil {
+			klog.Errorf("Failed to uninstall Traceflow %s flows: %v", activeProbeName, err)
+		}
+	}
 }

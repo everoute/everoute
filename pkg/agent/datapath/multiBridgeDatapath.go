@@ -140,9 +140,11 @@ const (
 
 	MaxRoundNum = 15
 
-	Tier1PolicyMatch = 1
-	Tier2PolicyMatch = 2
-	Tier3PolicyMatch = 3
+	PolicyRuleActionAllow = 0x30
+	PolicyRuleActionDeny  = 0x20
+	Tier1PolicyMatch      = 1
+	Tier2PolicyMatch      = 2
+	Tier3PolicyMatch      = 3
 )
 
 type Bridge interface {
@@ -926,10 +928,10 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	return nil
 }
 
-func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag uint8) error {
+func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag uint8, ipDa *net.IP) error {
 	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
 		if brName == ovsbrName {
-			flowEntries, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).InstallActiveProbeFlow(tag)
+			flowEntries, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).InstallActiveProbeFlow(tag, ipDa)
 			if err != nil {
 				return err
 			}

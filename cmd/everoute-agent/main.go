@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/cniserver"
+	activeprobectrl "github.com/everoute/everoute/pkg/agent/controller/activeprobe"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
@@ -149,6 +150,16 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 		DatapathManager: datapathManager,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
+	}
+
+	// activeprobe controller
+	if err = (&activeprobectrl.ActiveprobeController{
+		K8sClient:          mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		DatapathManager:    datapathManager,
+		RunningActiveprobe: make(map[uint8]string),
+	}).SetupWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create active probe controller: %s", err.Error())
 	}
 
 	if enableCNI {

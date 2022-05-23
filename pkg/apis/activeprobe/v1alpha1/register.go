@@ -27,6 +27,7 @@ import (
 func init() {
 	SchemeBuilder.Register(
 		&ActiveProbe{},
+		&ActiveProbeList{},
 	)
 }
 
