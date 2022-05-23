@@ -57,9 +57,8 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
-	//github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb
-	//github.com/contiv/ofnet => github.com/echkenluo/ofnet v0.0.0-20220413030501-4e4f91ab7cc3
-	github.com/contiv/ofnet => github.com/cl1111/ofnet v0.0.0-20220505094759-34a2b3201b4a
+	//github.com/contiv/ofnet => github.com/cl1111/ofnet v0.0.0-20220510064949-8fdd54fc5ced
+	github.com/contiv/ofnet => github.com/cl1111/ofnet v0.0.0-20220511062757-3c8610e8ab0e
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
 	k8s.io/apimachinery v0.22.2 => k8s.io/apimachinery v0.20.6
