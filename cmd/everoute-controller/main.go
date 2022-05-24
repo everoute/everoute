@@ -45,6 +45,7 @@ import (
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
 	"github.com/everoute/everoute/pkg/controller/k8s"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
+	"github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/webhook"
 	towerplugin "github.com/everoute/everoute/plugin/tower/pkg/register"
 	"github.com/everoute/everoute/third_party/cert"
@@ -157,6 +158,17 @@ func main() {
 	if err != nil {
 		klog.Fatalf("unable register tower plugin: %s", err.Error())
 	}
+
+	// install /healthz handler
+	healthz.InstallHandler(mgr.GetWebhookServer(),
+		healthz.PingHealthz,
+		healthz.LogHealthz,
+		healthz.NewCacheSyncHealthz(mgr.GetCache()),
+		healthz.WithEnable(
+			towerPluginOptions.Enable,
+			healthz.NewInformerSyncHealthz(towerPluginOptions.SharedFactory),
+		),
+	)
 
 	klog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
