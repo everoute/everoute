@@ -41,6 +41,7 @@ type Options struct {
 	Namespace    string
 	// which EverouteCluster should synchronize SecurityPolicy from
 	EverouteCluster string
+	SharedFactory   informer.SharedInformerFactory
 }
 
 // InitFlags set and load options from flagset.
@@ -85,15 +86,17 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		return err
 	}
 
-	towerFactory := informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
+	if opts.SharedFactory == nil {
+		opts.SharedFactory = informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
+	}
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
-	endpointController := endpoint.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
-	policyController := policy.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
-	globalaController := global.New(towerFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
+	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
+	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
+	globalaController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
-		towerFactory.Start(stopChan)
+		opts.SharedFactory.Start(stopChan)
 		crdFactory.Start(stopChan)
 
 		go endpointController.Run(opts.WorkerNumber, stopChan)
