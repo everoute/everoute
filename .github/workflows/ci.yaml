@@ -66,6 +66,10 @@ jobs:
       - name: wait clean process ready
         run: kubectl wait po -n kube-system --for=condition=Ready=True -l app=everoute -l component=everoute-clean --timeout=3m
 
+      - name: restart system service pods
+        run: |
+          kubectl get pods -n kube-system | awk '{print $1}' | grep "^coredns\|^metrics" | xargs kubectl delete pods -n kube-system
+
       - name: stop clean pods
         run: kubectl delete -f hack/clean.yaml
 
