@@ -19,9 +19,11 @@ package main
 import (
 	"flag"
 	"net"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -64,13 +66,49 @@ func main() {
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
 	datapathManager.InitializeDatapath(stopChan)
 
+	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
+	if err != nil {
+		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
+	}
+
+	ovsdbMonitor.RegisterOvsdbEventHandler(monitor.OvsdbEventHandlerFuncs{
+		LocalEndpointAddFunc: func(endpoint *datapath.Endpoint) {
+			err := datapathManager.AddLocalEndpoint(endpoint)
+			if err != nil {
+				klog.Errorf("Failed to add local endpoint: %+v, error: %+v", endpoint, err)
+			}
+		},
+		LocalEndpointDeleteFunc: func(endpoint *datapath.Endpoint) {
+			err := datapathManager.RemoveLocalEndpoint(endpoint)
+			if err != nil {
+				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", endpoint, err)
+			}
+		},
+		LocalEndpointUpdateFunc: func(newEndpoint, oldEndpoint *datapath.Endpoint) {
+			err := datapathManager.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
+			if err != nil {
+				klog.Errorf("Failed to update local endpoint from %v to %v, error: %v", oldEndpoint, newEndpoint, err)
+			}
+		},
+	})
+	go ovsdbMonitor.Run(stopChan)
+
+	var mgr manager.Manager
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
-	mgr, err := ctrl.NewManager(config, ctrl.Options{
-		Scheme:             clientsetscheme.Scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-	})
+
+	// loop initialize manager until success or stop
+	err = wait.PollImmediateUntil(time.Second, func() (bool, error) {
+		mgr, err = ctrl.NewManager(config, ctrl.Options{
+			Scheme:             clientsetscheme.Scheme,
+			MetricsBindAddress: metricsAddr,
+			Port:               9443,
+		})
+		if err != nil {
+			klog.Errorf("unable to create manager: %s", err.Error())
+		}
+		return err == nil, nil
+	}, stopChan)
 	if err != nil {
 		klog.Fatalf("unable to create manager: %s", err.Error())
 	}
@@ -91,30 +129,7 @@ func main() {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
-	agentmonitor, err := monitor.NewAgentMonitor(k8sClient, ofPortIPAddrMoniotorChan)
-	if err != nil {
-		klog.Fatalf("error %v when start agentmonitor.", err)
-	}
-	agentmonitor.RegisterOvsdbEventHandler(monitor.OvsdbEventHandlerFuncs{
-		LocalEndpointAddFunc: func(endpoint datapath.Endpoint) {
-			err := datapathManager.AddLocalEndpoint(&endpoint)
-			if err != nil {
-				klog.Errorf("Failed to add local endpoint: %+v, error: %+v", endpoint, err)
-			}
-		},
-		LocalEndpointDeleteFunc: func(endpoint datapath.Endpoint) {
-			err := datapathManager.RemoveLocalEndpoint(&endpoint)
-			if err != nil {
-				klog.Errorf("Failed to del local endpoint with OfPort: %+v, error: %+v", endpoint, err)
-			}
-		},
-		LocalEndpointUpdateFunc: func(newEndpoint, oldEndpoint datapath.Endpoint) {
-			err := datapathManager.UpdateLocalEndpoint(&newEndpoint, &oldEndpoint)
-			if err != nil {
-				klog.Errorf("Failed to update local endpoint from %v to %v, error: %v", oldEndpoint, newEndpoint, err)
-			}
-		},
-	})
+	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
 	go agentmonitor.Run(stopChan)
 
 	<-stopChan
