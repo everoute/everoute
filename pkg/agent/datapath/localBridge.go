@@ -746,9 +746,9 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 
 func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	// remove table 0 from local endpoing flow
-	log.Infof("remove from local endpoint flow: %v", l.fromLocalEndpointFlow[endpoint.PortNo])
-	if endpoint.VlanID != 0 {
-		if err := l.fromLocalEndpointFlow[endpoint.PortNo].Delete(); err != nil {
+	if localEndpointFlow, ok := l.fromLocalEndpointFlow[endpoint.PortNo]; ok {
+		log.Infof("remove from local endpoint flow: %v", localEndpointFlow)
+		if err := localEndpointFlow.Delete(); err != nil {
 			return err
 		}
 		delete(l.fromLocalEndpointFlow, endpoint.PortNo)
