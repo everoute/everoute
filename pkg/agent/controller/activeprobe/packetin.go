@@ -49,7 +49,7 @@ func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error 
 	fmt.Println("tag = ", tag)
 	fmt.Println("apResult = ", apResult)
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		name := a.RunningActiveprobe[tag]
+		name := a.RunningActiveprobe[tag].name
 		namespacedName := types.NamespacedName{
 			Namespace: "",
 			Name:      name,

@@ -100,16 +100,24 @@ const (
 )
 
 type Source struct {
-	Endpoint  string `json:"endpoint,omitempty"`
-	NameSpace string `json:"namespace,omitempty"`
-	IP        string `json:"ip,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	NameSpace  string `json:"namespace,omitempty"`
+	IP         string `json:"ip,omitempty"`
+	MAC        string `json:"mac,omitempty"`
+	AgentName  string `json:"agentname,omitempty"`
+	BridgeName string `json:"bridgename,omitempty"`
+	Ofport     int32  `json:"ofport,omitempty"`
 }
 
 type Destination struct {
-	Endpoint  string `json:"endpoint,omitempty"`
-	NameSpace string `json:"namespace,omitempty"`
-	IP        string `json:"ip,omitempty"`
-	Service   string `json:"service,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty"`
+	NameSpace  string `json:"namespace,omitempty"`
+	IP         string `json:"ip,omitempty"`
+	MAC        string `json:"mac,omitempty"`
+	AgentName  string `json:"agentname,omitempty"`
+	BridgeName string `json:"bridgename,omitempty"`
+	Ofport     int32  `json:"ofport,omitempty"`
+	Service    string `json:"service,omitempty"`
 }
 
 type IPHeader struct {

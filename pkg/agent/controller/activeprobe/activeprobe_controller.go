@@ -24,6 +24,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"net"
@@ -37,14 +38,10 @@ import (
 	"sync"
 )
 
-const (
-	// Min and max data plane tag for traceflow. minTagNum is 7 (0b000111), maxTagNum is 59 (0b111011).
-	// As per RFC2474, 16 different DSCP values are we reserved for Experimental or Local Use, which we use as the 16 possible data plane tag values.
-	// tagStep is 4 (0b100) to keep last 2 bits at 0b11.
-	tagStep   uint8 = 0b100
-	minTagNum uint8 = 0b1*tagStep + 0b11
-	maxTagNum uint8 = 0b1110*tagStep + 0b11
-)
+type activeProbeState struct {
+	name string
+	tag  uint8
+}
 
 type ActiveprobeController struct {
 	// K8sClient used to create/read/update activeprobe
@@ -53,7 +50,7 @@ type ActiveprobeController struct {
 
 	DatapathManager         *datapath.DpManager
 	RunningActiveprobeMutex sync.Mutex
-	RunningActiveprobe      map[uint8]string //tag->activeProbeName if ap.Status.State is Running
+	RunningActiveprobe      map[uint8]*activeProbeState //tag->activeProbeState if ap.Status.State is Running
 }
 
 // 1). received active probe request from work queue;
@@ -75,6 +72,8 @@ func (a *ActiveprobeController) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
+
+	a.RunningActiveprobe = make(map[uint8]*activeProbeState)
 
 	err = c.Watch(&source.Kind{Type: &activeprobev1alph1.ActiveProbe{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
@@ -111,15 +110,21 @@ func (a *ActiveprobeController) RegisterPacketInHandler(stopChan <-chan struct{}
 
 func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
+	var err error
 	klog.V(2).Infof("ActiveprobeController received activeprobe %s reconcile", req.NamespacedName)
 
 	ap := activeprobev1alph1.ActiveProbe{}
-	if err := a.K8sClient.Get(ctx, req.NamespacedName, &ap); err != nil {
+	if err = a.K8sClient.Get(ctx, req.NamespacedName, &ap); err != nil {
 		klog.Errorf("unable to fetch activeprobe %v: %v", req.Name, err.Error())
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	curAgentName := utils.CurrentAgentName()
+	if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
+		return ctrl.Result{}, err
 	}
 
 	return a.processActiveProbeUpdate(&ap)
@@ -129,7 +134,7 @@ func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.
 	// sync ap until timeout
 	var err error
 	switch ap.Status.State {
-	case "", activeprobev1alph1.ActiveProbeRunning:
+	case activeprobev1alph1.ActiveProbeRunning:
 		start := false
 		a.RunningActiveprobeMutex.Lock()
 		if _, ok := a.RunningActiveprobe[ap.Status.Tag]; !ok {
@@ -146,11 +151,29 @@ func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.
 }
 
 func (a *ActiveprobeController) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
-	ovsbrName := "ovsbr1"
-	tag, err := a.allocateTag(ap.Name)
+	var err error
+	var ovsbrName string
+	tag := ap.Status.Tag
 	ipDa := net.ParseIP(ap.Spec.Destination.IP)
-	err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
-	err = a.SendActiveProbePacket(ap, tag)
+
+	curAgentName := utils.CurrentAgentName()
+	if curAgentName == ap.Spec.Source.AgentName {
+		ovsbrName = ap.Spec.Source.BridgeName
+		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
+		if err != nil {
+			return err
+		}
+		err = a.SendActiveProbePacket(ap)
+		if err != nil {
+			return err
+		}
+	} else if curAgentName == ap.Spec.Destination.AgentName {
+		ovsbrName = ap.Spec.Destination.BridgeName
+		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
+		if err != nil {
+			return err
+		}
+	}
 	return err
 }
 
@@ -158,13 +181,8 @@ func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.Acti
 	// Generate ip src && dst from endpoint name(or uuid), should store interface cache that contains ip
 	var packet *datapath.Packet
 
-	srcMac, _ := net.ParseMAC("00:aa:aa:aa:aa:aa")
-	dstMac, _ := net.ParseMAC("00:aa:aa:aa:aa:ab")
-	//srcEndpointStr := ap.Spec.Source.Endpoint
-	//dstEndpointStr := ap.Spec.Destination.Endpoint
-	//srcNamespaceStr := ap.Spec.Source.NameSpace
-	//dstNamespaceStr := ap.Spec.Destination.NameSpace
-	//dstServiceStr := ap.Spec.Destination.Service
+	srcMac, _ := net.ParseMAC(ap.Spec.Source.MAC)
+	dstMac, _ := net.ParseMAC(ap.Spec.Destination.MAC)
 
 	packet = &datapath.Packet{
 		SrcIP:      net.ParseIP(ap.Spec.Source.IP),
@@ -194,16 +212,18 @@ func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.Acti
 	return packet
 }
 
-func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe, tag uint8) error {
+func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
 	// Send activeprobe packet from the bridge which contains with src endpoint in probe spec
 	// 1. ovsbr Name; 2. agent id
 	var err error
-
+	ovsbrName := ap.Spec.Source.BridgeName
+	inport := uint32(ap.Spec.Source.Ofport)
+	tag := ap.Status.Tag
 	packet := a.ParseActiveProbeSpec(ap)
 	sendTimes := ap.Spec.ProbeTimes
 
 	for i := 0; i < int(sendTimes); i++ {
-		err = a.DatapathManager.SendActiveProbePacket("ovsbr1", *packet, tag, 1, nil)
+		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
 	}
 
 	return err
@@ -213,7 +233,6 @@ func (a *ActiveprobeController) InstallActiveProbeRuleFlow(ovsbrName string, tag
 	//var ovsbrName string
 	//var tag uint8
 	var err error
-
 	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
 }
@@ -232,44 +251,25 @@ func (a *ActiveprobeController) updateActiveProbeStatus(ap *activeprobev1alph1.A
 	return err
 }
 
-func (a *ActiveprobeController) allocateTag(name string) (uint8, error) {
+func (a *ActiveprobeController) deleteActiveProbeByName(apName string) *activeProbeState {
 	a.RunningActiveprobeMutex.Lock()
 	defer a.RunningActiveprobeMutex.Unlock()
-
-	for _, n := range a.RunningActiveprobe {
-		if n == name {
-			//The ActiveProbe request has been processed already.
-			return 0, nil
-		}
-	}
-	for i := minTagNum; i <= maxTagNum; i += tagStep {
-		if _, ok := a.RunningActiveprobe[i]; !ok {
-			a.RunningActiveprobe[i] = name
-			return i, nil
-		}
-	}
-	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
-}
-
-func (a *ActiveprobeController) deleteActiveProbeByName(apName string) (*string, uint8) {
-	a.RunningActiveprobeMutex.Lock()
-	defer a.RunningActiveprobeMutex.Unlock()
-	for tag, name := range a.RunningActiveprobe {
-		if name == apName {
+	for tag, apState := range a.RunningActiveprobe {
+		if apState.name == apName {
 			delete(a.RunningActiveprobe, tag)
-			return &name, tag
+			return apState
 		}
 	}
-	return nil, 0
+	return nil
 }
 
 func (a *ActiveprobeController) cleanupActiveProbe(apName string) {
-	activeProbeName, tag := a.deleteActiveProbeByName(apName)
+	apState := a.deleteActiveProbeByName(apName)
 	ovsbrName := "ovsbr1"
-	if activeProbeName != nil {
-		err := a.DatapathManager.UninstallActiveProbeFlows(ovsbrName, tag)
+	if apState != nil {
+		err := a.DatapathManager.UninstallActiveProbeFlows(ovsbrName, apState.tag)
 		if err != nil {
-			klog.Errorf("Failed to uninstall Traceflow %s flows: %v", activeProbeName, err)
+			klog.Errorf("Failed to uninstall Traceflow %s flows: %v", apState.name, err)
 		}
 	}
 }

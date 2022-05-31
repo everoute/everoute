@@ -19,6 +19,13 @@ package activeprobe
 import (
 	"context"
 	"fmt"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
+	"github.com/everoute/everoute/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -36,19 +43,43 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
+const (
+	controllerName        = "activeprobe-controller"
+	externalIDIndex       = "externalIDIndex"
+	endpointExternalIDKey = "iface-id"
+	// Min and max data plane tag for traceflow. minTagNum is 7 (0b000111), maxTagNum is 59 (0b111011).
+	// As per RFC2474, 16 different DSCP values are we reserved for Experimental or Local Use, which we use as the 16 possible data plane tag values.
+	// tagStep is 4 (0b100) to keep last 2 bits at 0b11.
+	tagStep   uint8 = 0b100
+	minTagNum uint8 = 0b1*tagStep + 0b11
+	maxTagNum uint8 = 0b1110*tagStep + 0b11
+)
+
+type updateStatusItem struct {
+	ipSrc string
+	ipDst string
+	tag   uint8
+}
+
 type ActiveprobeReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	syncQueue workqueue.RateLimitingInterface
+	Scheme                  *runtime.Scheme
+	syncQueue               workqueue.RateLimitingInterface
+	RunningActiveprobeMutex sync.Mutex
+	RunningActiveprobe      map[uint8]string //tag->activeProbeName if ap.Status.State is Running
+	IfaceCacheLock          sync.RWMutex
+	IfaceCache              cache.Indexer
 }
 
 // SetupWithManager create and add Endpoint Controller to the manager.
-func (r *ActiveprobeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ActiveprobeReconciler) SetupWithManager(mgr ctrl.Manager, ifaceCache cache.Indexer) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
 
-	c, err := controller.New("activeprobe-controller", mgr, controller.Options{
+	r.IfaceCache = ifaceCache
+
+	c, err := controller.New(controllerName, mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              r,
 	})
@@ -72,42 +103,44 @@ func (r *ActiveprobeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 	return ctrl.Result{}, nil
 }
 
-func (a *ActiveprobeReconciler) Run(stopChan <-chan struct{}) {
-	defer a.syncQueue.ShutDown()
+func (r *ActiveprobeReconciler) Run(stopChan <-chan struct{}) {
+	defer r.syncQueue.ShutDown()
+	klog.Infof("Starting %s", controllerName)
+	defer klog.Infof("Shutting down %s", controllerName)
 
-	go wait.Until(a.SyncActiveProbeWorker, 0, stopChan)
+	go wait.Until(r.SyncActiveProbeWorker, 0, stopChan)
 	<-stopChan
 }
 
-func (a *ActiveprobeReconciler) SyncActiveProbeWorker() {
-	item, shutdown := a.syncQueue.Get()
+func (r *ActiveprobeReconciler) SyncActiveProbeWorker() {
+	item, shutdown := r.syncQueue.Get()
 	if shutdown {
 		return
 	}
-	defer a.syncQueue.Done(item)
+	defer r.syncQueue.Done(item)
 	// 1. lookup endpoint name from  endpoint agent
 
 	objKey, ok := item.(k8stypes.NamespacedName)
 	if !ok {
-		a.syncQueue.Forget(item)
+		r.syncQueue.Forget(item)
 		klog.Errorf("Activeprobe %v was not found in workqueue", objKey)
 		return
 	}
 
 	// TODO should support timeout and max retry
-	if err := a.syncActiveProbe(objKey); err == nil {
+	if err := r.syncActiveProbe(objKey); err == nil {
 		klog.Errorf("sync activeprobe  %v", objKey)
-		a.syncQueue.Forget(item)
+		r.syncQueue.Forget(item)
 	} else {
 		klog.Errorf("Failed to sync activeprobe %v, error: %v", objKey, err)
 	}
 }
 
-func (a *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
+func (r *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
 	var err error
 	ctx := context.Background()
 	ap := activeprobev1alph1.ActiveProbe{}
-	if err := a.Get(ctx, objKey, &ap); err != nil {
+	if err := r.Get(ctx, objKey, &ap); err != nil {
 		klog.Errorf("unable to fetch activeprobe %s: %s", objKey, err.Error())
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
@@ -116,19 +149,210 @@ func (a *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) 
 	}
 
 	switch ap.Status.State {
+	case "":
+		err = r.runActiveProbe(&ap)
 	case activeprobev1alph1.ActiveProbeRunning:
-		err = a.runActiveProbe(ap)
+		err = r.checkActiveProbeStatus(&ap)
+	case activeprobev1alph1.ActiveProbeFailed:
+		r.deallocateTagForTF(&ap)
 	default:
 	}
 
 	return err
 }
 
-func (r *ActiveprobeReconciler) runActiveProbe(ap activeprobev1alph1.ActiveProbe) error {
+func (r *ActiveprobeReconciler) fetchEndpointStatus(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
+	r.IfaceCacheLock.RLock()
+	defer r.IfaceCacheLock.RUnlock()
+
+	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, id.String())
+	if err != nil {
+		return nil, err
+	}
+	switch len(ifaces) {
+	case 0:
+		// if no match iface found, return empty status
+		return &securityv1alpha1.EndpointStatus{}, nil
+	default:
+		// combine all ifaces status into endpoint status
+		ipsets := sets.NewString()
+		agentSets := sets.NewString()
+		for _, item := range ifaces {
+			if len(item.(*iface).ipLastUpdateTimeMap) != 0 {
+				agentSets.Insert(item.(*iface).agentName)
+				for ip := range item.(*iface).ipLastUpdateTimeMap {
+					ipsets.Insert(ip.String())
+				}
+			}
+		}
+		endpointStatus := &securityv1alpha1.EndpointStatus{
+			MacAddress: ifaces[0].(*iface).mac,
+			Agents:     agentSets.List(),
+		}
+		for _, ip := range ipsets.List() {
+			endpointStatus.IPs = append(endpointStatus.IPs, types.IPAddress(ip))
+		}
+		return endpointStatus, nil
+	}
+}
+
+func (r *ActiveprobeReconciler) AddSrcEndpointInfo(ap *activeprobev1alph1.ActiveProbe, endpointID ctrltypes.ExternalID) error {
+	endpointStatus, err := r.fetchEndpointStatus(endpointID)
+	if err != nil {
+		return err
+	}
+	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, endpointID.String())
+	if err != nil {
+		return err
+	}
+	switch len(ifaces) {
+	case 0:
+		// if no match iface found, return empty status
+		return nil
+	default:
+		ap.Spec.Source.IP = endpointStatus.IPs[0].String()
+		ap.Spec.Source.MAC = ifaces[0].(*iface).mac
+		ap.Spec.Source.AgentName = ifaces[0].(*iface).agentName
+		ap.Spec.Source.BridgeName = ifaces[0].(*iface).bridgeName
+		ap.Spec.Source.Ofport = ifaces[0].(*iface).ofport
+		return nil
+	}
+}
+
+func (r *ActiveprobeReconciler) AddDstEndpointInfo(ap *activeprobev1alph1.ActiveProbe, endpointID ctrltypes.ExternalID) error {
+	endpointStatus, err := r.fetchEndpointStatus(endpointID)
+	if err != nil {
+		return err
+	}
+	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, endpointID.String())
+	if err != nil {
+		return err
+	}
+	switch len(ifaces) {
+	case 0:
+		// if no match iface found, return empty status
+		return nil
+	default:
+		ap.Spec.Destination.IP = endpointStatus.IPs[0].String()
+		ap.Spec.Destination.MAC = ifaces[0].(*iface).mac
+		ap.Spec.Destination.AgentName = ifaces[0].(*iface).agentName
+		ap.Spec.Destination.BridgeName = ifaces[0].(*iface).bridgeName
+		ap.Spec.Destination.Ofport = ifaces[0].(*iface).ofport
+		return nil
+	}
+}
+
+func (r *ActiveprobeReconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
+	var err error
+	srcEpExternalIDValue := ap.Spec.Source.Endpoint
+	dstEpExternalIDValue := ap.Spec.Destination.Endpoint
+	srcEndpointID := ctrltypes.ExternalID{
+		Name:  endpointExternalIDKey,
+		Value: srcEpExternalIDValue,
+	}
+	err = r.AddSrcEndpointInfo(ap, srcEndpointID)
+	if err != nil {
+		return err
+	}
+
+	dstEndpointID := ctrltypes.ExternalID{
+		Name:  endpointExternalIDKey,
+		Value: dstEpExternalIDValue,
+	}
+	err = r.AddDstEndpointInfo(ap, dstEndpointID)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
+	r.RunningActiveprobeMutex.Lock()
+	defer r.RunningActiveprobeMutex.Unlock()
+
+	for _, n := range r.RunningActiveprobe {
+		if n == name {
+			//The ActiveProbe request has been processed already.
+			return 0, nil
+		}
+	}
+	for i := minTagNum; i <= maxTagNum; i += tagStep {
+		if _, ok := r.RunningActiveprobe[i]; !ok {
+			r.RunningActiveprobe[i] = name
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
+}
+
+func (r *ActiveprobeReconciler) deallocateTagForTF(ap *activeprobev1alph1.ActiveProbe) {
+	if ap.Status.Tag != 0 {
+		r.deallocateTag(ap.Name, ap.Status.Tag)
+	}
+}
+
+func (r *ActiveprobeReconciler) deallocateTag(name string, tag uint8) {
+	r.RunningActiveprobeMutex.Lock()
+	defer r.RunningActiveprobeMutex.Unlock()
+	if existingActiveProbeName, ok := r.RunningActiveprobe[tag]; ok {
+		if name == existingActiveProbeName {
+			delete(r.RunningActiveprobe, tag)
+		}
+	}
+}
+
+func (r *ActiveprobeReconciler) validateActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 
 	return nil
 }
 
+func (r *ActiveprobeReconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, state activeprobev1alph1.ActiveProbeState, reason string, tag uint8) error {
+	update := ap.DeepCopy()
+	update.Status.State = state
+	update.Status.Tag = tag
+	if reason != "" {
+		update.Status.Reason = reason
+	}
+	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	return err
+}
+
+/* TODO */
+func (r *ActiveprobeReconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+	if err := r.validateActiveProbe(ap); err != nil {
+		klog.Errorf("Invalid ActiveProbe request %v", ap)
+		return r.updateActiveProbeStatus(ap, activeprobev1alph1.ActiveProbeFailed, fmt.Sprintf("Invalid ActiveProbe request, err: %+v", err), 0)
+	}
+
+	updateItem := &updateStatusItem{}
+	// Allocate data plane tag.
+	tag, err := r.allocateTag(ap.Name)
+	if err != nil {
+		return err
+	}
+	if tag == 0 {
+		return nil
+	}
+	updateItem.tag = tag
+
+	err = r.AddEndpointInfo(ap)
+	if err != nil {
+		return err
+	}
+
+	err = r.updateActiveProbeStatus(ap, activeprobev1alph1.ActiveProbeRunning, "", tag)
+	if err != nil {
+		r.deallocateTag(ap.Name, tag)
+	}
+	return err
+}
+
+/* TODO */
+func (r *ActiveprobeReconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
+
+	return nil
+}
 func (r *ActiveprobeReconciler) AddActiveProbe(e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Name:      e.Meta.GetName(),
@@ -151,4 +375,17 @@ func (r *ActiveprobeReconciler) UpdateActiveProbe(e event.UpdateEvent, q workque
 		Namespace: e.MetaNew.GetNamespace(),
 	}})
 
+}
+
+type iface struct {
+	agentName string
+	name      string
+	agentTime metav1.Time
+
+	externalIDs         map[string]string
+	mac                 string
+	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
+
+	bridgeName string
+	ofport     int32
 }

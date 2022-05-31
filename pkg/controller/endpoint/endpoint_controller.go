@@ -191,6 +191,8 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
 					ipLastUpdateTimeMap: ovsIface.IPMap,
+					bridgeName:          bridge.Name,
+					ofport:              ovsIface.Ofport,
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -446,6 +448,12 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 	}
 }
 
+func (r *EndpointReconciler) GetIfaceCache() cache.Indexer {
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+	return r.ifaceCache
+}
+
 // EqualEndpointStatus return true if and only if the two endpoint has the same
 // status.
 func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.EndpointStatus) bool {
@@ -514,6 +522,9 @@ type iface struct {
 	externalIDs         map[string]string
 	mac                 string
 	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
+
+	bridgeName string
+	ofport     int32
 }
 
 func (i *iface) String() string {

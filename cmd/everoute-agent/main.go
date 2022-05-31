@@ -154,10 +154,9 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 
 	// activeprobe controller
 	if err = (&activeprobectrl.ActiveprobeController{
-		K8sClient:          mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		DatapathManager:    datapathManager,
-		RunningActiveprobe: make(map[uint8]string),
+		K8sClient:       mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		DatapathManager: datapathManager,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create active probe controller: %s", err.Error())
 	}

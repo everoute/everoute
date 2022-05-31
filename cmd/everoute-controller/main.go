@@ -40,6 +40,7 @@ import (
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
+	activeprobectrl "github.com/everoute/everoute/pkg/controller/activeprobe"
 	"github.com/everoute/everoute/pkg/controller/common"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
@@ -102,11 +103,19 @@ func main() {
 	}
 
 	// endpoint controller sync endpoint status from agentinfo.
-	if err = (&endpointctrl.EndpointReconciler{
+	endpointReconcile := &endpointctrl.EndpointReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err = endpointReconcile.SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create endpoint controller: %s", err.Error())
+	}
+
+	if err = (&activeprobectrl.ActiveprobeReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr, endpointReconcile.GetIfaceCache()); err != nil {
+		klog.Fatalf("unable to create activeprobe controller: %s", err.Error())
 	}
 
 	// group controller sync & manager group members.
