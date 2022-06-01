@@ -678,9 +678,6 @@ func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8, ipDa *net.IP) ([]*FlowE
 	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
 	}
-	//if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-	//	return nil, fmt.Errorf("failed to install resubmit ingress active probe flow, error: %v", err)
-	//}
 
 	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
 		Table:    ingressActiveProbeFlow.Table,

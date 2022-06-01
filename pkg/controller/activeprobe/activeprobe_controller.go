@@ -19,17 +19,14 @@ package activeprobe
 import (
 	"context"
 	"fmt"
-	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
-	"github.com/everoute/everoute/pkg/types"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/cache"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,7 +37,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -66,7 +66,7 @@ type ActiveprobeReconciler struct {
 	Scheme                  *runtime.Scheme
 	syncQueue               workqueue.RateLimitingInterface
 	RunningActiveprobeMutex sync.Mutex
-	RunningActiveprobe      map[uint8]string //tag->activeProbeName if ap.Status.State is Running
+	RunningActiveprobe      map[uint8]string // tag->activeProbeName if ap.Status.State is Running
 	IfaceCacheLock          sync.RWMutex
 	IfaceCache              cache.Indexer
 }
@@ -154,7 +154,7 @@ func (r *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) 
 	case activeprobev1alph1.ActiveProbeRunning:
 		err = r.checkActiveProbeStatus(&ap)
 	case activeprobev1alph1.ActiveProbeFailed:
-		r.deallocateTagForTF(&ap)
+		r.deallocateTagForAP(&ap)
 	default:
 	}
 
@@ -196,75 +196,50 @@ func (r *ActiveprobeReconciler) fetchEndpointStatus(id ctrltypes.ExternalID) (*s
 	}
 }
 
-func (r *ActiveprobeReconciler) AddSrcEndpointInfo(ap *activeprobev1alph1.ActiveProbe, endpointID ctrltypes.ExternalID) error {
-	endpointStatus, err := r.fetchEndpointStatus(endpointID)
-	if err != nil {
-		return err
-	}
-	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, endpointID.String())
-	if err != nil {
-		return err
-	}
-	switch len(ifaces) {
-	case 0:
-		// if no match iface found, return empty status
-		return nil
-	default:
-		ap.Spec.Source.IP = endpointStatus.IPs[0].String()
-		ap.Spec.Source.MAC = ifaces[0].(*iface).mac
-		ap.Spec.Source.AgentName = ifaces[0].(*iface).agentName
-		ap.Spec.Source.BridgeName = ifaces[0].(*iface).bridgeName
-		ap.Spec.Source.Ofport = ifaces[0].(*iface).ofport
-		return nil
-	}
-}
-
-func (r *ActiveprobeReconciler) AddDstEndpointInfo(ap *activeprobev1alph1.ActiveProbe, endpointID ctrltypes.ExternalID) error {
-	endpointStatus, err := r.fetchEndpointStatus(endpointID)
-	if err != nil {
-		return err
-	}
-	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, endpointID.String())
-	if err != nil {
-		return err
-	}
-	switch len(ifaces) {
-	case 0:
-		// if no match iface found, return empty status
-		return nil
-	default:
-		ap.Spec.Destination.IP = endpointStatus.IPs[0].String()
-		ap.Spec.Destination.MAC = ifaces[0].(*iface).mac
-		ap.Spec.Destination.AgentName = ifaces[0].(*iface).agentName
-		ap.Spec.Destination.BridgeName = ifaces[0].(*iface).bridgeName
-		ap.Spec.Destination.Ofport = ifaces[0].(*iface).ofport
-		return nil
-	}
-}
-
 func (r *ActiveprobeReconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
-	var err error
 	srcEpExternalIDValue := ap.Spec.Source.Endpoint
-	dstEpExternalIDValue := ap.Spec.Destination.Endpoint
 	srcEndpointID := ctrltypes.ExternalID{
 		Name:  endpointExternalIDKey,
 		Value: srcEpExternalIDValue,
 	}
-	err = r.AddSrcEndpointInfo(ap, srcEndpointID)
-	if err != nil {
-		return err
+
+	srcIfaces, _ := r.IfaceCache.ByIndex(externalIDIndex, srcEndpointID.String())
+	srcEndpointStatus, _ := r.fetchEndpointStatus(srcEndpointID)
+
+	switch len(srcIfaces) {
+	case 0:
+		// if no match iface found, return empty status
+		return nil
+	default:
+		ap.Spec.Source.IP = srcEndpointStatus.IPs[0].String()
+		ap.Spec.Source.MAC = srcIfaces[0].(*iface).mac
+		ap.Spec.Source.AgentName = srcIfaces[0].(*iface).agentName
+		ap.Spec.Source.BridgeName = srcIfaces[0].(*iface).bridgeName
+		ap.Spec.Source.Ofport = srcIfaces[0].(*iface).ofport
+		return nil
 	}
 
+	dstEpExternalIDValue := ap.Spec.Destination.Endpoint
 	dstEndpointID := ctrltypes.ExternalID{
 		Name:  endpointExternalIDKey,
 		Value: dstEpExternalIDValue,
 	}
-	err = r.AddDstEndpointInfo(ap, dstEndpointID)
-	if err != nil {
-		return err
+
+	dstIfaces, _ := r.IfaceCache.ByIndex(externalIDIndex, dstEndpointID.String())
+	dstEndpointStatus, _ := r.fetchEndpointStatus(dstEndpointID)
+
+	switch len(dstIfaces) {
+	case 0:
+		return nil
+	default:
+		ap.Spec.Destination.IP = dstEndpointStatus.IPs[0].String()
+		ap.Spec.Destination.MAC = dstIfaces[0].(*iface).mac
+		ap.Spec.Destination.AgentName = dstIfaces[0].(*iface).agentName
+		ap.Spec.Destination.BridgeName = dstIfaces[0].(*iface).bridgeName
+		ap.Spec.Destination.Ofport = dstIfaces[0].(*iface).ofport
 	}
 
-	return err
+	return nil
 }
 
 func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
@@ -286,7 +261,7 @@ func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-func (r *ActiveprobeReconciler) deallocateTagForTF(ap *activeprobev1alph1.ActiveProbe) {
+func (r *ActiveprobeReconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) {
 	if ap.Status.Tag != 0 {
 		r.deallocateTag(ap.Name, ap.Status.Tag)
 	}

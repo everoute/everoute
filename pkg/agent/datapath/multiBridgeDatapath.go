@@ -933,6 +933,7 @@ func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag 
 		if brName == ovsbrName {
 			flowEntries, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).InstallActiveProbeFlow(tag, ipDa)
 			if err != nil {
+				log.Errorf("Failed to install activeProbe flow. Err: %v", err)
 				return err
 			}
 			datapathManager.ActiveProbeFlowMap[tag] = flowEntries

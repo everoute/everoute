@@ -19,15 +19,13 @@ package activeprobe
 import (
 	"context"
 	"fmt"
+	"net"
+	"sync"
+
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
-	"github.com/everoute/everoute/pkg/agent/datapath"
-	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
-	"github.com/everoute/everoute/pkg/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
-	"net"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -35,7 +33,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"sync"
+
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 type activeProbeState struct {
@@ -52,12 +54,6 @@ type ActiveprobeController struct {
 	RunningActiveprobeMutex sync.Mutex
 	RunningActiveprobe      map[uint8]*activeProbeState //tag->activeProbeState if ap.Status.State is Running
 }
-
-// 1). received active probe request from work queue;
-// 2). parsing it;
-// 3). generate activeprobe flow rules and activeprobe packet
-// 4). inject probe packet
-// 5). (optional) register packet in handler in controller
 
 func (a *ActiveprobeController) SetupWithManager(mgr ctrl.Manager) error {
 
@@ -131,7 +127,6 @@ func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Res
 }
 
 func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe) (ctrl.Result, error) {
-	// sync ap until timeout
 	var err error
 	switch ap.Status.State {
 	case activeprobev1alph1.ActiveProbeRunning:
@@ -145,7 +140,7 @@ func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.
 			err = a.runActiveProbe(ap)
 		}
 	default:
-		a.cleanupActiveProbe(ap.Name)
+		a.cleanupActiveProbe(ap)
 	}
 	return ctrl.Result{}, err
 }
@@ -178,7 +173,6 @@ func (a *ActiveprobeController) runActiveProbe(ap *activeprobev1alph1.ActiveProb
 }
 
 func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *datapath.Packet {
-	// Generate ip src && dst from endpoint name(or uuid), should store interface cache that contains ip
 	var packet *datapath.Packet
 
 	srcMac, _ := net.ParseMAC(ap.Spec.Source.MAC)
@@ -213,8 +207,6 @@ func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.Acti
 }
 
 func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
-	// Send activeprobe packet from the bridge which contains with src endpoint in probe spec
-	// 1. ovsbr Name; 2. agent id
 	var err error
 	ovsbrName := ap.Spec.Source.BridgeName
 	inport := uint32(ap.Spec.Source.Ofport)
@@ -230,8 +222,6 @@ func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.Act
 }
 
 func (a *ActiveprobeController) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
-	//var ovsbrName string
-	//var tag uint8
 	var err error
 	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
@@ -263,9 +253,18 @@ func (a *ActiveprobeController) deleteActiveProbeByName(apName string) *activePr
 	return nil
 }
 
-func (a *ActiveprobeController) cleanupActiveProbe(apName string) {
-	apState := a.deleteActiveProbeByName(apName)
-	ovsbrName := "ovsbr1"
+func (a *ActiveprobeController) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
+	var ovsbrName string
+
+	curAgentName := utils.CurrentAgentName()
+	if curAgentName == ap.Spec.Source.AgentName {
+		ovsbrName = ap.Spec.Source.BridgeName
+	} else if curAgentName == ap.Spec.Destination.AgentName {
+		ovsbrName = ap.Spec.Destination.BridgeName
+	}
+
+	apState := a.deleteActiveProbeByName(ap.Name)
+
 	if apState != nil {
 		err := a.DatapathManager.UninstallActiveProbeFlows(ovsbrName, apState.tag)
 		if err != nil {

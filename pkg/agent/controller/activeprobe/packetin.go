@@ -19,24 +19,31 @@ package activeprobe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
-	"github.com/everoute/everoute/pkg/agent/datapath"
-	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
+
+	"github.com/everoute/everoute/pkg/agent/datapath"
+	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+)
+
+const (
+	FlowAction                     = "flowAction"
+	FlowActionRegID         int    = 4
+	FlowActionRegLeftIndex  uint32 = 0
+	FlowActionRegRigthInnex uint32 = 15
+
+	ActiveProbe                     = "activeProbe"
+	ActiveProbeRegID         int    = 5
+	ActiveProbeRegLeftIndex  uint32 = 0
+	ActiveProbeRegRigthIndex uint32 = 8
+
+	OXM_OF_IN_PORT = "OXM_OF_IN_PORT"
 )
 
 func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
-	// In contoller runtime frame work, it's not easy to register packetIn callback in activeprobe controller
-	// but we need active probe controller process packetIn for telemetry result parsing.
-	// FIXME if runnable callback register func is not work, we need another module to parsing telemetry result
-	// and sync it to apiserver: update activeprobe status
-
-	// Parsing packetIn generate activeProbe status
-
 	ap := activeprobev1alph1.ActiveProbe{}
 	reason := ""
 
@@ -45,9 +52,6 @@ func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error 
 		klog.Errorf("parsePacketIn error: %+v", err)
 		return err
 	}
-	fmt.Println("state = ", state)
-	fmt.Println("tag = ", tag)
-	fmt.Println("apResult = ", apResult)
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		name := a.RunningActiveprobe[tag].name
 		namespacedName := types.NamespacedName{
@@ -68,19 +72,17 @@ func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error 
 		klog.Errorf("Update ActiveProbe error: %+v", err)
 	}
 
-	return nil
+	return err
 }
 
 func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph1.ActiveProbeState, uint8, *activeprobev1alph1.AgentProbeResult, error) {
 	var err error
 	var tag uint8
-	//var ctNwDst, ctNwSrc, ipDst, ipSrc string
 	var reg4Val, reg5Val uint32
 	var inPort uint32
 	state := activeprobev1alph1.ActiveProbeFailed
 	var telemetryTracePoint activeprobev1alph1.TelemetryTracePoint
 	var activeProbeAction activeprobev1alph1.ActiveProbeAction
-	//status := &activeprobev1alph1.ActiveProbeStatus{}
 	agentProbeResult := activeprobev1alph1.AgentProbeResult{}
 	activeProbeTracePoint := activeprobev1alph1.ActiveProbeTracePoint{}
 	matchers := packetIn.GetMatches()
@@ -90,9 +92,7 @@ func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (active
 			state = activeprobev1alph1.ActiveProbeFailed
 			return state, 0, nil, errors.New("invalid IPv4 packet")
 		}
-		//state = activeprobev1alph1.ActiveProbeCompleted
 		tag = ipPacket.DSCP
-		println("tag: ", tag)
 
 		if match := getMatchInPortField(matchers); match != nil {
 			inPort, err = getInportVal(match)
@@ -101,8 +101,8 @@ func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (active
 			}
 		}
 
-		flowActionField := ofctrl.NewRegField(4, 0, 15, "flowAction")
-		activeProbeField := ofctrl.NewRegField(5, 0, 8, "activeProbe")
+		flowActionField := ofctrl.NewRegField(FlowActionRegID, FlowActionRegLeftIndex, FlowActionRegRigthInnex, FlowAction)
+		activeProbeField := ofctrl.NewRegField(ActiveProbeRegID, ActiveProbeRegLeftIndex, ActiveProbeRegRigthIndex, ActiveProbe)
 
 		reg4Val, err = getRegValue(matchers, flowActionField)
 		if err != nil {
@@ -118,17 +118,19 @@ func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (active
 		if err != nil {
 			return state, tag, nil, err
 		}
-		if reg5Val == datapath.Tier1PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT {
+
+		switch {
+		case reg5Val == datapath.Tier1PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT:
 			telemetryTracePoint = activeprobev1alph1.IsolationPolicyEgress
-		} else if reg5Val == datapath.Tier2PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT {
+		case reg5Val == datapath.Tier2PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT:
 			telemetryTracePoint = activeprobev1alph1.FroensicPolicyEgress
-		} else if reg5Val == datapath.Tier3PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT {
+		case reg5Val == datapath.Tier3PolicyMatch && inPort == datapath.POLICY_TO_LOCAL_PORT:
 			telemetryTracePoint = activeprobev1alph1.SecurityPolicyEgress
-		} else if reg5Val == datapath.Tier1PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT {
+		case reg5Val == datapath.Tier1PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT:
 			telemetryTracePoint = activeprobev1alph1.IsolationPolicyIngress
-		} else if reg5Val == datapath.Tier2PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT {
+		case reg5Val == datapath.Tier2PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT:
 			telemetryTracePoint = activeprobev1alph1.ForensicPolicyIngress
-		} else if reg5Val == datapath.Tier3PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT {
+		case reg5Val == datapath.Tier3PolicyMatch && inPort == datapath.POLICY_TO_CLS_PORT:
 			telemetryTracePoint = activeprobev1alph1.SecurityPolicyIngress
 		}
 
@@ -136,7 +138,6 @@ func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (active
 		activeProbeTracePoint.Action = activeProbeAction
 
 		agentProbeResult.AgentProbePath = append(agentProbeResult.AgentProbePath, activeProbeTracePoint)
-		//status.Results = append(status.Results, agentProbeResult)
 		state = activeprobev1alph1.ActiveProbeCompleted
 	}
 	return state, tag, &agentProbeResult, nil
@@ -154,7 +155,7 @@ func getRegValue(matchers *ofctrl.Matchers, field *ofctrl.RegField) (uint32, err
 }
 
 func getMatchInPortField(matchers *ofctrl.Matchers) *ofctrl.MatchField {
-	return matchers.GetMatchByName("OXM_OF_IN_PORT")
+	return matchers.GetMatchByName(OXM_OF_IN_PORT)
 }
 
 func getInportVal(matcher *ofctrl.MatchField) (uint32, error) {
