@@ -45,7 +45,7 @@ type activeProbeState struct {
 	tag  uint8
 }
 
-type ActiveprobeController struct {
+type Controller struct {
 	// K8sClient used to create/read/update activeprobe
 	K8sClient client.Client
 	Scheme    *runtime.Scheme
@@ -55,7 +55,7 @@ type ActiveprobeController struct {
 	RunningActiveprobe      map[uint8]*activeProbeState // tag->activeProbeState if ap.Status.State is Running
 }
 
-func (a *ActiveprobeController) SetupWithManager(mgr ctrl.Manager) error {
+func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
 
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
@@ -87,7 +87,7 @@ func (a *ActiveprobeController) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func (a *ActiveprobeController) RegisterPacketInHandler(stopChan <-chan struct{}) {
+func (a *Controller) RegisterPacketInHandler(stopChan <-chan struct{}) {
 	a.DatapathManager.RegisterPacketInHandler(datapath.PacketInHandlerFuncs{
 		PacketInHandlerFunc: func(packetIn *ofctrl.PacketIn) {
 			if err := a.HandlePacketIn(packetIn); err != nil {
@@ -104,10 +104,10 @@ func (a *ActiveprobeController) RegisterPacketInHandler(stopChan <-chan struct{}
 	}
 }
 
-func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error) {
+func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	var err error
-	klog.V(2).Infof("ActiveprobeController received activeprobe %s reconcile", req.NamespacedName)
+	klog.V(2).Infof("Controller received activeprobe %s reconcile", req.NamespacedName)
 
 	ap := activeprobev1alph1.ActiveProbe{}
 	if err = a.K8sClient.Get(ctx, req.NamespacedName, &ap); err != nil {
@@ -126,7 +126,7 @@ func (a *ActiveprobeController) ReconcileActiveProbe(req ctrl.Request) (ctrl.Res
 	return a.processActiveProbeUpdate(&ap)
 }
 
-func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe) (ctrl.Result, error) {
+func (a *Controller) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe) (ctrl.Result, error) {
 	var err error
 	switch ap.Status.State {
 	case activeprobev1alph1.ActiveProbeRunning:
@@ -145,7 +145,7 @@ func (a *ActiveprobeController) processActiveProbeUpdate(ap *activeprobev1alph1.
 	return ctrl.Result{}, err
 }
 
-func (a *ActiveprobeController) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	var err error
 	var ovsbrName string
 	tag := ap.Status.Tag
@@ -172,7 +172,7 @@ func (a *ActiveprobeController) runActiveProbe(ap *activeprobev1alph1.ActiveProb
 	return err
 }
 
-func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *datapath.Packet {
+func (a *Controller) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *datapath.Packet {
 	var packet *datapath.Packet
 
 	srcMac, _ := net.ParseMAC(ap.Spec.Source.MAC)
@@ -205,7 +205,7 @@ func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.Acti
 	return packet
 }
 
-func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
+func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
 	var err error
 	ovsbrName := ap.Spec.Source.BridgeName
 	inport := uint32(ap.Spec.Source.Ofport)
@@ -220,16 +220,14 @@ func (a *ActiveprobeController) SendActiveProbePacket(ap *activeprobev1alph1.Act
 	return err
 }
 
-func (a *ActiveprobeController) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
+func (a *Controller) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
 	var err error
 	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
 }
 
-func (a *ActiveprobeController) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, state activeprobev1alph1.ActiveProbeState, apResult *activeprobev1alph1.AgentProbeResult, reason string, tag uint8) error {
+func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, apResult *activeprobev1alph1.AgentProbeResult, reason string) error {
 	update := ap.DeepCopy()
-	update.Status.State = state
-	update.Status.Tag = tag
 	if reason != "" {
 		update.Status.Reason = reason
 	}
@@ -240,7 +238,7 @@ func (a *ActiveprobeController) updateActiveProbeStatus(ap *activeprobev1alph1.A
 	return err
 }
 
-func (a *ActiveprobeController) deleteActiveProbeByName(apName string) *activeProbeState {
+func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 	a.RunningActiveprobeMutex.Lock()
 	defer a.RunningActiveprobeMutex.Unlock()
 	for tag, apState := range a.RunningActiveprobe {
@@ -252,7 +250,7 @@ func (a *ActiveprobeController) deleteActiveProbeByName(apName string) *activePr
 	return nil
 }
 
-func (a *ActiveprobeController) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
+func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 	var ovsbrName string
 
 	curAgentName := utils.CurrentAgentName()

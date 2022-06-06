@@ -111,10 +111,10 @@ func main() {
 		klog.Fatalf("unable to create endpoint controller: %s", err.Error())
 	}
 
-	if err = (&activeprobectrl.ActiveprobeReconciler{
+	if err = (&activeprobectrl.Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr, endpointReconcile.GetIfaceCache()); err != nil {
+	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create activeprobe controller: %s", err.Error())
 	}
 

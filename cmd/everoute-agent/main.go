@@ -153,7 +153,7 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}
 
 	// activeprobe controller
-	if err = (&activeprobectrl.ActiveprobeController{
+	if err = (&activeprobectrl.Controller{
 		K8sClient:       mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
 		DatapathManager: datapathManager,

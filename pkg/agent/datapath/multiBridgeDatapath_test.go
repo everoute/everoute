@@ -240,9 +240,18 @@ func flowValidator(expectedFlows []string) error {
 	for _, expectedFlow := range expectedFlows {
 		isExpectedFlowExists := false
 		for _, actualFlow := range currentFlowList {
-			expr := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
-			re, _ := regexp.Compile(expr)
-			actual := re.ReplaceAllString(actualFlow, "load:0x->NXM_NX_XXREG0")
+			exprXXReg0 := `load:0x[0-9,a-f]+?->NXM_NX_XXREG0`
+			reXXReg0, _ := regexp.Compile(exprXXReg0)
+			actualXXReg0 := reXXReg0.ReplaceAllString(actualFlow, "load:0x->NXM_NX_XXREG0")
+
+			exprReg4 := `load:0x[0-9,a-f]+?->NXM_NX_REG4`
+			reReg4, _ := regexp.Compile(exprReg4)
+			actualReg4 := reReg4.ReplaceAllString(actualXXReg0, "load:0x->NXM_NX_REG4")
+
+			exprReg5 := `load:0x[0-9,a-f]+?->NXM_NX_REG5`
+			reReg5, _ := regexp.Compile(exprReg5)
+			actual := reReg5.ReplaceAllString(actualReg4, "load:0x->NXM_NX_REG5")
+
 			if strings.Contains(expectedFlow, actual) {
 				isExpectedFlowExists = true
 			}

@@ -21,12 +21,9 @@ import (
 	"fmt"
 	"sync"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,7 +37,6 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
-	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -55,29 +51,19 @@ const (
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
 )
 
-type updateStatusItem struct {
-	ipSrc string
-	ipDst string
-	tag   uint8
-}
-
-type ActiveprobeReconciler struct {
+type Reconciler struct {
 	client.Client
 	Scheme                  *runtime.Scheme
 	syncQueue               workqueue.RateLimitingInterface
 	RunningActiveprobeMutex sync.Mutex
 	RunningActiveprobe      map[uint8]string // tag->activeProbeName if ap.Status.State is Running
-	IfaceCacheLock          sync.RWMutex
-	IfaceCache              cache.Indexer
 }
 
 // SetupWithManager create and add Endpoint Controller to the manager.
-func (r *ActiveprobeReconciler) SetupWithManager(mgr ctrl.Manager, ifaceCache cache.Indexer) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
-
-	r.IfaceCache = ifaceCache
 
 	c, err := controller.New(controllerName, mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -99,11 +85,11 @@ func (r *ActiveprobeReconciler) SetupWithManager(mgr ctrl.Manager, ifaceCache ca
 	return nil
 }
 
-func (r *ActiveprobeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *ActiveprobeReconciler) Run(stopChan <-chan struct{}) {
+func (r *Reconciler) Run(stopChan <-chan struct{}) {
 	defer r.syncQueue.ShutDown()
 	klog.Infof("Starting %s", controllerName)
 	defer klog.Infof("Shutting down %s", controllerName)
@@ -112,7 +98,7 @@ func (r *ActiveprobeReconciler) Run(stopChan <-chan struct{}) {
 	<-stopChan
 }
 
-func (r *ActiveprobeReconciler) SyncActiveProbeWorker() {
+func (r *Reconciler) SyncActiveProbeWorker() {
 	item, shutdown := r.syncQueue.Get()
 	if shutdown {
 		return
@@ -136,7 +122,7 @@ func (r *ActiveprobeReconciler) SyncActiveProbeWorker() {
 	}
 }
 
-func (r *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
+func (r *Reconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
 	var err error
 	ctx := context.Background()
 	ap := activeprobev1alph1.ActiveProbe{}
@@ -161,88 +147,44 @@ func (r *ActiveprobeReconciler) syncActiveProbe(objKey k8stypes.NamespacedName) 
 	return err
 }
 
-func (r *ActiveprobeReconciler) fetchEndpointStatus(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
-	r.IfaceCacheLock.RLock()
-	defer r.IfaceCacheLock.RUnlock()
-
-	ifaces, err := r.IfaceCache.ByIndex(externalIDIndex, id.String())
-	if err != nil {
-		return nil, err
-	}
-	switch len(ifaces) {
-	case 0:
-		// if no match iface found, return empty status
-		return &securityv1alpha1.EndpointStatus{}, nil
-	default:
-		// combine all ifaces status into endpoint status
-		ipsets := sets.NewString()
-		agentSets := sets.NewString()
-		for _, item := range ifaces {
-			if len(item.(*iface).ipLastUpdateTimeMap) != 0 {
-				agentSets.Insert(item.(*iface).agentName)
-				for ip := range item.(*iface).ipLastUpdateTimeMap {
-					ipsets.Insert(ip.String())
-				}
-			}
-		}
-		endpointStatus := &securityv1alpha1.EndpointStatus{
-			MacAddress: ifaces[0].(*iface).mac,
-			Agents:     agentSets.List(),
-		}
-		for _, ip := range ipsets.List() {
-			endpointStatus.IPs = append(endpointStatus.IPs, types.IPAddress(ip))
-		}
-		return endpointStatus, nil
-	}
-}
-
-func (r *ActiveprobeReconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
+func (r *Reconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
 	srcEpExternalIDValue := ap.Spec.Source.Endpoint
 	srcEndpointID := ctrltypes.ExternalID{
 		Name:  endpointExternalIDKey,
 		Value: srcEpExternalIDValue,
 	}
-
-	srcIfaces, _ := r.IfaceCache.ByIndex(externalIDIndex, srcEndpointID.String())
-	srcEndpointStatus, _ := r.fetchEndpointStatus(srcEndpointID)
-
-	switch len(srcIfaces) {
-	case 0:
-		// if no match iface found, return empty status
-		return nil
-	default:
-		ap.Spec.Source.IP = srcEndpointStatus.IPs[0].String()
-		ap.Spec.Source.MAC = srcIfaces[0].(*iface).mac
-		ap.Spec.Source.AgentName = srcIfaces[0].(*iface).agentName
-		ap.Spec.Source.BridgeName = srcIfaces[0].(*iface).bridgeName
-		ap.Spec.Source.Ofport = srcIfaces[0].(*iface).ofport
-		return nil
-	}
-
 	dstEpExternalIDValue := ap.Spec.Destination.Endpoint
 	dstEndpointID := ctrltypes.ExternalID{
 		Name:  endpointExternalIDKey,
 		Value: dstEpExternalIDValue,
 	}
 
-	dstIfaces, _ := r.IfaceCache.ByIndex(externalIDIndex, dstEndpointID.String())
-	dstEndpointStatus, _ := r.fetchEndpointStatus(dstEndpointID)
-
-	switch len(dstIfaces) {
-	case 0:
+	var epList = securityv1alpha1.EndpointList{}
+	err := r.Client.List(context.Background(), &epList)
+	if err != nil {
+		klog.Errorf("list endpoint: %s", err)
 		return nil
-	default:
-		ap.Spec.Destination.IP = dstEndpointStatus.IPs[0].String()
-		ap.Spec.Destination.MAC = dstIfaces[0].(*iface).mac
-		ap.Spec.Destination.AgentName = dstIfaces[0].(*iface).agentName
-		ap.Spec.Destination.BridgeName = dstIfaces[0].(*iface).bridgeName
-		ap.Spec.Destination.Ofport = dstIfaces[0].(*iface).ofport
 	}
-
+	for _, ep := range epList.Items {
+		if ep.Spec.Reference.ExternalIDName == srcEndpointID.Name && ep.Spec.Reference.ExternalIDValue == srcEndpointID.Value {
+			ap.Spec.Source.IP = ep.Status.IPs[0].String()
+			ap.Spec.Source.MAC = ep.Status.MacAddress
+			ap.Spec.Source.AgentName = ep.Status.Agents[0]
+			ap.Spec.Source.BridgeName = ep.Status.BridgeName
+			ap.Spec.Source.Ofport = ep.Status.Ofport
+		}
+		if ep.Spec.Reference.ExternalIDName == dstEndpointID.Name && ep.Spec.Reference.ExternalIDValue == dstEndpointID.Value {
+			ap.Spec.Destination.IP = ep.Status.IPs[0].String()
+			ap.Spec.Destination.MAC = ep.Status.MacAddress
+			ap.Spec.Destination.AgentName = ep.Status.Agents[0]
+			ap.Spec.Destination.BridgeName = ep.Status.BridgeName
+			ap.Spec.Destination.Ofport = ep.Status.Ofport
+		}
+	}
 	return nil
 }
 
-func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
+func (r *Reconciler) allocateTag(name string) (uint8, error) {
 	r.RunningActiveprobeMutex.Lock()
 	defer r.RunningActiveprobeMutex.Unlock()
 
@@ -260,13 +202,13 @@ func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-func (r *ActiveprobeReconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) {
+func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) {
 	if ap.Status.Tag != 0 {
 		r.deallocateTag(ap.Name, ap.Status.Tag)
 	}
 }
 
-func (r *ActiveprobeReconciler) deallocateTag(name string, tag uint8) {
+func (r *Reconciler) deallocateTag(name string, tag uint8) {
 	r.RunningActiveprobeMutex.Lock()
 	defer r.RunningActiveprobeMutex.Unlock()
 	if existingActiveProbeName, ok := r.RunningActiveprobe[tag]; ok {
@@ -276,12 +218,11 @@ func (r *ActiveprobeReconciler) deallocateTag(name string, tag uint8) {
 	}
 }
 
-func (r *ActiveprobeReconciler) validateActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
-
+func (r *Reconciler) validateActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	return nil
 }
 
-func (r *ActiveprobeReconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
+func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	state activeprobev1alph1.ActiveProbeState, reason string, tag uint8) error {
 	update := ap.DeepCopy()
 	update.Status.State = state
@@ -294,13 +235,12 @@ func (r *ActiveprobeReconciler) updateActiveProbeStatus(ap *activeprobev1alph1.A
 }
 
 /* TODO */
-func (r *ActiveprobeReconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	if err := r.validateActiveProbe(ap); err != nil {
 		klog.Errorf("Invalid ActiveProbe request %v", ap)
 		return r.updateActiveProbeStatus(ap, activeprobev1alph1.ActiveProbeFailed, fmt.Sprintf("Invalid ActiveProbe request, err: %+v", err), 0)
 	}
 
-	updateItem := &updateStatusItem{}
 	// Allocate data plane tag.
 	tag, err := r.allocateTag(ap.Name)
 	if err != nil {
@@ -309,7 +249,6 @@ func (r *ActiveprobeReconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProb
 	if tag == 0 {
 		return nil
 	}
-	updateItem.tag = tag
 
 	err = r.AddEndpointInfo(ap)
 	if err != nil {
@@ -324,18 +263,18 @@ func (r *ActiveprobeReconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProb
 }
 
 /* TODO */
-func (r *ActiveprobeReconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
-
+func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
 	return nil
 }
-func (r *ActiveprobeReconciler) AddActiveProbe(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+
+func (r *Reconciler) AddActiveProbe(e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Name:      e.Meta.GetName(),
 		Namespace: e.Meta.GetNamespace(),
 	}})
 }
 
-func (r *ActiveprobeReconciler) RemoveActiveProbe(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) RemoveActiveProbe(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Name:      e.Meta.GetName(),
 		Namespace: e.Meta.GetNamespace(),
@@ -343,24 +282,11 @@ func (r *ActiveprobeReconciler) RemoveActiveProbe(e event.DeleteEvent, q workque
 
 }
 
-func (r *ActiveprobeReconciler) UpdateActiveProbe(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) UpdateActiveProbe(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	// should sync all object
 	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Name:      e.MetaNew.GetName(),
 		Namespace: e.MetaNew.GetNamespace(),
 	}})
 
-}
-
-type iface struct {
-	agentName string
-	name      string
-	agentTime metav1.Time
-
-	externalIDs         map[string]string
-	mac                 string
-	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
-
-	bridgeName string
-	ofport     int32
 }

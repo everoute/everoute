@@ -89,6 +89,8 @@ spec:
                 items:
                   type: string
                 type: array
+              bridgeName:
+                type: string
               ips:
                 description: IPs of an endpoint, can be IPV4 or IPV6.
                 items:
@@ -100,6 +102,9 @@ spec:
               macAddress:
                 description: MacAddress of an endpoint.
                 type: string
+              ofport:
+                format: int32
+                type: integer
             type: object
         required:
         - spec

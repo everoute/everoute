@@ -1969,6 +1969,18 @@ func schema_pkg_apis_security_v1alpha1_EndpointStatus(ref common.ReferenceCallba
 							},
 						},
 					},
+					"bridgeName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"ofport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 				},
 			},
 		},

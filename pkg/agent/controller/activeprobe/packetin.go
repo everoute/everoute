@@ -40,11 +40,9 @@ const (
 	ActiveProbeRegID         int    = 5
 	ActiveProbeRegLeftIndex  uint32 = 0
 	ActiveProbeRegRigthIndex uint32 = 8
-
-	Oxm_of_in_port = "OXM_OF_IN_PORT"
 )
 
-func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
+func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	ap := activeprobev1alph1.ActiveProbe{}
 	reason := ""
 
@@ -62,7 +60,10 @@ func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error 
 		if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)
 		}
-		err = a.updateActiveProbeStatus(&ap, state, apResult, reason, tag)
+		ap.Status.State = state
+		ap.Status.Tag = tag
+
+		err = a.updateActiveProbeStatus(&ap, apResult, reason)
 		if err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)
 			return err
@@ -76,7 +77,7 @@ func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error 
 	return err
 }
 
-func (a *ActiveprobeController) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph1.ActiveProbeState, uint8, *activeprobev1alph1.AgentProbeResult, error) {
+func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph1.ActiveProbeState, uint8, *activeprobev1alph1.AgentProbeResult, error) {
 	var err error
 	var tag uint8
 	var reg4Val, reg5Val uint32
@@ -156,7 +157,7 @@ func getRegValue(matchers *ofctrl.Matchers, field *ofctrl.RegField) (uint32, err
 }
 
 func getMatchInPortField(matchers *ofctrl.Matchers) *ofctrl.MatchField {
-	return matchers.GetMatchByName(Oxm_of_in_port)
+	return matchers.GetMatchByName("OXM_OF_IN_PORT")
 }
 
 func getInportVal(matcher *ofctrl.MatchField) (uint32, error) {
