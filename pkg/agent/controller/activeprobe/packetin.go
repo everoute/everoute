@@ -19,6 +19,7 @@ package activeprobe
 import (
 	"context"
 	"errors"
+
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,7 +41,7 @@ const (
 	ActiveProbeRegLeftIndex  uint32 = 0
 	ActiveProbeRegRigthIndex uint32 = 8
 
-	OXM_OF_IN_PORT = "OXM_OF_IN_PORT"
+	Oxm_of_in_port = "OXM_OF_IN_PORT"
 )
 
 func (a *ActiveprobeController) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
@@ -155,7 +156,7 @@ func getRegValue(matchers *ofctrl.Matchers, field *ofctrl.RegField) (uint32, err
 }
 
 func getMatchInPortField(matchers *ofctrl.Matchers) *ofctrl.MatchField {
-	return matchers.GetMatchByName(OXM_OF_IN_PORT)
+	return matchers.GetMatchByName(Oxm_of_in_port)
 }
 
 func getInportVal(matcher *ofctrl.MatchField) (uint32, error) {

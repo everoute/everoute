@@ -543,6 +543,11 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 							},
 						},
 					},
+					"capturedPacket": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.Packet"),
+						},
+					},
 				},
 				Required: []string{"state", "tag"},
 			},
@@ -759,7 +764,7 @@ func schema_pkg_apis_activeprobe_v1alpha1_Packet(ref common.ReferenceCallback) c
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.IPHeader"),
 						},
 					},
-					"tranportHeader": {
+					"transportHeader": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1.TransportHeader"),
 						},

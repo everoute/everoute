@@ -248,7 +248,6 @@ func (r *ActiveprobeReconciler) allocateTag(name string) (uint8, error) {
 
 	for _, n := range r.RunningActiveprobe {
 		if n == name {
-			//The ActiveProbe request has been processed already.
 			return 0, nil
 		}
 	}
@@ -282,7 +281,8 @@ func (r *ActiveprobeReconciler) validateActiveProbe(ap *activeprobev1alph1.Activ
 	return nil
 }
 
-func (r *ActiveprobeReconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, state activeprobev1alph1.ActiveProbeState, reason string, tag uint8) error {
+func (r *ActiveprobeReconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
+	state activeprobev1alph1.ActiveProbeState, reason string, tag uint8) error {
 	update := ap.DeepCopy()
 	update.Status.State = state
 	update.Status.Tag = tag

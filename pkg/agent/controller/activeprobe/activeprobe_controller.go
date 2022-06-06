@@ -52,7 +52,7 @@ type ActiveprobeController struct {
 
 	DatapathManager         *datapath.DpManager
 	RunningActiveprobeMutex sync.Mutex
-	RunningActiveprobe      map[uint8]*activeProbeState //tag->activeProbeState if ap.Status.State is Running
+	RunningActiveprobe      map[uint8]*activeProbeState // tag->activeProbeState if ap.Status.State is Running
 }
 
 func (a *ActiveprobeController) SetupWithManager(mgr ctrl.Manager) error {
@@ -187,18 +187,17 @@ func (a *ActiveprobeController) ParseActiveProbeSpec(ap *activeprobev1alph1.Acti
 		IPLength:   ap.Spec.Packet.Length,
 		IPFlags:    uint16(ap.Spec.Packet.IPHeader.Flags),
 		TTL:        uint8(ap.Spec.Packet.IPHeader.TTL),
-		SrcPort:    8080,
-		DstPort:    80,
 	}
 
-	if packet.IPProtocol == protocol.Type_ICMP {
+	switch packet.IPProtocol {
+	case protocol.Type_ICMP:
 		packet.ICMPEchoID = uint16(ap.Spec.Packet.TransportHeader.ICMP.ID)
 		packet.ICMPEchoSeq = uint16(ap.Spec.Packet.TransportHeader.ICMP.Sequence)
-	} else if packet.IPProtocol == protocol.Type_TCP {
+	case protocol.Type_TCP:
 		packet.SrcPort = uint16(ap.Spec.Packet.TransportHeader.TCP.SrcPort)
 		packet.DstPort = uint16(ap.Spec.Packet.TransportHeader.TCP.DstPort)
 		packet.TCPFlags = uint8(ap.Spec.Packet.TransportHeader.TCP.Flags)
-	} else if packet.IPProtocol == protocol.Type_UDP {
+	case protocol.Type_UDP:
 		packet.SrcPort = uint16(ap.Spec.Packet.TransportHeader.UDP.SrcPort)
 		packet.DstPort = uint16(ap.Spec.Packet.TransportHeader.UDP.DstPort)
 	}
