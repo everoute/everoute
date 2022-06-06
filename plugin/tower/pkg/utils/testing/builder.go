@@ -91,7 +91,7 @@ func NewIsolationPolicy(everouteCluster string, vm *schema.VM, isolationMode sch
 	}
 }
 
-func NewNetworkPolicyRule(protocol, port string, ipBlock string, selectors ...*schema.Label) *schema.NetworkPolicyRule {
+func NewNetworkPolicyRule(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *schema.NetworkPolicyRule {
 	var rule schema.NetworkPolicyRule
 
 	if protocol != "" {
@@ -101,9 +101,10 @@ func NewNetworkPolicyRule(protocol, port string, ipBlock string, selectors ...*s
 		})
 	}
 
-	if ipBlock != "" {
+	if ipBlock != nil {
 		rule.Type = schema.NetworkPolicyRuleTypeIPBlock
-		rule.IPBlock = &ipBlock
+		rule.IPBlock = &ipBlock.CIDR
+		rule.ExceptIPBlock = ipBlock.Except
 	}
 
 	if len(selectors) != 0 {
@@ -114,7 +115,7 @@ func NewNetworkPolicyRule(protocol, port string, ipBlock string, selectors ...*s
 	return &rule
 }
 
-func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock string, selectors ...*schema.Label) *v1alpha1.Rule {
+func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 
 	if protocol != "" {
@@ -124,12 +125,8 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock string, selecto
 		})
 	}
 
-	if ipBlock != "" {
-		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{
-			IPBlock: &networkingv1.IPBlock{
-				CIDR: ipBlock,
-			},
-		})
+	if ipBlock != nil {
+		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
 	}
 
 	if len(selectors) != 0 {
@@ -143,7 +140,7 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock string, selecto
 	return &rule
 }
 
-func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock string, selectors ...*schema.Label) *v1alpha1.Rule {
+func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 
 	if protocol != "" {
@@ -153,12 +150,8 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock string, selector
 		})
 	}
 
-	if ipBlock != "" {
-		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{
-			IPBlock: &networkingv1.IPBlock{
-				CIDR: ipBlock,
-			},
-		})
+	if ipBlock != nil {
+		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
 	}
 
 	if len(selectors) != 0 {
@@ -219,10 +212,10 @@ func NewGlobalWhitelist() *schema.EverouteClusterWhitelist {
 	return &schema.EverouteClusterWhitelist{
 		Enable: true,
 		Egress: []schema.NetworkPolicyRule{
-			*NewNetworkPolicyRule("", "", NewRandomIP().String()),
+			*NewNetworkPolicyRule("", "", &networkingv1.IPBlock{CIDR: NewRandomIP().String()}),
 		},
 		Ingress: []schema.NetworkPolicyRule{
-			*NewNetworkPolicyRule("", "", NewRandomIP().String()),
+			*NewNetworkPolicyRule("", "", &networkingv1.IPBlock{CIDR: NewRandomIP().String()}),
 		},
 	}
 }

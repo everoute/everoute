@@ -132,10 +132,11 @@ type ComplexityRoot struct {
 	}
 
 	NetworkPolicyRule struct {
-		IPBlock  func(childComplexity int) int
-		Ports    func(childComplexity int) int
-		Selector func(childComplexity int) int
-		Type     func(childComplexity int) int
+		ExceptIPBlock func(childComplexity int) int
+		IPBlock       func(childComplexity int) int
+		Ports         func(childComplexity int) int
+		Selector      func(childComplexity int) int
+		Type          func(childComplexity int) int
 	}
 
 	NetworkPolicyRulePort struct {
@@ -555,6 +556,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.Login(childComplexity, args["data"].(model.LoginInput)), true
+
+	case "NetworkPolicyRule.except_ip_block":
+		if e.complexity.NetworkPolicyRule.ExceptIPBlock == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.ExceptIPBlock(childComplexity), true
 
 	case "NetworkPolicyRule.ip_block":
 		if e.complexity.NetworkPolicyRule.IPBlock == nil {
@@ -1125,6 +1133,7 @@ enum IsolationMode {
 
 type NetworkPolicyRule {
     ip_block: String
+    except_ip_block: [String!]
     ports: [NetworkPolicyRulePort!]
     selector: [ObjectReference!]
     type: NetworkPolicyRuleType!
@@ -2754,6 +2763,38 @@ func (ec *executionContext) _NetworkPolicyRule_ip_block(ctx context.Context, fie
 	res := resTmp.(*string)
 	fc.Result = res
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRule_except_ip_block(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ExceptIPBlock, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalOString2ᚕstringᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRule_ports(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
@@ -6300,6 +6341,8 @@ func (ec *executionContext) _NetworkPolicyRule(ctx context.Context, sel ast.Sele
 			out.Values[i] = graphql.MarshalString("NetworkPolicyRule")
 		case "ip_block":
 			out.Values[i] = ec._NetworkPolicyRule_ip_block(ctx, field, obj)
+		case "except_ip_block":
+			out.Values[i] = ec._NetworkPolicyRule_except_ip_block(ctx, field, obj)
 		case "ports":
 			out.Values[i] = ec._NetworkPolicyRule_ports(ctx, field, obj)
 		case "selector":
@@ -8321,6 +8364,42 @@ func (ec *executionContext) unmarshalOString2string(ctx context.Context, v inter
 
 func (ec *executionContext) marshalOString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	return graphql.MarshalString(v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
