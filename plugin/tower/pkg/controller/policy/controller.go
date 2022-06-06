@@ -1078,13 +1078,11 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		if rule.IPBlock == nil {
 			return nil, nil, fmt.Errorf("receive rule.Type %s but empty IPBlock", schema.NetworkPolicyRuleTypeIPBlock)
 		}
-		ipBlock, err := parseIPBlock(*rule.IPBlock)
+		ipBlock, err := parseIPBlock(*rule.IPBlock, rule.ExceptIPBlock)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse IPBlock %s: %s", *rule.IPBlock, err)
+			return nil, nil, fmt.Errorf("parse IPBlock %s with except %v: %s", *rule.IPBlock, rule.ExceptIPBlock, err)
 		}
-		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
-			IPBlock: &networkingv1.IPBlock{CIDR: ipBlock},
-		})
+		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
 	case schema.NetworkPolicyRuleTypeSelector:
 		endpointSelector, err := c.parseSelectors(rule.Selector)
 		if err != nil {
@@ -1143,7 +1141,29 @@ func (c *Controller) getGlobalWhitelistPolicyKey() string {
 	return c.namespace + "/" + GlobalWhitelistPolicyName
 }
 
-func parseIPBlock(ipBlock string) (string, error) {
+func parseIPBlock(ipBlock string, excepts []string) (*networkingv1.IPBlock, error) {
+	var block networkingv1.IPBlock
+
+	cidr, err := formatIPBlock(ipBlock)
+	if err != nil {
+		return nil, err
+	}
+	block.CIDR = cidr
+
+	for _, except := range excepts {
+		cidr, err = formatIPBlock(except)
+		if err != nil {
+			return nil, err
+		}
+		block.Except = append(block.Except, cidr)
+	}
+
+	return &block, nil
+}
+
+func formatIPBlock(ipBlock string) (string, error) {
+	ipBlock = strings.TrimSpace(ipBlock)
+
 	_, _, err := net.ParseCIDR(ipBlock)
 	if err == nil {
 		return ipBlock, nil

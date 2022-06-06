@@ -27,6 +27,7 @@ enum IsolationMode {
 
 type NetworkPolicyRule {
     ip_block: String
+    except_ip_block: [String!]
     ports: [NetworkPolicyRulePort!]
     selector: [ObjectReference!]
     type: NetworkPolicyRuleType!
