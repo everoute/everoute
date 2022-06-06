@@ -90,6 +90,7 @@ jobs:
           kubectl get pods -n kube-system | awk '{print $1}' | grep "^coredns\|^metrics" | xargs kubectl delete pods -n kube-system
 
       - name: stop clean pods
+        if: always()
         run: kubectl delete -f hack/clean.yaml
 
       - name: build everoute and deploy
