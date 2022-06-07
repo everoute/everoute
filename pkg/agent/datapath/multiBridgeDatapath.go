@@ -332,6 +332,9 @@ func (datapathManager *DpManager) InitializeCNI() {
 		go func(vdsID string) {
 			defer wg.Done()
 			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInitCNI()
+			datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInitCNI()
+			datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInitCNI()
+			datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInitCNI()
 		}(vdsID)
 	}
 	wg.Wait()
