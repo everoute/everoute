@@ -350,5 +350,13 @@ func (c *ClsBridge) RemoveSFCRule() error {
 }
 
 func (c *ClsBridge) BridgeInitCNI() {
-
+	hairpinFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &c.datapathManager.AgentInfo.LocalGwIP,
+	})
+	outputPort, _ := c.OfSwitch.OutputPort(uint32(openflow13.P_IN_PORT))
+	if err := hairpinFlow.Next(outputPort); err != nil {
+		log.Fatalf("failed to install cls flow for cni hairpin traffic, error: %v", err)
+	}
 }
