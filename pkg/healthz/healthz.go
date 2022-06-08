@@ -19,6 +19,8 @@ package healthz
 import (
 	"fmt"
 	"net/http"
+	"sync"
+	"sync/atomic"
 
 	"k8s.io/apiserver/pkg/server/healthz"
 )
@@ -41,6 +43,8 @@ type cacheSyncWaiter interface {
 }
 
 type cacheSync struct {
+	cacheSynced     atomic.Value
+	checkOnce       sync.Once
 	cacheSyncWaiter cacheSyncWaiter
 }
 
@@ -58,11 +62,15 @@ func (i *cacheSync) Name() string {
 }
 
 func (i *cacheSync) Check(_ *http.Request) error {
-	stopCh := make(chan struct{})
-	// Close stopCh to force checking if informers are synced now.
-	close(stopCh)
+	// WaitForCacheSync block until the cache synced.
+	// We check once and wait the cache synced.
+	go i.checkOnce.Do(func() {
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		i.cacheSynced.Store(i.cacheSyncWaiter.WaitForCacheSync(stopCh))
+	})
 
-	if !i.cacheSyncWaiter.WaitForCacheSync(stopCh) {
+	if synced := i.cacheSynced.Load(); synced == nil || !synced.(bool) {
 		return fmt.Errorf("cache not started yet")
 	}
 	return nil
