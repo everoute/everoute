@@ -23,6 +23,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/everoute/everoute/pkg/healthz"
 )
 
@@ -49,12 +51,11 @@ func TestInstallHandler(t *testing.T) {
 
 func TestCacheSyncHealthChecker(t *testing.T) {
 	t.Run("test that check returns nil when cache are started", func(t *testing.T) {
+		RegisterTestingT(t)
 		healthChecker := healthz.NewCacheSyncHealthz(cacheSyncWaiterStub{true})
 
-		err := healthChecker.Check(nil)
-		if err != nil {
-			t.Errorf("Got %v, expected no error", err)
-		}
+		checkFunc := func() error { return healthChecker.Check(nil) }
+		Eventually(checkFunc).ShouldNot(HaveOccurred())
 	})
 
 	t.Run("test that check returns err when the cache not started", func(t *testing.T) {
