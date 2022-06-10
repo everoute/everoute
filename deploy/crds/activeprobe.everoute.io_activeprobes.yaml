@@ -209,19 +209,23 @@ spec:
               results:
                 items:
                   properties:
-                    agentname:omitempty:
+                    agentname:
+                      description: AgentProbeRecord map[string]*AgentProbeResult
                       type: string
                     agentprobepath:
                       items:
                         properties:
-                          action':
+                          action:
                             type: string
                           tracepoint:
                             type: string
                         type: object
                       type: array
-                  required:
-                  - agentname:omitempty
+                    agentprobestate:
+                      type: string
+                    numberoftimes:
+                      format: int32
+                      type: integer
                   type: object
                 type: array
               startTime:

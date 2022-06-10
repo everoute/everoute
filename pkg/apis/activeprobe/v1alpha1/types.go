@@ -57,13 +57,21 @@ type ActiveProbeStatus struct {
 }
 
 type AgentProbeResult struct {
-	AgentName      string                  `json:"agentname:omitempty"`
-	AgentProbePath []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
+	//AgentProbeRecord map[string]*AgentProbeResult
+	AgentName       string                  `json:"agentname,omitempty"`
+	NumberOfTimes   uint32                  `json:"numberoftimes,omitempty"`
+	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
+	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
 }
+
+//type AgentProbeContent struct {
+//	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
+//	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
+//}
 
 type ActiveProbeTracePoint struct {
 	TracePoint TelemetryTracePoint `json:"tracepoint,omitempty"`
-	Action     ActiveProbeAction   `json:"action',omitempty"`
+	Action     ActiveProbeAction   `json:"action,omitempty"`
 }
 
 type ActiveProbeState string

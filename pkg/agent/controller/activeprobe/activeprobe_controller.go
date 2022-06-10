@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -53,6 +54,7 @@ type Controller struct {
 	DatapathManager         *datapath.DpManager
 	RunningActiveprobeMutex sync.Mutex
 	RunningActiveprobe      map[uint8]*activeProbeState // tag->activeProbeState if ap.Status.State is Running
+	PktRcvdCnt              uint32
 }
 
 func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
@@ -69,6 +71,7 @@ func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	a.PktRcvdCnt = 0
 	a.RunningActiveprobe = make(map[uint8]*activeProbeState)
 
 	err = c.Watch(&source.Kind{Type: &activeprobev1alph1.ActiveProbe{}}, &handler.EnqueueRequestForObject{})
@@ -118,10 +121,13 @@ func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	curAgentName := utils.CurrentAgentName()
-	if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
+	if "agentinfoa" != ap.Spec.Source.AgentName && "agentinfob" != ap.Spec.Destination.AgentName {
 		return ctrl.Result{}, err
 	}
+	//curAgentName := utils.CurrentAgentName()
+	//if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
+	//	return ctrl.Result{}, err
+	//}
 
 	return a.processActiveProbeUpdate(&ap)
 }
@@ -149,10 +155,17 @@ func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	var err error
 	var ovsbrName string
 	tag := ap.Status.Tag
+	a.RunningActiveprobeMutex.Lock()
+	apState := &activeProbeState{
+		tag:  tag,
+		name: ap.Name,
+	}
+	a.RunningActiveprobe[tag] = apState
+	defer a.RunningActiveprobeMutex.Unlock()
 	ipDa := net.ParseIP(ap.Spec.Destination.IP)
 
-	curAgentName := utils.CurrentAgentName()
-	if curAgentName == ap.Spec.Source.AgentName {
+	//curAgentName := utils.CurrentAgentName()
+	if "agentinfoa" == ap.Spec.Source.AgentName { // curAgentName == ap.Spec.Source.AgentName
 		ovsbrName = ap.Spec.Source.BridgeName
 		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
 		if err != nil {
@@ -162,13 +175,14 @@ func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 		if err != nil {
 			return err
 		}
-	} else if curAgentName == ap.Spec.Destination.AgentName {
-		ovsbrName = ap.Spec.Destination.BridgeName
-		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
-		if err != nil {
-			return err
-		}
 	}
+	//if "agentinfob" == ap.Spec.Destination.AgentName { // else if curAgentName == ap.Spec.Destination.AgentName
+	//	ovsbrName = ap.Spec.Destination.BridgeName
+	//	err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 	return err
 }
 
@@ -215,6 +229,7 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 
 	for i := 0; i < int(sendTimes); i++ {
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
+		time.Sleep(time.Millisecond * 200)
 	}
 
 	return err
@@ -234,7 +249,6 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	update.Status.Results = append(update.Status.Results, *apResult)
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	klog.Infof("Updated ActiveProbe %s: %+v", ap.Name, update.Status)
-	fmt.Printf("Updated ActiveProbe %s: %+v\n", ap.Name, update.Status)
 	return err
 }
 
@@ -252,7 +266,7 @@ func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 
 func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 	var ovsbrName string
-
+	a.PktRcvdCnt = 0
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName == ap.Spec.Source.AgentName {
 		ovsbrName = ap.Spec.Source.BridgeName

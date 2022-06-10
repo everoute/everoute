@@ -452,12 +452,6 @@ func (r *EndpointReconciler) FetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 	}
 }
 
-func (r *EndpointReconciler) GetIfaceCache() cache.Indexer {
-	r.ifaceCacheLock.Lock()
-	defer r.ifaceCacheLock.Unlock()
-	return r.ifaceCache
-}
-
 // EqualEndpointStatus return true if and only if the two endpoint has the same
 // status.
 func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.EndpointStatus) bool {

@@ -22,14 +22,11 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -43,7 +40,7 @@ const (
 	controllerName        = "activeprobe-controller"
 	externalIDIndex       = "externalIDIndex"
 	endpointExternalIDKey = "iface-id"
-	// Min and max data plane tag for traceflow. minTagNum is 7 (0b000111), maxTagNum is 59 (0b111011).
+	// Min and max data plane tag for activeprobes. minTagNum is 7 (0b000111), maxTagNum is 59 (0b111011).
 	// As per RFC2474, 16 different DSCP values are we reserved for Experimental or Local Use, which we use as the 16 possible data plane tag values.
 	// tagStep is 4 (0b100) to keep last 2 bits at 0b11.
 	tagStep   uint8 = 0b100
@@ -65,6 +62,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("can't setup with nil manager")
 	}
 
+	r.RunningActiveprobe = make(map[uint8]string)
+
 	c, err := controller.New(controllerName, mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              r,
@@ -73,11 +72,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &activeprobev1alph1.ActiveProbe{}}, &handler.Funcs{
-		CreateFunc: r.AddActiveProbe,
-		UpdateFunc: r.UpdateActiveProbe,
-		DeleteFunc: r.RemoveActiveProbe,
-	})
+	err = c.Watch(&source.Kind{Type: &activeprobev1alph1.ActiveProbe{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -86,52 +81,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) Run(stopChan <-chan struct{}) {
-	defer r.syncQueue.ShutDown()
-	klog.Infof("Starting %s", controllerName)
-	defer klog.Infof("Shutting down %s", controllerName)
-
-	go wait.Until(r.SyncActiveProbeWorker, 0, stopChan)
-	<-stopChan
-}
-
-func (r *Reconciler) SyncActiveProbeWorker() {
-	item, shutdown := r.syncQueue.Get()
-	if shutdown {
-		return
-	}
-	defer r.syncQueue.Done(item)
-	// 1. lookup endpoint name from  endpoint agent
-
-	objKey, ok := item.(k8stypes.NamespacedName)
-	if !ok {
-		r.syncQueue.Forget(item)
-		klog.Errorf("Activeprobe %v was not found in workqueue", objKey)
-		return
-	}
-
-	// TODO should support timeout and max retry
-	if err := r.syncActiveProbe(objKey); err == nil {
-		klog.Errorf("sync activeprobe  %v", objKey)
-		r.syncQueue.Forget(item)
-	} else {
-		klog.Errorf("Failed to sync activeprobe %v, error: %v", objKey, err)
-	}
-}
-
-func (r *Reconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
 	var err error
 	ctx := context.Background()
 	ap := activeprobev1alph1.ActiveProbe{}
-	if err := r.Get(ctx, objKey, &ap); err != nil {
-		klog.Errorf("unable to fetch activeprobe %s: %s", objKey, err.Error())
+	if err = r.Client.Get(ctx, req.NamespacedName, &ap); err != nil {
+		klog.Errorf("unable to fetch activeprobe %s: %s", req.Name, err.Error())
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
-		return client.IgnoreNotFound(err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	switch ap.Status.State {
@@ -144,7 +102,7 @@ func (r *Reconciler) syncActiveProbe(objKey k8stypes.NamespacedName) error {
 	default:
 	}
 
-	return err
+	return ctrl.Result{}, err
 }
 
 func (r *Reconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
@@ -230,7 +188,8 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if reason != "" {
 		update.Status.Reason = reason
 	}
-	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
+	err = r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	return err
 }
 
@@ -265,28 +224,4 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 /* TODO */
 func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
 	return nil
-}
-
-func (r *Reconciler) AddActiveProbe(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Name:      e.Meta.GetName(),
-		Namespace: e.Meta.GetNamespace(),
-	}})
-}
-
-func (r *Reconciler) RemoveActiveProbe(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Name:      e.Meta.GetName(),
-		Namespace: e.Meta.GetNamespace(),
-	}})
-
-}
-
-func (r *Reconciler) UpdateActiveProbe(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	// should sync all object
-	r.syncQueue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Name:      e.MetaNew.GetName(),
-		Namespace: e.MetaNew.GetNamespace(),
-	}})
-
 }

@@ -19,15 +19,15 @@ package activeprobe
 import (
 	"context"
 	"errors"
-
+	
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -43,37 +43,35 @@ const (
 )
 
 func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
+	a.PktRcvdCnt++
 	ap := activeprobev1alph1.ActiveProbe{}
 	reason := ""
 
 	state, tag, apResult, err := a.parsePacketIn(packetIn)
+	//if err != nil {
+	//	klog.Errorf("parsePacketIn error: %+v", err)
+	//	return err
+	//}
+	name := a.RunningActiveprobe[tag].name
+	namespacedName := types.NamespacedName{
+		Namespace: "",
+		Name:      name,
+	}
+	if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
+		klog.Warningf("Update ActiveProbe failed: %+v", err)
+	}
+
+	apResult.AgentName = utils.CurrentAgentName()
+	apResult.NumberOfTimes = a.PktRcvdCnt
+	apResult.AgentProbeState = state
+
+	ap.Status.State = activeprobev1alph1.ActiveProbeRunning
+
+	err = a.updateActiveProbeStatus(&ap, apResult, reason)
 	if err != nil {
-		klog.Errorf("parsePacketIn error: %+v", err)
+		klog.Warningf("Update ActiveProbe failed: %+v", err)
 		return err
 	}
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		name := a.RunningActiveprobe[tag].name
-		namespacedName := types.NamespacedName{
-			Namespace: "",
-			Name:      name,
-		}
-		if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
-			klog.Warningf("Update ActiveProbe failed: %+v", err)
-		}
-		ap.Status.State = state
-		ap.Status.Tag = tag
-
-		err = a.updateActiveProbeStatus(&ap, apResult, reason)
-		if err != nil {
-			klog.Warningf("Update ActiveProbe failed: %+v", err)
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		klog.Errorf("Update ActiveProbe error: %+v", err)
-	}
-
 	return err
 }
 
@@ -92,14 +90,14 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 		ipPacket, ok := packetIn.Data.Data.(*protocol.IPv4)
 		if !ok {
 			state = activeprobev1alph1.ActiveProbeFailed
-			return state, 0, nil, errors.New("invalid IPv4 packet")
+			return state, 0, &agentProbeResult, errors.New("invalid IPv4 packet")
 		}
 		tag = ipPacket.DSCP
 
 		if match := getMatchInPortField(matchers); match != nil {
 			inPort, err = getInportVal(match)
 			if err != nil {
-				return state, tag, nil, err
+				return state, tag, &agentProbeResult, err
 			}
 		}
 
@@ -108,7 +106,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 
 		reg4Val, err = getRegValue(matchers, flowActionField)
 		if err != nil {
-			return state, tag, nil, err
+			return state, tag, &agentProbeResult, err
 		}
 		if reg4Val == datapath.PolicyRuleActionAllow {
 			activeProbeAction = activeprobev1alph1.ActiveProbeAllow
@@ -118,7 +116,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 
 		reg5Val, err = getRegValue(matchers, activeProbeField)
 		if err != nil {
-			return state, tag, nil, err
+			return state, tag, &agentProbeResult, err
 		}
 
 		switch {
@@ -139,6 +137,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 		activeProbeTracePoint.TracePoint = telemetryTracePoint
 		activeProbeTracePoint.Action = activeProbeAction
 
+		agentProbeResult.AgentProbeState = activeprobev1alph1.ActiveProbeCompleted
 		agentProbeResult.AgentProbePath = append(agentProbeResult.AgentProbePath, activeProbeTracePoint)
 		state = activeprobev1alph1.ActiveProbeCompleted
 	}

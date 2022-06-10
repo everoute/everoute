@@ -189,6 +189,9 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 	})
 	_ = inputIPRedirectFlow.SetConntrack(ctAction)
+	//if err := inputIPRedirectFlow.Next(p.directionSelectionTable); err != nil {
+	//	log.Fatalf("failed to install ct state default flow, error: %v", err)
+	//}
 
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
@@ -666,24 +669,24 @@ func (p *PolicyBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 func (p *PolicyBridge) InstallActiveProbeFlow(tag uint8, ipDa *net.IP) ([]*FlowEntry, error) {
 	var activeProbeFlows []*FlowEntry
 
-	ingressActiveProbeFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
-		IpDa:      ipDa,
-		IpDscp:    tag,
-	})
-	if err := ingressActiveProbeFlow.SendToController(ingressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
-		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
-	}
-	if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
-	}
-
-	activeProbeFlows = append(activeProbeFlows, &FlowEntry{
-		Table:    ingressActiveProbeFlow.Table,
-		Priority: ingressActiveProbeFlow.Match.Priority,
-		FlowID:   ingressActiveProbeFlow.FlowID,
-	})
+	//ingressActiveProbeFlow, _ := p.ingressMetricTable.NewFlow(ofctrl.FlowMatch{
+	//	Priority:  MID_MATCH_FLOW_PRIORITY,
+	//	Ethertype: PROTOCOL_IP,
+	//	IpDa:      ipDa,
+	//	IpDscp:    tag,
+	//})
+	//if err := ingressActiveProbeFlow.SendToController(ingressActiveProbeFlow.NewControllerAction(p.OfSwitch.ControllerID, 0)); err != nil {
+	//	return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
+	//}
+	//if err := ingressActiveProbeFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+	//	return nil, fmt.Errorf("failed to install send to controller action for ingress active probe flow, error: %v", err)
+	//}
+	//
+	//activeProbeFlows = append(activeProbeFlows, &FlowEntry{
+	//	Table:    ingressActiveProbeFlow.Table,
+	//	Priority: ingressActiveProbeFlow.Match.Priority,
+	//	FlowID:   ingressActiveProbeFlow.FlowID,
+	//})
 
 	egressActiveProbeFlow, _ := p.egressMetricTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
