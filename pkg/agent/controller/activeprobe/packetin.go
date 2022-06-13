@@ -19,15 +19,15 @@ package activeprobe
 import (
 	"context"
 	"errors"
-	
+
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
-	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -48,29 +48,31 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	reason := ""
 
 	state, tag, apResult, err := a.parsePacketIn(packetIn)
-	//if err != nil {
-	//	klog.Errorf("parsePacketIn error: %+v", err)
-	//	return err
-	//}
-	name := a.RunningActiveprobe[tag].name
-	namespacedName := types.NamespacedName{
-		Namespace: "",
-		Name:      name,
-	}
-	if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
-		klog.Warningf("Update ActiveProbe failed: %+v", err)
-	}
+	// Retry when update CRD conflict which caused by multiple agents updating one CRD at same time.
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		name := a.RunningActiveprobe[tag].name
+		namespacedName := types.NamespacedName{
+			Namespace: "",
+			Name:      name,
+		}
+		if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
+			klog.Warningf("Update ActiveProbe failed: %+v", err)
+		}
 
-	apResult.AgentName = utils.CurrentAgentName()
-	apResult.NumberOfTimes = a.PktRcvdCnt
-	apResult.AgentProbeState = state
+		apResult.NumberOfTimes = a.PktRcvdCnt
+		apResult.AgentProbeState = state
 
-	ap.Status.State = activeprobev1alph1.ActiveProbeRunning
+		ap.Status.State = activeprobev1alph1.ActiveProbeRunning
 
-	err = a.updateActiveProbeStatus(&ap, apResult, reason)
+		err = a.updateActiveProbeStatus(&ap, apResult, reason)
+		if err != nil {
+			klog.Warningf("Update ActiveProbe failed: %+v", err)
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		klog.Warningf("Update ActiveProbe failed: %+v", err)
-		return err
+		klog.Errorf("Update ActiveProbe failed: %+v", err)
 	}
 	return err
 }

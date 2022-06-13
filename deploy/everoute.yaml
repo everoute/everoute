@@ -207,27 +207,28 @@ spec:
               reason:
                 type: string
               results:
-                items:
-                  properties:
-                    agentname:
-                      description: AgentProbeRecord map[string]*AgentProbeResult
-                      type: string
-                    agentprobepath:
-                      items:
-                        properties:
-                          action:
-                            type: string
-                          tracepoint:
-                            type: string
-                        type: object
-                      type: array
-                    agentprobestate:
-                      type: string
-                    numberoftimes:
-                      format: int32
-                      type: integer
-                  type: object
-                type: array
+                additionalProperties:
+                  items:
+                    properties:
+                      agentprobepath:
+                        items:
+                          properties:
+                            action:
+                              type: string
+                            tracepoint:
+                              type: string
+                          type: object
+                        type: array
+                      agentprobestate:
+                        type: string
+                      numberoftimes:
+                        description: AgentProbeRecord map[string]*AgentProbeResult
+                          AgentName       string                  `json:"agentname,omitempty"`
+                        format: int32
+                        type: integer
+                    type: object
+                  type: array
+                type: object
               startTime:
                 format: date-time
                 type: string
