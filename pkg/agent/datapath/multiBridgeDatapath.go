@@ -929,6 +929,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 }
 
 func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag uint8, ipDa *net.IP) error {
+	log.Infof("start func InstallActiveProbeFlows, ovsbrName: %v, tag: %v, ipDs: %v", ovsbrName, tag, ipDa)
 	//rule1 := &EveroutePolicyRule{
 	//	RuleID:     "rule1",
 	//	Priority:   200,
@@ -958,6 +959,7 @@ func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag 
 }
 
 func (datapathManager *DpManager) UninstallActiveProbeFlows(ovsbrName string, tag uint8) error {
+	log.Infof("start func UninstallActiveProbeFlows, ovsbrName: %v, tag: %v", ovsbrName, tag)
 	for _, brName := range datapathManager.datapathConfig.ManagedVDSMap {
 		if brName == ovsbrName {
 			for _, flow := range datapathManager.ActiveProbeFlowMap[tag] {
@@ -974,6 +976,7 @@ func (datapathManager *DpManager) UninstallActiveProbeFlows(ovsbrName string, ta
 
 func (datapathManager *DpManager) SendActiveProbePacket(ovsbrName string, packet Packet, tag uint8, inport uint32, outport *uint32) error {
 	// Send to related bridge
+	log.Infof("start func SendActiveProbePacket, ovsbrName: %v, packet: %v, tag: %v, inport: %v")
 	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
 		if brName == ovsbrName {
 			return sendActiveProbePacket(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch,
@@ -1004,6 +1007,7 @@ func toOfctrlPacket(packet Packet) *ofctrl.Packet {
 }
 
 func sendActiveProbePacket(sw *ofctrl.OFSwitch, tag uint8, packet *ofctrl.Packet, inPort uint32, outPort *uint32) error {
+	log.Infof("start func sendActiveProbePacket")
 	packetOut := ofctrl.ConstructPacketOut(packet)
 	packetOut.InPort = inPort
 	packetOut.OutPort = outPort

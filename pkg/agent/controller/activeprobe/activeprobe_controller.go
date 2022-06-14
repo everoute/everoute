@@ -57,7 +57,7 @@ type Controller struct {
 }
 
 func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
-
+	klog.Infof("start func SetupWithManager")
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -107,6 +107,7 @@ func (a *Controller) RegisterPacketInHandler(stopChan <-chan struct{}) {
 }
 
 func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error) {
+	klog.Infof("start func ReconcileActiveProbe")
 	ctx := context.Background()
 	var err error
 	klog.V(2).Infof("Controller received activeprobe %s reconcile", req.NamespacedName)
@@ -119,12 +120,14 @@ func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error)
 		// on deleted requests.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	klog.Infof("succeed fetch activeprobe %v", req.Name)
 
 	//if "agentinfoa" != ap.Spec.Source.AgentName && "agentinfob" != ap.Spec.Destination.AgentName {
 	//	return ctrl.Result{}, err
 	//}
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
+		klog.Infof("curAgent: %v unequal activeprobe srcAgent: %v or dstAgent: %v", curAgentName, ap.Spec.Source.AgentName, ap.Spec.Destination.AgentName)
 		return ctrl.Result{}, err
 	}
 
@@ -132,6 +135,7 @@ func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error)
 }
 
 func (a *Controller) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe) (ctrl.Result, error) {
+	klog.Infof("start func processActiveProbeUpdate")
 	var err error
 	switch ap.Status.State {
 	case activeprobev1alph1.ActiveProbeRunning:
@@ -151,6 +155,7 @@ func (a *Controller) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe
 }
 
 func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start func runActiveProbe")
 	var err error
 	var ovsbrName string
 	tag := ap.Status.Tag
@@ -163,6 +168,7 @@ func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	defer a.RunningActiveprobeMutex.Unlock()
 	ipDa := net.ParseIP(ap.Spec.Destination.IP)
 
+	klog.Infof("(fun runActiveProbe) a.RunningActiveprobe: %v", a.RunningActiveprobe)
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName == ap.Spec.Source.AgentName {
 		ovsbrName = ap.Spec.Source.BridgeName
@@ -187,6 +193,7 @@ func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 }
 
 func (a *Controller) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *datapath.Packet {
+	klog.Infof("start ParseActiveProbeSpec")
 	var packet *datapath.Packet
 
 	srcMac, _ := net.ParseMAC(ap.Spec.Source.MAC)
@@ -220,6 +227,7 @@ func (a *Controller) ParseActiveProbeSpec(ap *activeprobev1alph1.ActiveProbe) *d
 }
 
 func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start func SendActiveProbePacket")
 	var err error
 	ovsbrName := ap.Spec.Source.BridgeName
 	inport := uint32(ap.Spec.Source.Ofport)
@@ -235,12 +243,14 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 }
 
 func (a *Controller) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
+	klog.Infof("start func InstallActiveProbeRuleFlow, ovsbrName: %v, tag:%v, ipDa: &v", ovsbrName, tag, ipDa)
 	var err error
 	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
 }
 
 func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe, apResult *activeprobev1alph1.AgentProbeResult, reason string) error {
+	klog.Infof("start func updateActiveProbeStatus")
 	update := ap.DeepCopy()
 	if reason != "" {
 		update.Status.Reason = reason
@@ -266,6 +276,7 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 }
 
 func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
+	klog.Infof("start func delete ActiveProbeByName")
 	a.RunningActiveprobeMutex.Lock()
 	defer a.RunningActiveprobeMutex.Unlock()
 	for tag, apState := range a.RunningActiveprobe {
@@ -278,6 +289,7 @@ func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 }
 
 func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
+	klog.Infof("start func cleanupActiveProbe")
 	var ovsbrName string
 	a.PktRcvdCnt = 0
 	curAgentName := utils.CurrentAgentName()
