@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -46,6 +48,8 @@ const (
 	tagStep   uint8 = 0b100
 	minTagNum uint8 = 0b1*tagStep + 0b11
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
+
+	DefaultTimeoutDuration = time.Second * time.Duration(20)
 )
 
 type Reconciler struct {
@@ -99,7 +103,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err = r.runActiveProbe(&ap)
 	case activeprobev1alph1.ActiveProbeRunning:
 		err = r.checkActiveProbeStatus(&ap)
-	case activeprobev1alph1.ActiveProbeFailed:
+	case activeprobev1alph1.ActiveProbeCompleted, activeprobev1alph1.ActiveProbeFailed:
 		r.deallocateTagForAP(&ap)
 	default:
 	}
@@ -124,7 +128,7 @@ func (r *Reconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
 	err := r.Client.List(context.Background(), &epList)
 	if err != nil {
 		klog.Errorf("list endpoint: %s", err)
-		return nil
+		return err
 	}
 	for _, ep := range epList.Items {
 		if ep.Spec.Reference.ExternalIDName == srcEndpointID.Name && ep.Spec.Reference.ExternalIDValue == srcEndpointID.Value {
@@ -171,10 +175,12 @@ func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) {
 }
 
 func (r *Reconciler) deallocateTag(name string, tag uint8) {
+	klog.Infof("start run func deallocateTag")
 	r.RunningActiveprobeMutex.Lock()
 	defer r.RunningActiveprobeMutex.Unlock()
 	if existingActiveProbeName, ok := r.RunningActiveprobe[tag]; ok {
 		if name == existingActiveProbeName {
+			klog.Infof("delete r.RunningActiveprobe[%v], activeprobeName = %v", tag, name)
 			delete(r.RunningActiveprobe, tag)
 		}
 	}
@@ -193,15 +199,21 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if reason != "" {
 		update.Status.Reason = reason
 	}
+	if ap.Status.StartTime == nil {
+		t := metav1.Now()
+		update.Status.StartTime = &t
+	}
 	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update spec failed reason: %v", err)
+		return err
 	}
 	err = r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update status failed reason: %v", err)
+		return err
 	}
-	return err
+	return nil
 }
 
 /* TODO */
@@ -215,20 +227,24 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	// Allocate data plane tag.
 	tag, err := r.allocateTag(ap.Name)
 	if err != nil {
+		klog.Errorf("allocate tag failed, tag: %v, err: %v", tag, err)
 		return err
 	}
 	if tag == 0 {
+		klog.Infof("tag has been allocated for %v, stop running", ap.Name)
 		return nil
 	}
 	klog.Infof("tag = %v", tag)
 
 	err = r.AddEndpointInfo(ap)
 	if err != nil {
+		klog.Errorf("add endpoint failed reason: %v", err)
 		return err
 	}
 
 	err = r.updateActiveProbeStatus(ap, activeprobev1alph1.ActiveProbeRunning, "", tag)
 	if err != nil {
+		klog.Errorf("updateActiveProbeStatus failed reason: %v", err)
 		r.deallocateTag(ap.Name, tag)
 	}
 	return err
@@ -236,5 +252,24 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 
 /* TODO */
 func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start checkActiveProbeStatus")
+
+	var startTime time.Time
+	if ap.Status.StartTime != nil {
+		klog.Info("startTime = ap.Status.StartTime (%v)", ap.Status.StartTime)
+		startTime = ap.Status.StartTime.Time
+	} else {
+		klog.Infof("ap.Status.StartTime = nil, startTime = ap.CreationTimesstap.Time (%v)", ap.CreationTimestamp.Time)
+		startTime = ap.CreationTimestamp.Time
+	}
+	update := ap.DeepCopy()
+	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
+		update.Status.State = activeprobev1alph1.ActiveProbeFailed
+		err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+		if err != nil {
+			klog.Errorf("update status failed reason: %v", err)
+			return err
+		}
+	}
 	return nil
 }

@@ -52,7 +52,7 @@ rules:
 - apiGroups:
     - activeprobe.everoute.io
   resources:
-    - activeprobes
+    - activeprobes activeprobes/status
   verbs:
     - patch
     - create

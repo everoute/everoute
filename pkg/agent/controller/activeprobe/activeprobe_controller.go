@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -38,6 +39,10 @@ import (
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
+)
+
+const (
+	DefaultTimeoutDuration = time.Second * time.Duration(20)
 )
 
 type activeProbeState struct {
@@ -255,6 +260,17 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if reason != "" {
 		update.Status.Reason = reason
 	}
+	var startTime time.Time
+	if ap.Status.StartTime != nil {
+		klog.Info("startTime = ap.Status.StartTime (%v)", ap.Status.StartTime)
+		startTime = ap.Status.StartTime.Time
+	} else {
+		klog.Infof("ap.Status.StartTime = nil, startTime = ap.CreationTimesstap.Time (%v)", ap.CreationTimestamp.Time)
+		startTime = ap.CreationTimestamp.Time
+	}
+	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
+		ap.Status.State = activeprobev1alph1.ActiveProbeCompleted
+	}
 
 	var isExist bool = false
 	curAgentName := utils.CurrentAgentName()
@@ -271,7 +287,10 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 
 	//update.Status.Results = append(update.Status.Results, *apResult)
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
-	klog.Infof("Updated ActiveProbe %s: %+v", ap.Name, update.Status)
+	if err != nil {
+		klog.Errorf("update activeprobe failed reason: %v", err)
+	}
+	klog.Infof("update activeprobe %s: %+v succeed", ap.Name, update.Status)
 	return err
 }
 

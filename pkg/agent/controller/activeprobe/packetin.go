@@ -72,7 +72,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 		return nil
 	})
 	if err != nil {
-		klog.Errorf("Update ActiveProbe failed: %+v", err)
+		klog.Errorf("retry Update ActiveProbe failed: %+v", err)
 	}
 	return err
 }
