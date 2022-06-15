@@ -58,6 +58,7 @@ type Reconciler struct {
 
 // SetupWithManager create and add Endpoint Controller to the manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	klog.Infof("start func SetupWithManager")
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -91,6 +92,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// on deleted requests.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	klog.Infof("succeed fetch activeprobe %v", req.Name)
 
 	switch ap.Status.State {
 	case "":
@@ -106,6 +108,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 func (r *Reconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start func AddEndpointInfo")
 	srcEpExternalIDValue := ap.Spec.Source.Endpoint
 	srcEndpointID := ctrltypes.ExternalID{
 		Name:  endpointExternalIDKey,
@@ -143,6 +146,7 @@ func (r *Reconciler) AddEndpointInfo(ap *activeprobev1alph1.ActiveProbe) error {
 }
 
 func (r *Reconciler) allocateTag(name string) (uint8, error) {
+	klog.Infof("start func allocateTag")
 	r.RunningActiveprobeMutex.Lock()
 	defer r.RunningActiveprobeMutex.Unlock()
 
@@ -182,6 +186,7 @@ func (r *Reconciler) validateActiveProbe(ap *activeprobev1alph1.ActiveProbe) err
 
 func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	state activeprobev1alph1.ActiveProbeState, reason string, tag uint8) error {
+	klog.Infof("start func updateActiveProbeStatus")
 	update := ap.DeepCopy()
 	update.Status.State = state
 	update.Status.Tag = tag
@@ -189,12 +194,19 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		update.Status.Reason = reason
 	}
 	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update spec failed reason: %v", err)
+	}
 	err = r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update status failed reason: %v", err)
+	}
 	return err
 }
 
 /* TODO */
 func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start func runActiveProbe")
 	if err := r.validateActiveProbe(ap); err != nil {
 		klog.Errorf("Invalid ActiveProbe request %v", ap)
 		return r.updateActiveProbeStatus(ap, activeprobev1alph1.ActiveProbeFailed, fmt.Sprintf("Invalid ActiveProbe request, err: %+v", err), 0)
@@ -208,6 +220,7 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	if tag == 0 {
 		return nil
 	}
+	klog.Infof("tag = %v", tag)
 
 	err = r.AddEndpointInfo(ap)
 	if err != nil {
