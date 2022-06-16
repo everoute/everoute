@@ -50,6 +50,7 @@ const (
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
 
 	DefaultTimeoutDuration = time.Second * time.Duration(20)
+	DefaultReceivedTime    = 5
 )
 
 type Reconciler struct {
@@ -103,8 +104,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err = r.runActiveProbe(&ap)
 	case activeprobev1alph1.ActiveProbeRunning:
 		err = r.checkActiveProbeStatus(&ap)
+	case activeprobev1alph1.ActiveProbeSendFinshed:
+		err = r.changeStateToCompleted(&ap)
 	case activeprobev1alph1.ActiveProbeCompleted, activeprobev1alph1.ActiveProbeFailed:
-		err = r.deallocateTagForAP(&ap)
+		if ap.Status.Tag != 0 {
+			r.deallocateTag(ap.Name, ap.Status.Tag)
+		}
 	default:
 	}
 
@@ -168,20 +173,20 @@ func (r *Reconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) error {
-	update := ap.DeepCopy()
-	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
-	if err != nil {
-		klog.Errorf("update status failed reason: %v", err)
-		return err
-	}
-
-	if ap.Status.Tag != 0 {
-		r.deallocateTag(ap.Name, ap.Status.Tag)
-	}
-
-	return nil
-}
+//func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) error {
+//	update := ap.DeepCopy()
+//	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+//	if err != nil {
+//		klog.Errorf("update status failed reason: %v", err)
+//		return err
+//	}
+//
+//	if ap.Status.Tag != 0 {
+//		r.deallocateTag(ap.Name, ap.Status.Tag)
+//	}
+//
+//	return nil
+//}
 
 func (r *Reconciler) deallocateTag(name string, tag uint8) {
 	klog.Infof("start run func deallocateTag")
@@ -212,6 +217,7 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		t := metav1.Now()
 		update.Status.StartTime = &t
 	}
+	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 
 	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
@@ -226,7 +232,6 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	return nil
 }
 
-/* TODO */
 func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	klog.Infof("start func runActiveProbe")
 	if err := r.validateActiveProbe(ap); err != nil {
@@ -260,7 +265,6 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	return err
 }
 
-/* TODO */
 func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
 	klog.Infof("start checkActiveProbeStatus")
 
@@ -275,12 +279,24 @@ func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) 
 	update := ap.DeepCopy()
 	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
 		update.Status.State = activeprobev1alph1.ActiveProbeFailed
-		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 		err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 		if err != nil {
 			klog.Errorf("update status failed reason: %v", err)
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *Reconciler) changeStateToCompleted(ap *activeprobev1alph1.ActiveProbe) error {
+	time.Sleep(time.Second * DefaultReceivedTime)
+	update := ap.DeepCopy()
+	update.Status.State = activeprobev1alph1.ActiveProbeCompleted
+	update.Status.FailedTimes = update.Spec.ProbeTimes - update.Status.SucceedTimes
+	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update status failed reason: %v", err)
+		return err
 	}
 	return nil
 }

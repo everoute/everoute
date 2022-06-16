@@ -62,13 +62,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 		apResult.NumberOfTimes = a.PktRcvdCnt
 		apResult.AgentProbeState = state
 
-		if a.PktRcvdCnt == ap.Spec.ProbeTimes*2 {
-			ap.Status.State = activeprobev1alph1.ActiveProbeCompleted
-		} else {
-			ap.Status.State = activeprobev1alph1.ActiveProbeRunning
-		}
-		//ap.Status.State = activeprobev1alph1.ActiveProbeRunning
-
+		ap.Status.SucceedTimes = a.PktRcvdCnt
 		err = a.updateActiveProbeStatus(&ap, apResult, reason)
 		if err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)

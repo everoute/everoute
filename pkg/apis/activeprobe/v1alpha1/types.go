@@ -51,6 +51,8 @@ type ActiveProbeStatus struct {
 	State          ActiveProbeState           `json:"state"`
 	Reason         string                     `json:"reason,omitempty"`
 	StartTime      *metav1.Time               `json:"startTime,omitempty"`
+	SucceedTimes   uint32                     `json:"succeedTimes,omitempty"`
+	FailedTimes    uint32                     `json:"failedTimes,omitempty"`
 	Tag            uint8                      `json:"tag"`
 	Results        map[string]AgenProbeRecord `json:"results,omitempty"` // []map[string]*AgentProbeResult
 	CapturedPacket *Packet                    `json:"capturedPacket,omitempty"`
@@ -59,18 +61,10 @@ type ActiveProbeStatus struct {
 type AgenProbeRecord []*AgentProbeResult
 
 type AgentProbeResult struct {
-	//AgentProbeRecord map[string]*AgentProbeResult
-	//AgentName       string                  `json:"agentname,omitempty"`
 	NumberOfTimes   uint32                  `json:"numberoftimes,omitempty"`
 	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
 	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
 }
-
-//type AgentProbeContent struct {
-//  NumberOfTimes   uint32                  `json:"numberoftimes,omitempty"`
-//	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
-//	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
-//}
 
 type ActiveProbeTracePoint struct {
 	TracePoint TelemetryTracePoint `json:"tracepoint,omitempty"`
@@ -80,11 +74,12 @@ type ActiveProbeTracePoint struct {
 type ActiveProbeState string
 
 const (
-	ActiveProbeReady     ActiveProbeState = "ready"
-	ActiveProbeRunning   ActiveProbeState = "running"
-	ActiveProbeCompleted ActiveProbeState = "completed"
-	ActiveProbeFailed    ActiveProbeState = "failed"
-	ActiveProbeUnknown   ActiveProbeState = "unknown"
+	ActiveProbeReady       ActiveProbeState = "ready"
+	ActiveProbeRunning     ActiveProbeState = "running"
+	ActiveProbeSendFinshed ActiveProbeState = "sendFinished"
+	ActiveProbeCompleted   ActiveProbeState = "completed"
+	ActiveProbeFailed      ActiveProbeState = "failed"
+	ActiveProbeUnknown     ActiveProbeState = "unknown"
 )
 
 type TelemetryTracePoint string

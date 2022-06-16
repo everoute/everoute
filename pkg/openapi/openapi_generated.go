@@ -1013,6 +1013,18 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
+					"succeedTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
+					"failedTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"tag": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
@@ -1086,9 +1098,8 @@ func schema_pkg_apis_activeprobe_v1alpha1_AgentProbeResult(ref common.ReferenceC
 				Properties: map[string]spec.Schema{
 					"numberoftimes": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AgentProbeRecord map[string]*AgentProbeResult AgentName       string                  `json:\"agentname,omitempty\"`",
-							Type:        []string{"integer"},
-							Format:      "int64",
+							Type:   []string{"integer"},
+							Format: "int64",
 						},
 					},
 					"agentprobestate": {

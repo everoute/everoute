@@ -150,8 +150,9 @@ func (a *Controller) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe
 		if start {
 			err = a.runActiveProbe(ap)
 		}
+	case activeprobev1alph1.ActiveProbeCompleted, activeprobev1alph1.ActiveProbeFailed:
+		a.cleanupActiveProbe(ap)
 	default:
-		err = a.cleanupActiveProbe(ap)
 	}
 	return ctrl.Result{}, err
 }
@@ -241,6 +242,12 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
 	}
 
+	update := ap.DeepCopy()
+	update.Status.State = activeprobev1alph1.ActiveProbeSendFinshed
+	err = a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update activeprobe failed reason: %v", err)
+	}
 	return err
 }
 
@@ -257,37 +264,13 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if reason != "" {
 		update.Status.Reason = reason
 	}
-	var startTime time.Time
-	if ap.Status.StartTime != nil {
-		klog.Info("startTime = ap.Status.StartTime (%v)", ap.Status.StartTime)
-		startTime = ap.Status.StartTime.Time
-	} else {
-		klog.Infof("ap.Status.StartTime = nil, startTime = ap.CreationTimesstap.Time (%v)", ap.CreationTimestamp.Time)
-		startTime = ap.CreationTimestamp.Time
-	}
-	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
-		ap.Status.State = activeprobev1alph1.ActiveProbeCompleted
-	}
+
 	if update.Status.Results == nil {
 		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 	}
 	curAgentName := utils.CurrentAgentName()
 	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
 
-	//var isExist bool = false
-	//curAgentName := utils.CurrentAgentName()
-	//for agentname, _ := range update.Status.Results {
-	//	if agentname == curAgentName {
-	//		isExist = true
-	//		update.Status.Results[agentname] = append(update.Status.Results[curAgentName], apResult)
-	//	}
-	//}
-	//if isExist == false {
-	//	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
-	//	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
-	//}
-
-	//update.Status.Results = append(update.Status.Results, *apResult)
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update activeprobe failed reason: %v", err)
@@ -309,7 +292,7 @@ func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 	return nil
 }
 
-func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
+func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 	klog.Infof("start func cleanupActiveProbe")
 	var ovsbrName string
 	a.PktRcvdCnt = 0
@@ -328,13 +311,5 @@ func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) erro
 			klog.Errorf("Failed to uninstall ActiveProbe %s flows: %v", apState.name, err)
 		}
 	}
-
-	update := ap.DeepCopy()
-	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
-	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
-	if err != nil {
-		klog.Errorf("agent controller cleanupActiveProbe failed reason: %v", err)
-	}
-	klog.Infof("agent controller cleanupActiveProbe %s succeed", ap.Name)
-	return err
+	return
 }

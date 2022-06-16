@@ -204,6 +204,9 @@ spec:
                         type: object
                     type: object
                 type: object
+              failedTimes:
+                format: int32
+                type: integer
               reason:
                 type: string
               results:
@@ -222,8 +225,6 @@ spec:
                       agentprobestate:
                         type: string
                       numberoftimes:
-                        description: AgentProbeRecord map[string]*AgentProbeResult
-                          AgentName       string                  `json:"agentname,omitempty"`
                         format: int32
                         type: integer
                     type: object
@@ -234,6 +235,9 @@ spec:
                 type: string
               state:
                 type: string
+              succeedTimes:
+                format: int32
+                type: integer
               tag:
                 type: integer
             required:
@@ -2081,7 +2085,19 @@ rules:
     - list
     - watch
     - create
----
+- apiGroups:
+    - activeprobe.everoute.io
+  resources:
+    - activeprobes
+    - activeprobes/status
+  verbs:
+    - patch
+    - create
+    - update
+    - delete
+    - get
+    - list
+    - watch---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -2237,6 +2253,19 @@ rules:
   - list
   - watch
   - create
+- apiGroups:
+    - activeprobe.everoute.io
+  resources:
+    - activeprobes
+    - activeprobes/status
+  verbs:
+    - patch
+    - create
+    - update
+    - delete
+    - get
+    - list
+    - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
