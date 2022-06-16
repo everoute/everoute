@@ -91,7 +91,8 @@ rules:
 - apiGroups:
     - activeprobe.everoute.io
   resources:
-    - activeprobes activeprobes/status
+    - activeprobes
+    - activeprobes/status
   verbs:
     - patch
     - create
