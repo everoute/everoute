@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -39,10 +38,6 @@ import (
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
-)
-
-const (
-	DefaultTimeoutDuration = time.Second * time.Duration(20)
 )
 
 type activeProbeState struct {

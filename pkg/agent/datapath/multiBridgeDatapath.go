@@ -930,22 +930,8 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 
 func (datapathManager *DpManager) InstallActiveProbeFlows(ovsbrName string, tag uint8, ipDa *net.IP) error {
 	log.Infof("start func InstallActiveProbeFlows, ovsbrName: %v, tag: %v, ipDs: %v", ovsbrName, tag, ipDa)
-	//rule1 := &EveroutePolicyRule{
-	//	RuleID:     "rule1",
-	//	Priority:   200,
-	//	IPProtocol: uint8(6),
-	//	SrcIPAddr:  "10.0.1.11",
-	//	DstIPAddr:  "10.0.1.12",
-	//	Action:     "allow",
-	//}
 	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
 		if brName == ovsbrName {
-			//_, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule1,
-			//	POLICY_DIRECTION_OUT, POLICY_TIER2, DEFAULT_POLICY_ENFORCEMENT_MODE)
-			//if err != nil {
-			//	return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD], err)
-			//}
-
 			flowEntries, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).InstallActiveProbeFlow(tag, ipDa)
 			if err != nil {
 				log.Errorf("Failed to install activeProbe flow. Err: %v", err)

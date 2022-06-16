@@ -2097,7 +2097,9 @@ rules:
     - delete
     - get
     - list
-    - watch---
+    - watch
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -2266,6 +2268,7 @@ rules:
     - get
     - list
     - watch
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

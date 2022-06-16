@@ -173,20 +173,6 @@ func (r *Reconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-//func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) error {
-//	update := ap.DeepCopy()
-//	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
-//	if err != nil {
-//		klog.Errorf("update status failed reason: %v", err)
-//		return err
-//	}
-//
-//	if ap.Status.Tag != 0 {
-//		r.deallocateTag(ap.Name, ap.Status.Tag)
-//	}
-//
-//	return nil
-//}
 
 func (r *Reconciler) deallocateTag(name string, tag uint8) {
 	klog.Infof("start run func deallocateTag")
