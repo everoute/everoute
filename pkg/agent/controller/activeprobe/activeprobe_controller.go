@@ -126,10 +126,7 @@ func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	klog.Infof("succeed fetch activeprobe %v", req.Name)
-
-	//if "agentinfoa" != ap.Spec.Source.AgentName && "agentinfob" != ap.Spec.Destination.AgentName {
-	//	return ctrl.Result{}, err
-	//}
+	
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
 		klog.Infof("curAgent: %v unequal activeprobe srcAgent: %v or dstAgent: %v", curAgentName, ap.Spec.Source.AgentName, ap.Spec.Destination.AgentName)
@@ -272,18 +269,21 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		ap.Status.State = activeprobev1alph1.ActiveProbeCompleted
 	}
 
-	var isExist bool = false
 	curAgentName := utils.CurrentAgentName()
-	for agentname, _ := range update.Status.Results {
-		if agentname == curAgentName {
-			isExist = true
-			update.Status.Results[agentname] = append(update.Status.Results[curAgentName], apResult)
-		}
-	}
-	if isExist == false {
-		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
-		update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
-	}
+	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
+
+	//var isExist bool = false
+	//curAgentName := utils.CurrentAgentName()
+	//for agentname, _ := range update.Status.Results {
+	//	if agentname == curAgentName {
+	//		isExist = true
+	//		update.Status.Results[agentname] = append(update.Status.Results[curAgentName], apResult)
+	//	}
+	//}
+	//if isExist == false {
+	//	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
+	//	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
+	//}
 
 	//update.Status.Results = append(update.Status.Results, *apResult)
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})

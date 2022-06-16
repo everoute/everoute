@@ -104,7 +104,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	case activeprobev1alph1.ActiveProbeRunning:
 		err = r.checkActiveProbeStatus(&ap)
 	case activeprobev1alph1.ActiveProbeCompleted, activeprobev1alph1.ActiveProbeFailed:
-		r.deallocateTagForAP(&ap)
+		err = r.deallocateTagForAP(&ap)
 	default:
 	}
 
@@ -168,10 +168,20 @@ func (r *Reconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) {
+func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) error {
+	update := ap.DeepCopy()
+	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
+	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("update status failed reason: %v", err)
+		return err
+	}
+
 	if ap.Status.Tag != 0 {
 		r.deallocateTag(ap.Name, ap.Status.Tag)
 	}
+
+	return nil
 }
 
 func (r *Reconciler) deallocateTag(name string, tag uint8) {
@@ -203,6 +213,8 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		t := metav1.Now()
 		update.Status.StartTime = &t
 	}
+	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
+
 	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update spec failed reason: %v", err)
@@ -265,6 +277,7 @@ func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) 
 	update := ap.DeepCopy()
 	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
 		update.Status.State = activeprobev1alph1.ActiveProbeFailed
+		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 		err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 		if err != nil {
 			klog.Errorf("update status failed reason: %v", err)
