@@ -126,7 +126,7 @@ func (a *Controller) ReconcileActiveProbe(req ctrl.Request) (ctrl.Result, error)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	klog.Infof("succeed fetch activeprobe %v", req.Name)
-	
+
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName != ap.Spec.Source.AgentName && curAgentName != ap.Spec.Destination.AgentName {
 		klog.Infof("curAgent: %v unequal activeprobe srcAgent: %v or dstAgent: %v", curAgentName, ap.Spec.Source.AgentName, ap.Spec.Destination.AgentName)
@@ -151,7 +151,7 @@ func (a *Controller) processActiveProbeUpdate(ap *activeprobev1alph1.ActiveProbe
 			err = a.runActiveProbe(ap)
 		}
 	default:
-		a.cleanupActiveProbe(ap)
+		err = a.cleanupActiveProbe(ap)
 	}
 	return ctrl.Result{}, err
 }
@@ -268,7 +268,9 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
 		ap.Status.State = activeprobev1alph1.ActiveProbeCompleted
 	}
-
+	if update.Status.Results == nil {
+		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
+	}
 	curAgentName := utils.CurrentAgentName()
 	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
 
@@ -307,7 +309,7 @@ func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 	return nil
 }
 
-func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
+func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	klog.Infof("start func cleanupActiveProbe")
 	var ovsbrName string
 	a.PktRcvdCnt = 0
@@ -326,4 +328,13 @@ func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 			klog.Errorf("Failed to uninstall ActiveProbe %s flows: %v", apState.name, err)
 		}
 	}
+
+	update := ap.DeepCopy()
+	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
+	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("agent controller cleanupActiveProbe failed reason: %v", err)
+	}
+	klog.Infof("agent controller cleanupActiveProbe %s succeed", ap.Name)
+	return err
 }

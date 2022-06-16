@@ -170,7 +170,6 @@ func (r *Reconciler) allocateTag(name string) (uint8, error) {
 
 func (r *Reconciler) deallocateTagForAP(ap *activeprobev1alph1.ActiveProbe) error {
 	update := ap.DeepCopy()
-	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update status failed reason: %v", err)
@@ -213,7 +212,6 @@ func (r *Reconciler) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		t := metav1.Now()
 		update.Status.StartTime = &t
 	}
-	update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 
 	err := r.Client.Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
