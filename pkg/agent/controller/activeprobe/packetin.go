@@ -43,6 +43,7 @@ const (
 )
 
 func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
+	klog.Infof("start func HandlePacketIn")
 	a.PktRcvdCnt++
 	ap := activeprobev1alph1.ActiveProbe{}
 	reason := ""
@@ -77,6 +78,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 }
 
 func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph1.ActiveProbeState, uint8, *activeprobev1alph1.AgentProbeResult, error) {
+	klog.Infof("start func parsePacketIn")
 	var err error
 	var tag uint8
 	var reg4Val, reg5Val uint32

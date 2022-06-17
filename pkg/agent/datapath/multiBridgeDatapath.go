@@ -963,13 +963,15 @@ func (datapathManager *DpManager) UninstallActiveProbeFlows(ovsbrName string, ta
 func (datapathManager *DpManager) SendActiveProbePacket(ovsbrName string, packet Packet, tag uint8, inport uint32, outport *uint32) error {
 	// Send to related bridge
 	log.Infof("start func SendActiveProbePacket, ovsbrName: %v, packet: %v, tag: %v, inport: %v")
+	var err error
 	for vdsID, brName := range datapathManager.datapathConfig.ManagedVDSMap {
 		if brName == ovsbrName {
-			return sendActiveProbePacket(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch,
+			err = sendActiveProbePacket(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch,
 				tag, toOfctrlPacket(packet), inport, outport)
+			return err
 		}
 	}
-	return nil
+	return err
 }
 
 func toOfctrlPacket(packet Packet) *ofctrl.Packet {

@@ -50,7 +50,7 @@ const (
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
 
 	DefaultTimeoutDuration = time.Second * time.Duration(20)
-	DefaultReceivedTime    = 5
+	DefaultReceivedTime    = 20
 )
 
 type Reconciler struct {
@@ -173,7 +173,6 @@ func (r *Reconciler) allocateTag(name string) (uint8, error) {
 	return 0, fmt.Errorf("number of on-going ActiveProve operations already reached the upper limit: %d", maxTagNum)
 }
 
-
 func (r *Reconciler) deallocateTag(name string, tag uint8) {
 	klog.Infof("start run func deallocateTag")
 	r.RunningActiveprobeMutex.Lock()
@@ -248,6 +247,7 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 		klog.Errorf("updateActiveProbeStatus failed reason: %v", err)
 		r.deallocateTag(ap.Name, tag)
 	}
+	klog.Info("updateActiveProbeStatus succeed, init -> running")
 	return err
 }
 
@@ -256,10 +256,8 @@ func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) 
 
 	var startTime time.Time
 	if ap.Status.StartTime != nil {
-		klog.Info("startTime = ap.Status.StartTime (%v)", ap.Status.StartTime)
 		startTime = ap.Status.StartTime.Time
 	} else {
-		klog.Infof("ap.Status.StartTime = nil, startTime = ap.CreationTimesstap.Time (%v)", ap.CreationTimestamp.Time)
 		startTime = ap.CreationTimestamp.Time
 	}
 	update := ap.DeepCopy()
@@ -270,11 +268,13 @@ func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) 
 			klog.Errorf("update status failed reason: %v", err)
 			return err
 		}
+		klog.Infof("changeStateFailed succeed: running ->timeout-> failed")
 	}
 	return nil
 }
 
 func (r *Reconciler) changeStateToCompleted(ap *activeprobev1alph1.ActiveProbe) error {
+	klog.Infof("start func changeStateCompleted")
 	time.Sleep(time.Second * DefaultReceivedTime)
 	update := ap.DeepCopy()
 	update.Status.State = activeprobev1alph1.ActiveProbeCompleted
@@ -284,5 +284,6 @@ func (r *Reconciler) changeStateToCompleted(ap *activeprobev1alph1.ActiveProbe) 
 		klog.Errorf("update status failed reason: %v", err)
 		return err
 	}
+	klog.Infof("changeStateCompleted succeed: sendFinished -> completed")
 	return nil
 }

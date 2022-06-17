@@ -1019,12 +1019,6 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 							Format: "int64",
 						},
 					},
-					"failedTimes": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int64",
-						},
-					},
 					"tag": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},

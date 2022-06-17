@@ -52,7 +52,6 @@ type ActiveProbeStatus struct {
 	Reason         string                     `json:"reason,omitempty"`
 	StartTime      *metav1.Time               `json:"startTime,omitempty"`
 	SucceedTimes   uint32                     `json:"succeedTimes,omitempty"`
-	FailedTimes    uint32                     `json:"failedTimes,omitempty"`
 	Tag            uint8                      `json:"tag"`
 	Results        map[string]AgenProbeRecord `json:"results,omitempty"` // []map[string]*AgentProbeResult
 	CapturedPacket *Packet                    `json:"capturedPacket,omitempty"`

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -38,6 +39,10 @@ import (
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
+)
+
+const (
+	DefaultPacketTimeInterval = 20
 )
 
 type activeProbeState struct {
@@ -166,25 +171,27 @@ func (a *Controller) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 	defer a.RunningActiveprobeMutex.Unlock()
 	ipDa := net.ParseIP(ap.Spec.Destination.IP)
 
-	klog.Infof("(fun runActiveProbe) a.RunningActiveprobe: %v", a.RunningActiveprobe)
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName == ap.Spec.Source.AgentName {
 		ovsbrName = ap.Spec.Source.BridgeName
 		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
 		if err != nil {
-			return err
+			klog.Errorf("src agent install activeprobe flows failed, error: %v", err)
 		}
+		klog.Info("src agent install activeprobe flows succeed")
 		err = a.SendActiveProbePacket(ap)
 		if err != nil {
-			return err
+			klog.Errorf("src agent send activeprobe packet failed, error: %v", err)
 		}
+		klog.Errorf("src agent send activeprobe packet succeed")
 	}
 	if curAgentName == ap.Spec.Destination.AgentName {
 		ovsbrName = ap.Spec.Destination.BridgeName
 		err = a.InstallActiveProbeRuleFlow(ovsbrName, tag, &ipDa)
 		if err != nil {
-			return err
+			klog.Errorf("dst agent install activeprobe flows failed, error: %v", err)
 		}
+		klog.Info("dst agent install activeprobe flows succeed")
 	}
 
 	return err
@@ -235,7 +242,10 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 
 	for i := 0; i < int(sendTimes); i++ {
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
+		time.Sleep(time.Millisecond * DefaultPacketTimeInterval)
 	}
+
+	klog.Infof("%d packets has been send finished frome srcIp: %v", sendTimes, ap.Spec.Source.IP)
 
 	update := ap.DeepCopy()
 	update.Status.State = activeprobev1alph1.ActiveProbeSendFinshed
@@ -243,13 +253,12 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 	if err != nil {
 		klog.Errorf("update activeprobe failed reason: %v", err)
 	}
+	klog.Infof("sendActiveProbePacket over, state change: running -> sendFinished")
 	return err
 }
 
 func (a *Controller) InstallActiveProbeRuleFlow(ovsbrName string, tag uint8, ipDa *net.IP) error {
-	klog.Infof("start func InstallActiveProbeRuleFlow, ovsbrName: %v, tag:%v, ipDa: &v", ovsbrName, tag, ipDa)
-	var err error
-	err = a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
+	err := a.DatapathManager.InstallActiveProbeFlows(ovsbrName, tag, ipDa)
 	return err
 }
 
@@ -270,7 +279,6 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 	if err != nil {
 		klog.Errorf("update activeprobe failed reason: %v", err)
 	}
-	klog.Infof("update activeprobe %s: %+v succeed", ap.Name, update.Status)
 	return err
 }
 
@@ -305,6 +313,7 @@ func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 		if err != nil {
 			klog.Errorf("Failed to uninstall ActiveProbe %s flows: %v", apState.name, err)
 		}
+		klog.Infof("uninstall ActiveProbe %s flows succeed, tag: %d", apState.name, apState.tag)
 	}
 	return
 }

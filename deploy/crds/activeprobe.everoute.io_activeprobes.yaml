@@ -204,9 +204,6 @@ spec:
                         type: object
                     type: object
                 type: object
-              failedTimes:
-                format: int32
-                type: integer
               reason:
                 type: string
               results:
