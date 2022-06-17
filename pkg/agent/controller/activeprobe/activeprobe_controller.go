@@ -26,6 +26,8 @@ import (
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -247,13 +249,29 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 
 	klog.Infof("%d packets has been send finished frome srcIp: %v", sendTimes, ap.Spec.Source.IP)
 
-	update := ap.DeepCopy()
-	update.Status.State = activeprobev1alph1.ActiveProbeSendFinshed
-	err = a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		namespacedName := types.NamespacedName{
+			Namespace: "",
+			Name:      ap.Name,
+		}
+		if err := a.K8sClient.Get(context.TODO(), namespacedName, ap); err != nil {
+			klog.Warningf("Update ActiveProbe failed: %+v", err)
+		}
+
+		update := ap.DeepCopy()
+		update.Status.State = activeprobev1alph1.ActiveProbeSendFinshed
+		err = a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+		if err != nil {
+			klog.Errorf("update activeprobe failed reason: %v", err)
+			return err
+		}
+		klog.Infof("sendActiveProbePacket over, state change: running -> sendFinished")
+		return nil
+	})
 	if err != nil {
-		klog.Errorf("update activeprobe failed reason: %v", err)
+		klog.Errorf("retry Update ActiveProbe failed: %+v", err)
 	}
-	klog.Infof("sendActiveProbePacket over, state change: running -> sendFinished")
+
 	return err
 }
 

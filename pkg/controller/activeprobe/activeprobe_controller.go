@@ -24,6 +24,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,7 +52,7 @@ const (
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
 
 	DefaultTimeoutDuration = time.Second * time.Duration(20)
-	DefaultReceivedTime    = 20
+	DefaultReceivedTime    = 5
 )
 
 type Reconciler struct {
@@ -253,36 +255,68 @@ func (r *Reconciler) runActiveProbe(ap *activeprobev1alph1.ActiveProbe) error {
 
 func (r *Reconciler) checkActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe) error {
 	klog.Infof("start checkActiveProbeStatus")
-
+	var err error
 	var startTime time.Time
 	if ap.Status.StartTime != nil {
 		startTime = ap.Status.StartTime.Time
 	} else {
 		startTime = ap.CreationTimestamp.Time
 	}
-	update := ap.DeepCopy()
+
 	if startTime.Add(DefaultTimeoutDuration).Before(time.Now()) {
-		update.Status.State = activeprobev1alph1.ActiveProbeFailed
-		err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+
+		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			namespacedName := types.NamespacedName{
+				Namespace: "",
+				Name:      ap.Name,
+			}
+			if err := r.Client.Get(context.TODO(), namespacedName, ap); err != nil {
+				klog.Warningf("Update ActiveProbe failed: %+v", err)
+			}
+
+			update := ap.DeepCopy()
+			update.Status.State = activeprobev1alph1.ActiveProbeFailed
+			err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+			if err != nil {
+				klog.Errorf("update activeprobe failed, reason: %v", err)
+				return err
+			}
+			klog.Infof("sendActiveProbePacket over, state change: running -> sendFinished")
+			return nil
+		})
 		if err != nil {
-			klog.Errorf("update status failed reason: %v", err)
-			return err
+			klog.Errorf("retry Update ActiveProbe failed: %+v", err)
 		}
-		klog.Infof("changeStateFailed succeed: running ->timeout-> failed")
 	}
-	return nil
+	return err
 }
 
 func (r *Reconciler) changeStateToCompleted(ap *activeprobev1alph1.ActiveProbe) error {
 	klog.Infof("start func changeStateCompleted")
 	time.Sleep(time.Second * DefaultReceivedTime)
-	update := ap.DeepCopy()
-	update.Status.State = activeprobev1alph1.ActiveProbeCompleted
-	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		namespacedName := types.NamespacedName{
+			Namespace: "",
+			Name:      ap.Name,
+		}
+		if err := r.Client.Get(context.TODO(), namespacedName, ap); err != nil {
+			klog.Warningf("Update ActiveProbe failed: %+v", err)
+		}
+
+		update := ap.DeepCopy()
+		update.Status.State = activeprobev1alph1.ActiveProbeCompleted
+		err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
+		if err != nil {
+			klog.Errorf("update activeprobe failed, reason: %v", err)
+			return err
+		}
+		klog.Infof("changeStateCompleted succeed: sendFinished -> completed")
+		return nil
+	})
 	if err != nil {
-		klog.Errorf("update status failed reason: %v", err)
-		return err
+		klog.Errorf("retry Update ActiveProbe failed: %+v", err)
 	}
-	klog.Infof("changeStateCompleted succeed: sendFinished -> completed")
+
 	return nil
 }

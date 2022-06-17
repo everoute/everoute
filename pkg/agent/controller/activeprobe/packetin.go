@@ -51,6 +51,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	state, tag, apResult, err := a.parsePacketIn(packetIn)
 	// Retry when update CRD conflict which caused by multiple agents updating one CRD at same time.
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		a.RunningActiveprobeMutex.Lock()
 		name := a.RunningActiveprobe[tag].name
 		namespacedName := types.NamespacedName{
 			Namespace: "",
@@ -59,6 +60,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 		if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)
 		}
+		a.RunningActiveprobeMutex.Unlock()
 
 		apResult.NumberOfTimes = a.PktRcvdCnt
 		apResult.AgentProbeState = state
