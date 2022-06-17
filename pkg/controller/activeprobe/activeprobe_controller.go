@@ -278,7 +278,6 @@ func (r *Reconciler) changeStateToCompleted(ap *activeprobev1alph1.ActiveProbe) 
 	time.Sleep(time.Second * DefaultReceivedTime)
 	update := ap.DeepCopy()
 	update.Status.State = activeprobev1alph1.ActiveProbeCompleted
-	update.Status.FailedTimes = update.Spec.ProbeTimes - update.Status.SucceedTimes
 	err := r.Client.Status().Update(context.TODO(), update, &client.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("update status failed reason: %v", err)
