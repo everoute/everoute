@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -43,9 +42,9 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-const (
-	DefaultPacketTimeInterval = 20
-)
+//const (
+//	DefaultPacketTimeInterval = 20
+//)
 
 type activeProbeState struct {
 	name string
@@ -244,7 +243,7 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 
 	for i := 0; i < int(sendTimes); i++ {
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
-		time.Sleep(time.Millisecond * DefaultPacketTimeInterval)
+		//time.Sleep(time.Millisecond * DefaultPacketTimeInterval)
 	}
 
 	klog.Infof("%d packets has been send finished frome srcIp: %v", sendTimes, ap.Spec.Source.IP)

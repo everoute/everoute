@@ -52,7 +52,7 @@ const (
 	maxTagNum uint8 = 0b1110*tagStep + 0b11
 
 	DefaultTimeoutDuration = time.Second * time.Duration(20)
-	DefaultReceivedTime    = 5
+	DefaultReceivedTime    = 10
 )
 
 type Reconciler struct {
