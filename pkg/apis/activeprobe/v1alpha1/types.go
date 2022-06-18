@@ -48,18 +48,20 @@ type ActiveProbeSpec struct {
 }
 
 type ActiveProbeStatus struct {
-	State          ActiveProbeState           `json:"state"`
-	Reason         string                     `json:"reason,omitempty"`
-	StartTime      *metav1.Time               `json:"startTime,omitempty"`
-	SucceedTimes   uint32                     `json:"succeedTimes,omitempty"`
-	Tag            uint8                      `json:"tag"`
-	Results        map[string]AgenProbeRecord `json:"results,omitempty"` // []map[string]*AgentProbeResult
-	CapturedPacket *Packet                    `json:"capturedPacket,omitempty"`
+	State           ActiveProbeState           `json:"state"`
+	Reason          string                     `json:"reason,omitempty"`
+	StartTime       *metav1.Time               `json:"startTime,omitempty"`
+	SrcSucceedTimes uint32                     `json:"succeedTimes,omitempty"`
+	DstSucceedTimes uint32                     `json:"succeedTimes,omitempty"`
+	Tag             uint8                      `json:"tag"`
+	Results         map[string]AgenProbeRecord `json:"results,omitempty"` // []map[string]*AgentProbeResult
+	CapturedPacket  *Packet                    `json:"capturedPacket,omitempty"`
 }
 
 type AgenProbeRecord []*AgentProbeResult
 
 type AgentProbeResult struct {
+	AgentNameTemp   string                  `json:"AgentNameTemp,omitempty"`
 	NumberOfTimes   uint32                  `json:"numberoftimes,omitempty"`
 	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
 	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`

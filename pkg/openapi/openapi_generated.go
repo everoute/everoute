@@ -1019,6 +1019,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeStatus(ref common.Reference
 							Format: "int64",
 						},
 					},
+					"succeedTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"tag": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
@@ -1090,6 +1096,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_AgentProbeResult(ref common.ReferenceC
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"AgentNameTemp": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"numberoftimes": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},

@@ -290,6 +290,7 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 	}
 	curAgentName := utils.CurrentAgentName()
+	apResult.AgentNameTemp = curAgentName
 	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
 
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})

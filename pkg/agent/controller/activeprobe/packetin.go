@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/utils"
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 )
 
@@ -72,7 +73,13 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 		apResult.NumberOfTimes = a.PktRcvdCnt
 		apResult.AgentProbeState = state
 
-		ap.Status.SucceedTimes = a.PktRcvdCnt
+		curAgentName := utils.CurrentAgentName()
+		if curAgentName == ap.Spec.Source.AgentName {
+			ap.Status.SrcSucceedTimes = a.PktRcvdCnt
+		} else if curAgentName == ap.Spec.Destination.AgentName {
+			ap.Status.DstSucceedTimes = a.PktRcvdCnt
+		}
+
 		err = a.updateActiveProbeStatus(&ap, apResult, reason)
 		if err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)
