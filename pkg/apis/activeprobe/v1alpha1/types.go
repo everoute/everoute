@@ -68,6 +68,7 @@ type AgentProbeResult struct {
 }
 
 type ActiveProbeTracePoint struct {
+	Inport     uint32              `json:"inport,omitempty"`
 	TracePoint TelemetryTracePoint `json:"tracepoint,omitempty"`
 	Action     ActiveProbeAction   `json:"action,omitempty"`
 }
