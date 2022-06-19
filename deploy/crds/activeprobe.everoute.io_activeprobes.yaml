@@ -217,6 +217,9 @@ spec:
                           properties:
                             action:
                               type: string
+                            inport:
+                              format: int32
+                              type: integer
                             tracepoint:
                               type: string
                           type: object

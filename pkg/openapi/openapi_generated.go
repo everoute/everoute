@@ -1072,6 +1072,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_ActiveProbeTracePoint(ref common.Refer
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"inport": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int64",
+						},
+					},
 					"tracepoint": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},

@@ -47,7 +47,7 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	klog.Infof("start func HandlePacketIn")
 	a.RunningActiveprobeMutex.Lock()
 	defer a.RunningActiveprobeMutex.Unlock()
-	a.PktRcvdCnt++
+	//a.PktRcvdCnt++
 	ap := activeprobev1alph1.ActiveProbe{}
 	reason := ""
 
@@ -56,6 +56,13 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	_, ok := a.RunningActiveprobe[tag]
 	if !ok {
 		return errors.New("when this packet arrives, it has timed out")
+	}
+
+	curAgentName := utils.CurrentAgentName()
+	if curAgentName == ap.Spec.Source.AgentName {
+		if apResult.AgentProbePath[0].Inport == datapath.POLICY_TO_CLS_PORT {
+			return errors.New("src agent do not process ingress packets")
+		}
 	}
 
 	// Retry when update CRD conflict which caused by multiple agents updating one CRD at same time.
@@ -72,8 +79,8 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 
 		apResult.NumberOfTimes = a.PktRcvdCnt
 		apResult.AgentProbeState = state
+		a.PktRcvdCnt++
 
-		curAgentName := utils.CurrentAgentName()
 		if curAgentName == ap.Spec.Source.AgentName {
 			ap.Status.SrcSucceedTimes = a.PktRcvdCnt
 		} else if curAgentName == ap.Spec.Destination.AgentName {
