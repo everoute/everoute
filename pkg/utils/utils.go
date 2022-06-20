@@ -108,7 +108,7 @@ func CurrentAgentName() string {
 	return currentAgentName
 }
 
-const controllerIDPath = "/var/run/everoute/controllerID"
+const controllerIDPath = "/var/lib/everoute/controllerID"
 
 var _instance *filemutex.FileMutex
 var _once sync.Once
