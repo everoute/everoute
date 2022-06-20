@@ -14,7 +14,7 @@ import (
 	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
 )
 
-const CNISocketAddr = "/var/run/everoute/cni.sock"
+const CNISocketAddr = "/var/lib/everoute/cni.sock"
 
 func rpcRequest(requestType string, arg *skel.CmdArgs) error {
 	conn, err := grpc.Dial(CNISocketAddr,
