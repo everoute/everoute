@@ -43,7 +43,7 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-const CNISocketAddr = "/var/run/everoute/cni.sock"
+const CNISocketAddr = "/var/lib/everoute/cni.sock"
 
 type CNIServer struct {
 	k8sClient client.Client
