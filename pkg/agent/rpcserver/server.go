@@ -27,8 +27,8 @@ import (
 	pb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
 
-const RPCSocketAddr = "/var/run/everoute/rpc.sock"
-const EverouteRunPath = "/var/run/everoute"
+const RPCSocketAddr = "/var/lib/everoute/rpc.sock"
+const EverouteLibPath = "/var/lib/everoute"
 
 type Server struct {
 	dpManager *datapath.DpManager
@@ -48,12 +48,12 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	s.stopChan = stopChan
 
 	// create path
-	if _, err := os.Stat(EverouteRunPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(EverouteRunPath, os.ModePerm); err != nil {
-			klog.Fatalf("unable to create %s", EverouteRunPath)
+	if _, err := os.Stat(EverouteLibPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(EverouteLibPath, os.ModePerm); err != nil {
+			klog.Fatalf("unable to create %s", EverouteLibPath)
 		}
-		if err := os.Chmod(EverouteRunPath, os.ModePerm); err != nil {
-			klog.Fatalf("unable to chmod %s", EverouteRunPath)
+		if err := os.Chmod(EverouteLibPath, os.ModePerm); err != nil {
+			klog.Fatalf("unable to chmod %s", EverouteLibPath)
 		}
 	}
 
