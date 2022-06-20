@@ -1733,7 +1733,7 @@ spec:
       serviceAccountName: everoute-agent
       containers:
         - name: init-agent
-          command: [ "init_agent" ]
+          command: ["init_agent"]
           image: everoute/release
           imagePullPolicy: IfNotPresent
           lifecycle:
@@ -1747,8 +1747,6 @@ spec:
               mountPath: /var/lib/everoute/
             - name: cni-bin
               mountPath: /opt/cni/bin/
-            - name: everoute-run
-              mountPath: /var/run/everoute/
             - name: cni-conf
               mountPath: /etc/cni/net.d
             - name: everoute-config
@@ -1798,8 +1796,6 @@ spec:
           volumeMounts:
             - name: everoute-agent
               mountPath: /var/lib/everoute/
-            - name: everoute-run
-              mountPath: /var/run/everoute/
             - name: everoute-config
               mountPath: /var/lib/everoute/agentconfig.yaml
               subPath: agentconfig.yaml
@@ -1842,9 +1838,6 @@ spec:
         - hostPath:
             path: /opt/cni/bin/
           name: cni-bin
-        - name: everoute-run
-          hostPath:
-            path: /var/run/everoute
         - hostPath:
             path: /etc/cni/net.d
           name: cni-conf
