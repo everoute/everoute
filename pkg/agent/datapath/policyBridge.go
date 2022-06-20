@@ -181,17 +181,17 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 }
 
 func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
-	//var ctStateTableID uint8 = CT_STATE_TABLE
-	//var policyConntrackZone uint16 = 65520
-	//ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
+	var ctStateTableID uint8 = CT_STATE_TABLE
+	var policyConntrackZone uint16 = 65520
+	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
 	})
-	//_ = inputIPRedirectFlow.SetConntrack(ctAction)
-	if err := inputIPRedirectFlow.Next(p.directionSelectionTable); err != nil {
-		log.Fatalf("failed to install ct state default flow, error: %v", err)
-	}
+	_ = inputIPRedirectFlow.SetConntrack(ctAction)
+	//if err := inputIPRedirectFlow.Next(p.directionSelectionTable); err != nil {
+	//	log.Fatalf("failed to install ct state default flow, error: %v", err)
+	//}
 
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{

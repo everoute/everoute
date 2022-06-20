@@ -59,7 +59,6 @@ type Controller struct {
 	DatapathManager         *datapath.DpManager
 	RunningActiveprobeMutex sync.Mutex
 	RunningActiveprobe      map[uint8]*activeProbeState // tag->activeProbeState if ap.Status.State is Running
-	PktRcvdCnt              uint32
 }
 
 func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
@@ -76,7 +75,6 @@ func (a *Controller) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	a.PktRcvdCnt = 0
 	a.RunningActiveprobe = make(map[uint8]*activeProbeState)
 
 	err = c.Watch(&source.Kind{Type: &activeprobev1alph1.ActiveProbe{}}, &handler.EnqueueRequestForObject{})
@@ -316,7 +314,6 @@ func (a *Controller) deleteActiveProbeByName(apName string) *activeProbeState {
 func (a *Controller) cleanupActiveProbe(ap *activeprobev1alph1.ActiveProbe) {
 	klog.Infof("start func cleanupActiveProbe")
 	var ovsbrName string
-	a.PktRcvdCnt = 0
 	curAgentName := utils.CurrentAgentName()
 	if curAgentName == ap.Spec.Source.AgentName {
 		ovsbrName = ap.Spec.Source.BridgeName

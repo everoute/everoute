@@ -27,7 +27,6 @@ import (
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
-	"github.com/everoute/everoute/pkg/utils"
 	activeprobev1alph1 "github.com/everoute/everoute/pkg/apis/activeprobe/v1alpha1"
 )
 
@@ -47,26 +46,19 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 	klog.Infof("start func HandlePacketIn")
 	a.RunningActiveprobeMutex.Lock()
 	defer a.RunningActiveprobeMutex.Unlock()
-	//a.PktRcvdCnt++
-	ap := activeprobev1alph1.ActiveProbe{}
-	reason := ""
 
 	state, tag, apResult, err := a.parsePacketIn(packetIn)
+	apResult.AgentProbeState = state
 
 	_, ok := a.RunningActiveprobe[tag]
 	if !ok {
 		return errors.New("when this packet arrives, it has timed out")
 	}
 
-	curAgentName := utils.CurrentAgentName()
-	if curAgentName == ap.Spec.Source.AgentName {
-		if apResult.AgentProbePath[0].Inport == datapath.POLICY_TO_CLS_PORT {
-			return errors.New("src agent do not process ingress packets")
-		}
-	}
-
 	// Retry when update CRD conflict which caused by multiple agents updating one CRD at same time.
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		ap := activeprobev1alph1.ActiveProbe{}
+		reason := ""
 
 		name := a.RunningActiveprobe[tag].name
 		namespacedName := types.NamespacedName{
@@ -75,16 +67,6 @@ func (a *Controller) HandlePacketIn(packetIn *ofctrl.PacketIn) error {
 		}
 		if err := a.K8sClient.Get(context.TODO(), namespacedName, &ap); err != nil {
 			klog.Warningf("Update ActiveProbe failed: %+v", err)
-		}
-
-		apResult.NumberOfTimes = a.PktRcvdCnt
-		apResult.AgentProbeState = state
-		a.PktRcvdCnt++
-
-		if curAgentName == ap.Spec.Source.AgentName {
-			ap.Status.SrcSucceedTimes = a.PktRcvdCnt
-		} else if curAgentName == ap.Spec.Destination.AgentName {
-			ap.Status.DstSucceedTimes = a.PktRcvdCnt
 		}
 
 		err = a.updateActiveProbeStatus(&ap, apResult, reason)
