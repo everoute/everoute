@@ -55,11 +55,10 @@ func (c *Collector) ArpStream(req *emptypb.Empty, srv pb.Collector_ArpStreamServ
 }
 
 func (c *Collector) GetChainBridge(ctx context.Context, req *emptypb.Empty) (*pb.ChainBridgeResp, error) {
-	resp := &pb.ChainBridgeResp{}
-
-	for br := range c.dpManager.BridgeChainMap {
-		resp.Bridge = append(resp.Bridge, br)
+	resp := &pb.ChainBridgeResp{
+		Bridge: c.dpManager.GetChainBridge(),
 	}
+
 	return resp, nil
 }
 
