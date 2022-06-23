@@ -362,6 +362,18 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	}
 }
 
+func (datapathManager *DpManager) GetChainBridge() []string {
+	datapathManager.flowReplayMutex.RLock()
+	defer datapathManager.flowReplayMutex.RUnlock()
+
+	var out []string
+	for _, br := range datapathManager.datapathConfig.ManagedVDSMap {
+		out = append(out, br)
+	}
+
+	return out
+}
+
 func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 	datapathManager.flowReplayMutex.RLock()
 	defer datapathManager.flowReplayMutex.RUnlock()
