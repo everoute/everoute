@@ -9,13 +9,10 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/alexflint/go-filemutex"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
@@ -108,40 +105,38 @@ func CurrentAgentName() string {
 	return currentAgentName
 }
 
-const controllerIDPath = "/var/lib/everoute/controllerID"
-
-var _instance *filemutex.FileMutex
+var _instance *ctrlID
 var _once sync.Once
 
-func getCtrlPathMutex() *filemutex.FileMutex {
-	_once.Do(func() {
-		// create path
-		if _, err := os.Stat(controllerIDPath); os.IsNotExist(err) {
-			if err := os.MkdirAll(controllerIDPath, os.ModePerm); err != nil {
-				klog.Fatalf("fail to create %s", controllerIDPath)
-			}
-			if err := os.Chmod(controllerIDPath, os.ModePerm); err != nil {
-				klog.Fatalf("fail to chmod %s", controllerIDPath)
-			}
-		}
+type ctrlID struct {
+	mutex sync.Mutex
+	ids   map[uint16]bool
+}
 
-		// use file mutex to ensure cocurrency
-		mutex, err := filemutex.New(path.Join(controllerIDPath, "lock"))
-		if err != nil {
-			klog.Fatal("Fail to create ControllerID file lock")
+func (c *ctrlID) AddID(id uint16) bool {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if _, ok := c.ids[id]; ok {
+		return false
+	}
+	c.ids[id] = true
+
+	return true
+}
+
+func getCtrlIDMap() *ctrlID {
+	_once.Do(func() {
+		// create map
+		_instance = &ctrlID{
+			mutex: sync.Mutex{},
+			ids:   map[uint16]bool{},
 		}
-		_instance = mutex
 	})
 	return _instance
 }
 
-func GenerateControllerID() uint16 {
-	mutex := getCtrlPathMutex()
-
-	_ = mutex.Lock()
-	defer func() {
-		_ = mutex.Unlock()
-	}()
+func GenerateControllerID(typeID uint16) uint16 {
+	ctrlIDs := getCtrlIDMap()
 
 	var ctrlID uint16
 	for {
@@ -151,19 +146,18 @@ func GenerateControllerID() uint16 {
 			klog.Errorf("get random ID from rand.Reader: %s", err)
 			continue
 		}
-		targetFile := path.Join(controllerIDPath, strconv.Itoa(int(ctrlID)))
 
-		// check if id existed
-		if _, err := os.Stat(targetFile); err == nil {
+		// set component type
+		// controller id:
+		// | 4 bits component type | 12 bits random ID |
+		ctrlID >>= 4
+		ctrlID |= typeID << 12
+
+		if !ctrlIDs.AddID(ctrlID) {
 			continue
 		}
 
-		// record file in path
-		if _, err := os.Create(targetFile); err != nil {
-			klog.Errorf("create ctrlID file %s error: %s", targetFile, err)
-			continue
-		}
-
+		klog.Infof("generate controller ID: %x", ctrlID)
 		return ctrlID
 	}
 }

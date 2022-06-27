@@ -49,4 +49,6 @@ const (
 
 	AgentNodeNameENV    = "NODE_NAME"
 	AgentNameConfigPath = "/var/lib/everoute/agent/name"
+
+	EverouteComponentType = 0x0
 )
