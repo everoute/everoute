@@ -434,10 +434,10 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 	// initialize of controller
 	vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, utils.GenerateControllerID())
-	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, utils.GenerateControllerID())
-	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, utils.GenerateControllerID())
-	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, utils.GenerateControllerID())
+	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, utils.GenerateControllerID(constants.EverouteComponentType))
+	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, utils.GenerateControllerID(constants.EverouteComponentType))
+	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, utils.GenerateControllerID(constants.EverouteComponentType))
+	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, utils.GenerateControllerID(constants.EverouteComponentType))
 
 	// initialize ovsdbDriver
 	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
