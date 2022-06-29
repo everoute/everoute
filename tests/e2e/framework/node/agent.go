@@ -45,7 +45,7 @@ func (n *Agent) Healthz() (bool, error) {
 	return n.checkProcess(agentBinaryName)
 }
 
-// dump the flows and parse the Output
+// DumpFlow dumps the flows and parse the Output
 func (n *Agent) DumpFlow() ([]string, error) {
 	flowDump, err := n.runOpenflowCmd("dump-flows")
 	if err != nil {
@@ -57,8 +57,11 @@ func (n *Agent) DumpFlow() ([]string, error) {
 
 	var flowList []string
 	for _, flow := range flowDB {
+		if !strings.HasPrefix(flow, " cookie=") {
+			continue
+		}
 		felem := strings.Fields(flow)
-		if len(felem) > 2 {
+		if len(felem) >= 5 {
 			felem = append([]string{felem[2]}, felem[5:]...)
 			fstr := strings.Join(felem, " ")
 			flowList = append(flowList, fstr)
