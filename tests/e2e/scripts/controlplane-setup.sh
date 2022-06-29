@@ -78,17 +78,18 @@ function start_apiserver() {
   nohup kube-apiserver ${apiserver_args} ${apiserver_extra_args} ${apiserver_cert_args} > /var/log/kube-apiserver.log 2>&1 &
 }
 
-function start_everoutecontroller() {
+function start_controller() {
   everoute_controller_config="--kubeconfig /etc/everoute/kubeconfig/everoute-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/everoute/pki/ -v 10"
   nohup /usr/local/bin/everoute-controller ${everoute_controller_config} > /var/log/everoute-controller.log 2>&1 &
 }
 
-function wait_everoutecontroller_ready() {
-  for n in {1..10}; do
-    curl -sk https://127.0.0.1:9443/healthz && return
-    printf "retry %d: failed wait for controller up\n" $n
-    sleep 1
+function wait_service_ready() {
+  local health_endpoint=${1}
+  for n in {1..30}; do
+    curl --fail --connect-timeout 2 -m 5 -sk ${health_endpoint} && return || sleep 1
   done
+  printf "timeout waiting for service %s ready\n" "${health_endpoint}"
+  return 1
 }
 
 function generate_certs() {
@@ -189,6 +190,7 @@ install_kube_plugin ${KUBE_VERSION} kubectl ${PLATFORM}
 echo "start controlplane (etcd and apiserver)"
 start_etcd ${PLATFORM}
 start_apiserver ${CERT_PATH} ${APISERVER_ADDR}
+wait_service_ready "https://127.0.0.1:6443/healthz"
 
 echo "generate kubeconfig for everoute-controller everoute-agent and kubectl"
 ##                  cert path    user name       org name         kubeconfig save path                      kube-apiserver address
@@ -201,6 +203,6 @@ setup_crds
 setup_rbac
 kubectl apply -f ${BASEDIR}/tests/e2e/config/webhook.yaml
 
-echo "build start and wait everoute controller"
-start_everoutecontroller
-wait_everoutecontroller_ready
+echo "start and wait controller"
+start_controller
+wait_service_ready "https://127.0.0.1:9443/healthz"
