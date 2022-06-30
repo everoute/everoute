@@ -90,6 +90,10 @@ func (f *Factory) SystemEndpoints() *Tracker {
 	return f.TrackerFor(&schema.SystemEndpoints{}, nil, 0)
 }
 
+func (f *Factory) Task() *Tracker {
+	return f.TrackerFor(&schema.Task{}, nil, 0)
+}
+
 func (f *Factory) ResetAll() {
 	f.lock.Lock()
 	defer f.lock.Unlock()

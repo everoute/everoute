@@ -1,0 +1,18 @@
+type Task {
+    id: ID!
+    description: String!
+    error_code: String
+    error_message: String
+    internal: Boolean!
+    progress: Float!
+    snapshot: String!
+    status: TaskStatus!
+}
+
+enum TaskStatus {
+    PENDING
+    EXECUTING
+    FAILED
+    SUCCESSED
+    PAUSED
+}

@@ -275,10 +275,17 @@ func (r *reflector) resyncChan() (<-chan time.Time, func() bool) {
 }
 
 func (r *reflector) queryRequest() *client.Request {
-	request := &client.Request{
+	// todo: we made a special handle for task, this should not happen.
+	// we need a serializer to no difference handle them.
+	if r.expectType.Type == reflect.TypeOf(&schema.Task{}) {
+		// only list latest 30 tasks
+		return &client.Request{
+			Query: fmt.Sprintf("query {%s(last: 20, orderBy: local_created_at_ASC) %s}", r.expectType.ListName(), r.expectType.QueryFields()),
+		}
+	}
+	return &client.Request{
 		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields()),
 	}
-	return request
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {
