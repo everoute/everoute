@@ -23,16 +23,15 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 
 	rthttp "github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/crypto/ssh"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/klog"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/tests/e2e/framework/ipam"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 	"github.com/everoute/everoute/tests/e2e/framework/node"
@@ -66,6 +65,11 @@ func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.
 	retryClient.RetryMax = 10
 	retryClient.Logger = nil
 	towerClient.HTTPClient = retryClient.StandardClient()
+
+	// add default task monitor for client
+	towerFactory := informer.NewSharedInformerFactory(towerClient, 0)
+	towerClient.TaskMonitor = informer.NewTaskMonitor(towerFactory)
+	towerFactory.Start(make(chan struct{}))
 
 	return &provider{
 		ipPool:       pool,
@@ -183,10 +187,6 @@ func (m *provider) Delete(ctx context.Context, name string) error {
 			continue
 		}
 		_, err = mutationDeleteVM(m.towerClient, &VMWhereUniqueInput{ID: &ep.Status.LocalID})
-		if err != nil {
-			return err
-		}
-		err = m.waitForVMReady(ctx, ep.Status.LocalID)
 		if err != nil {
 			return err
 		}
@@ -341,11 +341,7 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 		},
 	}
 
-	vm, err := mutationCreateVM(m.towerClient, &vmCreateInput, &vmCreateEffect)
-	if err != nil {
-		return nil, err
-	}
-	return vm, m.waitForVMReady(context.Background(), vm.ID)
+	return mutationCreateVM(m.towerClient, &vmCreateInput, &vmCreateEffect)
 }
 
 func (m *provider) mutationVMLabels(vmID string, labels map[string]string) error {
@@ -418,59 +414,10 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 		if err != nil {
 			return "", fmt.Errorf("failed to create vlan: %s", err)
 		}
-		if err = m.waitForVlanReady(ctx, vlan.ID); err != nil {
-			return "", fmt.Errorf("failed to wait for vlan ready: %s", err)
-		}
 		vlanUUID = vlan.ID
 	}
 
 	return vlanUUID, nil
-}
-
-func (m *provider) waitForVMReady(ctx context.Context, vmID string) error {
-	var interval = 100 * time.Millisecond
-
-	for {
-		vm, err := queryVM(m.towerClient, &VMWhereUniqueInput{ID: &vmID})
-		if err != nil {
-			// if not found, operation deleted has completed
-			return ignoreNotFound(err)
-		}
-		if vm.EntityAsyncStatus == nil {
-			return nil
-		}
-
-		klog.V(8).Infof("waiting for vm %s entityAsyncStatus %s to be ready", vm.Name, *vm.EntityAsyncStatus)
-
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("wait for vm %s ready: %s", vmID, ctx.Err())
-		case <-time.After(interval):
-		}
-	}
-}
-
-func (m *provider) waitForVlanReady(ctx context.Context, vlanUUID string) error {
-	var interval = 100 * time.Millisecond
-
-	for {
-		vlan, err := queryVlan(m.towerClient, &VlanWhereUniqueInput{ID: &vlanUUID})
-		if err != nil {
-			// if not found, operation deleted has completed
-			return ignoreNotFound(err)
-		}
-		if vlan.EntityAsyncStatus == nil {
-			return nil
-		}
-
-		klog.V(8).Infof("waiting for vlan %s entityAsyncStatus %s to be ready", vlan.Name, *vlan.EntityAsyncStatus)
-
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout wait for %s ready", vlanUUID)
-		case <-time.After(interval):
-		}
-	}
 }
 
 func (m *provider) cacheVMTemplate() error {
@@ -592,7 +539,7 @@ func (m *provider) migrateToHost(ctx context.Context, endpoint *model.Endpoint, 
 		return nil, err
 	}
 
-	return endpoint, m.waitForVMReady(ctx, endpoint.Status.LocalID)
+	return endpoint, nil
 }
 
 func (m *provider) getClusterID() (string, error) {
