@@ -50,6 +50,12 @@ type SecurityPolicyEvent struct {
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
+type TaskEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.Task            `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
+}
+
 type VMEvent struct {
 	Mutation       MutationType            `json:"mutation"`
 	Node           *schema.VM              `json:"node"`
@@ -96,6 +102,47 @@ func (e *MutationType) UnmarshalGQL(v interface{}) error {
 }
 
 func (e MutationType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type TaskOrderByInput string
+
+const (
+	TaskOrderByInputLocalCreatedAtAsc  TaskOrderByInput = "local_created_at_ASC"
+	TaskOrderByInputLocalCreatedAtDesc TaskOrderByInput = "local_created_at_DESC"
+)
+
+var AllTaskOrderByInput = []TaskOrderByInput{
+	TaskOrderByInputLocalCreatedAtAsc,
+	TaskOrderByInputLocalCreatedAtDesc,
+}
+
+func (e TaskOrderByInput) IsValid() bool {
+	switch e {
+	case TaskOrderByInputLocalCreatedAtAsc, TaskOrderByInputLocalCreatedAtDesc:
+		return true
+	}
+	return false
+}
+
+func (e TaskOrderByInput) String() string {
+	return string(e)
+}
+
+func (e *TaskOrderByInput) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TaskOrderByInput(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TaskOrderByInput", str)
+	}
+	return nil
+}
+
+func (e TaskOrderByInput) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
