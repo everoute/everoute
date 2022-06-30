@@ -269,3 +269,10 @@ func NewRandomIP() net.IP {
 		),
 	)
 }
+
+func NewTask(status schema.TaskStatus) *schema.Task {
+	return &schema.Task{
+		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
+		Status:     status,
+	}
+}
