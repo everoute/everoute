@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
 
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	"github.com/everoute/everoute/plugin/tower/pkg/utils"
 )
 
@@ -49,6 +50,9 @@ type Client struct {
 	// HTTPClient dial http connecting to graphql server for query.
 	// If nil, http.DefaultClient will be used.
 	HTTPClient *http.Client
+
+	// If set, mutation will wait task down.
+	TaskMonitor TaskMonitor
 
 	tokenLock sync.RWMutex
 	token     string
@@ -119,6 +123,19 @@ func (c *Client) Query(req *Request) (*Response, error) {
 
 	if err := json.NewDecoder(&respBody).Decode(&resp); err != nil {
 		return nil, fmt.Errorf("server response code: %d, err: %s", httpResp.StatusCode, err)
+	}
+
+	if taskID := httpResp.Header.Get("x-task-id"); taskID != "" && c.TaskMonitor != nil {
+		task, err := c.TaskMonitor.WaitForTask(context.Background(), taskID)
+		if err != nil {
+			return nil, err
+		}
+		if task.ErrorCode != nil && task.ErrorMessage != nil {
+			return nil, &ResponseError{
+				Message: *task.ErrorMessage,
+				Code:    ErrorCode(*task.ErrorCode),
+			}
+		}
 	}
 
 	return &resp, nil
@@ -355,4 +372,8 @@ func closeChanFunc(ch chan struct{}) func() {
 			close(ch)
 		}
 	}
+}
+
+type TaskMonitor interface {
+	WaitForTask(ctx context.Context, taskID string) (*schema.Task, error)
 }

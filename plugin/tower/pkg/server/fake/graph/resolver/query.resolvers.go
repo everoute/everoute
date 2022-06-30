@@ -92,6 +92,18 @@ func (r *queryResolver) SystemEndpoints(ctx context.Context) (*schema.SystemEndp
 	return systemEndpointsList[0].(*schema.SystemEndpoints), nil
 }
 
+func (r *queryResolver) Tasks(ctx context.Context, orderBy *model.TaskOrderByInput, last *int) ([]schema.Task, error) {
+	taskList := r.TrackerFactory().Task().List()
+	var tasks []schema.Task
+	for index, task := range taskList {
+		if last != nil && index >= *last {
+			break
+		}
+		tasks = append(tasks, *task.(*schema.Task))
+	}
+	return tasks, nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -276,6 +288,33 @@ func (r *subscriptionResolver) SystemEndpoints(ctx context.Context) (<-chan *sch
 	}()
 
 	return systemEndpointsCh, nil
+}
+
+func (r *subscriptionResolver) Task(ctx context.Context) (<-chan *model.TaskEvent, error) {
+	var taskEventCh = make(chan *model.TaskEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().Task().Watch()
+		defer stopWatch()
+		defer close(taskEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				taskEventCh <- &model.TaskEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.Task),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return taskEventCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
