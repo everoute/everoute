@@ -213,25 +213,17 @@ spec:
                 additionalProperties:
                   items:
                     properties:
-                      AgentNameTemp:
-                        type: string
                       agentprobepath:
                         items:
                           properties:
                             action:
                               type: string
-                            inport:
-                              format: int32
-                              type: integer
                             tracepoint:
                               type: string
                           type: object
                         type: array
                       agentprobestate:
                         type: string
-                      numberoftimes:
-                        format: int32
-                        type: integer
                     type: object
                   type: array
                 type: object

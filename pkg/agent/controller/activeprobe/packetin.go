@@ -144,7 +144,6 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 
 		activeProbeTracePoint.TracePoint = telemetryTracePoint
 		activeProbeTracePoint.Action = activeProbeAction
-		activeProbeTracePoint.Inport = inPort
 
 		agentProbeResult.AgentProbeState = activeprobev1alph1.ActiveProbeCompleted
 		agentProbeResult.AgentProbePath = append(agentProbeResult.AgentProbePath, activeProbeTracePoint)

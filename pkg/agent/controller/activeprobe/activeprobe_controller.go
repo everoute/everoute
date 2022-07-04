@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -234,6 +235,7 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 
 	for i := 0; i < int(sendTimes); i++ {
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
+		time.Sleep(time.Millisecond * 10)
 	}
 
 	klog.Infof("%d packets has been send finished from srcIp: %v", sendTimes, ap.Spec.Source.IP)
@@ -280,7 +282,6 @@ func (a *Controller) updateActiveProbeStatus(ap *activeprobev1alph1.ActiveProbe,
 		update.Status.Results = make(map[string]activeprobev1alph1.AgenProbeRecord)
 	}
 	curAgentName := utils.CurrentAgentName()
-	apResult.AgentNameTemp = curAgentName
 	update.Status.Results[curAgentName] = append(update.Status.Results[curAgentName], apResult)
 
 	err := a.K8sClient.Status().Update(context.TODO(), update, &client.UpdateOptions{})
