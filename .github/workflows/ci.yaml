@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: install e2e environment dependency
-        run: sudo sh -c "apt update && apt install -y openvswitch-switch=2.13.* && systemctl start openvswitch-switch"
+        run: sudo sh -c "apt update && apt install -y openvswitch-switch=2.13.* conntrack && systemctl start openvswitch-switch"
 
       - name: allow ssh connect to localhost
         run: sudo -H sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
