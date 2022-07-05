@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,11 +60,19 @@ var _ = BeforeSuite(func() {
 	// reset resource before start e2e
 	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())
 
+	timeoutSec := fmt.Sprintf("%1.0f", e2eEnv.Timeout().Seconds()*2)
+	resp, err := sysctl.Sysctl("net/netfilter/nf_conntrack_tcp_timeout_close", timeoutSec)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(resp).To(Equal(timeoutSec))
+
 	restarter := e2eEnv.NodeManager().ServiceRestarter(10, 30)
 	go restarter.Run(make(chan struct{}))
 })
 
 var _ = AfterSuite(func() {
+	// reset tcp close timeout
+	sysctl.Sysctl("net/netfilter/nf_conntrack_tcp_timeout_close", "10")
+
 	klog.Infof("complete all e2e test cases use %s", time.Since(startTime))
 	klog.Infof("run e2e-reset.sh to clean test environment")
 })

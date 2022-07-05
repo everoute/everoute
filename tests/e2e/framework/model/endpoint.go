@@ -19,6 +19,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // Endpoint is a network communication entity. It's provided by the endpoint provider,
@@ -51,6 +52,10 @@ type EndpointStatus struct {
 	Host string
 	// LocalID is the endpoint unique identity on host
 	LocalID string
+}
+
+func (es *EndpointStatus) GetIP() string {
+	return strings.Split(es.IPAddr, "/")[0]
 }
 
 func (es *EndpointStatus) String() string {

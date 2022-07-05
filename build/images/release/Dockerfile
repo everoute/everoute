@@ -27,7 +27,8 @@ RUN chmod 755 /opt/everoute/bin/*
 FROM ubuntu:20.04
 
 #RUN apk update && apk add openvswitch
-RUN apt update && apt install -y openvswitch-switch=2.13.* iptables iproute2 tcpdump && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y openvswitch-switch=2.13.* iptables \
+    conntrack iproute2 tcpdump && rm -rf /var/lib/apt/lists/*
 
 # Automatically detect iptables mode (legacy or nf_tables) from baseOS
 RUN ln -s -f /opt/everoute/bin/iptables-wrapper /etc/alternatives/iptables
