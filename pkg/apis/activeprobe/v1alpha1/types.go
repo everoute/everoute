@@ -61,8 +61,9 @@ type ActiveProbeStatus struct {
 type AgenProbeRecord []*AgentProbeResult
 
 type AgentProbeResult struct {
-	AgentProbeState ActiveProbeState        `json:"agentprobestate,omitempty"`
-	AgentProbePath  []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
+	AgentProbeSendTimes uint16                  `json:"agentProbeSendTimes,omitempty"`
+	AgentProbeState     ActiveProbeState        `json:"agentprobestate,omitempty"`
+	AgentProbePath      []ActiveProbeTracePoint `json:"agentprobepath,omitempty"`
 }
 
 type ActiveProbeTracePoint struct {

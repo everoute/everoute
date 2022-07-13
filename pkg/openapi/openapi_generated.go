@@ -608,6 +608,12 @@ func schema_pkg_apis_activeprobe_v1alpha1_AgentProbeResult(ref common.ReferenceC
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"agentProbeSendTimes": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 					"agentprobestate": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},

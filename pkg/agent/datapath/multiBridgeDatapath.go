@@ -210,6 +210,7 @@ type Packet struct {
 	DstIP      net.IP
 	IPProtocol uint8
 	IPLength   uint16
+	IPId       uint16
 	IPFlags    uint16
 	TTL        uint8
 	SrcPort    uint16

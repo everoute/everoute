@@ -86,6 +86,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 	klog.Infof("start func parsePacketIn")
 	var err error
 	var tag uint8
+	var sendTimes uint16
 	var reg4Val, reg5Val uint32
 	var inPort uint32
 	state := activeprobev1alph1.ActiveProbeFailed
@@ -101,6 +102,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 			return state, 0, &agentProbeResult, errors.New("invalid IPv4 packet")
 		}
 		tag = ipPacket.DSCP
+		sendTimes = ipPacket.Id
 
 		if match := getMatchInPortField(matchers); match != nil {
 			inPort, err = getInportVal(match)
@@ -145,6 +147,7 @@ func (a *Controller) parsePacketIn(packetIn *ofctrl.PacketIn) (activeprobev1alph
 		activeProbeTracePoint.TracePoint = telemetryTracePoint
 		activeProbeTracePoint.Action = activeProbeAction
 
+		agentProbeResult.AgentProbeSendTimes = sendTimes
 		agentProbeResult.AgentProbeState = activeprobev1alph1.ActiveProbeCompleted
 		agentProbeResult.AgentProbePath = append(agentProbeResult.AgentProbePath, activeProbeTracePoint)
 		state = activeprobev1alph1.ActiveProbeCompleted

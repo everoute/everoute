@@ -234,6 +234,7 @@ func (a *Controller) SendActiveProbePacket(ap *activeprobev1alph1.ActiveProbe) e
 	sendTimes := ap.Spec.ProbeTimes
 
 	for i := 0; i < int(sendTimes); i++ {
+		packet.IPId = uint16(i)
 		err = a.DatapathManager.SendActiveProbePacket(ovsbrName, *packet, tag, inport, nil)
 		time.Sleep(time.Millisecond * 10)
 	}

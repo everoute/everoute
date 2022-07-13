@@ -213,6 +213,8 @@ spec:
                 additionalProperties:
                   items:
                     properties:
+                      agentProbeSendTimes:
+                        type: integer
                       agentprobepath:
                         items:
                           properties:
