@@ -73,7 +73,7 @@ var _ = Describe("ActiveProbeController", func() {
 
 		It("activeprobe agent controller update status infos", func() {
 			// wait for controller handle activeprobe event
-			time.Sleep(5 * time.Second)
+			time.Sleep(10 * time.Second)
 			By(fmt.Sprintf("activeprobe %s should has updated state", ap.Name))
 			assertHasUpdatedState(ap, activeprobev1alpha1.ActiveProbeSendFinshed)
 		})
