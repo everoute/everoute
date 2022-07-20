@@ -95,3 +95,29 @@ func TestReflectorWithNotExistField(t *testing.T) {
 		return len(objectStore.ListKeys())
 	}, 60).Should(Equal(2))
 }
+
+type UnExpectedObject struct {
+	ID string `json:"id"`
+}
+
+func TestReflectorWithNotExistObject(t *testing.T) {
+	RegisterTestingT(t)
+
+	server := fake.NewServer(nil)
+	server.Serve()
+	defer server.Stop()
+
+	objectFIFO := cache.NewFIFO(TowerObjectKey)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	newReflector := NewReflectorBuilder(server.NewClient())(&informer.ReflectorOptions{
+		Store:        objectFIFO,
+		ExpectedType: &UnExpectedObject{},
+		ShouldResync: func() bool { return false },
+		Clock:        &clock.RealClock{},
+	})
+	go newReflector.Run(ctx.Done())
+
+	Eventually(objectFIFO.HasSynced, 60).Should(BeTrue())
+}

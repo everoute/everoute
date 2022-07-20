@@ -214,6 +214,12 @@ func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error
 	for _, respErr := range respErrs {
 		names := matchFieldNotExistFromMessage(respErr.Message)
 		if names != nil {
+			// when the reflected objects not exist, we consider it as has synced
+			// the reflector retries with backoff manager until the object exists
+			if names[0] == r.expectType.ListName() && names[1] == "Query" {
+				_ = r.store.Replace(nil, r.LastSyncResourceVersion())
+				break
+			}
 			r.skipFields[names[0]] = names[1]
 		}
 	}
