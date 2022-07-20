@@ -93,7 +93,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
 	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
-	globalaController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
+	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
 		opts.SharedFactory.Start(stopChan)
@@ -101,7 +101,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 
 		go endpointController.Run(opts.WorkerNumber, stopChan)
 		go policyController.Run(opts.WorkerNumber, stopChan)
-		go globalaController.Run(opts.WorkerNumber, stopChan)
+		go globalController.Run(opts.WorkerNumber, stopChan)
 
 		<-stopChan
 		return nil

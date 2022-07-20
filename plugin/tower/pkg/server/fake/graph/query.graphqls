@@ -8,6 +8,7 @@ type Query {
     hosts: [Host!]!
     systemEndpoints: SystemEndpoints
     tasks(orderBy: TaskOrderByInput, last: Int): [Task!]!
+    securityGroups: [SecurityGroup!]!
 }
 
 # mock tower subscribe vm and label
@@ -20,6 +21,7 @@ type Subscription {
     host: HostEvent!
     systemEndpoints: SystemEndpoints!
     task: TaskEvent!
+    securityGroup: SecurityGroupEvent!
 }
 
 # mock tower user login
@@ -81,6 +83,12 @@ type HostEvent {
 type TaskEvent {
     mutation: MutationType!
     node: Task!
+    previousValues: ObjectReference
+}
+
+type SecurityGroupEvent {
+    mutation: MutationType!
+    node: SecurityGroup!
     previousValues: ObjectReference
 }
 

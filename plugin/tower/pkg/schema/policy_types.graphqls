@@ -7,8 +7,15 @@ type SecurityPolicy {
 }
 
 type SecurityPolicyApply {
+    type: SecurityPolicyType!
     communicable: Boolean!
+    security_group: ObjectReference
     selector: [ObjectReference!]!
+}
+
+enum SecurityPolicyType {
+    SECURITY_GROUP
+    SELECTOR
 }
 
 type IsolationPolicy {
@@ -26,11 +33,12 @@ enum IsolationMode {
 }
 
 type NetworkPolicyRule {
+    type: NetworkPolicyRuleType!
     ip_block: String
     except_ip_block: [String!]
     ports: [NetworkPolicyRulePort!]
     selector: [ObjectReference!]
-    type: NetworkPolicyRuleType!
+    security_group: ObjectReference
 }
 
 type NetworkPolicyRulePort {
@@ -48,6 +56,7 @@ enum NetworkPolicyRuleType {
     ALL
     IP_BLOCK
     SELECTOR
+    SECURITY_GROUP
 }
 
 type SystemEndpoints {
@@ -64,4 +73,15 @@ type IPPortSystemEndpoint {
     key: String!
     ip: String!
     port: Int
+}
+
+type SecurityGroup {
+    id: ID!
+    everoute_cluster: ObjectReference!
+    label_groups: [LabelGroup!]
+    vms: [ObjectReference!]!
+}
+
+type LabelGroup {
+    labels: [ObjectReference!]!
 }
