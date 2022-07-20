@@ -70,7 +70,7 @@ var _ = Describe("PolicyController", func() {
 				var ingress, egress *schema.NetworkPolicyRule
 
 				BeforeEach(func() {
-					policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					ingress = NewNetworkPolicyRule("tcp", "20-80", nil, labelB, labelC)
 					egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelC)
 					policy.Ingress = append(policy.Ingress, *ingress)
@@ -194,7 +194,7 @@ var _ = Describe("PolicyController", func() {
 				var ingress, egress *schema.NetworkPolicyRule
 
 				BeforeEach(func() {
-					policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.1"}})
 					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"})
 					policy.Ingress = append(policy.Ingress, *ingress)
@@ -243,7 +243,7 @@ var _ = Describe("PolicyController", func() {
 				var ingress, egress *schema.NetworkPolicyRule
 
 				BeforeEach(func() {
-					policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					ingress = NewNetworkPolicyRule("", "", nil, labelB, labelC)
 					egress = NewNetworkPolicyRule("", "", nil, labelA, labelC)
 					policy.Ingress = append(policy.Ingress, *ingress)
@@ -270,7 +270,7 @@ var _ = Describe("PolicyController", func() {
 				var ingress, egress *schema.NetworkPolicyRule
 
 				BeforeEach(func() {
-					policy = NewSecurityPolicy(everouteCluster, true, labelA, labelB)
+					policy = NewSecurityPolicy(everouteCluster, true, nil, labelA, labelB)
 					ingress = NewNetworkPolicyRule("tcp", "20-80", nil, labelB, labelC)
 					egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelC)
 					policy.Ingress = append(policy.Ingress, *ingress)
@@ -317,7 +317,7 @@ var _ = Describe("PolicyController", func() {
 				var policy *schema.SecurityPolicy
 
 				BeforeEach(func() {
-					policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					policy.Ingress = []schema.NetworkPolicyRule{{
 						Type: schema.NetworkPolicyRuleTypeAll,
 					}}
@@ -347,7 +347,7 @@ var _ = Describe("PolicyController", func() {
 
 			BeforeEach(func() {
 				randomEverouteCluster = rand.String(10)
-				policy = NewSecurityPolicy(randomEverouteCluster, false, labelA, labelB)
+				policy = NewSecurityPolicy(randomEverouteCluster, false, nil, labelA, labelB)
 
 				By(fmt.Sprintf("create SecurityPolicy %+v", policy))
 				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
@@ -366,7 +366,7 @@ var _ = Describe("PolicyController", func() {
 			var ingress *schema.NetworkPolicyRule
 
 			BeforeEach(func() {
-				policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+				policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 				ingress = NewNetworkPolicyRule("tcp", "20-80", nil, labelB, labelC)
 				policy.Ingress = append(policy.Ingress, *ingress)
 
@@ -391,7 +391,7 @@ var _ = Describe("PolicyController", func() {
 			var egress *schema.NetworkPolicyRule
 
 			BeforeEach(func() {
-				policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+				policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 				egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelC)
 				policy.Egress = append(policy.Egress, *egress)
 
@@ -415,7 +415,7 @@ var _ = Describe("PolicyController", func() {
 			var policy *schema.SecurityPolicy
 
 			BeforeEach(func() {
-				policy = NewSecurityPolicy(everouteCluster, false, labelA, labelB)
+				policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 				By(fmt.Sprintf("create SecurityPolicy %+v", policy))
 				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
 			})
@@ -813,6 +813,136 @@ var _ = Describe("PolicyController", func() {
 					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
 				})
 				It("should delete security policy", func() {
+					assertPoliciesNum(ctx, 0)
+				})
+			})
+		})
+	})
+
+	Context("SecurityGroup", func() {
+		var normalGroup, emptyGroup *schema.SecurityGroup
+		var vm *schema.VM
+		var vnicA, vnicB *schema.VMNic
+
+		BeforeEach(func() {
+			vm = NewRandomVM()
+			vnicA = NewRandomVMNicAttachedTo(vm)
+			vnicB = NewRandomVMNicAttachedTo(vm)
+
+			normalGroup = NewSecurityGroup(everouteCluster)
+			normalGroup.LabelGroups = append(normalGroup.LabelGroups, schema.LabelGroup{
+				Labels: LabelAsReference(labelA, labelB, labelC),
+			})
+			normalGroup.VMs = append(normalGroup.VMs, schema.ObjectReference{ID: vm.ID})
+			emptyGroup = NewSecurityGroup(everouteCluster)
+
+			By(fmt.Sprintf("create vm %+v with vnic %+v and %+v", vm, vnicA, vnicB))
+			server.TrackerFactory().VM().CreateOrUpdate(vm)
+
+			By(fmt.Sprintf("create security group %+v %+v", normalGroup, emptyGroup))
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(normalGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(emptyGroup)
+		})
+
+		When("create SecurityPolicy with empty security group", func() {
+			var policy *schema.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = NewSecurityPolicy(everouteCluster, false, emptyGroup)
+				By(fmt.Sprintf("create security policy %+v", policy))
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should not create security policy with empty group", func() {
+				time.Sleep(3 * time.Second) // wait for reconcile
+				assertPoliciesNum(ctx, 0)
+			})
+		})
+
+		When("create SecurityPolicy with normal security group", func() {
+			var policy *schema.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = NewSecurityPolicy(everouteCluster, false, normalGroup)
+				By(fmt.Sprintf("create security policy %+v", policy))
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should create security policy with normal group", func() {
+				assertPoliciesNum(ctx, 1)
+				assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					nil,
+					nil,
+					NewSecurityPolicyApplyPeer(vnicA.ID),
+					NewSecurityPolicyApplyPeer(vnicB.ID),
+					NewSecurityPolicyApplyPeer("", labelA, labelB, labelC),
+				)
+			})
+
+			When("update vms in the security group", func() {
+				var vnicC *schema.VMNic
+
+				BeforeEach(func() {
+					vnicC = NewRandomVMNicAttachedTo(vm)
+					server.TrackerFactory().VM().CreateOrUpdate(vm)
+				})
+
+				It("should update security policy with normal group", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						nil,
+						nil,
+						NewSecurityPolicyApplyPeer(vnicA.ID),
+						NewSecurityPolicyApplyPeer(vnicB.ID),
+						NewSecurityPolicyApplyPeer(vnicC.ID),
+						NewSecurityPolicyApplyPeer("", labelA, labelB, labelC),
+					)
+				})
+			})
+
+			When("update labels key which in the security group", func() {
+				BeforeEach(func() {
+					labelA.Key = rand.String(10)
+					server.TrackerFactory().Label().CreateOrUpdate(labelA)
+				})
+
+				It("should update security policy with normal group", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						nil,
+						nil,
+						NewSecurityPolicyApplyPeer(vnicA.ID),
+						NewSecurityPolicyApplyPeer(vnicB.ID),
+						NewSecurityPolicyApplyPeer("", labelA, labelB, labelC),
+					)
+				})
+			})
+
+			When("remove vnic from vm which in the security group", func() {
+				BeforeEach(func() {
+					vm.VMNics = vm.VMNics[:1]
+					server.TrackerFactory().VM().CreateOrUpdate(vm)
+				})
+
+				It("should update security policy with normal group", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						nil,
+						nil,
+						NewSecurityPolicyApplyPeer(vnicA.ID),
+						NewSecurityPolicyApplyPeer("", labelA, labelB, labelC),
+					)
+				})
+			})
+
+			When("update security group to empty", func() {
+				BeforeEach(func() {
+					normalGroup.VMs = nil
+					normalGroup.LabelGroups = nil
+					server.TrackerFactory().SecurityGroup().CreateOrUpdate(normalGroup)
+				})
+
+				It("should remove the security policy", func() {
 					assertPoliciesNum(ctx, 0)
 				})
 			})

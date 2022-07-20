@@ -60,12 +60,10 @@ func TestClient_Auth(t *testing.T) {
 	}
 	server.TrackerFactory().User().CreateOrUpdate(user)
 
-	client := server.NewClient()
-	client.UserInfo = getUserInfo(user)
-	token, err := client.Auth()
+	towerClient := server.NewClient()
+	towerClient.UserInfo = getUserInfo(user)
 
-	Expect(err).Should(Succeed())
-	Expect(token).Should(Equal(user.Token))
+	Eventually(towerClient.Auth).Should(Equal(user.Token))
 }
 
 func getUserInfo(user *model.User) *client.UserInfo {

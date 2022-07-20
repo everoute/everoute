@@ -104,6 +104,15 @@ func (r *queryResolver) Tasks(ctx context.Context, orderBy *model.TaskOrderByInp
 	return tasks, nil
 }
 
+func (r *queryResolver) SecurityGroups(ctx context.Context) ([]schema.SecurityGroup, error) {
+	groupList := r.TrackerFactory().SecurityGroup().List()
+	groups := make([]schema.SecurityGroup, 0, len(groupList))
+	for _, group := range groupList {
+		groups = append(groups, *group.(*schema.SecurityGroup))
+	}
+	return groups, nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -315,6 +324,33 @@ func (r *subscriptionResolver) Task(ctx context.Context) (<-chan *model.TaskEven
 	}()
 
 	return taskEventCh, nil
+}
+
+func (r *subscriptionResolver) SecurityGroup(ctx context.Context) (<-chan *model.SecurityGroupEvent, error) {
+	var groupEventCh = make(chan *model.SecurityGroupEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().SecurityGroup().Watch()
+		defer stopWatch()
+		defer close(groupEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				groupEventCh <- &model.SecurityGroupEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.SecurityGroup),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return groupEventCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

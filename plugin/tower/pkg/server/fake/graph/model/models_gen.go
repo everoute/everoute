@@ -44,6 +44,12 @@ type LoginInput struct {
 	Username string     `json:"username"`
 }
 
+type SecurityGroupEvent struct {
+	Mutation       MutationType            `json:"mutation"`
+	Node           *schema.SecurityGroup   `json:"node"`
+	PreviousValues *schema.ObjectReference `json:"previousValues"`
+}
+
 type SecurityPolicyEvent struct {
 	Mutation       MutationType            `json:"mutation"`
 	Node           *schema.SecurityPolicy  `json:"node"`

@@ -77,15 +77,29 @@ func AggregateLabels(labels ...*schema.Label) map[string]string {
 	return labelMap
 }
 
-func NewSecurityPolicy(everouteCluster string, communicable bool, selectors ...*schema.Label) *schema.SecurityPolicy {
-	return &schema.SecurityPolicy{
+func NewSecurityPolicy(everouteCluster string, communicable bool, group *schema.SecurityGroup, selectors ...*schema.Label) *schema.SecurityPolicy {
+	policy := &schema.SecurityPolicy{
 		ObjectMeta:      schema.ObjectMeta{ID: rand.String(10)},
 		EverouteCluster: schema.ObjectReference{ID: everouteCluster},
-		ApplyTo: []schema.SecurityPolicyApply{{
+	}
+
+	if group != nil {
+		policy.ApplyTo = append(policy.ApplyTo, schema.SecurityPolicyApply{
+			Type:          schema.SecurityPolicyTypeSecurityGroup,
+			Communicable:  communicable,
+			SecurityGroup: &schema.ObjectReference{ID: group.GetID()},
+		})
+	}
+
+	if len(selectors) != 0 {
+		policy.ApplyTo = append(policy.ApplyTo, schema.SecurityPolicyApply{
+			Type:         schema.SecurityPolicyTypeSelector,
 			Communicable: communicable,
 			Selector:     LabelAsReference(selectors...),
-		}},
+		})
 	}
+
+	return policy
 }
 
 func NewIsolationPolicy(everouteCluster string, vm *schema.VM, isolationMode schema.IsolationMode) *schema.IsolationPolicy {
@@ -274,5 +288,12 @@ func NewTask(status schema.TaskStatus) *schema.Task {
 	return &schema.Task{
 		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
 		Status:     status,
+	}
+}
+
+func NewSecurityGroup(clusterID string) *schema.SecurityGroup {
+	return &schema.SecurityGroup{
+		ObjectMeta:      schema.ObjectMeta{ID: rand.String(10)},
+		EverouteCluster: schema.ObjectReference{ID: clusterID},
 	}
 }

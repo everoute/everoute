@@ -58,6 +58,7 @@ const (
 
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
+	securityGroupIndex   = "securityGroupIndex"
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
 )
@@ -108,6 +109,10 @@ type Controller struct {
 	systemEndpointLister         informer.Lister
 	systemEndpointInformerSynced cache.InformerSynced
 
+	securityGroupInformer       cache.SharedIndexInformer
+	securityGroupLister         informer.Lister
+	securityGroupInformerSynced cache.InformerSynced
+
 	isolationPolicyQueue       workqueue.RateLimitingInterface
 	securityPolicyQueue        workqueue.RateLimitingInterface
 	systemEndpointPolicyQueue  workqueue.RateLimitingInterface
@@ -131,6 +136,7 @@ func New(
 	isolationPolicyInformer := towerFactory.IsolationPolicy()
 	erClusterInformer := towerFactory.EverouteCluster()
 	systemEndpointInformer := towerFactory.SystemEndpoints()
+	securityGroupInformer := towerFactory.SecurityGroup()
 
 	c := &Controller{
 		name:                          "PolicyController",
@@ -158,13 +164,16 @@ func New(
 		systemEndpointInformer:        systemEndpointInformer,
 		systemEndpointLister:          systemEndpointInformer.GetIndexer(),
 		systemEndpointInformerSynced:  systemEndpointInformer.HasSynced,
+		securityGroupInformer:         securityGroupInformer,
+		securityGroupLister:           securityGroupInformer.GetIndexer(),
+		securityGroupInformerSynced:   securityGroupInformer.HasSynced,
 		isolationPolicyQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		securityPolicyQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		systemEndpointPolicyQueue:     workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		everouteClusterPolicyQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	// when vm's vnics changes, enqueue related IsolationPolicy
+	// when vm's vnics changes, handle related IsolationPolicy and SecurityGroup
 	vmInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleVM,
@@ -174,7 +183,7 @@ func New(
 		resyncPeriod,
 	)
 
-	// when labels key/value changes, enqueue related SecurityPolicy and IsolationPolicy
+	// when labels key/value changes, handle related SecurityPolicy, IsolationPolicy and SecurityGroup
 	labelInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleLabel,
@@ -230,15 +239,37 @@ func New(
 		resyncPeriod,
 	)
 
-	// relate labels in selector
+	securityGroupInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleSecurityGroup,
+			UpdateFunc: c.updateSecurityGroup,
+			DeleteFunc: c.handleSecurityGroup,
+		},
+		resyncPeriod,
+	)
+
+	// relate selected labels and security groups
 	_ = securityPolicyInformer.AddIndexers(cache.Indexers{
+		labelIndex:         c.labelIndexFunc,
+		securityGroupIndex: c.securityGroupIndexFunc,
+	})
+
+	// relate isolate vm, selected labels and security groups
+	_ = isolationPolicyInformer.AddIndexers(cache.Indexers{
+		vmIndex:            c.vmIndexFunc,
+		labelIndex:         c.labelIndexFunc,
+		securityGroupIndex: c.securityGroupIndexFunc,
+	})
+
+	// relate vms and selected labels
+	_ = securityGroupInformer.AddIndexers(cache.Indexers{
+		vmIndex:    c.vmIndexFunc,
 		labelIndex: c.labelIndexFunc,
 	})
 
-	// relate isolate vm and selected labels
-	_ = isolationPolicyInformer.AddIndexers(cache.Indexers{
-		vmIndex:    c.vmIndexFunc,
-		labelIndex: c.labelIndexFunc,
+	// relate vms
+	_ = systemEndpointInformer.AddIndexers(cache.Indexers{
+		vmIndex: c.vmIndexFunc,
 	})
 
 	// relate owner SecurityPolicy or IsolationPolicy
@@ -266,6 +297,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		c.crdPolicyInformerSynced,
 		c.everouteClusterInformerSynced,
 		c.systemEndpointInformerSynced,
+		c.securityGroupInformerSynced,
 	) {
 		return
 	}
@@ -273,9 +305,9 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 	for i := uint(0); i < workers; i++ {
 		go wait.Until(informer.ReconcileWorker(c.name, c.securityPolicyQueue, c.syncSecurityPolicy), time.Second, stopCh)
 		go wait.Until(informer.ReconcileWorker(c.name, c.isolationPolicyQueue, c.syncIsolationPolicy), time.Second, stopCh)
-		go wait.Until(informer.ReconcileWorker(c.name, c.everouteClusterPolicyQueue, c.syncEverouteClusterPolicy), time.Second, stopCh)
 	}
-	// only ONE SystemEndpoints in tower
+	// handle systemendpoints and everoutecluster separately
+	go wait.Until(informer.ReconcileWorker(c.name, c.everouteClusterPolicyQueue, c.syncEverouteClusterPolicy), time.Second, stopCh)
 	go wait.Until(informer.ReconcileWorker(c.name, c.systemEndpointPolicyQueue, c.syncSystemEndpointsPolicy), time.Second, stopCh)
 
 	<-stopCh
@@ -284,17 +316,21 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 func (c *Controller) labelIndexFunc(obj interface{}) ([]string, error) {
 	var labelReferences []schema.ObjectReference
 
-	switch policy := obj.(type) {
+	switch o := obj.(type) {
 	case *schema.SecurityPolicy:
-		for _, peer := range policy.ApplyTo {
+		for _, peer := range o.ApplyTo {
 			labelReferences = append(labelReferences, peer.Selector...)
 		}
-		for _, peer := range append(policy.Ingress, policy.Egress...) {
+		for _, peer := range append(o.Ingress, o.Egress...) {
 			labelReferences = append(labelReferences, peer.Selector...)
 		}
 	case *schema.IsolationPolicy:
-		for _, peer := range append(policy.Ingress, policy.Egress...) {
+		for _, peer := range append(o.Ingress, o.Egress...) {
 			labelReferences = append(labelReferences, peer.Selector...)
+		}
+	case *schema.SecurityGroup:
+		for _, peer := range o.LabelGroups {
+			labelReferences = append(labelReferences, peer.Labels...)
 		}
 	}
 
@@ -307,8 +343,48 @@ func (c *Controller) labelIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func (c *Controller) vmIndexFunc(obj interface{}) ([]string, error) {
-	policy := obj.(*schema.IsolationPolicy)
-	return []string{policy.VM.ID}, nil
+	var vms []string
+
+	switch o := obj.(type) {
+	case *schema.IsolationPolicy:
+		vms = []string{o.VM.ID}
+	case *schema.SecurityGroup:
+		for _, vm := range o.VMs {
+			vms = append(vms, vm.ID)
+		}
+	case *schema.SystemEndpoints:
+		for _, vm := range o.IDEndpoints {
+			vms = append(vms, vm.VMID)
+		}
+	}
+
+	return vms, nil
+}
+
+func (c *Controller) securityGroupIndexFunc(obj interface{}) ([]string, error) {
+	var securityGroups []string
+
+	switch o := obj.(type) {
+	case *schema.SecurityPolicy:
+		for _, peer := range o.ApplyTo {
+			if peer.SecurityGroup != nil {
+				securityGroups = append(securityGroups, peer.SecurityGroup.ID)
+			}
+		}
+		for _, peer := range append(o.Ingress, o.Egress...) {
+			if peer.SecurityGroup != nil {
+				securityGroups = append(securityGroups, peer.SecurityGroup.ID)
+			}
+		}
+	case *schema.IsolationPolicy:
+		for _, peer := range append(o.Ingress, o.Egress...) {
+			if peer.SecurityGroup != nil {
+				securityGroups = append(securityGroups, peer.SecurityGroup.ID)
+			}
+		}
+	}
+
+	return securityGroups, nil
 }
 
 func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) {
@@ -349,21 +425,20 @@ func (c *Controller) handleVM(obj interface{}) {
 	if ok {
 		obj = unknow.Obj
 	}
+
 	policies, _ := c.isolationPolicyLister.ByIndex(vmIndex, obj.(*schema.VM).GetID())
 	for _, policy := range policies {
 		c.handleIsolationPolicy(policy)
 	}
 
-	// update systemEndpoints policy
-	systemEndpoints := c.systemEndpointLister.List()
+	systemEndpoints, _ := c.systemEndpointLister.ByIndex(vmIndex, obj.(*schema.VM).GetID())
 	if len(systemEndpoints) != 0 {
-		// TODO: replace for loop with vmIndex
-		for _, ep := range systemEndpoints[0].(*schema.SystemEndpoints).IDEndpoints {
-			if ep.VMID == obj.(*schema.VM).GetID() {
-				c.systemEndpointPolicyQueue.Add("key")
-				break
-			}
-		}
+		c.handleSystemEndpoints(nil)
+	}
+
+	securityGroups, _ := c.securityGroupLister.ByIndex(vmIndex, obj.(*schema.VM).GetID())
+	for _, group := range securityGroups {
+		c.handleSecurityGroup(group)
 	}
 }
 
@@ -382,13 +457,20 @@ func (c *Controller) handleLabel(obj interface{}) {
 	if ok {
 		obj = unknow.Obj
 	}
+
 	securityPolicies, _ := c.securityPolicyLister.ByIndex(labelIndex, obj.(*schema.Label).GetID())
 	for _, securityPolicy := range securityPolicies {
 		c.handleSecurityPolicy(securityPolicy)
 	}
+
 	isolationPolicies, _ := c.isolationPolicyLister.ByIndex(labelIndex, obj.(*schema.Label).GetID())
 	for _, isolationPolicy := range isolationPolicies {
 		c.handleIsolationPolicy(isolationPolicy)
+	}
+
+	securityGroups, _ := c.securityGroupLister.ByIndex(labelIndex, obj.(*schema.Label).GetID())
+	for _, securityGroup := range securityGroups {
+		c.handleSecurityGroup(securityGroup)
 	}
 }
 
@@ -463,12 +545,12 @@ func (c *Controller) handleCRDPolicy(obj interface{}) {
 	}
 
 	if obj.(*v1alpha1.SecurityPolicy).Name == SystemEndpointsPolicyName {
-		c.systemEndpointPolicyQueue.Add("key")
+		c.handleSystemEndpoints(nil)
 	}
 
 	if obj.(*v1alpha1.SecurityPolicy).Name == ControllerPolicyName ||
 		obj.(*v1alpha1.SecurityPolicy).Name == GlobalWhitelistPolicyName {
-		c.everouteClusterPolicyQueue.Add("key")
+		c.handleEverouteCluster(nil)
 	}
 }
 
@@ -482,7 +564,7 @@ func (c *Controller) updateCRDPolicy(old, new interface{}) {
 	c.handleCRDPolicy(newPolicy)
 }
 
-func (c *Controller) handleEverouteCluster(_ interface{}) {
+func (c *Controller) handleEverouteCluster(interface{}) {
 	c.everouteClusterPolicyQueue.Add("key")
 }
 
@@ -501,7 +583,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 	}
 }
 
-func (c *Controller) handleSystemEndpoints(_ interface{}) {
+func (c *Controller) handleSystemEndpoints(interface{}) {
 	c.systemEndpointPolicyQueue.Add("key")
 }
 
@@ -513,6 +595,41 @@ func (c *Controller) updateSystemEndpoints(old, new interface{}) {
 	if !reflect.DeepEqual(newSystemEndpoints, oldSystemEndpoints) {
 		c.handleSystemEndpoints(newSystemEndpoints)
 	}
+}
+
+func (c *Controller) handleSecurityGroup(obj interface{}) {
+	unknow, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		obj = unknow.Obj
+	}
+
+	securityGroup := obj.(*schema.SecurityGroup)
+
+	// when security group delete, this.EverouteCluster.ID would be empty
+	if securityGroup.EverouteCluster.ID != "" &&
+		securityGroup.EverouteCluster.ID != c.everouteCluster {
+		return
+	}
+
+	securityPolicies, _ := c.securityPolicyLister.ByIndex(securityGroupIndex, securityGroup.GetID())
+	for _, securityPolicy := range securityPolicies {
+		c.handleSecurityPolicy(securityPolicy)
+	}
+
+	isolationPolicies, _ := c.isolationPolicyLister.ByIndex(securityGroupIndex, securityGroup.GetID())
+	for _, isolationPolicy := range isolationPolicies {
+		c.handleIsolationPolicy(isolationPolicy)
+	}
+}
+
+func (c *Controller) updateSecurityGroup(old, new interface{}) {
+	oldGroup := old.(*schema.SecurityGroup)
+	newGroup := new.(*schema.SecurityGroup)
+
+	if reflect.DeepEqual(newGroup, oldGroup) {
+		return
+	}
+	c.handleSecurityGroup(newGroup)
 }
 
 // syncSecurityPolicy sync SecurityPoicy to v1alpha1.SecurityPolicy
@@ -566,7 +683,7 @@ func (c *Controller) syncSystemEndpointsPolicy(key string) error {
 }
 
 // syncEverouteClusterPolicy sync EverouteCluster to v1alpha1.SecurityPolicy
-func (c *Controller) syncEverouteClusterPolicy(key string) error {
+func (c *Controller) syncEverouteClusterPolicy(string) error {
 	clusterList := c.everouteClusterLister.List()
 
 	var clusters []*schema.EverouteCluster
@@ -587,7 +704,7 @@ func (c *Controller) syncEverouteClusterPolicy(key string) error {
 		return fmt.Errorf("get everouteClustes error: %s", err)
 	}
 	if !exist {
-		return fmt.Errorf("everouteCluste %s not found", c.everouteCluster)
+		return fmt.Errorf("everouteCluster %s not found", c.everouteCluster)
 	}
 
 	whitelistPolicy, err := c.parseGlobalWhitelistPolicy(currentCluster.(*schema.EverouteCluster))
@@ -821,6 +938,9 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 	if err != nil {
 		return nil, err
 	}
+	if len(applyToPeers) == 0 {
+		return nil, nil
+	}
 
 	ingress, egress, err := c.parseNetworkPolicyRules(securityPolicy.Ingress, securityPolicy.Egress)
 	if err != nil {
@@ -850,7 +970,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 		}
 		// generate intra group policy
 		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), &securityPolicy.ApplyTo[item])
-		if err != nil {
+		if err != nil || policy == nil {
 			return nil, err
 		}
 		policyList = append(policyList, *policy)
@@ -954,9 +1074,12 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
-	endpointSelector, err := c.parseSelectors(appliedPeer.Selector)
+	appliedPeers, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
 	if err != nil {
 		return nil, err
+	}
+	if len(appliedPeers) == 0 {
+		return nil, nil
 	}
 
 	policy := v1alpha1.SecurityPolicy{
@@ -965,21 +1088,15 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier: constants.Tier2,
-			AppliedTo: []v1alpha1.ApplyToPeer{{
-				EndpointSelector: endpointSelector,
-			}},
+			Tier:      constants.Tier2,
+			AppliedTo: appliedPeers,
 			IngressRules: []v1alpha1.Rule{{
 				Name: "ingress",
-				From: []v1alpha1.SecurityPolicyPeer{{
-					EndpointSelector: endpointSelector,
-				}},
+				From: c.appliedPeersAsPolicyPeers(appliedPeers),
 			}},
 			EgressRules: []v1alpha1.Rule{{
 				Name: "egress",
-				To: []v1alpha1.SecurityPolicyPeer{{
-					EndpointSelector: endpointSelector,
-				}},
+				To:   c.appliedPeersAsPolicyPeers(appliedPeers),
 			}},
 			DefaultRule: v1alpha1.DefaultRuleDrop,
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
@@ -989,17 +1106,29 @@ func (c *Controller) generateIntragroupPolicy(securityPolicyID string, appliedPe
 	return &policy, nil
 }
 
-func (c *Controller) parseSecurityPolicyApplys(peers []schema.SecurityPolicyApply) ([]v1alpha1.ApplyToPeer, error) {
-	applyToPeers := make([]v1alpha1.ApplyToPeer, 0, len(peers))
+func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPolicyApply) ([]v1alpha1.ApplyToPeer, error) {
+	var applyToPeers []v1alpha1.ApplyToPeer
 
-	for _, peer := range peers {
-		endpointSelector, err := c.parseSelectors(peer.Selector)
-		if err != nil {
-			return nil, err
+	for _, policyApply := range policyApplies {
+		switch policyApply.Type {
+		case schema.SecurityPolicyTypeSelector:
+			endpointSelector, err := c.parseSelectors(policyApply.Selector)
+			if err != nil {
+				return nil, err
+			}
+			applyToPeers = append(applyToPeers, v1alpha1.ApplyToPeer{
+				EndpointSelector: endpointSelector,
+			})
+		case schema.SecurityPolicyTypeSecurityGroup:
+			if policyApply.SecurityGroup == nil {
+				return nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.SecurityPolicyTypeSecurityGroup)
+			}
+			peers, err := c.parseSecurityGroup(policyApply.SecurityGroup)
+			if err != nil {
+				return nil, err
+			}
+			applyToPeers = append(applyToPeers, peers...)
 		}
-		applyToPeers = append(applyToPeers, v1alpha1.ApplyToPeer{
-			EndpointSelector: endpointSelector,
-		})
 	}
 
 	return applyToPeers, nil
@@ -1028,10 +1157,15 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 	ingress = make([]v1alpha1.Rule, 0, len(ingressRules))
 	egress = make([]v1alpha1.Rule, 0, len(egressRules))
 
-	for item := range ingressRules {
+	for item, rule := range ingressRules {
 		peers, ports, err := c.parseNetworkPolicyRule(&ingressRules[item])
 		if err != nil {
 			return nil, nil, err
+		}
+		if len(peers) == 0 && rule.Type != schema.NetworkPolicyRuleTypeAll {
+			// when no peer is specified, the rule is dropped
+			// because of empty peer means match all in everoute security policy
+			continue
 		}
 		ingress = append(ingress, v1alpha1.Rule{
 			Name:  fmt.Sprintf("ingress%d", item),
@@ -1040,10 +1174,15 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 		})
 	}
 
-	for item := range egressRules {
+	for item, rule := range egressRules {
 		peers, ports, err := c.parseNetworkPolicyRule(&egressRules[item])
 		if err != nil {
 			return nil, nil, err
+		}
+		if len(peers) == 0 && rule.Type != schema.NetworkPolicyRuleTypeAll {
+			// when no peer is specified, the rule is dropped
+			// because of empty peer means match all in everoute security policy
+			continue
 		}
 		egress = append(egress, v1alpha1.Rule{
 			Name:  fmt.Sprintf("egress%d", item),
@@ -1091,6 +1230,15 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
 			EndpointSelector: endpointSelector,
 		})
+	case schema.NetworkPolicyRuleTypeSecurityGroup:
+		if rule.SecurityGroup == nil {
+			return nil, nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.NetworkPolicyRuleTypeSecurityGroup)
+		}
+		peers, err := c.parseSecurityGroup(rule.SecurityGroup)
+		if err != nil {
+			return nil, nil, err
+		}
+		policyPeers = append(policyPeers, c.appliedPeersAsPolicyPeers(peers)...)
 	}
 
 	return policyPeers, policyPorts, nil
@@ -1127,6 +1275,56 @@ func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*labels
 		ExtendMatchLabels: extendMatchLabels,
 	}
 	return &labelSelector, nil
+}
+
+func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference) ([]v1alpha1.ApplyToPeer, error) {
+	obj, exist, err := c.securityGroupLister.GetByKey(securityGroupRef.ID)
+	if err != nil || !exist {
+		return nil, fmt.Errorf("security group %s not found", securityGroupRef.ID)
+	}
+	securityGroup := obj.(*schema.SecurityGroup)
+
+	var appliedPeers []v1alpha1.ApplyToPeer
+
+	for _, vm := range securityGroup.VMs {
+		peers, err := c.vmAsAppliedTo(vm.ID)
+		if err != nil {
+			return nil, err
+		}
+		appliedPeers = append(appliedPeers, peers...)
+	}
+
+	for _, labelGroup := range securityGroup.LabelGroups {
+		endpointSelector, err := c.parseSelectors(labelGroup.Labels)
+		if err != nil {
+			return nil, err
+		}
+		appliedPeers = append(appliedPeers, v1alpha1.ApplyToPeer{
+			EndpointSelector: endpointSelector,
+		})
+	}
+
+	return appliedPeers, nil
+}
+
+func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPeer) []v1alpha1.SecurityPolicyPeer {
+	policyPeers := make([]v1alpha1.SecurityPolicyPeer, 0, len(appliedPeers))
+
+	for _, appliedPeer := range appliedPeers {
+		var namespacedEndpoint *v1alpha1.NamespacedName
+		if appliedPeer.Endpoint != nil {
+			namespacedEndpoint = &v1alpha1.NamespacedName{
+				Name:      *appliedPeer.Endpoint,
+				Namespace: c.namespace,
+			}
+		}
+		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
+			Endpoint:         namespacedEndpoint,
+			EndpointSelector: appliedPeer.EndpointSelector,
+		})
+	}
+
+	return policyPeers
 }
 
 func (c *Controller) getSystemEndpointsPolicyKey() string {

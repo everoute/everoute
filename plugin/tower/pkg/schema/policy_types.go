@@ -36,8 +36,10 @@ type IsolationPolicy struct {
 }
 
 type SecurityPolicyApply struct {
-	Communicable bool              `json:"communicable"`
-	Selector     []ObjectReference `json:"selector"`
+	Type          SecurityPolicyType `json:"type"`
+	Communicable  bool               `json:"communicable"`
+	Selector      []ObjectReference  `json:"selector"`
+	SecurityGroup *ObjectReference   `json:"security_group,omitempty"`
 }
 
 type NetworkPolicyRule struct {
@@ -46,6 +48,7 @@ type NetworkPolicyRule struct {
 	IPBlock       *string                 `json:"ip_block"`
 	ExceptIPBlock []string                `json:"except_ip_block,omitempty"`
 	Selector      []ObjectReference       `json:"selector"`
+	SecurityGroup *ObjectReference        `json:"security_group,omitempty"`
 }
 
 type NetworkPolicyRulePort struct {
@@ -68,13 +71,33 @@ const (
 	NetworkPolicyRulePortProtocolUDP  NetworkPolicyRulePortProtocol = "UDP"
 )
 
+type SecurityPolicyType string
+
+const (
+	SecurityPolicyTypeSelector      SecurityPolicyType = "SELECTOR"
+	SecurityPolicyTypeSecurityGroup SecurityPolicyType = "SECURITY_GROUP"
+)
+
 type NetworkPolicyRuleType string
 
 const (
-	NetworkPolicyRuleTypeAll      NetworkPolicyRuleType = "ALL"
-	NetworkPolicyRuleTypeIPBlock  NetworkPolicyRuleType = "IP_BLOCK"
-	NetworkPolicyRuleTypeSelector NetworkPolicyRuleType = "SELECTOR"
+	NetworkPolicyRuleTypeAll           NetworkPolicyRuleType = "ALL"
+	NetworkPolicyRuleTypeIPBlock       NetworkPolicyRuleType = "IP_BLOCK"
+	NetworkPolicyRuleTypeSelector      NetworkPolicyRuleType = "SELECTOR"
+	NetworkPolicyRuleTypeSecurityGroup NetworkPolicyRuleType = "SECURITY_GROUP"
 )
+
+type SecurityGroup struct {
+	ObjectMeta
+
+	EverouteCluster ObjectReference   `json:"everoute_cluster"`
+	LabelGroups     []LabelGroup      `json:"label_groups"`
+	VMs             []ObjectReference `json:"vms"`
+}
+
+type LabelGroup struct {
+	Labels []ObjectReference `json:"labels"`
+}
 
 // SystemEndpoints contains all internal system endpoints
 type SystemEndpoints struct {

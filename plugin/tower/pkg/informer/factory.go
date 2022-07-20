@@ -56,6 +56,8 @@ type SharedInformerFactory interface {
 	SystemEndpoints() cache.SharedIndexInformer
 	// Task return informer for &schema.Task{}
 	Task() cache.SharedIndexInformer
+	// SecurityGroup return informer for &schema.SecurityGroup{}
+	SecurityGroup() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -177,6 +179,11 @@ func (f *sharedInformerFactory) EverouteCluster() cache.SharedIndexInformer {
 // Task implements SharedInformerFactory.Task
 func (f *sharedInformerFactory) Task() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.Task{})
+}
+
+// SecurityGroup implements SharedInformerFactory.SecurityGroup
+func (f *sharedInformerFactory) SecurityGroup() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.SecurityGroup{})
 }
 
 func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration) cache.SharedIndexInformer {
