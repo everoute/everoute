@@ -433,18 +433,18 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
 		openflow13.NewNXRange(0, 47))
 	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", 0x1,
-		openflow13.NewNXRange(0, 0))
+		openflow13.NewNXRange(29, 29))
 	outputPortLocalGateWay, _ := sw.OutputPort(LOCAL_GATEWAY_PORT)
 	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
 	}
 
-	pktMarkMask := uint32(0x01)
+	pktMarkMask := uint32(0x20000000)
 	outToLocalGwBypassLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
-		PktMark:     0x01,
+		PktMark:     0x20000000,
 		PktMarkMask: &pktMarkMask,
 	})
 	if err := outToLocalGwBypassLocal.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
@@ -504,12 +504,12 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 }
 
 func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
-	pktMarkMask := uint32(0x01)
+	pktMarkMask := uint32(0x20000000)
 	localGwToPolicy, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   uint32(LOCAL_GATEWAY_PORT),
-		PktMark:     0x01,
+		PktMark:     0x20000000,
 		PktMarkMask: &pktMarkMask,
 	})
 	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
