@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -720,28 +721,42 @@ func (l *LocalBridge) BridgeReset() {
 }
 
 func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+	// skip ovs patch port
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
+		return nil
+	}
+
+	// skip cni gateway
+	if l.datapathManager.AgentInfo.LocalGwName == endpoint.InterfaceName {
+		return nil
+	}
+
 	// Table 0, from local endpoint
 	var vlanIDMask uint16 = 0x1fff
+	vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		InputPort: endpoint.PortNo,
+	})
 	if endpoint.VlanID != 0 {
-		vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
-			Priority:  MID_MATCH_FLOW_PRIORITY,
-			InputPort: endpoint.PortNo,
-		})
 		if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
 			return err
 		}
-		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
-			return err
-		}
-		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
-			return err
-		}
-		if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-			return err
-		}
-		log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
-		l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
 	}
+	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+		openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
+		return err
+	}
+	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
+		return err
+	}
+	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
+	l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
 
 	// Table 1, from local to local bum redirect flow
 	endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
