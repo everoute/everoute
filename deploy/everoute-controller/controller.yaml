@@ -30,7 +30,6 @@ spec:
         - key: CriticalAddonsOnly
           operator: Exists
       serviceAccountName: everoute-controller
-      hostNetwork: true
       containers:
         - name: everoute-controller
           image: everoute/release
