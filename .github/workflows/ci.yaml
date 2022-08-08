@@ -88,7 +88,7 @@ jobs:
           path: "./kubernetes"
 
       - name: apply e2e patch
-        run: cd kubernetes && git apply ../hack/0001-test-e2e-add-sleep-before-cannot-conntect-test.patch
+        run: cd kubernetes && git apply ../hack/0001-test-e2e-add-sleep-before-cannot-conntect-test.patch ../hack/0001-test-e2e-reduce-test-log.patch
 
       - name: build e2e
         run: cd kubernetes && make all WHAT=test/e2e/e2e.test && make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
