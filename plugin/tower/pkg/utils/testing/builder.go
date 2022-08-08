@@ -81,6 +81,7 @@ func NewSecurityPolicy(everouteCluster string, communicable bool, group *schema.
 	policy := &schema.SecurityPolicy{
 		ObjectMeta:      schema.ObjectMeta{ID: rand.String(10)},
 		EverouteCluster: schema.ObjectReference{ID: everouteCluster},
+		PolicyMode:      schema.PolicyModeWork,
 	}
 
 	if group != nil {

@@ -90,7 +90,7 @@ func TestGqlTypeMarshal(t *testing.T) {
 			t:          reflect.TypeOf(schema.SecurityPolicy{}),
 			skipFields: map[string]string{"egress": "SecurityPolicy", "policy_mode": "SecurityPolicy"},
 			bracketed:  true,
-			want:       "{id,name,everoute_cluster{id},apply_to{communicable,selector{id}},ingress{type,ports{port,protocol},ip_block,selector{id}}}",
+			want:       "{id,name,everoute_cluster{id},apply_to{type,communicable,selector{id},security_group{id}},ingress{type,ports{port,protocol},ip_block,except_ip_block,selector{id},security_group{id}}}",
 		},
 	}
 
