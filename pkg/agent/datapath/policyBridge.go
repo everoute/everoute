@@ -512,7 +512,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 	return policyTable, nextTable, nil
 }
 
-//nolint: funlen
+//nolint:funlen
 func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	var ipDa *net.IP = nil
 	var ipDaMask *net.IP = nil
