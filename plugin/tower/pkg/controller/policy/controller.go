@@ -1371,6 +1371,9 @@ func formatIPBlock(ipBlock string) (string, error) {
 	}
 
 	ip := net.ParseIP(ipBlock)
+	if ip.Equal(net.IPv4zero) || ip.Equal(net.IPv6zero) {
+		return "0.0.0.0/0", nil
+	}
 	if ip.To4() != nil {
 		return fmt.Sprintf("%s/%d", ipBlock, net.IPv4len*8), nil
 	}
