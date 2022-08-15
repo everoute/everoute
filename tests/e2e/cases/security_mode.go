@@ -100,7 +100,8 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 		})...)
 	}
 
-	return computePolicyFlow(policy.Spec.Tier, appliedIPs, ingressIPs, egressIPs, ingressPorts, egressPorts)
+	return computePolicyFlow(policy.Spec.Tier, policy.Spec.SecurityPolicyEnforcementMode,
+		appliedIPs, ingressIPs, egressIPs, ingressPorts, egressPorts)
 }
 
 func (m *SecurityModel) getPeerIPs(peer *securityv1alpha1.SecurityPolicyPeer) []string {
@@ -132,13 +133,20 @@ func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model
 	return matchEp
 }
 
-func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
+func computePolicyFlow(tier string, mode securityv1alpha1.PolicyMode, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
 	var flows []string
 	priority := constants.NormalPolicyRulePriority
-	ingressTableID, ingressNextTableID, egressTableID, egressNextTableID, err := getTableIds(tier)
+	ingressTableID, ingressNextTableID, egressTableID, egressNextTableID, err := getTableIds(tier, mode)
 	if err != nil {
 		klog.Infof("Failed to computePolicyFlow, error: %v", err)
 		return nil
+	}
+
+	ctLableRange := ""
+	if mode == securityv1alpha1.MonitorMode {
+		ctLableRange = "32..59"
+	} else {
+		ctLableRange = "60..87"
 	}
 
 	for _, appliedToIP := range appliedToIPs {
@@ -152,15 +160,15 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(ingressGroupPort.Protocol))
 
 				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*ingressTableID, priority, protocol, srcIP, appliedToIP, *ingressNextTableID)
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						*ingressTableID, priority, protocol, srcIP, appliedToIP, ctLableRange, *ingressNextTableID)
 				} else if ingressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort,
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ctLableRange,
 						*ingressNextTableID)
 					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask,
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask, ctLableRange,
 							*ingressNextTableID)
 					}
 				}
@@ -183,14 +191,14 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 				protocol := strings.ToLower(string(egressGroupPort.Protocol))
 
 				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, *egressNextTableID)
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						*egressTableID, priority, protocol, appliedToIP, dstIP, ctLableRange, *egressNextTableID)
 				} else if egressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, *egressNextTableID)
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, ctLableRange, *egressNextTableID)
 					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask,
+						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask, ctLableRange,
 							*egressNextTableID)
 					}
 				}
@@ -208,7 +216,7 @@ func computePolicyFlow(tier string, appliedToIPs, ingressIPs, egressIPs []string
 	return flows
 }
 
-func getTableIds(tier string) (*int, *int, *int, *int, error) {
+func getTableIds(tier string, mode securityv1alpha1.PolicyMode) (*int, *int, *int, *int, error) {
 	var ingressTableID, ingressNextTableID, egressTableID, egressNextTableID int
 	switch tier {
 	case "tier0":
@@ -217,15 +225,29 @@ func getTableIds(tier string) (*int, *int, *int, *int, error) {
 		ingressTableID = 50
 		ingressNextTableID = 70
 	case "tier1":
-		egressTableID = 25
-		egressNextTableID = 70
-		ingressTableID = 55
-		ingressNextTableID = 70
+		if mode == securityv1alpha1.MonitorMode {
+			egressTableID = 24
+			egressNextTableID = 25
+			ingressTableID = 54
+			ingressNextTableID = 55
+		} else {
+			egressTableID = 25
+			egressNextTableID = 70
+			ingressTableID = 55
+			ingressNextTableID = 70
+		}
 	case "tier2":
-		egressTableID = 30
-		egressNextTableID = 70
-		ingressTableID = 60
-		ingressNextTableID = 70
+		if mode == securityv1alpha1.MonitorMode {
+			egressTableID = 29
+			egressNextTableID = 30
+			ingressTableID = 59
+			ingressNextTableID = 60
+		} else {
+			egressTableID = 30
+			egressNextTableID = 70
+			ingressTableID = 60
+			ingressNextTableID = 70
+		}
 	default:
 		return nil, nil, nil, nil, fmt.Errorf("failed to get tableId")
 	}
