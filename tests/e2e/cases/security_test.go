@@ -224,6 +224,45 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 
+		When("create monitor mode security policies", func() {
+			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				nginxPolicy = newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
+				nginxPolicy.Spec.SecurityPolicyEnforcementMode = securityv1alpha1.MonitorMode
+				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
+				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
+
+				serverPolicy = newPolicy("server-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
+				serverPolicy.Spec.SecurityPolicyEnforcementMode = securityv1alpha1.MonitorMode
+				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
+				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
+
+				dbPolicy = newPolicy("db-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, dbSelector)
+				dbPolicy.Spec.SecurityPolicyEnforcementMode = securityv1alpha1.MonitorMode
+				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
+				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
+
+				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+			})
+
+			It("should allow all packets", func() {
+				assertFlowMatches(&SecurityModel{
+					Policies:  []*securityv1alpha1.SecurityPolicy{nginxPolicy, serverPolicy, dbPolicy},
+					Endpoints: []*model.Endpoint{nginx, server01, server02, db01, db02, client},
+				})
+
+				assertReachable([]*model.Endpoint{nginx},
+					[]*model.Endpoint{server01, server02, db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{server01},
+					[]*model.Endpoint{nginx, db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{db01},
+					[]*model.Endpoint{nginx, server01, server02}, "TCP", true)
+
+			})
+
+		})
+
 		When("limits icmp packets between components", func() {
 			var icmpAllowPolicy, icmpDropPolicy *securityv1alpha1.SecurityPolicy
 

@@ -28,6 +28,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	. "github.com/onsi/gomega"
+
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
 
 const (
@@ -110,6 +112,7 @@ func TestDpManager(t *testing.T) {
 
 	testLocalEndpoint(t)
 	testERPolicyRule(t)
+	testMonitorRule(t)
 	testFlowReplay(t)
 	testRoundNumFlip(t)
 }
@@ -166,6 +169,34 @@ func testERPolicyRule(t *testing.T) {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
+		}
+	})
+}
+
+func testMonitorRule(t *testing.T) {
+	t.Run("test ER policy rule with monitor mode", func(t *testing.T) {
+		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, v1alpha1.MonitorMode.String()); err != nil {
+			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
+		}
+		if _, ok := datapathManager.Rules[rule1.RuleID]; !ok {
+			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1)
+		}
+
+		if err := datapathManager.RemoveEveroutePolicyRule(rule1.RuleID, "rule1"); err != nil {
+			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
+		}
+		if _, ok := datapathManager.Rules[rule1.RuleID]; ok {
+			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
+		}
+
+		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
+			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
+		}
+		if _, ok := datapathManager.Rules[rule2.RuleID]; !ok {
+			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
+		}
+		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 	})
