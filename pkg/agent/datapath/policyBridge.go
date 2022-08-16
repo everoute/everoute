@@ -279,7 +279,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 0,
+				RegID: 4,
 				Data:  0x20,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -292,7 +292,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 0,
+				RegID: 4,
 				Data:  0x30,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -593,12 +593,12 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		switch rule.Action {
 		case "allow":
 			if rule.Priority == GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY {
-				if err := ruleFlow.LoadField("nxm_nx_reg0", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
+				if err := ruleFlow.LoadField("nxm_nx_reg4", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
 					return nil, err
 				}
 			}
 		case "deny":
-			if err := ruleFlow.LoadField("nxm_nx_reg0", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 				return nil, err
 			}
 		default:
