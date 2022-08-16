@@ -11,6 +11,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 //nolint
@@ -279,7 +281,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 4,
+				RegID: constants.OVSReg4,
 				Data:  0x20,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -292,7 +294,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 4,
+				RegID: constants.OVSReg4,
 				Data:  0x30,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -399,7 +401,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 6,
+				RegID: constants.OVSReg6,
 				Data:  0,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -415,7 +417,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 6,
+				RegID: constants.OVSReg6,
 				Data:  0,
 				Range: openflow13.NewNXRange(0, 15),
 			},

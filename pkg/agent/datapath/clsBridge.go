@@ -27,6 +27,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 //nolint
@@ -238,7 +240,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 0,
+				RegID: constants.OVSReg0,
 				Data:  0,
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -258,7 +260,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 0,
+				RegID: constants.OVSReg0,
 				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]),
 				Range: openflow13.NewNXRange(0, 15),
 			},
@@ -274,7 +276,7 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
-				RegID: 0,
+				RegID: constants.OVSReg0,
 				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]),
 				Range: openflow13.NewNXRange(0, 15),
 			},
