@@ -52,3 +52,9 @@ const (
 
 	EverouteComponentType = 0x0
 )
+
+const (
+	OVSReg0 = 0
+	OVSReg4 = 4
+	OVSReg6 = 6
+)
