@@ -52,13 +52,17 @@ func listenAndDialWithTestingT(t *testing.T, ld conn.ListenerDialer) {
 		Expect(server.Shutdown(context.Background())).Should(Succeed())
 	}()
 
-	resp, err := (&http.Client{
-		Transport: &http.Transport{DialContext: ld.DialContext},
-	}).Do(&http.Request{
-		Method: "GET",
-		URL:    &url.URL{Scheme: "http", Host: "localhost:0", Path: "/foo/bar"},
-	})
-	Expect(err).Should(Succeed())
+	var resp *http.Response
+	Eventually(func() error {
+		var err error
+		resp, err = (&http.Client{
+			Transport: &http.Transport{DialContext: ld.DialContext},
+		}).Do(&http.Request{
+			Method: "GET",
+			URL:    &url.URL{Scheme: "http", Host: "localhost:0", Path: "/foo/bar"},
+		})
+		return err
+	}).Should(Succeed())
 	Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 
 	body, _ := ioutil.ReadAll(resp.Body)
