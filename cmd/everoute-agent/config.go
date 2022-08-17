@@ -82,13 +82,15 @@ func getDatapathConfig() (*datapath.Config, error) {
 }
 
 func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) {
+	var err error
+
 	k8sClient := k8sReader.(client.Client)
 	agentInfo := datapathManager.AgentInfo
 	agentInfo.EnableCNI = true
 	agentInfo.NodeName = os.Getenv(constants.AgentNodeNameENV)
 
 	node := corev1.Node{}
-	if err := k8sClient.Get(context.Background(), client.ObjectKey{
+	if err = k8sClient.Get(context.Background(), client.ObjectKey{
 		Name: agentInfo.NodeName,
 	}, &node); err != nil {
 		klog.Fatalf("get node info error, err:%s", err)
@@ -105,7 +107,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 
 	// get cluster CIDR
 	pods := corev1.PodList{}
-	if err := k8sClient.List(context.Background(), &pods, client.InNamespace("kube-system")); err != nil {
+	if err = k8sClient.List(context.Background(), &pods, client.InNamespace("kube-system")); err != nil {
 		klog.Fatalf("get pod info error, err:%s", err)
 	}
 
@@ -135,6 +137,12 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
 		agentInfo.GatewayName = agentInfo.BridgeName + "-gw"
 		agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
+		agentInfo.LocalGwOfPort, err = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.LocalGwName)
+		if err != nil {
+			klog.Fatalf("fetch local gateway ofport error, err: %s", err)
+		}
+
+		break // only one VDS in CNI scene
 	}
 
 	// get gateway ip and mac

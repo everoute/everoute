@@ -54,9 +54,6 @@ start_ovs
 echo "init bridge"
 AGENT_CONFIG_PATH=/var/lib/everoute/agentconfig.yaml
 
-LOCAL_GATEWAY_OFPORT=10
-UPLINK_GATEWAY_OFPORT=10
-
 EVEROUTE_ROUTE_TABLE=100
 EVEROUTE_IP_RULE_PREF=100
 LOCAL_IP_RULE_PREF=200
@@ -104,10 +101,10 @@ ovs-vsctl \
     -- add-port ${CLS_BRIDGE} ${CLS_TO_UPLINK_PATCH} \
     -- set interface ${CLS_TO_UPLINK_PATCH} type=patch options:peer=${UPLINK_TO_CLS_PATCH}
 
-ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal -- set Interface ${GW_IFACE} ofport=${UPLINK_GATEWAY_OFPORT}
+ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal
 
 # add port gw-local
-ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal -- set Interface ${GW_LOCAL_IFACE} ofport=${LOCAL_GATEWAY_OFPORT}
+ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
 ip link set ${GW_LOCAL_IFACE} up
 ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE}
 

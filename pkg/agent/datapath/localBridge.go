@@ -349,7 +349,7 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for local pod
 	arpPodFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   HIGH_MATCH_FLOW_PRIORITY,
-		InputPort:  uint32(LOCAL_GATEWAY_PORT),
+		InputPort:  l.datapathManager.AgentInfo.LocalGwOfPort,
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &l.datapathManager.AgentInfo.PodCIDR[0].IP,
 		ArpTpaMask: (*net.IP)(&l.datapathManager.AgentInfo.PodCIDR[0].Mask),
@@ -362,7 +362,7 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for other ip, response arp with uplink gateway mac address
 	arpGwFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(LOCAL_GATEWAY_PORT),
+		InputPort: l.datapathManager.AgentInfo.LocalGwOfPort,
 		Ethertype: PROTOCOL_ARP,
 	})
 	// set actions for arp response
@@ -394,7 +394,7 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for other ip, response arp with uplink gateway mac address
 	arpGwFlowHigh, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		InputPort:  uint32(LOCAL_GATEWAY_PORT),
+		InputPort:  l.datapathManager.AgentInfo.LocalGwOfPort,
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &l.datapathManager.AgentInfo.GatewayIP,
 		ArpTpaMask: &net.IPv4bcast,
@@ -435,7 +435,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		openflow13.NewNXRange(0, 47))
 	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", 0x1,
 		openflow13.NewNXRange(29, 29))
-	outputPortLocalGateWay, _ := sw.OutputPort(LOCAL_GATEWAY_PORT)
+	outputPortLocalGateWay, _ := sw.OutputPort(l.datapathManager.AgentInfo.LocalGwOfPort)
 	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
 	}
@@ -509,7 +509,7 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	localGwToPolicy, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
-		InputPort:   uint32(LOCAL_GATEWAY_PORT),
+		InputPort:   l.datapathManager.AgentInfo.LocalGwOfPort,
 		PktMark:     0x20000000,
 		PktMarkMask: &pktMarkMask,
 	})
@@ -525,7 +525,7 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	localGwToLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		InputPort: uint32(LOCAL_GATEWAY_PORT),
+		InputPort: l.datapathManager.AgentInfo.LocalGwOfPort,
 	})
 	if err := localGwToLocal.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
