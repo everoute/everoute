@@ -19,11 +19,11 @@ package rpcserver
 import (
 	"context"
 
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
-	pb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
 
 type Collector struct {
@@ -31,7 +31,7 @@ type Collector struct {
 	stopChan  <-chan struct{}
 }
 
-func (c *Collector) ArpStream(req *emptypb.Empty, srv pb.Collector_ArpStreamServer) error {
+func (c *Collector) ArpStream(req *emptypb.Empty, srv v1alpha1.Collector_ArpStreamServer) error {
 	klog.Info("receive collector client, start arp stream")
 	for {
 		select {
@@ -40,7 +40,7 @@ func (c *Collector) ArpStream(req *emptypb.Empty, srv pb.Collector_ArpStreamServ
 			if err != nil {
 				continue
 			}
-			resp := pb.ArpResponse{
+			resp := v1alpha1.ArpResponse{
 				Pkt: b,
 			}
 			if err := srv.Send(&resp); err != nil {
@@ -54,26 +54,26 @@ func (c *Collector) ArpStream(req *emptypb.Empty, srv pb.Collector_ArpStreamServ
 	}
 }
 
-func (c *Collector) GetChainBridge(ctx context.Context, req *emptypb.Empty) (*pb.ChainBridgeResp, error) {
-	resp := &pb.ChainBridgeResp{
+func (c *Collector) GetChainBridge(ctx context.Context, req *emptypb.Empty) (*v1alpha1.ChainBridgeResp, error) {
+	resp := &v1alpha1.ChainBridgeResp{
 		Bridge: c.dpManager.GetChainBridge(),
 	}
 
 	return resp, nil
 }
 
-func (c *Collector) Policy(ctx context.Context, req *pb.PolicyRequest) (*pb.PolicyResponse, error) {
+func (c *Collector) Policy(ctx context.Context, req *v1alpha1.PolicyRequest) (*v1alpha1.PolicyResponse, error) {
 	policies := c.dpManager.GetPolicyByFlowID(req.FlowIDs...)
-	var policyList []*pb.PolicyList
+	var policyList []*v1alpha1.PolicyList
 
 	for _, p := range policies {
-		policy := &pb.PolicyList{
+		policy := &v1alpha1.PolicyList{
 			Dir:    uint32(p.Dir),
 			Action: p.Action,
 			Mode:   p.Mode,
 		}
 		for _, item := range p.Item {
-			policy.Items = append(policy.Items, &pb.PolicyItem{
+			policy.Items = append(policy.Items, &v1alpha1.PolicyItem{
 				Name:       item.Name,
 				Namespace:  item.Namespace,
 				PolicyType: string(item.PolicyType),
@@ -82,7 +82,7 @@ func (c *Collector) Policy(ctx context.Context, req *pb.PolicyRequest) (*pb.Poli
 		policyList = append(policyList, policy)
 	}
 
-	return &pb.PolicyResponse{List: policyList}, nil
+	return &v1alpha1.PolicyResponse{List: policyList}, nil
 }
 
 func NewCollectorServer(datapathManager *datapath.DpManager, stopChan <-chan struct{}) *Collector {

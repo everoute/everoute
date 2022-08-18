@@ -43,6 +43,7 @@ import (
 	"k8s.io/klog"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
+	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -409,6 +410,40 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 	}
 
 	return policyInfoList
+}
+
+func (datapathManager *DpManager) GetRulesByFlowIDs(flowIDs ...uint64) []*v1alpha1.RuleEntry {
+	datapathManager.flowReplayMutex.RLock()
+	defer datapathManager.flowReplayMutex.RUnlock()
+	ans := []*v1alpha1.RuleEntry{}
+	for _, id := range flowIDs {
+		if entry, ok := datapathManager.FlowIDToRules[id]; ok {
+			ans = append(ans, datapathRule2RpcRule(entry))
+		}
+	}
+	return ans
+}
+
+func (datapathManager *DpManager) GetRulesByRuleIDs(ruleIDs ...string) []*v1alpha1.RuleEntry {
+	datapathManager.flowReplayMutex.RLock()
+	defer datapathManager.flowReplayMutex.RUnlock()
+	ans := []*v1alpha1.RuleEntry{}
+	for _, id := range ruleIDs {
+		if entry, ok := datapathManager.Rules[id]; ok {
+			ans = append(ans, datapathRule2RpcRule(entry))
+		}
+	}
+	return ans
+}
+
+func (datapathManager *DpManager) GetAllRules() []*v1alpha1.RuleEntry {
+	datapathManager.flowReplayMutex.RLock()
+	defer datapathManager.flowReplayMutex.RUnlock()
+	ans := []*v1alpha1.RuleEntry{}
+	for _, entry := range datapathManager.Rules {
+		ans = append(ans, datapathRule2RpcRule(entry))
+	}
+	return ans
 }
 
 func (datapathManager *DpManager) InitializeCNI() {

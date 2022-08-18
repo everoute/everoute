@@ -308,7 +308,6 @@ func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlo
 			delete(count, ip)
 		}
 	}
-
 }
 
 const (
