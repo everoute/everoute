@@ -5,8 +5,8 @@ go 1.15
 require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/Sirupsen/logrus v0.8.8-0.20160119000032-f7f79f729e0f
+	github.com/agiledragon/gomonkey/v2 v2.8.0
 	github.com/alessio/shellescape v1.4.1
-	github.com/alexflint/go-filemutex v1.1.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
@@ -29,6 +29,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.3
 	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
+	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
