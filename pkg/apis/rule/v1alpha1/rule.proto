@@ -1,0 +1,57 @@
+syntax = "proto3";
+package everoute_io.pkg.apis.rpc.v1alpha1;;
+option go_package = "pkg/apis/rule/v1alpha1";
+
+
+import "google/protobuf/empty.proto";
+
+message PolicyRule{
+  string RuleID = 1;
+  int32  Priority = 2;
+  string SrcIPAddr = 3;
+  string DstIPAddr = 4;
+  uint32 IPProtocol = 5;
+  uint32 SrcPort = 6;
+  uint32 SrcPortMask = 7;
+  uint32 DstPort = 8;
+  uint32 DstPortMask = 9;
+  string Action = 10;
+}
+
+message FlowEntry{
+  uint32 Priority = 1;
+  uint64 FlowID = 2;
+}
+
+message PolicyRuleReference{
+  string NameSpace = 1;
+  string Name = 2;
+  string Type = 3;
+}
+
+message RuleEntry{
+  PolicyRule EveroutePolicyRule = 1;
+  uint32 Direction = 2;
+  uint32 Tier = 3;
+  string Mode = 4;
+  map<string, FlowEntry> RuleFlowMap = 5;
+  repeated PolicyRuleReference PolicyRuleReference = 6;
+}
+
+message RuleEntries{
+  repeated RuleEntry RuleEntries = 1;
+}
+
+message RuleIDs{
+  repeated string RuleIDs = 1;
+}
+
+message FlowIDs{
+  repeated uint64 FlowIDs = 1;
+}
+
+service Getter {
+  rpc GetAllRules(google.protobuf.Empty) returns (RuleEntries){}
+  rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
+  rpc GetRulesByFlow(FlowIDs) returns (RuleEntries){}
+}

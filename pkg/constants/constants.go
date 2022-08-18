@@ -51,6 +51,9 @@ const (
 	AgentNameConfigPath = "/var/lib/everoute/agent/name"
 
 	EverouteComponentType = 0x0
+
+	RPCSocketAddr   = "/var/lib/everoute/rpc.sock"
+	EverouteLibPath = "/var/lib/everoute"
 )
 
 const (

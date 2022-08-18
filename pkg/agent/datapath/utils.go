@@ -19,6 +19,9 @@ package datapath
 import (
 	"fmt"
 	"os/exec"
+	"strings"
+
+	"github.com/everoute/everoute/pkg/apis/rule/v1alpha1"
 )
 
 const (
@@ -93,4 +96,45 @@ func ParseMacToUint64(b []byte) uint64 {
 	_ = b[5]
 	return uint64(b[5]) | uint64(b[4])<<8 | uint64(b[3])<<16 | uint64(b[2])<<24 |
 		uint64(b[1])<<32 | uint64(b[0])<<40 | 0<<48 | 0<<56
+}
+
+func datepathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
+	rpcRFM := map[string]*v1alpha1.FlowEntry{}
+	for k, v := range entry.RuleFlowMap {
+		rpcRFM[k] = &v1alpha1.FlowEntry{
+			Priority: uint32(v.Priority),
+			FlowID:   v.FlowID,
+		}
+	}
+	rpcReference := []*v1alpha1.PolicyRuleReference{}
+	for reference := range entry.PolicyRuleReference {
+		references := strings.Split(reference, "/")
+		if len(references) < 3 {
+			continue
+		}
+		rpcReference = append(rpcReference, &v1alpha1.PolicyRuleReference{
+			NameSpace: references[0],
+			Name:      references[1],
+			Type:      references[2],
+		})
+	}
+	return &v1alpha1.RuleEntry{
+		EveroutePolicyRule: &v1alpha1.PolicyRule{
+			RuleID:      entry.EveroutePolicyRule.RuleID,
+			Priority:    int32(entry.EveroutePolicyRule.Priority),
+			SrcIPAddr:   entry.EveroutePolicyRule.SrcIPAddr,
+			DstIPAddr:   entry.EveroutePolicyRule.DstIPAddr,
+			IPProtocol:  uint32(entry.EveroutePolicyRule.IPProtocol),
+			SrcPort:     uint32(entry.EveroutePolicyRule.SrcPort),
+			SrcPortMask: uint32(entry.EveroutePolicyRule.SrcPortMask),
+			DstPort:     uint32(entry.EveroutePolicyRule.DstPort),
+			DstPortMask: uint32(entry.EveroutePolicyRule.DstPortMask),
+			Action:      entry.EveroutePolicyRule.Action,
+		},
+		Direction:           uint32(entry.Direction),
+		Tier:                uint32(entry.Tier),
+		Mode:                entry.Mode,
+		RuleFlowMap:         rpcRFM,
+		PolicyRuleReference: rpcReference,
+	}
 }

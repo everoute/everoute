@@ -1,7 +1,7 @@
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
 
-bin: controller agent cni
+bin: controller agent cni erctl
 
 images: image image-generate
 
@@ -32,6 +32,9 @@ agent:
 
 cni:
 	CGO_ENABLED=0 go build -o bin/everoute-cni cmd/everoute-cni/*.go
+
+erctl:
+	CGO_ENABLED=0 go build -o bin/erctl cmd/everoute-cli/*.go
 
 e2e-tools:
 	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go
@@ -81,6 +84,7 @@ gqlgen:
 protopb:
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/cni/v1alpha1/cni.proto
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/collector.proto
+	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rule/v1alpha1/rule.proto
 
 apidocs-gen:
 	$(eval PATH := $$(PATH):$(shell go env GOPATH)/bin)

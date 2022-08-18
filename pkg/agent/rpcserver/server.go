@@ -25,10 +25,9 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	pb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	getter "github.com/everoute/everoute/pkg/apis/rule/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
-
-const RPCSocketAddr = "/var/lib/everoute/rpc.sock"
-const EverouteLibPath = "/var/lib/everoute"
 
 type Server struct {
 	dpManager *datapath.DpManager
@@ -48,19 +47,19 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	s.stopChan = stopChan
 
 	// create path
-	if _, err := os.Stat(EverouteLibPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(EverouteLibPath, os.ModePerm); err != nil {
-			klog.Fatalf("unable to create %s", EverouteLibPath)
+	if _, err := os.Stat(constants.EverouteLibPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(constants.EverouteLibPath, os.ModePerm); err != nil {
+			klog.Fatalf("unable to create %s", constants.EverouteLibPath)
 		}
-		if err := os.Chmod(EverouteLibPath, os.ModePerm); err != nil {
-			klog.Fatalf("unable to chmod %s", EverouteLibPath)
+		if err := os.Chmod(constants.EverouteLibPath, os.ModePerm); err != nil {
+			klog.Fatalf("unable to chmod %s", constants.EverouteLibPath)
 		}
 	}
 
 	// remove the remaining sock file
-	_, err := os.Stat(RPCSocketAddr)
+	_, err := os.Stat(constants.RPCSocketAddr)
 	if err == nil {
-		err = os.Remove(RPCSocketAddr)
+		err = os.Remove(constants.RPCSocketAddr)
 		if err != nil {
 			klog.Fatalf("remove remaining sock file error, err:%s", err)
 			return
@@ -68,15 +67,18 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	}
 
 	// listen socket
-	listener, err := net.Listen("unix", RPCSocketAddr)
+	listener, err := net.Listen("unix", constants.RPCSocketAddr)
 	if err != nil {
-		klog.Fatalf("Failed to bind on %s: %v", RPCSocketAddr, err)
+		klog.Fatalf("Failed to bind on %s: %v", constants.RPCSocketAddr, err)
 	}
 
 	rpcServer := grpc.NewServer()
 	// register collector service
 	collector := NewCollectorServer(s.dpManager, stopChan)
+	getterServer := NewGetterServer(s.dpManager)
+
 	pb.RegisterCollectorServer(rpcServer, collector)
+	getter.RegisterGetterServer(rpcServer, getterServer)
 
 	// start rpc Server
 	go func() {
