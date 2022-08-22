@@ -38,6 +38,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
@@ -630,7 +631,7 @@ func GetCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance)
 }
 
 func GetSystemEndpointName(key string) string {
-	return SystemEndpointPrefix + key
+	return SystemEndpointPrefix + utils.Base64AndSha256(key)[:32]
 }
 
 // set endpoint return false if endpoint not changes

@@ -32,16 +32,13 @@ func EncodeNamespacedName(namespacedName coretypes.NamespacedName) string {
 		klog.Error("Could not encode empty namespacedName")
 		return ""
 	}
+	return Base64AndSha256(namespacedName.Namespace + namespacedName.Name)[:32]
+}
 
-	// encode name and namespace with base64
-	var b []byte
-	b = append(b, Base64Encode([]byte(namespacedName.Namespace))...)
-	b = append(b, Base64Encode([]byte(namespacedName.Name))...)
-
-	// encode with sha256
+func Base64AndSha256(input string) string {
+	b := Base64Encode([]byte(input))
 	hash := sha256.Sum256(b)
-
-	return fmt.Sprintf("%x", hash)[:32]
+	return fmt.Sprintf("%x", hash)
 }
 
 func GetIfaceIP(name string) (net.IP, error) {
