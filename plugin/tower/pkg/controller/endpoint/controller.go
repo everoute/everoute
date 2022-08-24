@@ -631,7 +631,11 @@ func GetCtrlEndpointName(cluster string, ctrl schema.EverouteControllerInstance)
 }
 
 func GetSystemEndpointName(key string) string {
-	return SystemEndpointPrefix + utils.Base64AndSha256(key)[:32]
+	name := SystemEndpointPrefix + key
+	if len(validation.IsDNS1123Subdomain(name)) != 0 {
+		name = SystemEndpointPrefix + utils.Base64AndSha256(key)[:32]
+	}
+	return name
 }
 
 // set endpoint return false if endpoint not changes

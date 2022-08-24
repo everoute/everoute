@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
@@ -387,6 +388,26 @@ func TestValidKubernetesLabel(t *testing.T) {
 			if tc.expectValid != isValidLabel {
 				t.Fatalf("key = %s, value = %s, expect valid %t but not", tc.labelKey, tc.labelValue, tc.expectValid)
 			}
+		})
+	}
+}
+
+func TestGetSystemEndpointName(t *testing.T) {
+	testKeys := []string{
+		"backup.cl77b1h8600uf2oud2d2cf5mq.storage",
+		"cloudtower",
+		"backup/cl77b1h8600uf2oud2d2cf5mq/storage",
+		"string@with&special%&^characTer",
+		"中文字符串💖",
+		"key with space",
+		"long_key_" + rand.String(1000),
+	}
+
+	for index, tk := range testKeys {
+		t.Run(fmt.Sprintf("case[%d]: key = %s", index, tk), func(t *testing.T) {
+			RegisterTestingT(t)
+			key := controller.GetSystemEndpointName(tk)
+			Expect(validation.IsDNS1123Subdomain(key)).Should(HaveLen(0))
 		})
 	}
 }
