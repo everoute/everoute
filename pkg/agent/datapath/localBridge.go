@@ -40,8 +40,6 @@ const (
 	FROM_LOCAL_ARP_TO_CONTROLLER_TABLE = 25
 	CNI_CT_COMMIT_TABLE                = 100
 	CNI_CT_REDIRECT_TABLE              = 105
-	COLLECTOR_CT_COMMIT_TABLE          = 200
-	COLLECTOR_CT_REDIRECT_TABLE        = 205
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 	P_NONE                             = 0xffff
 	CNI_CONNTRACK_ZONE                 = 65510
@@ -295,21 +293,6 @@ func (l *LocalBridge) BridgeInit() {
 	l.fromLocalRedirectTable, _ = sw.NewTable(FROM_LOCAL_REDIRECT_TABLE)
 	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
 	l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
-
-	// clear collector flows if existed
-	var inputCtFlowPriority uint16 = NORMAL_MATCH_FLOW_PRIORITY
-	var matchFields []*openflow13.MatchField
-	protoField := openflow13.NewEthTypeField(protocol.IPv4_MSG)
-	matchFields = append(matchFields, protoField)
-	if err := sw.DeleteSpecTableFlows(VLAN_INPUT_TABLE, &inputCtFlowPriority, matchFields); err != nil {
-		log.Fatalf("Failed to delete single local bridge vlanInput table, error: %v", err)
-	}
-	if err := sw.DeleteSpecTableFlows(COLLECTOR_CT_COMMIT_TABLE, nil, nil); err != nil {
-		log.Fatalf("Failed to delete single local bridge ct commit table, error: %v", err)
-	}
-	if err := sw.DeleteSpecTableFlows(COLLECTOR_CT_REDIRECT_TABLE, nil, nil); err != nil {
-		log.Fatalf("Failed to delete single local bridge ct redirect table, error: %v", err)
-	}
 
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
