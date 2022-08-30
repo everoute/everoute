@@ -268,7 +268,7 @@ type Endpoint struct {
 }
 
 // EndpointType defines network protocols supported for SecurityPolicy.
-// +kubebuilder:validation:Enum=dynamic;static
+// +kubebuilder:validation:Enum=dynamic;static;static-ip
 type EndpointType string
 
 const (
@@ -276,6 +276,8 @@ const (
 	EndpointDynamic EndpointType = "dynamic"
 	// EndpointStatic will not update endpoint status from agentInfo.
 	EndpointStatic EndpointType = "static"
+	// EndpointStaticIP will update endpoint status from agentInfo except ip.
+	EndpointStaticIP EndpointType = "static-ip"
 )
 
 // EndpointSpec provides the specification of an Endpoint

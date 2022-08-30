@@ -627,6 +627,7 @@ spec:
                 enum:
                 - dynamic
                 - static
+                - static-ip
                 type: string
               vid:
                 description: VID describe the endpoint in which VLAN

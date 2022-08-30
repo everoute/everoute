@@ -39,6 +39,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 var (
@@ -292,6 +293,25 @@ var (
 			IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
 		},
 	}
+	fakeEndpointE = &securityv1alpha1.Endpoint{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Endpoint",
+			APIVersion: "security.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeEndpointE",
+		},
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  endpointExternalIDKey,
+				ExternalIDValue: "ep04",
+			},
+			Type: securityv1alpha1.EndpointStaticIP,
+		},
+		Status: securityv1alpha1.EndpointStatus{
+			IPs: []types.IPAddress{ovsPortStatusA.IPs[0]},
+		},
+	}
 )
 
 // newFakeReconciler return a new EndpointReconciler with fake client, this client
@@ -308,6 +328,7 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 		ifaceCache: cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
 			agentIndex:      agentIndexFunc,
 			externalIDIndex: externalIDIndexFunc,
+			ipAddrIndex:     ipAddrIndexFunc,
 		}),
 	}
 }
@@ -344,7 +365,7 @@ func TestEndpointController(t *testing.T) {
 
 func testProcessAgentinfo(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointD)
+	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointD, fakeEndpointE)
 
 	t.Run("agentinfo-added", func(t *testing.T) {
 		// Fake: endpoint added and agentinfo added event when controller start.
@@ -358,7 +379,13 @@ func testProcessAgentinfo(t *testing.T) {
 			Object: fakeEndpointD,
 		}, queue)
 
+		r.addEndpoint(event.CreateEvent{
+			Meta:   fakeEndpointE.GetObjectMeta(),
+			Object: fakeEndpointE,
+		}, queue)
+
 		_ = r.Client.Update(context.Background(), fakeEndpointD)
+		_ = r.Client.Update(context.Background(), fakeEndpointE)
 
 		r.addAgentInfo(event.CreateEvent{
 			Meta:   fakeAgentInfoA.GetObjectMeta(),
@@ -375,6 +402,14 @@ func testProcessAgentinfo(t *testing.T) {
 			t.Errorf("endpoint status should not change, get %v, want %v", endpointStatus, fakeEndpointD.Status)
 		}
 
+		endpointStatusE := getFakeEndpoint(r.Client, fakeEndpointE.Name).Status
+		if !utils.EqualIPs(endpointStatusE.IPs, fakeEndpointE.Status.IPs) {
+			t.Errorf("static ip endpoint should not change ip, get %v, want %v", endpointStatusE.IPs, fakeEndpointE.Status.IPs)
+		}
+		if !utils.EqualStringSlice(endpointStatusE.Agents, []string{"fakeAgentInfoA"}) {
+			t.Errorf("static ip endpoint should update agent, get %v, want fakeAgentInfoA", endpointStatusE)
+		}
+
 		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
 		if !EqualEndpointStatus(ovsPortStatusA, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
@@ -386,6 +421,15 @@ func testProcessAgentinfo(t *testing.T) {
 	})
 
 	t.Run("agentinfo-updated", func(t *testing.T) {
+		_ = r.Client.Update(context.Background(), fakeEndpointE)
+		endpointStatusE := getFakeEndpoint(r.Client, fakeEndpointE.Name).Status
+		if !utils.EqualIPs(endpointStatusE.IPs, fakeEndpointE.Status.IPs) {
+			t.Errorf("static ip endpoint should not change ip, get %v, want %v", endpointStatusE.IPs, fakeEndpointE.Status.IPs)
+		}
+		if !utils.EqualStringSlice(endpointStatusE.Agents, []string{"fakeAgentInfoA"}) {
+			t.Errorf("static ip endpoint should update agent, get %v, want fakeAgentInfoA", endpointStatusE)
+		}
+
 		// Fake: agent will update information when ovsinfo changes.
 		r.updateAgentInfo(event.UpdateEvent{
 			MetaOld:   fakeAgentInfoA.GetObjectMeta(),
@@ -397,6 +441,14 @@ func testProcessAgentinfo(t *testing.T) {
 		// process agentinfo update request from queue
 		if err := processQueue(r, queue); err != nil {
 			t.Errorf("failed to process add agentinfo request")
+		}
+
+		endpointStatusE = getFakeEndpoint(r.Client, fakeEndpointE.Name).Status
+		if !utils.EqualIPs(endpointStatusE.IPs, fakeEndpointE.Status.IPs) {
+			t.Errorf("static ip endpoint should not change ip, get %v, want %v", endpointStatusE.IPs, fakeEndpointE.Status.IPs)
+		}
+		if len(endpointStatusE.Agents) != 0 {
+			t.Errorf("static ip endpoint should clean agents, get %v, want null", endpointStatusE.Agents)
 		}
 
 		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
@@ -419,6 +471,15 @@ func testProcessAgentinfo(t *testing.T) {
 		// process agentinfo delete request from queue
 		if err := processQueue(r, queue); err != nil {
 			t.Errorf("failed to process add agentinfo request")
+		}
+
+		_ = r.Client.Update(context.Background(), fakeEndpointE)
+		endpointStatusE := getFakeEndpoint(r.Client, fakeEndpointE.Name).Status
+		if !utils.EqualIPs(endpointStatusE.IPs, fakeEndpointE.Status.IPs) {
+			t.Errorf("static ip endpoint should not change ip, get %v, want %v", endpointStatusE.IPs, fakeEndpointE.Status.IPs)
+		}
+		if len(endpointStatusE.Agents) != 0 {
+			t.Errorf("static ip endpoint should clean agents, get %v, want null", endpointStatusE.Agents)
 		}
 
 		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status

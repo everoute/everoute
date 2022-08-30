@@ -57,6 +57,7 @@ type EndpointReconciler struct {
 
 const (
 	externalIDIndex              = "externalIDIndex"
+	ipAddrIndex                  = "ipaddrIndex"
 	agentIndex                   = "agentIndex"
 	endpointExternalIDKey        = "iface-id"
 	k8sEndpointExternalIDKey     = "pod-uuid"
@@ -67,8 +68,9 @@ const (
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
 // from agentinfo.
 func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	var err error
 	ctx := context.Background()
-	klog.V(2).Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
+	klog.Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
 
 	endpoint := securityv1alpha1.Endpoint{}
 	if err := r.Get(ctx, req.NamespacedName, &endpoint); err != nil {
@@ -79,16 +81,24 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	var expectStatus *securityv1alpha1.EndpointStatus
+	switch endpoint.Spec.Type {
 	// Do not change endpoint status for EndpointStaticIP
-	if endpoint.Spec.Type == securityv1alpha1.EndpointStatic {
+	case securityv1alpha1.EndpointStatic:
 		return ctrl.Result{}, nil
-	}
-
-	// Fetch enpoint status from agentinfo.
-	expectStatus, err := r.fetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
-	if err != nil {
-		klog.Errorf("while fetch endpoint status: %s", err.Error())
-		return ctrl.Result{}, err
+	// Fetch status by static IPs from agentinfo, instead of ExternalID
+	case securityv1alpha1.EndpointStaticIP:
+		if len(endpoint.Status.IPs) == 0 {
+			return ctrl.Result{}, nil
+		}
+		expectStatus = r.fetchEndpointStatusByIP(endpoint.Status.IPs)
+	default:
+		// Fetch enpoint status from agentinfo.
+		expectStatus, err = r.fetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
+		if err != nil {
+			klog.Errorf("while fetch endpoint status: %s", err.Error())
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Skip if none change for this endpoint.
@@ -124,6 +134,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.ifaceCache = cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
 			agentIndex:      agentIndexFunc,
 			externalIDIndex: externalIDIndexFunc,
+			ipAddrIndex:     ipAddrIndexFunc,
 		})
 	}
 
@@ -138,6 +149,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	err = c.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.Funcs{
 		CreateFunc: r.addEndpoint,
+		UpdateFunc: r.updateEndpoint,
 	})
 	if err != nil {
 		return err
@@ -163,6 +175,18 @@ func (r *EndpointReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLi
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
 		Namespace: e.Meta.GetNamespace(),
 		Name:      e.Meta.GetName(),
+	}})
+}
+
+func (r *EndpointReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	if e.MetaNew == nil {
+		klog.Errorf("UpdateEndpoint received with no metadata event: %v", e)
+		return
+	}
+
+	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+		Namespace: e.MetaNew.GetNamespace(),
+		Name:      e.MetaNew.GetName(),
 	}})
 }
 
@@ -322,7 +346,16 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 // If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
 func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alpha1.EndpointList, agentName string, queue workqueue.Interface) {
 	for _, ep := range epList.Items {
-		ifaces, _ := r.ifaceCache.ByIndex(externalIDIndex, GetEndpointID(ep).String())
+		var ifaces []interface{}
+		ifacesExt, _ := r.ifaceCache.ByIndex(externalIDIndex, GetEndpointID(ep).String())
+		ifaces = append(ifaces, ifacesExt...)
+		if ep.Spec.Type == securityv1alpha1.EndpointStaticIP {
+			for _, ip := range ep.Status.IPs {
+				ifacesIPAddr, _ := r.ifaceCache.ByIndex(ipAddrIndex, ip.String())
+				ifaces = append(ifaces, ifacesIPAddr...)
+			}
+		}
+
 		for _, cacheIface := range ifaces {
 			if cacheIface.(*iface).agentName == agentName {
 				queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
@@ -446,6 +479,22 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 	}
 }
 
+func (r *EndpointReconciler) fetchEndpointStatusByIP(ips []types.IPAddress) *securityv1alpha1.EndpointStatus {
+	r.ifaceCacheLock.RLock()
+	defer r.ifaceCacheLock.RUnlock()
+	agents := sets.NewString()
+	for _, ip := range ips {
+		ifaces, _ := r.ifaceCache.ByIndex(ipAddrIndex, ip.String())
+		for _, item := range ifaces {
+			agents.Insert(item.(*iface).agentName)
+		}
+	}
+	return &securityv1alpha1.EndpointStatus{
+		IPs:    ips,
+		Agents: agents.List(),
+	}
+}
+
 // EqualEndpointStatus return true if and only if the two endpoint has the same
 // status.
 func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.EndpointStatus) bool {
@@ -541,6 +590,14 @@ func externalIDIndexFunc(obj interface{}) ([]string, error) {
 		}.String())
 	}
 	return externalIDs, nil
+}
+
+func ipAddrIndexFunc(obj interface{}) ([]string, error) {
+	var ipAddr []string
+	for ip := range obj.(*iface).ipLastUpdateTimeMap {
+		ipAddr = append(ipAddr, ip.String())
+	}
+	return ipAddr, nil
 }
 
 func toIPStringSet(ipMap map[types.IPAddress]metav1.Time) sets.String {
