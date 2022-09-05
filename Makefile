@@ -15,7 +15,7 @@ image-test:
 	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
 
 yaml:
-	find deploy -name "*.yaml" | grep -v ^deploy/everoute.yaml$ | sort -u | xargs cat | cat > deploy/everoute.yaml
+	helm template deploy/chart --include-crds > deploy/everoute.yaml
 
 generate: codegen gqlgen protopb manifests yaml apidocs-gen
 	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
@@ -95,7 +95,7 @@ apidocs-gen:
 
 # Generate CRD manifests
 manifests:
-	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/crds output:stdout
+	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/chart/crds output:stdout
 
 # Run go fmt against code
 fmt:
