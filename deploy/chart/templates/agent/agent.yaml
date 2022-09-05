@@ -3,8 +3,8 @@ apiVersion: v1
 data:
   agentconfig.yaml: |
     datapathConfig:
-      cnibr0: cnibr0
-    localGwIP: 100.64.254.254
+      {{ .Values.bridgeName }}: {{ .Values.bridgeName }}
+    localGwIP: {{ .Values.localGwIP }}
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -57,7 +57,7 @@ spec:
       containers:
         - name: init-agent
           command: ["init_agent"]
-          image: everoute/release
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
           lifecycle:
             postStart:
@@ -93,7 +93,7 @@ spec:
             successThreshold: 1
             failureThreshold: 3
         - name: everoute-agent
-          image: everoute/release
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
           command: ["everoute-agent"]
           args:

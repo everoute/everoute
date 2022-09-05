@@ -63,7 +63,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		UseExistingCluster: &useExistingCluster,
 		CRDInstallOptions: envtest.CRDInstallOptions{
-			Paths:           []string{filepath.Join("..", "..", "..", "deploy", "crds")},
+			Paths:           []string{filepath.Join("..", "..", "..", "deploy", "chart", "crds")},
 			CleanUpAfterUse: true,
 		},
 	}

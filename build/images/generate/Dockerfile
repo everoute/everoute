@@ -14,5 +14,6 @@ RUN wget -qO- $APISERVER_BOOT_RELEASE_URL | tar -C /go -zxf -
 ENV PROTOC_RELEASE_URL=https://github.com/protocolbuffers/protobuf/releases/download/v3.17.3/protoc-3.17.3-linux-x86_64.zip
 RUN apt update && apt install -y zip && rm -rf /var/lib/apt/lists/*
 RUN wget -O protoc.zip $PROTOC_RELEASE_URL && unzip -d /usr/local protoc.zip && rm -rf protoc.zip
+RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 ENV GOROOT=/usr/local/go

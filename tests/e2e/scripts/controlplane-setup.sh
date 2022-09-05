@@ -114,13 +114,13 @@ function generate_certs() {
 }
 
 function setup_crds() {
-  local crds_path=${BASEDIR}/deploy/crds
+  local crds_path=${BASEDIR}/deploy/chart/crds
   kubectl apply -f ${crds_path}
 }
 
 function setup_rbac() {
-  local everoute_agent_rbac_path="${BASEDIR}/deploy/everoute-agent"
-  local everoute_controller_rbac_path="${BASEDIR}/deploy/everoute-controller"
+  local everoute_agent_rbac_path="${BASEDIR}/deploy/chart/templates/agent"
+  local everoute_controller_rbac_path="${BASEDIR}/deploy/chart/templates/controller"
 
   kubectl apply -f ${everoute_agent_rbac_path}/role.yaml
   kubectl apply -f ${everoute_controller_rbac_path}/role.yaml

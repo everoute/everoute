@@ -32,7 +32,7 @@ spec:
       serviceAccountName: everoute-controller
       containers:
         - name: everoute-controller
-          image: everoute/release
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
           command: ["everoute-controller"]
           args:

@@ -1,3 +1,5 @@
+---
+# Source: crds/agent.everoute.io_agentinfos.yaml
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -125,6 +127,9 @@ status:
     plural: ""
   conditions: []
   storedVersions: []
+
+---
+# Source: crds/group.everoute.io_endpointgroups.yaml
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -306,6 +311,9 @@ status:
   storedVersions: []
 
 ---
+# Source: crds/group.everoute.io_groupmembers.yaml
+
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -386,6 +394,9 @@ status:
     plural: ""
   conditions: []
   storedVersions: []
+
+---
+# Source: crds/group.everoute.io_groupmemberspatches.yaml
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -545,6 +556,9 @@ status:
   storedVersions: []
 
 ---
+# Source: crds/security.everoute.io_endpoints.yaml
+
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -672,6 +686,9 @@ status:
   storedVersions: []
 
 ---
+# Source: crds/security.everoute.io_globalpolicies.yaml
+
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -735,6 +752,9 @@ status:
     plural: ""
   conditions: []
   storedVersions: []
+
+---
+# Source: crds/security.everoute.io_securitypolicies.yaml
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -1676,7 +1696,23 @@ status:
     plural: ""
   conditions: []
   storedVersions: []
+
 ---
+# Source: everoute/templates/agent/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: everoute-agent
+  namespace: kube-system
+---
+# Source: everoute/templates/controller/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: everoute-controller
+  namespace: kube-system
+---
+# Source: everoute/templates/agent/agent.yaml
 apiVersion: v1
 data:
   agentconfig.yaml: |
@@ -1705,157 +1741,7 @@ metadata:
   name: everoute-config-xu73od84d3
   namespace: kube-system
 ---
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: everoute-agent
-  namespace: kube-system
-  labels:
-    app: everoute
-    component: everoute-agent
-spec:
-  selector:
-    matchLabels:
-      app: everoute
-      component: everoute-agent
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1024
-  template:
-    metadata:
-      labels:
-        app: everoute
-        component: everoute-agent
-    spec:
-      hostNetwork: true
-      nodeSelector:
-        kubernetes.io/os: linux
-      serviceAccountName: everoute-agent
-      containers:
-        - name: init-agent
-          command: ["init_agent"]
-          image: everoute/release
-          imagePullPolicy: IfNotPresent
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/sh", "-c", "agent_init_probe"]
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - name: everoute-agent
-              mountPath: /var/lib/everoute/
-            - name: cni-bin
-              mountPath: /opt/cni/bin/
-            - name: cni-conf
-              mountPath: /etc/cni/net.d
-            - name: everoute-config
-              mountPath: /var/lib/everoute/cni-conf.conflist
-              subPath: cni-conf.conflist
-            - name: openvswitch
-              mountPath: /var/run/openvswitch/
-            - name: everoute-config
-              mountPath: /var/lib/everoute/agentconfig.yaml
-              subPath: agentconfig.yaml
-            - mountPath: /lib/modules
-              name: host-lib-modules
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-          readinessProbe:
-            exec:
-              command: ["/usr/share/openvswitch/scripts/ovs-ctl", "status"]
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
-        - name: everoute-agent
-          image: everoute/release
-          imagePullPolicy: IfNotPresent
-          command: ["everoute-agent"]
-          args:
-            - --enable-cni=true
-            - -v=0
-            - --metrics-addr=127.0.0.1:30002
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-          securityContext:
-            privileged: true
-          readinessProbe:
-            httpGet:
-              host: 127.0.0.1
-              port: 30002
-              path: /metrics
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
-          volumeMounts:
-            - name: everoute-agent
-              mountPath: /var/lib/everoute/
-            - name: everoute-config
-              mountPath: /var/lib/everoute/agentconfig.yaml
-              subPath: agentconfig.yaml
-            - name: openvswitch
-              mountPath: /var/run/openvswitch/
-            - name: host-proc
-              mountPath: /host/proc/
-            - name: host-netns
-              mountPath: /host/var/run/netns/
-              mountPropagation: HostToContainer
-            - name: cni-bin
-              mountPath: /opt/cni/bin/
-            - name: everoute-ipam
-              mountPath: /var/lib/cni/networks/everoute
-            - name: tmp
-              mountPath: /tmp
-            - name: xtables-lock
-              mountPath: /run/xtables.lock
-      tolerations:
-        - key: CriticalAddonsOnly
-          operator: Exists
-        - effect: NoSchedule
-          operator: Exists
-        - effect: NoExecute
-          operator: Exists
-      volumes:
-        - configMap:
-            name: everoute-config-xu73od84d3
-          name: everoute-config
-        - name: openvswitch
-          emptyDir: {}
-        - name: tmp
-          emptyDir: {}
-        - hostPath:
-            path: /var/lib/everoute/
-          name: everoute-agent
-        - hostPath:
-            path: /var/lib/cni/networks/everoute
-          name: everoute-ipam
-        - hostPath:
-            path: /opt/cni/bin/
-          name: cni-bin
-        - hostPath:
-            path: /etc/cni/net.d
-          name: cni-conf
-        - hostPath:
-            path: /proc
-          name: host-proc
-        - hostPath:
-            path: /var/run/netns
-          name: host-netns
-        - hostPath:
-            path: /lib/modules
-          name: host-lib-modules
-        - hostPath:
-            path: /run/xtables.lock
-            type: FileOrCreate
-          name: xtables-lock
----
+# Source: everoute/templates/agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1907,81 +1793,7 @@ rules:
     - watch
     - create
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: everoute-agent
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: everoute-agent
-subjects:
-  - kind: ServiceAccount
-    name: everoute-agent
-    namespace: kube-system
-  - apiGroup: rbac.authorization.k8s.io
-    kind: User
-    # support use certs authentication
-    name: everoute-agent
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: everoute-agent
-  namespace: kube-system
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: everoute-controller
-  namespace: kube-system
-  labels:
-    app: everoute
-    component: everoute-controller
-spec:
-  strategy:
-    # Ensure the existing Pod is killed before the new one is created.
-    type: Recreate
-  replicas: 1
-  selector:
-    matchLabels:
-      app: everoute
-      component: everoute-controller
-  template:
-    metadata:
-      labels:
-        app: everoute
-        component: everoute-controller
-    spec:
-      nodeSelector:
-        kubernetes.io/os: linux
-      tolerations:
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
-        - key: CriticalAddonsOnly
-          operator: Exists
-      serviceAccountName: everoute-controller
-      containers:
-        - name: everoute-controller
-          image: everoute/release
-          imagePullPolicy: IfNotPresent
-          command: ["everoute-controller"]
-          args:
-            - --enable-leader-election=true
-            - --port=9443
-            - --enable-cni=true
-            - -v=0
-          readinessProbe:
-            httpGet:
-              scheme: HTTPS
-              port: 9443
-              path: /healthz
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
-
----
+# Source: everoute/templates/controller/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -2071,6 +1883,25 @@ rules:
   - watch
   - create
 ---
+# Source: everoute/templates/agent/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: everoute-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: everoute-agent
+subjects:
+  - kind: ServiceAccount
+    name: everoute-agent
+    namespace: kube-system
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    # support use certs authentication
+    name: everoute-agent
+---
+# Source: everoute/templates/controller/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -2088,12 +1919,228 @@ subjects:
     # support use certs authentication
     name: everoute-controller
 ---
+# Source: everoute/templates/controller/webhook.yaml
 apiVersion: v1
-kind: ServiceAccount
+kind: Service
+metadata:
+  name: everoute-validator-webhook
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9443
+      protocol: TCP
+      # This port should match port everoute-controller exposed.
+      targetPort: 9443
+  selector:
+    app: everoute
+    component: everoute-controller
+---
+# Source: everoute/templates/agent/agent.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: everoute-agent
+  namespace: kube-system
+  labels:
+    app: everoute
+    component: everoute-agent
+spec:
+  selector:
+    matchLabels:
+      app: everoute
+      component: everoute-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1024
+  template:
+    metadata:
+      labels:
+        app: everoute
+        component: everoute-agent
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: everoute-agent
+      containers:
+        - name: init-agent
+          command: ["init_agent"]
+          image: everoute/release:1.0.5
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "agent_init_probe"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: cni-conf
+              mountPath: /etc/cni/net.d
+            - name: everoute-config
+              mountPath: /var/lib/everoute/cni-conf.conflist
+              subPath: cni-conf.conflist
+            - name: openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - mountPath: /lib/modules
+              name: host-lib-modules
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            exec:
+              command: ["/usr/share/openvswitch/scripts/ovs-ctl", "status"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+        - name: everoute-agent
+          image: everoute/release:1.0.5
+          imagePullPolicy: IfNotPresent
+          command: ["everoute-agent"]
+          args:
+            - --enable-cni=true
+            - -v=0
+            - --metrics-addr=127.0.0.1:30002
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              port: 30002
+              path: /metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - name: openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: host-proc
+              mountPath: /host/proc/
+            - name: host-netns
+              mountPath: /host/var/run/netns/
+              mountPropagation: HostToContainer
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: everoute-ipam
+              mountPath: /var/lib/cni/networks/everoute
+            - name: tmp
+              mountPath: /tmp
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config
+        - name: openvswitch
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - hostPath:
+            path: /var/lib/everoute/
+          name: everoute-agent
+        - hostPath:
+            path: /var/lib/cni/networks/everoute
+          name: everoute-ipam
+        - hostPath:
+            path: /opt/cni/bin/
+          name: cni-bin
+        - hostPath:
+            path: /etc/cni/net.d
+          name: cni-conf
+        - hostPath:
+            path: /proc
+          name: host-proc
+        - hostPath:
+            path: /var/run/netns
+          name: host-netns
+        - hostPath:
+            path: /lib/modules
+          name: host-lib-modules
+        - hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+          name: xtables-lock
+---
+# Source: everoute/templates/controller/controller.yaml
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: everoute-controller
   namespace: kube-system
+  labels:
+    app: everoute
+    component: everoute-controller
+spec:
+  strategy:
+    # Ensure the existing Pod is killed before the new one is created.
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: everoute
+      component: everoute-controller
+  template:
+    metadata:
+      labels:
+        app: everoute
+        component: everoute-controller
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      serviceAccountName: everoute-controller
+      containers:
+        - name: everoute-controller
+          image: everoute/release:1.0.5
+          imagePullPolicy: IfNotPresent
+          command: ["everoute-controller"]
+          args:
+            - --enable-leader-election=true
+            - --port=9443
+            - --enable-cni=true
+            - -v=0
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
 ---
+# Source: everoute/templates/controller/webhook.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
@@ -2134,21 +2181,3 @@ webhooks:
           - DELETE
         resources:
           - endpointgroups
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: everoute-validator-webhook
-  namespace: kube-system
-spec:
-  type: ClusterIP
-  ports:
-    - port: 9443
-      protocol: TCP
-      # This port should match port everoute-controller exposed.
-      targetPort: 9443
-  selector:
-    app: everoute
-    component: everoute-controller
-
