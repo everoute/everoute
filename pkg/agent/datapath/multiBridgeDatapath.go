@@ -924,9 +924,12 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 		datapathManager.WaitForBridgeConnected()
 	}
 
+	log.Infof("Received remove rule: %+v", ruleName)
+
 	pRule := datapathManager.Rules[ruleID]
 	if pRule == nil {
-		return fmt.Errorf("ruleID %v not found when deleting", ruleID)
+		log.Errorf("ruleID %v not found when deleting", ruleID)
+		return nil
 	}
 
 	// check and remove rule reference
@@ -937,7 +940,6 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 		}
 	}
 
-	log.Infof("Received remove rule: %+v", ruleName)
 	for vdsID := range datapathManager.BridgeChainMap {
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
