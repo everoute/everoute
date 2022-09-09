@@ -16,6 +16,13 @@ limitations under the License.
 
 package schema
 
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/everoute/everoute/plugin/tower/pkg/utils"
+)
+
 type Task struct {
 	ObjectMeta
 
@@ -26,6 +33,12 @@ type Task struct {
 	Progress     float64    `json:"progress"`
 	Snapshot     string     `json:"snapshot"`
 	Status       TaskStatus `json:"status"`
+}
+
+func (t *Task) GetQueryRequest(skipFields map[string]string) string {
+	queryFields := utils.GqlTypeMarshal(reflect.TypeOf(t), skipFields, true)
+	// only list latest 30 tasks
+	return fmt.Sprintf("query {tasks(last: 20, orderBy: local_created_at_ASC) %s}", queryFields)
 }
 
 type TaskStatus string

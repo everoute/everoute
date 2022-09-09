@@ -11,25 +11,25 @@ import (
 )
 
 type EverouteClusterEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.EverouteCluster `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type HostEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.Host            `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type IsolationPolicyEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.IsolationPolicy `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type LabelEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.Label           `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
@@ -45,70 +45,27 @@ type LoginInput struct {
 }
 
 type SecurityGroupEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.SecurityGroup   `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type SecurityPolicyEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.SecurityPolicy  `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type TaskEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.Task            `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
 type VMEvent struct {
-	Mutation       MutationType            `json:"mutation"`
+	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.VM              `json:"node"`
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
-}
-
-type MutationType string
-
-const (
-	MutationTypeCreated MutationType = "CREATED"
-	MutationTypeDeleted MutationType = "DELETED"
-	MutationTypeUpdated MutationType = "UPDATED"
-)
-
-var AllMutationType = []MutationType{
-	MutationTypeCreated,
-	MutationTypeDeleted,
-	MutationTypeUpdated,
-}
-
-func (e MutationType) IsValid() bool {
-	switch e {
-	case MutationTypeCreated, MutationTypeDeleted, MutationTypeUpdated:
-		return true
-	}
-	return false
-}
-
-func (e MutationType) String() string {
-	return string(e)
-}
-
-func (e *MutationType) UnmarshalGQL(v interface{}) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = MutationType(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid MutationType", str)
-	}
-	return nil
-}
-
-func (e MutationType) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type TaskOrderByInput string

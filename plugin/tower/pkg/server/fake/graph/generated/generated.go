@@ -1987,9 +1987,9 @@ func (ec *executionContext) _EverouteClusterEvent_mutation(ctx context.Context, 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _EverouteClusterEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
@@ -2325,9 +2325,9 @@ func (ec *executionContext) _HostEvent_mutation(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _HostEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.HostEvent) (ret graphql.Marshaler) {
@@ -2803,9 +2803,9 @@ func (ec *executionContext) _IsolationPolicyEvent_mutation(ctx context.Context, 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _IsolationPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
@@ -3039,9 +3039,9 @@ func (ec *executionContext) _LabelEvent_mutation(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _LabelEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.LabelEvent) (ret graphql.Marshaler) {
@@ -4249,9 +4249,9 @@ func (ec *executionContext) _SecurityGroupEvent_mutation(ctx context.Context, fi
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityGroupEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.SecurityGroupEvent) (ret graphql.Marshaler) {
@@ -4724,9 +4724,9 @@ func (ec *executionContext) _SecurityPolicyEvent_mutation(ctx context.Context, f
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SecurityPolicyEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.SecurityPolicyEvent) (ret graphql.Marshaler) {
@@ -5569,9 +5569,9 @@ func (ec *executionContext) _TaskEvent_mutation(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _TaskEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.TaskEvent) (ret graphql.Marshaler) {
@@ -5913,9 +5913,9 @@ func (ec *executionContext) _VMEvent_mutation(ctx context.Context, field graphql
 		}
 		return graphql.Null
 	}
-	res := resTmp.(model.MutationType)
+	res := resTmp.(schema.MutationType)
 	fc.Result = res
-	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx, field.Selections, res)
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _VMEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
@@ -9544,14 +9544,20 @@ func (ec *executionContext) unmarshalNLoginInput2githubᚗcomᚋeverouteᚋevero
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, v interface{}) (model.MutationType, error) {
-	var res model.MutationType
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx context.Context, v interface{}) (schema.MutationType, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.MutationType(tmp)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐMutationType(ctx context.Context, sel ast.SelectionSet, v model.MutationType) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx context.Context, sel ast.SelectionSet, v schema.MutationType) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) marshalNNetworkPolicyRule2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRule(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRule) graphql.Marshaler {

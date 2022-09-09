@@ -16,6 +16,14 @@ limitations under the License.
 
 package schema
 
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+
+	"github.com/everoute/everoute/plugin/tower/pkg/utils"
+)
+
 type SecurityPolicy struct {
 	ObjectMeta
 
@@ -112,6 +120,32 @@ type LabelGroup struct {
 type SystemEndpoints struct {
 	IDEndpoints     []IDSystemEndpoint     `json:"id_endpoints,omitempty"`
 	IPPortEndpoints []IPPortSystemEndpoint `json:"ip_port_endpoints,omitempty"`
+}
+
+func (s *SystemEndpoints) GetSubscriptionRequest(skipFields map[string]string) string {
+	subscriptionFields := utils.GqlTypeMarshal(reflect.TypeOf(s), skipFields, true)
+	return fmt.Sprintf("subscription {systemEndpoints %s}", subscriptionFields)
+}
+
+func (s *SystemEndpoints) UnmarshalEvent(raw json.RawMessage, event *MutationEvent) error {
+	event.Mutation = UpdateEvent
+	event.Node = raw
+	return nil
+}
+
+func (s *SystemEndpoints) UnmarshalSlice(raw json.RawMessage, slice interface{}) error {
+	var systemEndpoint SystemEndpoints
+
+	if err := json.Unmarshal(raw, &systemEndpoint); err != nil {
+		return err
+	}
+
+	if reflect.ValueOf(systemEndpoint).IsZero() {
+		return nil
+	}
+
+	*slice.(*[]*SystemEndpoints) = []*SystemEndpoints{&systemEndpoint}
+	return nil
 }
 
 // GetID implements Object

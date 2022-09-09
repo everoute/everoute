@@ -24,11 +24,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
+	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
 
 type Event struct {
-	Type   model.MutationType
+	Type   schema.MutationType
 	Object interface{}
 }
 
@@ -88,10 +88,10 @@ func (w *Tracker) CreateOrUpdate(obj interface{}) {
 }
 
 func (w *Tracker) saveItemLocked(obj interface{}) {
-	var eventType = model.MutationTypeCreated
+	var eventType = schema.CreateEvent
 	_, ok := w.items[w.keyFunc(obj)]
 	if ok {
-		eventType = model.MutationTypeUpdated
+		eventType = schema.UpdateEvent
 	}
 
 	// To avoid the object from being accidentally modified by caller
@@ -117,7 +117,7 @@ func (w *Tracker) Delete(key string) error {
 		return fmt.Errorf("delete object key %s not found", key)
 	}
 
-	w.notifyLocked(&Event{Type: model.MutationTypeDeleted, Object: obj})
+	w.notifyLocked(&Event{Type: schema.DeleteEvent, Object: obj})
 	delete(w.items, key)
 	return nil
 }
@@ -156,7 +156,7 @@ func (w *Tracker) Reset() {
 	defer w.Unlock()
 
 	for _, item := range w.items {
-		w.notifyLocked(&Event{Type: model.MutationTypeDeleted, Object: item})
+		w.notifyLocked(&Event{Type: schema.DeleteEvent, Object: item})
 	}
 
 	w.items = make(map[string]interface{})
