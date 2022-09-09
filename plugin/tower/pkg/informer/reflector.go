@@ -159,7 +159,7 @@ func (r *reflector) watchHandler(respCh <-chan client.Response, stopCh <-chan st
 }
 
 func (r *reflector) eventHandler(raw json.RawMessage) error {
-	var event client.MutationEvent
+	var event schema.MutationEvent
 	var newObj = reflect.New(r.expectType.Type)
 
 	err := unmarshalEvent(r.expectType.Type, raw, &event)
@@ -176,7 +176,7 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	klog.V(4).Infof("get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
 
 	// delete object may got nil object, read object from previous values
-	if reflect.ValueOf(obj).IsNil() && event.Mutation == client.DeleteEvent {
+	if reflect.ValueOf(obj).IsNil() && event.Mutation == schema.DeleteEvent {
 		err = json.Unmarshal(event.PreviousValues, newObj.Interface())
 		if err != nil {
 			return fmt.Errorf("unable marshal %s into object %T", string(event.PreviousValues), r.expectType.TypeName())
@@ -185,11 +185,11 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	}
 
 	switch event.Mutation {
-	case client.CreateEvent:
+	case schema.CreateEvent:
 		err = r.store.Add(obj)
-	case client.UpdateEvent:
+	case schema.UpdateEvent:
 		err = r.store.Update(obj)
-	case client.DeleteEvent:
+	case schema.DeleteEvent:
 		err = r.store.Delete(obj)
 	default:
 		return fmt.Errorf("unknow mutation type: %s", event.Mutation)
@@ -296,31 +296,40 @@ func (r *reflector) resyncChan() (<-chan time.Time, func() bool) {
 	return t.C(), t.Stop
 }
 
+// Queryable allow to mutate the default query request
+type Queryable interface {
+	GetQueryRequest(skipFields map[string]string) string
+}
+
+// Subscribable allow to mutate the default subscription request
+type Subscribable interface {
+	GetSubscriptionRequest(skipFields map[string]string) string
+}
+
 func (r *reflector) queryRequest() *client.Request {
-	// todo: we made a special handle for task, this should not happen.
-	// we need a serializer to no difference handle them.
-	if r.expectType.Type == reflect.TypeOf(&schema.Task{}) {
-		// only list latest 30 tasks
-		return &client.Request{
-			Query: fmt.Sprintf("query {%s(last: 20, orderBy: local_created_at_ASC) %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields)),
-		}
+	var queryRequest string
+
+	switch t := reflect.New(r.expectType.Type).Elem().Interface().(type) {
+	case Queryable:
+		queryRequest = t.GetQueryRequest(r.skipFields)
+	default:
+		queryRequest = fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields))
 	}
-	return &client.Request{
-		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields)),
-	}
+
+	return &client.Request{Query: queryRequest}
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {
-	// todo: we made a special handle for systemEndpoints, this should not happen.
-	// we need a serializer to no difference handle them.
-	if r.expectType.Type == reflect.TypeOf(&schema.SystemEndpoints{}) {
-		return &client.Request{
-			Query: fmt.Sprintf("subscription {%s %s}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
-		}
+	var subscriptionRequest string
+
+	switch t := reflect.New(r.expectType.Type).Elem().Interface().(type) {
+	case Subscribable:
+		subscriptionRequest = t.GetSubscriptionRequest(r.skipFields)
+	default:
+		subscriptionRequest = fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields))
 	}
-	return &client.Request{
-		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
-	}
+
+	return &client.Request{Query: subscriptionRequest}
 }
 
 type gqlType struct {
@@ -374,30 +383,30 @@ func matchFieldNotExistFromMessage(message string) []string {
 	return nil
 }
 
-func unmarshalEvent(originObjectType reflect.Type, raw json.RawMessage, event *client.MutationEvent) error {
-	// todo: we made a special handle for systemEndpoints, this should not happen.
-	// we need a serializer to no difference handle them.
-	if originObjectType == reflect.TypeOf(&schema.SystemEndpoints{}) {
-		event.Mutation = client.UpdateEvent
-		event.Node = raw
-		return nil
+// EventUnmarshalable allow to mutate the default json decoder
+type EventUnmarshalable interface {
+	UnmarshalEvent(raw json.RawMessage, event *schema.MutationEvent) error
+}
+
+// SliceUnmarshalable allow to mutate the default json decoder
+type SliceUnmarshalable interface {
+	UnmarshalSlice(raw json.RawMessage, slice interface{}) error
+}
+
+func unmarshalEvent(originObjectType reflect.Type, raw json.RawMessage, event *schema.MutationEvent) error {
+	switch t := reflect.New(originObjectType).Elem().Interface().(type) {
+	case EventUnmarshalable:
+		return t.UnmarshalEvent(raw, event)
+	default:
+		return json.Unmarshal(raw, event)
 	}
-	return json.Unmarshal(raw, event)
 }
 
 func unmarshalSlice(originObjectType reflect.Type, raw json.RawMessage, slice interface{}) error {
-	// todo: we made a special handle for systemEndpoints, this should not happen.
-	// we need a serializer to no difference handle them.
-	if originObjectType == reflect.TypeOf(&schema.SystemEndpoints{}) {
-		var systemEndpoint schema.SystemEndpoints
-		if err := json.Unmarshal(raw, &systemEndpoint); err != nil {
-			return err
-		}
-		if reflect.ValueOf(systemEndpoint).IsZero() {
-			return nil
-		}
-		*slice.(*[]*schema.SystemEndpoints) = []*schema.SystemEndpoints{&systemEndpoint}
-		return nil
+	switch t := reflect.New(originObjectType).Elem().Interface().(type) {
+	case SliceUnmarshalable:
+		return t.UnmarshalSlice(raw, slice)
+	default:
+		return json.Unmarshal(raw, slice)
 	}
-	return json.Unmarshal(raw, slice)
 }
