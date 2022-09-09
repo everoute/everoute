@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	klog "k8s.io/klog"
+	"k8s.io/klog"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -47,7 +47,7 @@ func NewReflectorBuilder(client *client.Client) informer.NewReflectorFunc {
 			store:      options.Store,
 			expectType: gqlType{reflect.TypeOf(options.ExpectedType)},
 			// With these parameters, backoff will stop at [30,60) sec interval which is 0.22 QPS.
-			// If we don't backoff for 2min, assume server is healthy and we reset the backoff.
+			// If we don't backoff for 2min, assume server is healthy, and we reset the backoff.
 			backoffManager: wait.NewExponentialBackoffManager(800*time.Millisecond, 30*time.Second, 2*time.Minute, 2.0, 1.0, options.Clock),
 			resyncPeriod:   options.ResyncPeriod,
 			shouldResync:   options.ShouldResync,
@@ -134,7 +134,7 @@ func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError
 	return r.watchHandler(respCh, stopCh)
 }
 
-// watchHandler watches respChan and keep store with latest objects.
+// watchHandler watches respChan and keep store with the latest objects.
 func (r *reflector) watchHandler(respCh <-chan client.Response, stopCh <-chan struct{}) ([]client.ResponseError, error) {
 	var err error
 
@@ -289,7 +289,7 @@ func (r *reflector) resyncChan() (<-chan time.Time, func() bool) {
 		return make(chan time.Time), func() bool { return false }
 	}
 	// The cleanup function is required: imagine the scenario where watches
-	// always fail so we end up listing frequently. Then, if we don't
+	// always fail, so we end up listing frequently. Then, if we don't
 	// manually stop the timer, we could end up with many timers active
 	// concurrently.
 	t := r.clock.NewTimer(r.resyncPeriod)
