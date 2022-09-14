@@ -38,6 +38,7 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/fsnotify/fsnotify"
 	cmap "github.com/streamrail/concurrent-map"
+	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
@@ -325,19 +326,12 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	wg.Wait()
 
 	// add rules for internalIP
-	for _, internalIP := range datapathManager.datapathConfig.InternalIPs {
-		// internal ingress rule
-		err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(internalIP),
-			InternalIngressRulePrefix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
-		if err != nil {
-			log.Fatalf("Failed to add internal whitelist: %v", err)
-		}
-		// internal egress rule
-		err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(internalIP),
-			InternalEgressRulePrefix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
-		if err != nil {
-			log.Fatalf("Failed to add internal whitelist: %v", err)
-		}
+	for index, internalIP := range datapathManager.datapathConfig.InternalIPs {
+		datapathManager.addIntenalIP(internalIP, index)
+	}
+	// add internal ip handle
+	if len(datapathManager.datapathConfig.InternalIPs) != 0 {
+		go datapathManager.syncIntenalIPs(stopChan)
 	}
 
 	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
@@ -958,6 +952,57 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	}
 
 	return nil
+}
+
+func (datapathManager *DpManager) syncIntenalIPs(stopChan <-chan struct{}) {
+	const bufferSize = 100
+	addrUpdateChan := make(chan netlink.AddrUpdate, bufferSize)
+	if err := netlink.AddrSubscribeWithOptions(addrUpdateChan, stopChan, netlink.AddrSubscribeOptions{
+		ListExisting:      true,
+		ReceiveBufferSize: bufferSize,
+	}); err != nil {
+		klog.Fatalf("fail to init ip addr update handle, err: %s", err)
+	}
+	for addr := range addrUpdateChan {
+		if addr.LinkAddress.IP.IsLoopback() || addr.LinkAddress.IP.To4() == nil {
+			continue
+		}
+		if addr.NewAddr {
+			datapathManager.addIntenalIP(addr.LinkAddress.IP.String(), addr.LinkIndex)
+		} else {
+			datapathManager.removeIntenalIP(addr.LinkAddress.IP.String(), addr.LinkIndex)
+		}
+	}
+}
+
+func (datapathManager *DpManager) addIntenalIP(ip string, index int) {
+	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
+	// add internal ingress rule
+	err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(ip),
+		InternalIngressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+	if err != nil {
+		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+	}
+	// add internal egress rule
+	err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(ip),
+		InternalEgressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+	if err != nil {
+		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+	}
+}
+
+func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
+	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
+	// del internal ingress rule
+	err := datapathManager.RemoveEveroutePolicyRule(newInternalIngressRule(ip).RuleID, InternalIngressRulePrefix+ruleNameSuffix)
+	if err != nil {
+		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+	}
+	// del internal egress rule
+	err = datapathManager.RemoveEveroutePolicyRule(newInternalEgressRule(ip).RuleID, InternalEgressRulePrefix+ruleNameSuffix)
+	if err != nil {
+		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+	}
 }
 
 func CleanConntrackFlow(rule *EveroutePolicyRule) {
