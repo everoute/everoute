@@ -82,7 +82,7 @@ gqlgen:
 	cd plugin/tower/pkg/server/fake/ && gqlgen generate
 
 protopb:
-	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/cni/v1alpha1/cni.proto
+	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/cni.proto
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/collector.proto
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/rule.proto
 

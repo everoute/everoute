@@ -22,6 +22,7 @@ import (
 
 	"google.golang.org/grpc"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -29,13 +30,19 @@ import (
 )
 
 type Server struct {
+	k8sClient client.Client
 	dpManager *datapath.DpManager
-	stopChan  <-chan struct{}
+
+	enableCNI bool
+
+	stopChan <-chan struct{}
 }
 
-func Initialize(datapathManager *datapath.DpManager) *Server {
+func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool) *Server {
 	s := &Server{
 		dpManager: datapathManager,
+		k8sClient: k8sClient,
+		enableCNI: enableCNI,
 	}
 
 	return s
@@ -74,10 +81,20 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	rpcServer := grpc.NewServer()
 	// register collector service
 	collector := NewCollectorServer(s.dpManager, stopChan)
-	getterServer := NewGetterServer(s.dpManager)
-
 	v1alpha1.RegisterCollectorServer(rpcServer, collector)
+	klog.Infoln("Enable collector rpc server")
+
+	// register cli server
+	getterServer := NewGetterServer(s.dpManager)
 	v1alpha1.RegisterGetterServer(rpcServer, getterServer)
+	klog.Infoln("Enable cli tools rpc server")
+
+	// register cni server
+	if s.enableCNI {
+		cniServer := NewCNIServer(s.k8sClient, s.dpManager)
+		v1alpha1.RegisterCniServer(rpcServer, cniServer)
+		klog.Infoln("Enable CNI rpc server")
+	}
 
 	// start rpc Server
 	go func() {

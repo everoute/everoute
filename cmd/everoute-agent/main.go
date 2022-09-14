@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/everoute/everoute/pkg/agent/cniserver"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
@@ -118,13 +117,8 @@ func main() {
 
 	if enableCNI {
 		setAgentConf(datapathManager, mgr.GetAPIReader())
-
-		// cni server
-		cniServer := cniserver.Initialize(k8sClient, datapathManager)
-		go cniServer.Run(stopChan)
+		datapathManager.InitializeCNI()
 	}
-
-	datapathManager.InitializeCNI()
 
 	if err = startManager(mgr, datapathManager, stopChan); err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
@@ -133,7 +127,7 @@ func main() {
 	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
 	go agentmonitor.Run(stopChan)
 
-	rpcServer := rpcserver.Initialize(datapathManager)
+	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, enableCNI)
 	go rpcServer.Run(stopChan)
 
 	<-stopChan
