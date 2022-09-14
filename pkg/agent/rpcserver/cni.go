@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cniserver
+package rpcserver
 
 import (
 	"bytes"
@@ -33,17 +33,14 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
-	"google.golang.org/grpc"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
-	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
+	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/utils"
 )
-
-const CNISocketAddr = "/var/lib/everoute/cni.sock"
 
 type CNIServer struct {
 	k8sClient client.Client
@@ -321,7 +318,7 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 	return nil
 }
 
-func Initialize(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
+func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
 		gwName:    datapathManager.AgentInfo.GatewayName,
@@ -338,34 +335,4 @@ func Initialize(k8sClient client.Client, datapathManager *datapath.DpManager) *C
 	}
 
 	return s
-}
-
-func (s *CNIServer) Run(stopChan <-chan struct{}) {
-	klog.Info("Starting CNI server")
-
-	// remove the remaining sock file
-	_, err := os.Stat(CNISocketAddr)
-	if err == nil {
-		err = os.Remove(CNISocketAddr)
-		if err != nil {
-			klog.Fatalf("remove remaining cni sock file error, err:%s", err)
-			return
-		}
-	}
-
-	// listen and start rpcServer
-	listener, err := net.Listen("unix", CNISocketAddr)
-	if err != nil {
-		klog.Fatalf("Failed to bind on %s: %v", CNISocketAddr, err)
-	}
-	rpcServer := grpc.NewServer()
-	cnipb.RegisterCniServer(rpcServer, s)
-	go func() {
-		if err = rpcServer.Serve(listener); err != nil {
-			klog.Fatalf("Failed to serve connections: %v", err)
-		}
-	}()
-
-	klog.Info("CNI server is listening ...")
-	<-stopChan
 }

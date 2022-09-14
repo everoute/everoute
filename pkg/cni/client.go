@@ -11,16 +11,15 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
+	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
-const CNISocketAddr = "/var/lib/everoute/cni.sock"
-
 func rpcRequest(requestType string, arg *skel.CmdArgs) error {
-	conn, err := grpc.Dial(CNISocketAddr,
+	conn, err := grpc.Dial(constants.RPCSocketAddr,
 		grpc.WithInsecure(),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, e error) {
-			unixAddr, _ := net.ResolveUnixAddr("unix", CNISocketAddr)
+			unixAddr, _ := net.ResolveUnixAddr("unix", constants.RPCSocketAddr)
 			connUnix, err := net.DialUnix("unix", nil, unixAddr)
 			return connUnix, err
 		}))

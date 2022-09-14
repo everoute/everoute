@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cniserver
+package rpcserver
 
 import (
 	"os"
@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	cnipb "github.com/everoute/everoute/pkg/apis/cni/v1alpha1"
+	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
 
 var _ = Describe("Test cniserver", func() {

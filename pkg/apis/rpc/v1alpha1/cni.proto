@@ -1,6 +1,6 @@
 syntax = "proto3";
-package everoute_io.pkg.apis.cni.v1alpha1;
-option go_package = "pkg/apis/cni/v1alpha1";
+package everoute_io.pkg.apis.rpc.v1alpha1;
+option go_package = "pkg/apis/rpc/v1alpha1";
 
 message CniRequest {
   string container_id = 1;
