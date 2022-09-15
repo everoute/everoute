@@ -118,8 +118,36 @@ ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_R
 echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter
-
 echo 0 > /proc/sys/net/ipv4/ip_early_demux
+
+# check configuration
+## check ip link exist
+echo "check ip link exist"
+ip link show ${DEFAULT_BRIDGE} || exit 1
+ip link show ${POLICY_BRIDGE} || exit 1
+ip link show ${CLS_BRIDGE} || exit 1
+ip link show ${UPLINK_BRIDGE} || exit 1
+ip link show ${GW_IFACE} || exit 1
+ip link show ${GW_LOCAL_IFACE} || exit 1
+## check ip address exist
+echo "check ip address exist"
+ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} && exit 1
+ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} || [[ $? -ne 2 ]] && exit 1
+## check policy rule
+echo "check policy rule"
+ip rule add preference ${LOCAL_IP_RULE_PREF} lookup local && exit 1
+ip rule add preference ${LOCAL_IP_RULE_PREF} lookup local || [[ $? -ne 2 ]] && exit 1
+ip rule add preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && exit 1
+ip rule add preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && exit 1
+[[ `ip rule list preference 0 | wc -l` -ne 0 ]] && exit 1
+ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && exit 1
+ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && exit 1
+## check sysctl
+echo "check sysctl"
+[[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && exit 1
+[[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && exit 1
+[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && exit 1
+[[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && exit 1
 
 echo "finish init"
 touch /tmp/everoute_agent_init
