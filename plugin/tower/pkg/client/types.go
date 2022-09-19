@@ -19,6 +19,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 type Request struct {
@@ -35,6 +36,27 @@ type Response struct {
 type ResponseError struct {
 	Message string    `json:"message"`
 	Code    ErrorCode `json:"code,omitempty"`
+}
+
+func (e *ResponseError) UnmarshalJSON(data []byte) error {
+	var object map[string]interface{}
+
+	if err := json.Unmarshal(data, &object); err != nil {
+		return err
+	}
+
+	if msg, ok := object["message"].(string); ok {
+		e.Message = msg
+	}
+
+	switch code := object["code"].(type) {
+	case string:
+		e.Code = ErrorCode(code)
+	case float64:
+		e.Code = ErrorCode(strconv.FormatFloat(code, 'f', -1, 64))
+	}
+
+	return nil
 }
 
 type ErrorCode string
