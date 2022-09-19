@@ -118,6 +118,7 @@ ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_R
 echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter
+echo 2 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce
 echo 0 > /proc/sys/net/ipv4/ip_early_demux
 
 # check configuration
@@ -147,6 +148,7 @@ echo "check sysctl"
 [[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && exit 1
 [[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && exit 1
 [[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && exit 1
+[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && exit 1
 [[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && exit 1
 
 echo "finish init"
