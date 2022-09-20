@@ -698,6 +698,7 @@ var _ = Describe("SecurityPolicy", func() {
 				expectedTruthTable.SetAllFrom(endpointA.Name, false)
 				expectedTruthTable.SetAllTo(endpointA.Name, false)
 				expectedTruthTable.Set(endpointA.Name, endpointB.Name, true)
+				expectedTruthTable.Set(endpointA.Name, endpointC.Name, true)
 				assertMatchReachTable("TCP", tcpPort, expectedTruthTable)
 			})
 		})

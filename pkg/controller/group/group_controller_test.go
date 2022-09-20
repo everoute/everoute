@@ -454,10 +454,24 @@ var _ = Describe("GroupController", func() {
 				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 			})
 
-			When("update endpoint extend labels unmatch group", func() {
+			When("update endpoint extend labels contains more values", func() {
 				BeforeEach(func() {
 					updateEndpoint := ep.DeepCopy()
 					updateEndpoint.Spec.ExtendLabels = map[string][]string{"foz": {"bar", "baz", "baz1"}}
+
+					By(fmt.Sprintf("update endpoint %s extend labels to %#v", ep.GetName(), ep.Spec.ExtendLabels))
+					Expect(k8sClient.Patch(ctx, updateEndpoint, client.MergeFrom(ep))).Should(Succeed())
+				})
+
+				It("the groupmembers should contains the endpoint", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+				})
+			})
+
+			When("update endpoint extend labels unmatch group", func() {
+				BeforeEach(func() {
+					updateEndpoint := ep.DeepCopy()
+					updateEndpoint.Spec.ExtendLabels = map[string][]string{"foz": {"bar"}}
 
 					By(fmt.Sprintf("update endpoint %s extend labels to %#v", ep.GetName(), ep.Spec.ExtendLabels))
 					Expect(k8sClient.Patch(ctx, updateEndpoint, client.MergeFrom(ep))).Should(Succeed())

@@ -77,8 +77,9 @@ spec:
                               type: string
                             type: array
                           description: 'ExtendMatchLabels allows match labels with
-                            the same key but different value. e.g. {key: [value1,
-                            value2]} matches labels: {key: value1, key: value2}'
+                            the same key but different value. e.g. {key: [v1, v2]}
+                            matches labels: {key: v1, key: v2} and {key: v1, key:
+                            v2, key: v3}'
                           type: object
                         matchExpressions:
                           description: matchExpressions is a list of label selector
@@ -187,8 +188,8 @@ spec:
                                   type: array
                                 description: 'ExtendMatchLabels allows match labels
                                   with the same key but different value. e.g. {key:
-                                  [value1, value2]} matches labels: {key: value1,
-                                  key: value2}'
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
@@ -390,8 +391,8 @@ spec:
                                   type: array
                                 description: 'ExtendMatchLabels allows match labels
                                   with the same key but different value. e.g. {key:
-                                  [value1, value2]} matches labels: {key: value1,
-                                  key: value2}'
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
@@ -568,8 +569,8 @@ spec:
                                   type: array
                                 description: 'ExtendMatchLabels allows match labels
                                   with the same key but different value. e.g. {key:
-                                  [value1, value2]} matches labels: {key: value1,
-                                  key: value2}'
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
@@ -771,8 +772,8 @@ spec:
                                   type: array
                                 description: 'ExtendMatchLabels allows match labels
                                   with the same key but different value. e.g. {key:
-                                  [value1, value2]} matches labels: {key: value1,
-                                  key: value2}'
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
