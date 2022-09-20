@@ -16,7 +16,14 @@ spec:
     singular: groupmembers
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .revision
+      name: Revision
+      type: string
+    - jsonPath: .groupMembers[*].ips
+      name: Members
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -74,6 +81,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

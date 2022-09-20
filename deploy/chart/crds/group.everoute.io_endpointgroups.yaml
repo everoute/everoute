@@ -16,7 +16,20 @@ spec:
     singular: endpointgroup
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.endpointSelector
+      name: EndpointSelector
+      type: string
+    - jsonPath: .spec.namespaceSelector
+      name: NamespaceSelector
+      type: string
+    - jsonPath: .spec.namespace
+      name: Namespace
+      type: string
+    - jsonPath: .spec.endpoint
+      name: Endpoint
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -171,6 +184,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

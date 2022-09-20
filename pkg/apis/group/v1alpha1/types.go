@@ -31,6 +31,8 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Revision",type="string",JSONPath=".revision"
+// +kubebuilder:printcolumn:name="Members",type="string",JSONPath=".groupMembers[*].ips"
 
 type GroupMembers struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -106,6 +108,10 @@ type GroupMembersPatchList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="EndpointSelector",type="string",JSONPath=".spec.endpointSelector"
+// +kubebuilder:printcolumn:name="NamespaceSelector",type="string",JSONPath=".spec.namespaceSelector"
+// +kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.namespace"
+// +kubebuilder:printcolumn:name="Endpoint",type="string",JSONPath=".spec.endpoint"
 
 type EndpointGroup struct {
 	metav1.TypeMeta   `json:",inline"`
