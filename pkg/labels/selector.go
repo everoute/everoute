@@ -26,12 +26,13 @@ import (
 // Selector extends metav1.LabelSelector, it allows select multiple labels with same key but
 // different value. The result of matchLabels and matchExpressions and extendMatchLabels are
 // ANDed. An empty selector matches all objects. A null selector matches no objects.
+// The matched labels MUST be the superset of the MatchLabels and ExtendMatchLabels.
 // +k8s:deepcopy-gen=true
 type Selector struct {
 	metav1.LabelSelector `json:",inline"`
 
 	// ExtendMatchLabels allows match labels with the same key but different value.
-	// e.g. {key: [value1, value2]} matches labels: {key: value1, key: value2}
+	// e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
 	// +optional
 	ExtendMatchLabels map[string][]string `json:"extendMatchLabels,omitempty"`
 }
@@ -81,16 +82,16 @@ func (in *Selector) Matches(labelSet Set) bool {
 		return false
 	}
 
+	// labels should be the superset of match labels
 	for key, value := range in.MatchLabels {
-		labelValueSet := labelSet[key]
-		if len(labelValueSet) != 1 || !labelValueSet.Has(value) {
+		if !labelSet[key].IsSuperset(sets.NewString(value)) {
 			return false
 		}
 	}
 
+	// labesl should be the superset of extend match labels
 	for key, valueSet := range in.ExtendMatchLabels {
-		labelValueSet := labelSet[key]
-		if len(labelValueSet) != len(valueSet) || !labelValueSet.HasAll(valueSet...) {
+		if !labelSet[key].IsSuperset(sets.NewString(valueSet...)) {
 			return false
 		}
 	}

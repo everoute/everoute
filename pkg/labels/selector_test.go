@@ -192,7 +192,7 @@ func TestSelectorMatch(t *testing.T) {
 				},
 			},
 			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "baz")},
-			expectedMatch: false,
+			expectedMatch: true,
 		},
 		{
 			selector: &labels.Selector{
@@ -239,7 +239,7 @@ func TestSelectorMatch(t *testing.T) {
 				ExtendMatchLabels: map[string][]string{"foo": {"bar", "baz"}},
 			},
 			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "baz", "qux")},
-			expectedMatch: false,
+			expectedMatch: true,
 		},
 		{
 			selector: &labels.Selector{
