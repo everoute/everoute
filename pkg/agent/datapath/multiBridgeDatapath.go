@@ -1011,9 +1011,15 @@ func CleanConntrackFlow(rule *EveroutePolicyRule) {
 	args := []string{"-D"}
 	if rule.SrcIPAddr != "" {
 		args = append(args, "-s", rule.SrcIPAddr)
+		if _, ipNet, err := net.ParseCIDR(rule.SrcIPAddr); err == nil {
+			args = append(args, "--mask-src", net.IP(ipNet.Mask).String())
+		}
 	}
 	if rule.DstIPAddr != "" {
 		args = append(args, "-d", rule.DstIPAddr)
+		if _, ipNet, err := net.ParseCIDR(rule.DstIPAddr); err == nil {
+			args = append(args, "--mask-dst", net.IP(ipNet.Mask).String())
+		}
 	}
 	if rule.IPProtocol != 0 {
 		args = append(args, "-p", strconv.Itoa(int(rule.IPProtocol)))
