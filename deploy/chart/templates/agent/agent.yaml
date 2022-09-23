@@ -66,6 +66,8 @@ spec:
           securityContext:
             privileged: true
           volumeMounts:
+            - name: everoute-run
+              mountPath: /var/run/everoute/
             - name: everoute-agent
               mountPath: /var/lib/everoute/
             - name: cni-bin
@@ -117,6 +119,8 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           volumeMounts:
+            - name: everoute-run
+              mountPath: /var/run/everoute/
             - name: everoute-agent
               mountPath: /var/lib/everoute/
             - name: everoute-config
@@ -150,6 +154,9 @@ spec:
           name: everoute-config
         - name: openvswitch
           emptyDir: {}
+        - name: everoute-run
+          hostPath:
+            path: /var/run/everoute
         - name: tmp
           emptyDir: {}
         - hostPath:
