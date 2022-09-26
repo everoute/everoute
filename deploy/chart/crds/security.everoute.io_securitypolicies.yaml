@@ -26,6 +26,9 @@ spec:
     - jsonPath: .spec.policyTypes
       name: PolicyTypes
       type: string
+    - jsonPath: .spec.securityPolicyEnforcementMode
+      name: Enforcement
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
