@@ -40,6 +40,7 @@ const (
 // +kubebuilder:printcolumn:name="Tier",type="string",JSONPath=".spec.tier"
 // +kubebuilder:printcolumn:name="SymmetricMode",type="boolean",JSONPath=".spec.symmetricMode"
 // +kubebuilder:printcolumn:name="PolicyTypes",type="string",JSONPath=".spec.policyTypes"
+// +kubebuilder:printcolumn:name="Enforcement",type="string",JSONPath=".spec.securityPolicyEnforcementMode"
 
 // SecurityPolicy describes what network traffic is allowed for a set of Endpoint.
 // Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
