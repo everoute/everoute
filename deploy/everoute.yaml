@@ -1990,13 +1990,14 @@ spec:
       containers:
         - name: init-agent
           command: ["init_agent"]
-          image: everoute/release:1.0.5
+          image: everoute/release:1.0.6-rc-20220926-01
           imagePullPolicy: IfNotPresent
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/sh", "-c", "agent_init_probe"]
           securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+              - NET_RAW
+              - NET_ADMIN
             privileged: true
           volumeMounts:
             - name: everoute-run
@@ -2028,9 +2029,9 @@ spec:
             successThreshold: 1
             failureThreshold: 3
         - name: everoute-agent
-          image: everoute/release:1.0.5
+          image: everoute/release:1.0.6-rc-20220926-01
           imagePullPolicy: IfNotPresent
-          command: ["everoute-agent"]
+          command: ["start-everoute-agent"]
           args:
             - --enable-cni=true
             - -v=0
@@ -2152,7 +2153,7 @@ spec:
       serviceAccountName: everoute-controller
       containers:
         - name: everoute-controller
-          image: everoute/release:1.0.5
+          image: everoute/release:1.0.6-rc-20220926-01
           imagePullPolicy: IfNotPresent
           command: ["everoute-controller"]
           args:

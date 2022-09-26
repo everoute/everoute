@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+set -v
+
+function error_handle {
+    sleep 1
+    exit 1
+}
+
 # init cni
 echo "init cni"
 mkdir -p /var/run/everoute
@@ -124,30 +131,30 @@ echo 0 > /proc/sys/net/ipv4/ip_early_demux
 # check configuration
 ## check ip link exist
 echo "check ip link exist"
-ip link show ${DEFAULT_BRIDGE} || exit 1
-ip link show ${POLICY_BRIDGE} || exit 1
-ip link show ${CLS_BRIDGE} || exit 1
-ip link show ${UPLINK_BRIDGE} || exit 1
-ip link show ${GW_IFACE} || exit 1
-ip link show ${GW_LOCAL_IFACE} || exit 1
+ip link show ${DEFAULT_BRIDGE} || error_handle
+ip link show ${POLICY_BRIDGE} || error_handle
+ip link show ${CLS_BRIDGE} || error_handle
+ip link show ${UPLINK_BRIDGE} || error_handle
+ip link show ${GW_IFACE} || error_handle
+ip link show ${GW_LOCAL_IFACE} || error_handle
 ## check ip address exist
 echo "check ip address exist"
-ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} && exit 1
-ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} || [[ $? -ne 2 ]] && exit 1
+ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} && error_handle
+ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} || [[ $? -ne 2 ]] && error_handle
 ## check policy rule
 echo "check policy rule"
-[[ `ip rule list preference ${LOCAL_IP_RULE_PREF} lookup local | wc -l` -eq 0 ]] && exit 1
-[[ `ip rule list preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} | wc -l` -eq 0 ]] && exit 1
-[[ `ip rule list preference 0 | wc -l` -ne 0 ]] && exit 1
-ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && exit 1
-ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && exit 1
+[[ `ip rule list preference ${LOCAL_IP_RULE_PREF} lookup local | wc -l` -eq 0 ]] && error_handle
+[[ `ip rule list preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} | wc -l` -eq 0 ]] && error_handle
+[[ `ip rule list preference 0 | wc -l` -ne 0 ]] && error_handle
+ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && error_handle
+ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && error_handle
 ## check sysctl
 echo "check sysctl"
-[[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && exit 1
-[[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && exit 1
-[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && exit 1
-[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && exit 1
-[[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && exit 1
+[[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && error_handle
+[[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && error_handle
+[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && error_handle
+[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && error_handle
+[[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && error_handle
 
 echo "finish init"
 touch /tmp/everoute_agent_init
