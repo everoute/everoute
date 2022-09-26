@@ -70,7 +70,7 @@ const (
 func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var err error
 	ctx := context.Background()
-	klog.Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
+	klog.V(4).Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
 
 	endpoint := securityv1alpha1.Endpoint{}
 	if err := r.Get(ctx, req.NamespacedName, &endpoint); err != nil {
