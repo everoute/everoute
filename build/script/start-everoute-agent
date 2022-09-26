@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-
+echo "wait init agent..."
 while true; do
   sleep 1
+  echo "check init agent"
   if [ -f /tmp/everoute_agent_init ]; then
     break
   fi
 done
 
-exit 0
+/opt/everoute/bin/everoute-agent $*

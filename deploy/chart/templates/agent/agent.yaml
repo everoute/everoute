@@ -59,11 +59,12 @@ spec:
           command: ["init_agent"]
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/sh", "-c", "agent_init_probe"]
           securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+              - NET_RAW
+              - NET_ADMIN
             privileged: true
           volumeMounts:
             - name: everoute-run
@@ -97,7 +98,7 @@ spec:
         - name: everoute-agent
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
-          command: ["everoute-agent"]
+          command: ["start-everoute-agent"]
           args:
             - --enable-cni=true
             - -v=0
