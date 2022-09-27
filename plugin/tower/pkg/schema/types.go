@@ -23,12 +23,13 @@ import (
 type VM struct {
 	ObjectMeta
 
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Vcpu        int      `json:"vcpu,omitempty"`
-	Memory      float64  `json:"memory,omitempty"`
-	Status      VMStatus `json:"status"`
-	VMNics      []VMNic  `json:"vm_nics,omitempty"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	Vcpu        int        `json:"vcpu,omitempty"`
+	Memory      float64    `json:"memory,omitempty"`
+	Status      VMStatus   `json:"status"`
+	VMNics      []VMNic    `json:"vm_nics,omitempty"`
+	Cluster     ELFCluster `json:"cluster"`
 }
 
 // VMStatus is enumeration of vm status
@@ -150,8 +151,9 @@ const (
 type Host struct {
 	ObjectMeta
 
-	Name string `json:"name,omitempty"`
-	Nics []Nic  `json:"nics,omitempty"`
+	Name    string     `json:"name,omitempty"`
+	Nics    []Nic      `json:"nics,omitempty"`
+	Cluster ELFCluster `json:"cluster"`
 }
 
 type Nic struct {
@@ -161,4 +163,10 @@ type Nic struct {
 	Name       string `json:"name,omitempty"`
 	MacAddress string `json:"mac_address,omitempty"`
 	IPAddress  string `json:"ip_address,omitempty"`
+}
+
+type ELFCluster struct {
+	ObjectMeta
+
+	LocalID string `json:"local_id"`
 }
