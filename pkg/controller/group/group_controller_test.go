@@ -464,7 +464,7 @@ var _ = Describe("GroupController", func() {
 				})
 
 				It("the groupmembers should contains the endpoint", func() {
-					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 			})
 
