@@ -122,7 +122,7 @@ type SystemEndpoints struct {
 	IPPortEndpoints []IPPortSystemEndpoint `json:"ip_port_endpoints,omitempty"`
 }
 
-func (s *SystemEndpoints) GetSubscriptionRequest(skipFields map[string]string) string {
+func (s *SystemEndpoints) GetSubscriptionRequest(skipFields map[string][]string) string {
 	subscriptionFields := utils.GqlTypeMarshal(reflect.TypeOf(s), skipFields, true)
 	return fmt.Sprintf("subscription {systemEndpoints %s}", subscriptionFields)
 }
