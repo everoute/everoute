@@ -42,7 +42,7 @@ type VMNic struct {
 func TestGqlTypeMarshal(t *testing.T) {
 	tests := []struct {
 		t          reflect.Type
-		skipFields map[string]string
+		skipFields map[string][]string
 		bracketed  bool
 		want       string
 	}{
@@ -53,19 +53,19 @@ func TestGqlTypeMarshal(t *testing.T) {
 		},
 		{
 			t:          reflect.TypeOf(VM{}),
-			skipFields: map[string]string{"vcpu": "VM"},
+			skipFields: map[string][]string{"VM": {"vcpu"}},
 			bracketed:  true,
 			want:       "{id,name,description,memory,vm_nics{id,enabled,mirror}}",
 		},
 		{
 			t:          reflect.TypeOf(VM{}),
-			skipFields: map[string]string{"enabled": "VMNic"},
+			skipFields: map[string][]string{"VMNic": {"enabled"}},
 			bracketed:  true,
 			want:       "{id,name,description,vcpu,memory,vm_nics{id,mirror}}",
 		},
 		{
 			t:          reflect.TypeOf(VM{}),
-			skipFields: map[string]string{"vcpu": "VM", "vm_nics": "VM"},
+			skipFields: map[string][]string{"VM": {"vm_nics", "vcpu"}},
 			bracketed:  true,
 			want:       "{id,name,description,memory}",
 		},

@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // GqlTypeMarshal encoding reflect type into gql query types
-// Parameter skipFields contains map of skipped fields with parent type
-func GqlTypeMarshal(t reflect.Type, skippFields map[string]string, bracketed bool) string {
+// Parameter skipFields contains map with type name and skipped fields
+func GqlTypeMarshal(t reflect.Type, skippFields map[string][]string, bracketed bool) string {
 	switch t.Kind() {
 	case reflect.Ptr, reflect.Slice:
 		return GqlTypeMarshal(t.Elem(), skippFields, bracketed)
@@ -34,7 +36,7 @@ func GqlTypeMarshal(t reflect.Type, skippFields map[string]string, bracketed boo
 
 		for i := 0; i < t.NumField(); i++ {
 			name := lookupFieldName(t.Field(i))
-			if name != "" && skippFields != nil && skippFields[name] == t.Name() {
+			if name != "" && skippFields != nil && sets.NewString(skippFields[t.Name()]...).Has(name) {
 				continue
 			}
 			subField := GqlTypeMarshal(t.Field(i).Type, skippFields, name != "")
