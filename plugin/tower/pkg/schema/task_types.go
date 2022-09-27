@@ -35,7 +35,7 @@ type Task struct {
 	Status       TaskStatus `json:"status"`
 }
 
-func (t *Task) GetQueryRequest(skipFields map[string]string) string {
+func (t *Task) GetQueryRequest(skipFields map[string][]string) string {
 	queryFields := utils.GqlTypeMarshal(reflect.TypeOf(t), skipFields, true)
 	// only list latest 30 tasks
 	return fmt.Sprintf("query {tasks(last: 20, orderBy: local_created_at_ASC) %s}", queryFields)

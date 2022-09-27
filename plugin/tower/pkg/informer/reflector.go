@@ -67,9 +67,9 @@ type reflector struct {
 	// An example object of the type we expect to place in the store.
 	expectType gqlType
 
-	// skipFields contains map of skipped fields with parent type.
+	// skipFields contains map with type name and skipped fields.
 	// When got field not exist error, we skip the fields
-	skipFields map[string]string
+	skipFields map[string][]string
 
 	// backoff manages backoff of reflector listAndWatch
 	backoffManager wait.BackoffManager
@@ -210,17 +210,19 @@ func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error
 
 	// reset skipFields from error message to handle the cause:
 	//   after tower upgrade, query all fields from the tower
-	r.skipFields = make(map[string]string)
+	r.skipFields = make(map[string][]string)
 	for _, respErr := range respErrs {
 		names := matchFieldNotExistFromMessage(respErr.Message)
 		if names != nil {
+			fieldName := names[0]
+			typeName := names[1]
 			// when the reflected objects not exist, we consider it as has synced
 			// the reflector retries with backoff manager until the object exists
-			if names[0] == r.expectType.ListName() && names[1] == "Query" {
+			if fieldName == r.expectType.ListName() && typeName == "Query" {
 				_ = r.store.Replace(nil, r.LastSyncResourceVersion())
 				break
 			}
-			r.skipFields[names[0]] = names[1]
+			r.skipFields[typeName] = append(r.skipFields[typeName], fieldName)
 		}
 	}
 
@@ -298,12 +300,12 @@ func (r *reflector) resyncChan() (<-chan time.Time, func() bool) {
 
 // Queryable allow to mutate the default query request
 type Queryable interface {
-	GetQueryRequest(skipFields map[string]string) string
+	GetQueryRequest(skipFields map[string][]string) string
 }
 
 // Subscribable allow to mutate the default subscription request
 type Subscribable interface {
-	GetSubscriptionRequest(skipFields map[string]string) string
+	GetSubscriptionRequest(skipFields map[string][]string) string
 }
 
 func (r *reflector) queryRequest() *client.Request {
@@ -361,7 +363,7 @@ func (t *gqlType) ListName() string {
 }
 
 // QueryFields return the type fields as gql query fields.
-func (t *gqlType) QueryFields(skipFields map[string]string) string {
+func (t *gqlType) QueryFields(skipFields map[string][]string) string {
 	return utils.GqlTypeMarshal(t, skipFields, true)
 }
 
