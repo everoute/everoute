@@ -6,6 +6,12 @@ type VM {
     memory: Float!
     vm_nics: [VMNic!]
     status: VMStatus!
+    cluster: ELFCluster!
+}
+
+type ELFCluster {
+    id: ID!
+    local_id: String!
 }
 
 enum VMStatus {
@@ -83,6 +89,7 @@ type Host {
     id: ID!
     name: String!
     nics: [Nic!]
+    cluster: ELFCluster!
 }
 
 type Nic {
