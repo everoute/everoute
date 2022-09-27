@@ -103,8 +103,6 @@ func (l *LocalBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	l.localSwitchStatusMuxtex.Lock()
 	l.isLocalSwitchConnected = false
 	l.localSwitchStatusMuxtex.Unlock()
-
-	l.OfSwitch = nil
 }
 
 func (l *LocalBridge) IsSwitchConnected() bool {
