@@ -36,7 +36,7 @@ type FakeGroupMemberses struct {
 	Fake *FakeGroupV1alpha1
 }
 
-var groupmembersesResource = schema.GroupVersionResource{Group: "group.everoute.io", Version: "v1alpha1", Resource: "groupmemberses"}
+var groupmembersesResource = schema.GroupVersionResource{Group: "group.everoute.io", Version: "v1alpha1", Resource: "groupmembers"}
 
 var groupmembersesKind = schema.GroupVersionKind{Group: "group.everoute.io", Version: "v1alpha1", Kind: "GroupMembers"}
 

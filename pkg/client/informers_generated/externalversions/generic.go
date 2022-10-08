@@ -62,7 +62,7 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=group.everoute.io, Version=v1alpha1
 	case groupv1alpha1.SchemeGroupVersion.WithResource("endpointgroups"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().EndpointGroups().Informer()}, nil
-	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberses"):
+	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmembers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMemberses().Informer()}, nil
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberspatches"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMembersPatches().Informer()}, nil

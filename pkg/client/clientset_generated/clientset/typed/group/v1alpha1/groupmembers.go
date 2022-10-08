@@ -66,7 +66,7 @@ func newGroupMemberses(c *GroupV1alpha1Client) *groupMemberses {
 func (c *groupMemberses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.GroupMembers, err error) {
 	result = &v1alpha1.GroupMembers{}
 	err = c.client.Get().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do(ctx).
@@ -82,7 +82,7 @@ func (c *groupMemberses) List(ctx context.Context, opts v1.ListOptions) (result 
 	}
 	result = &v1alpha1.GroupMembersList{}
 	err = c.client.Get().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do(ctx).
@@ -98,7 +98,7 @@ func (c *groupMemberses) Watch(ctx context.Context, opts v1.ListOptions) (watch.
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch(ctx)
@@ -108,7 +108,7 @@ func (c *groupMemberses) Watch(ctx context.Context, opts v1.ListOptions) (watch.
 func (c *groupMemberses) Create(ctx context.Context, groupMembers *v1alpha1.GroupMembers, opts v1.CreateOptions) (result *v1alpha1.GroupMembers, err error) {
 	result = &v1alpha1.GroupMembers{}
 	err = c.client.Post().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(groupMembers).
 		Do(ctx).
@@ -120,7 +120,7 @@ func (c *groupMemberses) Create(ctx context.Context, groupMembers *v1alpha1.Grou
 func (c *groupMemberses) Update(ctx context.Context, groupMembers *v1alpha1.GroupMembers, opts v1.UpdateOptions) (result *v1alpha1.GroupMembers, err error) {
 	result = &v1alpha1.GroupMembers{}
 	err = c.client.Put().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		Name(groupMembers.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(groupMembers).
@@ -132,7 +132,7 @@ func (c *groupMemberses) Update(ctx context.Context, groupMembers *v1alpha1.Grou
 // Delete takes name of the groupMembers and deletes it. Returns an error if one occurs.
 func (c *groupMemberses) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
@@ -146,7 +146,7 @@ func (c *groupMemberses) DeleteCollection(ctx context.Context, opts v1.DeleteOpt
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -158,7 +158,7 @@ func (c *groupMemberses) DeleteCollection(ctx context.Context, opts v1.DeleteOpt
 func (c *groupMemberses) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.GroupMembers, err error) {
 	result = &v1alpha1.GroupMembers{}
 	err = c.client.Patch(pt).
-		Resource("groupmemberses").
+		Resource("groupmembers").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
