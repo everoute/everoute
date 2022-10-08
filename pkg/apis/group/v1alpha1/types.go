@@ -24,6 +24,7 @@ import (
 	"github.com/everoute/everoute/pkg/types"
 )
 
+// +resourceName=groupmembers
 // +genclient
 // +genclient:nonNamespaced
 // +genclient:noStatus
