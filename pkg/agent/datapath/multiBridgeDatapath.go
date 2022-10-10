@@ -867,7 +867,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 		// clear CT flow while updating from "allow" to "deny"
 		if ruleEntry.EveroutePolicyRule.Action == EveroutePolicyAllow && rule.Action == EveroutePolicyDeny {
-			CleanConntrackFlow(rule)
+			go CleanConntrackFlow(rule)
 		}
 	}
 
@@ -885,7 +885,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 	// clean related CT flows only for "deny" action while adding
 	if rule.Action == EveroutePolicyDeny {
-		CleanConntrackFlow(rule)
+		go CleanConntrackFlow(rule)
 	}
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
@@ -946,7 +946,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 
 	// clean related CT flows only for "allow" action while deleting
 	if datapathManager.Rules[ruleID].EveroutePolicyRule.Action == EveroutePolicyAllow {
-		CleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
+		go CleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
 	}
 
 	if pRule.PolicyRuleReference.Len() == 0 {
