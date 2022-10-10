@@ -39,6 +39,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	cmap "github.com/streamrail/concurrent-map"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
@@ -134,6 +135,9 @@ const (
 	MaxRoundNum = 15
 
 	MaxArpChanCache = 100
+
+	MaxCleanConntrackChanSize  = 2000
+	MaxCleanConntrackWorkerNum = 5
 )
 
 type Bridge interface {
@@ -183,6 +187,7 @@ type DpManager struct {
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
 	ovsdbReconnectChan        chan struct{}
+	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan protocol.ARP
 
@@ -293,6 +298,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
+	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan protocol.ARP, MaxArpChanCache)
 
 	var wg sync.WaitGroup
@@ -343,6 +349,10 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			}
 		}
 	}()
+
+	for i := 0; i < MaxCleanConntrackWorkerNum; i++ {
+		go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
+	}
 
 	bridgeKeywordList := []string{LOCAL_BRIDGE_KEYWORD, POLICY_BRIDGE_KEYWORD, CLS_BRIDGE_KEYWORD, UPLINK_BRIDGE_KEYWORD}
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
@@ -867,7 +877,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 		// clear CT flow while updating from "allow" to "deny"
 		if ruleEntry.EveroutePolicyRule.Action == EveroutePolicyAllow && rule.Action == EveroutePolicyDeny {
-			CleanConntrackFlow(rule)
+			datapathManager.cleanConntrackFlow(rule)
 		}
 	}
 
@@ -885,7 +895,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 	// clean related CT flows only for "deny" action while adding
 	if rule.Action == EveroutePolicyDeny {
-		CleanConntrackFlow(rule)
+		datapathManager.cleanConntrackFlow(rule)
 	}
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
@@ -946,7 +956,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 
 	// clean related CT flows only for "allow" action while deleting
 	if datapathManager.Rules[ruleID].EveroutePolicyRule.Action == EveroutePolicyAllow {
-		CleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
+		datapathManager.cleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
 	}
 
 	if pRule.PolicyRuleReference.Len() == 0 {
@@ -1007,35 +1017,43 @@ func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 	}
 }
 
-func CleanConntrackFlow(rule *EveroutePolicyRule) {
-	args := []string{"-D"}
-	if rule.SrcIPAddr != "" {
-		args = append(args, "-s", rule.SrcIPAddr)
-		if _, ipNet, err := net.ParseCIDR(rule.SrcIPAddr); err == nil {
-			args = append(args, "--mask-src", net.IP(ipNet.Mask).String())
+func (datapathManager *DpManager) cleanConntrackWorker() {
+	for {
+		ruleList := receiveRuleListFromChan(datapathManager.cleanConntrackChan)
+		if ruleList == nil {
+			return
 		}
-	}
-	if rule.DstIPAddr != "" {
-		args = append(args, "-d", rule.DstIPAddr)
-		if _, ipNet, err := net.ParseCIDR(rule.DstIPAddr); err == nil {
-			args = append(args, "--mask-dst", net.IP(ipNet.Mask).String())
+		matches, err := netlink.ConntrackDeleteFilter(netlink.ConntrackTable, unix.AF_INET, ruleList)
+		if err != nil {
+			klog.Errorf("clear conntrack error, rules: %+v, err: %s", ruleList, err)
+			continue
 		}
+		klog.Infof("clear conntrack for rules: %+v, matches %d", ruleList, matches)
 	}
-	if rule.IPProtocol != 0 {
-		args = append(args, "-p", strconv.Itoa(int(rule.IPProtocol)))
+}
+
+func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
+	datapathManager.cleanConntrackChan <- *rule
+}
+
+func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {
+	var ruleList EveroutePolicyRuleList
+
+	// block until chan have one or more rules
+	rule, ok := <-ruleChan
+	if !ok {
+		return nil
 	}
-	if rule.IPProtocol == protocol.Type_TCP || rule.IPProtocol == protocol.Type_UDP {
-		if rule.SrcPort != 0 {
-			args = append(args, "--sport", strconv.Itoa(int(rule.SrcPort))+"/"+strconv.Itoa(int(rule.SrcPortMask)))
+	ruleList = append(ruleList, rule)
+
+	// read and return all rules in chan
+	for {
+		select {
+		case rule := <-ruleChan:
+			ruleList = append(ruleList, rule)
+		default:
+			return ruleList
 		}
-		if rule.DstPort != 0 {
-			args = append(args, "--dport", strconv.Itoa(int(rule.DstPort))+"/"+strconv.Itoa(int(rule.DstPortMask)))
-		}
-	}
-	klog.Infof("clear conntrack for rule: %+v, conntrack args: conntrack %s", rule, args)
-	err := exec.Command("conntrack", args...).Run()
-	if err != nil {
-		klog.Errorf("clear conntrack error, rule: %+v, err: %s", rule, err)
 	}
 }
 

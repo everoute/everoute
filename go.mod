@@ -33,7 +33,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+	golang.org/x/sys v0.0.0-20220804214406-8e32c043e418
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -53,6 +53,7 @@ replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
+	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
 	k8s.io/apimachinery v0.22.2 => k8s.io/apimachinery v0.20.6
 	k8s.io/client-go v0.22.2 => k8s.io/client-go v0.20.6

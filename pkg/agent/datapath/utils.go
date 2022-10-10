@@ -18,8 +18,11 @@ package datapath
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
+
+	"github.com/vishvananda/netlink"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
@@ -137,4 +140,53 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 		RuleFlowMap:         rpcRFM,
 		PolicyRuleReference: rpcReference,
 	}
+}
+
+func (rule EveroutePolicyRule) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+	if rule.IPProtocol != 0 && rule.IPProtocol != flow.Forward.Protocol {
+		return false
+	}
+
+	if rule.SrcIPAddr != "" && !matchIP(rule.SrcIPAddr, flow.Forward.SrcIP) {
+		return false
+	}
+
+	if rule.DstIPAddr != "" && !matchIP(rule.DstIPAddr, flow.Forward.DstIP) {
+		return false
+	}
+
+	if rule.SrcPort != 0 && !matchPort(rule.SrcPortMask, rule.SrcPort, flow.Forward.SrcPort) {
+		return false
+	}
+
+	if rule.DstPort != 0 && !matchPort(rule.DstPortMask, rule.DstPort, flow.Forward.DstPort) {
+		return false
+	}
+
+	return true
+}
+
+func matchPort(mask, port1, port2 uint16) bool {
+	if mask == 0 {
+		return port1 == port2
+	}
+	return port1&mask == port2&mask
+}
+
+func matchIP(ipRaw string, ip net.IP) bool {
+	if _, ipNet, err := net.ParseCIDR(ipRaw); err == nil {
+		return ipNet.Contains(ip)
+	}
+	return net.ParseIP(ipRaw).Equal(ip)
+}
+
+type EveroutePolicyRuleList []EveroutePolicyRule
+
+func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+	for _, rule := range list {
+		if rule.MatchConntrackFlow(flow) {
+			return true
+		}
+	}
+	return false
 }
