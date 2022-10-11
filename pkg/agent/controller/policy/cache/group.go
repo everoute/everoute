@@ -119,7 +119,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 		oldMember := membership.endpoints[member.EndpointReference]
 		for _, ipAddr := range oldMember.IPs {
 			cidr := GetIPCidr(ipAddr)
-			if _, exist := patch.Add[cidr]; !exist {
+			if _, exist := patch.Del[cidr]; !exist {
 				patch.Del[cidr] = NewIPBlockItem()
 			}
 			patch.Del[cidr].AgentRef.Insert(oldMember.EndpointAgent...)
@@ -136,7 +136,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 	for _, member := range sourcePatch.RemovedGroupMembers {
 		for _, ipAddr := range member.IPs {
 			cidr := GetIPCidr(ipAddr)
-			if _, exist := patch.Add[cidr]; !exist {
+			if _, exist := patch.Del[cidr]; !exist {
 				patch.Del[cidr] = NewIPBlockItem()
 			}
 			patch.Del[cidr].AgentRef.Insert(member.EndpointAgent...)
