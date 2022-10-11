@@ -1024,14 +1024,17 @@ func CleanConntrackFlow(rule *EveroutePolicyRule) {
 	if rule.IPProtocol != 0 {
 		args = append(args, "-p", strconv.Itoa(int(rule.IPProtocol)))
 	}
-	if rule.IPProtocol == protocol.Type_TCP || rule.IPProtocol == protocol.Type_UDP {
-		if rule.SrcPort != 0 {
-			args = append(args, "--sport", strconv.Itoa(int(rule.SrcPort))+"/"+strconv.Itoa(int(rule.SrcPortMask)))
+	// TODO: conntrack-tools do not support port mask, instead of netlink libs later.
+	/*
+		if rule.IPProtocol == protocol.Type_TCP || rule.IPProtocol == protocol.Type_UDP {
+			if rule.SrcPort != 0 {
+				args = append(args, "--sport", strconv.Itoa(int(rule.SrcPort))+"/"+strconv.Itoa(int(rule.SrcPortMask)))
+			}
+			if rule.DstPort != 0 {
+				args = append(args, "--dport", strconv.Itoa(int(rule.DstPort))+"/"+strconv.Itoa(int(rule.DstPortMask)))
+			}
 		}
-		if rule.DstPort != 0 {
-			args = append(args, "--dport", strconv.Itoa(int(rule.DstPort))+"/"+strconv.Itoa(int(rule.DstPortMask)))
-		}
-	}
+	*/
 	klog.Infof("clear conntrack for rule: %+v, conntrack args: conntrack %s", rule, args)
 	err := exec.Command("conntrack", args...).Run()
 	if err != nil {
