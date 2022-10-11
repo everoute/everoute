@@ -80,14 +80,7 @@ func (l *Buff) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 
 	go func() {
 		conn, err = l.Dial()
-		select {
-		case done <- struct{}{}:
-			close(done)
-		default:
-			if err == nil {
-				_ = conn.Close()
-			}
-		}
+		close(done)
 	}()
 
 	select {
