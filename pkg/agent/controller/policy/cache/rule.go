@@ -285,14 +285,6 @@ func (rule *CompleteRule) ApplyPatch(patch *GroupPatch) {
 }
 
 func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlockItem) {
-	for ip, add := range added {
-		if _, exist := count[ip]; !exist {
-			count[ip] = NewIPBlockItem()
-		}
-		count[ip].StaticCount += add.StaticCount
-		count[ip].AgentRef.Insert(add.AgentRef.List()...)
-	}
-
 	for ip, del := range deled {
 		if _, exist := count[ip]; !exist {
 			continue
@@ -307,6 +299,14 @@ func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlo
 		if count[ip].StaticCount == 0 && count[ip].AgentRef.Len() == 0 {
 			delete(count, ip)
 		}
+	}
+
+	for ip, add := range added {
+		if _, exist := count[ip]; !exist {
+			count[ip] = NewIPBlockItem()
+		}
+		count[ip].StaticCount += add.StaticCount
+		count[ip].AgentRef.Insert(add.AgentRef.List()...)
 	}
 }
 
