@@ -492,6 +492,9 @@ func (m *provider) setupIPAddrPorts(ctx context.Context, endpoint *model.Endpoin
 		tcpPort=${3}
 		vethName=eth0
 
+		ip link set lo up
+		ip link set ${vethName} up
+
 		realIP=$(ip addr show ${vethName} | grep -Eo '([0-9]*\.){3}[0-9]*/[0-9]*' || true)
 		if [[ "${realIP}" != "${ipAddr}" ]]; then
 			ip addr flush ${vethName}
