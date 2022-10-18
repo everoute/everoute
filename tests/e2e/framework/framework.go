@@ -140,6 +140,11 @@ func (f *Framework) CleanObjects(ctx context.Context, objects ...metav1.Object) 
 	return nil
 }
 
+const (
+	E2EPolicyLabelKey   = "label.everoute.io/policy-usage"
+	E2EPolicyLabelValue = "e2e"
+)
+
 func (f *Framework) ResetResource(ctx context.Context) error {
 	klog.Infof("will clean all endpoints, groups, policies")
 
@@ -148,7 +153,7 @@ func (f *Framework) ResetResource(ctx context.Context) error {
 		return fmt.Errorf("clean endpoints: %s", err)
 	}
 
-	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.InNamespace(f.Namespace()))
+	err = f.kubeClient.DeleteAllOf(ctx, &securityv1alpha1.SecurityPolicy{}, client.MatchingLabels{E2EPolicyLabelKey: E2EPolicyLabelValue}, client.InNamespace(f.Namespace()))
 	if err != nil {
 		return fmt.Errorf("clean policies: %s", err)
 	}
