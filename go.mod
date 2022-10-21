@@ -32,8 +32,8 @@ require (
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
-	golang.org/x/crypto v0.0.0-20220128200615-198e4374d7ed
-	golang.org/x/sys v0.0.0-20220804214406-8e32c043e418
+	golang.org/x/crypto v0.1.0
+	golang.org/x/sys v0.1.0
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/yaml.v2 v2.4.0
