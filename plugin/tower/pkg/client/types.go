@@ -19,6 +19,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 )
 
@@ -112,4 +113,14 @@ type UserInfo struct {
 	Username string `json:"username" yaml:"username"`
 	Password string `json:"password" yaml:"password"`
 	Source   string `json:"source" yaml:"source"`
+}
+
+// Upload scalar to add support for GraphQL multipart requests
+type Upload struct {
+	FileName string
+	File     io.Reader
+}
+
+func (*Upload) MarshalJSON() ([]byte, error) {
+	return []byte("null"), nil
 }
