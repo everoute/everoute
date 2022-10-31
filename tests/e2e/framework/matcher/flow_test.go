@@ -21,59 +21,129 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ContainsFlow", func() {
+var _ = Describe("ContainsFlow matcher", func() {
+	Context("ContainsFlow", func() {
+		When("passed a supported type", func() {
+			var actualFlows map[string][]string
+			var expectedFlows []string
 
-	When("passed a supported type", func() {
-		var actualFlows map[string][]string
-		var expectedFlows []string
+			When("contains expected flows", func() {
+				BeforeEach(func() {
+					flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
+					flow2 := "table=0, priority=100,ip actions=goto_table:5"
+					flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
 
-		When("contains expected flows", func() {
-			BeforeEach(func() {
-				flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
-				flow2 := "table=0, priority=100,ip actions=goto_table:5"
-				flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
+					expectedFlows = []string{flow1, flow2}
+					actualFlows = map[string][]string{
+						"host01": {flow1, flow2, flow3},
+						"host02": {flow1, flow2},
+					}
+				})
 
-				expectedFlows = []string{flow1, flow2}
-				actualFlows = map[string][]string{
-					"host01": {flow1, flow2, flow3},
-					"host02": {flow1, flow2},
-				}
+				It("should do the right thing", func() {
+					Expect(actualFlows).Should(ContainsFlow(expectedFlows))
+				})
 			})
 
-			It("should do the right thing", func() {
-				Expect(actualFlows).Should(ContainsFlow(expectedFlows))
+			When("not all contains expected flows", func() {
+				BeforeEach(func() {
+					flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
+					flow2 := "table=0, priority=100,ip actions=goto_table:5"
+					flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
+
+					expectedFlows = []string{flow1, flow2}
+					actualFlows = map[string][]string{
+						"host01": {flow1, flow2, flow3},
+						"host02": {flow1, flow2},
+						"host03": {flow1, flow3},
+					}
+				})
+
+				It("should do the right thing", func() {
+					Expect(actualFlows).ShouldNot(ContainsFlow(expectedFlows))
+				})
 			})
 		})
 
-		When("not all contains expected flows", func() {
-			BeforeEach(func() {
-				flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
-				flow2 := "table=0, priority=100,ip actions=goto_table:5"
-				flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
+		When("passed an unsupported type", func() {
+			It("should error", func() {
+				success, err := ContainsFlow(nil).Match("")
+				Expect(success).Should(BeFalse())
+				Expect(err).Should(HaveOccurred())
 
-				expectedFlows = []string{flow1, flow2}
-				actualFlows = map[string][]string{
-					"host01": {flow1, flow2, flow3},
-					"host02": {flow1, flow2},
-					"host03": {flow1, flow3},
-				}
-			})
-
-			It("should do the right thing", func() {
-				Expect(actualFlows).ShouldNot(ContainsFlow(expectedFlows))
+				success, err = ContainsFlow(nil).Match(0)
+				Expect(success).Should(BeFalse())
+				Expect(err).Should(HaveOccurred())
 			})
 		})
 	})
 
-	When("passed an unsupported type", func() {
-		It("should error", func() {
-			success, err := ContainsFlow(nil).Match("")
-			Expect(success).Should(BeFalse())
-			Expect(err).Should(HaveOccurred())
+	Context("ContainsRelativeFlow", func() {
+		When("passed a supported type", func() {
+			var actualFlows map[string][]string
+			var expectedFlows map[string][]string
 
-			success, err = ContainsFlow(nil).Match(0)
-			Expect(success).Should(BeFalse())
-			Expect(err).Should(HaveOccurred())
+			When("contains expected flows", func() {
+				BeforeEach(func() {
+					flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
+					flow2 := "table=0, priority=100,ip actions=goto_table:5"
+					flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
+
+					// expectedFlows = []string{flow1, flow2}
+					expectedFlows = map[string][]string{
+						"host01": {flow1, flow3},
+						"host02": {flow1},
+					}
+					actualFlows = map[string][]string{
+						"host01": {flow1, flow2, flow3},
+						"host02": {flow1, flow2},
+					}
+				})
+
+				It("should do the right thing", func() {
+					Expect(actualFlows).Should(ContainsRelativeFlow(expectedFlows))
+				})
+			})
+
+			When("not all contains expected flows", func() {
+				BeforeEach(func() {
+					flow1 := "table=0, priority=103,arp,in_port=10 actions=goto_table:46"
+					flow2 := "table=0, priority=100,ip actions=goto_table:5"
+					flow3 := "table=0, priority=102,arp actions=CONTROLLER:65535"
+
+					expectedFlows = map[string][]string{
+						"host01": {flow1, flow2},
+						"host02": {flow1, flow3},
+						"host03": {flow2, flow3},
+					}
+					actualFlows = map[string][]string{
+						"host01": {flow1, flow2, flow3},
+						"host02": {flow1, flow2},
+						"host03": {flow1, flow3},
+					}
+				})
+
+				It("should do the right thing", func() {
+					Expect(actualFlows).ShouldNot(ContainsRelativeFlow(expectedFlows))
+				})
+			})
+		})
+
+		When("passed an unsupported type", func() {
+			It("should error", func() {
+				success, err := ContainsRelativeFlow(nil).Match("")
+				Expect(success).Should(BeFalse())
+				Expect(err).Should(HaveOccurred())
+
+				success, err = ContainsRelativeFlow(nil).Match(0)
+				Expect(success).Should(BeFalse())
+				Expect(err).Should(HaveOccurred())
+
+				var slice []string
+				success, err = ContainsRelativeFlow(nil).Match(slice)
+				Expect(success).Should(BeFalse())
+				Expect(err).Should(HaveOccurred())
+			})
 		})
 	})
 })

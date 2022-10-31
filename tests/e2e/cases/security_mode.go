@@ -36,13 +36,25 @@ type SecurityModel struct {
 	Endpoints []*model.Endpoint
 }
 
-// ExpectedFlows compute expected open flows by security model.
-func (m *SecurityModel) ExpectedFlows() []string {
-	var flows []string
-	for _, policy := range m.Policies {
-		flows = append(flows, m.collectPolicyFlows(policy)...)
+// ExpectedRelativeFlows compute only expected open flows which relative with per endpoint by security model.
+// It returns a map from a host name to some flows, and asserts the host name is same as the agent name.
+func (m *SecurityModel) ExpectedRelativeFlows() map[string][]string {
+	var allFlows = make(map[string][]string)
+	for _, ep := range m.Endpoints {
+		var flows []string
+		name := ep.Status.Host
+		ip := func() string {
+			ipAddr, _, _ := net.ParseCIDR(ep.Status.IPAddr)
+			return ipAddr.String()
+		}()
+
+		for _, policy := range m.Policies {
+			flows = append(flows, m.collectPolicyFlowsByIP(policy, ip)...)
+		}
+
+		allFlows[name] = append(allFlows[name], flows...)
 	}
-	return flows
+	return allFlows
 }
 
 // NewEmptyTruthTable returned endpoint TruthTable with defaultExpectation.
@@ -57,10 +69,36 @@ func (m *SecurityModel) NewEmptyTruthTable(defaultExpectation bool) *model.Truth
 	return model.NewTruthTableFromItems(epList, &defaultExpectation)
 }
 
-// fixme: need to deal rule matches all src/dst and default deny rule
-func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPolicy) []string {
-	var appliedIPs, ingressIPs, egressIPs []string
+// The specific implementation of the collectPolicyFlows
+func (m *SecurityModel) collectPolicyFlowsByIP(policy *securityv1alpha1.SecurityPolicy, appliedIP string) []string {
+	var ingressIPs, egressIPs []string
 	var ingressPorts, egressPorts []cache.RulePort
+
+	applied := func() bool {
+		for _, appliedPeer := range policy.Spec.AppliedTo {
+			var appliedEndpoint *securityv1alpha1.NamespacedName
+			if appliedPeer.Endpoint != nil {
+				appliedEndpoint = &securityv1alpha1.NamespacedName{
+					Name:      *appliedPeer.Endpoint,
+					Namespace: policy.GetNamespace(),
+				}
+			}
+			peerIPs := m.getPeerIPs(&securityv1alpha1.SecurityPolicyPeer{
+				Endpoint:         appliedEndpoint,
+				EndpointSelector: appliedPeer.EndpointSelector,
+			})
+			for _, peerIP := range peerIPs {
+				if appliedIP == peerIP {
+					return true
+				}
+			}
+		}
+		return false
+	}()
+
+	if !applied {
+		return nil
+	}
 
 	for _, rule := range policy.Spec.IngressRules {
 		for index := range rule.From {
@@ -85,23 +123,8 @@ func (m *SecurityModel) collectPolicyFlows(policy *securityv1alpha1.SecurityPoli
 		}
 		egressPorts = append(egressPorts, rulePorts...)
 	}
-
-	for _, appliedPeer := range policy.Spec.AppliedTo {
-		var appliedEndpoint *securityv1alpha1.NamespacedName
-		if appliedPeer.Endpoint != nil {
-			appliedEndpoint = &securityv1alpha1.NamespacedName{
-				Name:      *appliedPeer.Endpoint,
-				Namespace: policy.GetNamespace(),
-			}
-		}
-		appliedIPs = append(appliedIPs, m.getPeerIPs(&securityv1alpha1.SecurityPolicyPeer{
-			Endpoint:         appliedEndpoint,
-			EndpointSelector: appliedPeer.EndpointSelector,
-		})...)
-	}
-
 	return computePolicyFlow(policy.Spec.Tier, policy.Spec.SecurityPolicyEnforcementMode,
-		appliedIPs, ingressIPs, egressIPs, ingressPorts, egressPorts)
+		[]string{appliedIP}, ingressIPs, egressIPs, ingressPorts, egressPorts)
 }
 
 func (m *SecurityModel) getPeerIPs(peer *securityv1alpha1.SecurityPolicyPeer) []string {
@@ -150,69 +173,78 @@ func computePolicyFlow(tier string, mode securityv1alpha1.PolicyMode, appliedToI
 	}
 
 	for _, appliedToIP := range appliedToIPs {
-		for _, srcIP := range ingressIPs {
-			if appliedToIP != "" && srcIP != "" && appliedToIP == srcIP {
-				continue
-			}
-			// Except appliedToIP == srcIP, NOTE error implement in policyrule controller
-			for _, ingressGroupPort := range ingressPorts {
-				var flow string
-				protocol := strings.ToLower(string(ingressGroupPort.Protocol))
+		flowsForIP := computePolicyFlowWithIP(appliedToIP, ingressIPs, egressIPs, ingressPorts, egressGroupPorts,
+			priority, *ingressTableID, *ingressNextTableID, *egressTableID, *egressNextTableID, ctLableRange)
+		flows = append(flows, flowsForIP...)
+	}
 
-				if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*ingressTableID, priority, protocol, srcIP, appliedToIP, ctLableRange, *ingressNextTableID)
-				} else if ingressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ctLableRange,
-						*ingressNextTableID)
-					if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-							*ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask, ctLableRange,
-							*ingressNextTableID)
-					}
+	return flows
+}
+
+func computePolicyFlowWithIP(appliedToIP string, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort,
+	priority int, ingressTableID, ingressNextTableID, egressTableID, egressNextTableID int, ctLableRange string) []string {
+	var flows []string = nil
+	for _, srcIP := range ingressIPs {
+		if appliedToIP != "" && srcIP != "" && appliedToIP == srcIP {
+			continue
+		}
+		// Except appliedToIP == srcIP, NOTE error implement in policyrule controller
+		for _, ingressGroupPort := range ingressPorts {
+			var flow string
+			protocol := strings.ToLower(string(ingressGroupPort.Protocol))
+
+			if ingressGroupPort.DstPort == 0 && ingressGroupPort.SrcPort == 0 {
+				flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					ingressTableID, priority, protocol, srcIP, appliedToIP, ctLableRange, ingressNextTableID)
+			} else if ingressGroupPort.DstPort != 0 {
+				flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ctLableRange,
+					ingressNextTableID)
+				if ingressGroupPort.DstPort != 0 && ingressGroupPort.DstPortMask != 0xffff {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						ingressTableID, priority, protocol, srcIP, appliedToIP, ingressGroupPort.DstPort, ingressGroupPort.DstPortMask, ctLableRange,
+						ingressNextTableID)
 				}
-				flows = append(flows, flow)
 			}
-
-			if len(ingressPorts) == 0 {
-				flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", ingressTableID,
-					priority, srcIP, appliedToIP)
-				flows = append(flows, flow)
-			}
+			flows = append(flows, flow)
 		}
 
-		for _, dstIP := range egressIPs {
-			if appliedToIP != "" && dstIP != "" && appliedToIP == dstIP {
-				continue
-			}
-			for _, egressGroupPort := range egressGroupPorts {
-				var flow string
-				protocol := strings.ToLower(string(egressGroupPort.Protocol))
-
-				if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, ctLableRange, *egressNextTableID)
-				} else if egressGroupPort.DstPort != 0 {
-					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-						*egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, ctLableRange, *egressNextTableID)
-					if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
-						flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
-							*ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask, ctLableRange,
-							*egressNextTableID)
-					}
-				}
-				flows = append(flows, flow)
-			}
-
-			if len(egressGroupPorts) == 0 {
-				flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", egressTableID,
-					priority, appliedToIP, dstIP)
-				flows = append(flows, flow)
-			}
+		if len(ingressPorts) == 0 {
+			flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", ingressTableID,
+				priority, srcIP, appliedToIP)
+			flows = append(flows, flow)
 		}
 	}
 
+	for _, dstIP := range egressIPs {
+		if appliedToIP != "" && dstIP != "" && appliedToIP == dstIP {
+			continue
+		}
+		for _, egressGroupPort := range egressGroupPorts {
+			var flow string
+			protocol := strings.ToLower(string(egressGroupPort.Protocol))
+
+			if egressGroupPort.DstPort == 0 && egressGroupPort.SrcPort == 0 {
+				flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					egressTableID, priority, protocol, appliedToIP, dstIP, ctLableRange, egressNextTableID)
+			} else if egressGroupPort.DstPort != 0 {
+				flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=%d actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+					egressTableID, priority, protocol, appliedToIP, dstIP, egressGroupPort.DstPort, ctLableRange, egressNextTableID)
+				if egressGroupPort.DstPort != 0 && egressGroupPort.DstPortMask != 0xffff {
+					flow = fmt.Sprintf("table=%d, priority=%d,%s,nw_src=%s,nw_dst=%s,tp_dst=0x%x/0x%x actions=load:0x->NXM_NX_XXREG0[%s],load:0x->NXM_NX_XXREG0[0..3],goto_table:%d",
+						ingressTableID, priority, protocol, dstIP, appliedToIP, egressGroupPort.DstPort, egressGroupPort.DstPortMask, ctLableRange,
+						egressNextTableID)
+				}
+			}
+			flows = append(flows, flow)
+		}
+
+		if len(egressGroupPorts) == 0 {
+			flow := fmt.Sprintf("table=%d, priority=%d,ip,nw_src=%s,nw_dst=%s actions=drop", egressTableID,
+				priority, appliedToIP, dstIP)
+			flows = append(flows, flow)
+		}
+	}
 	return flows
 }
 
