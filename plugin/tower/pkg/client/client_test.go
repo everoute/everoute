@@ -17,7 +17,9 @@ limitations under the License.
 package client_test
 
 import (
+	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -71,5 +73,56 @@ func getUserInfo(user *model.User) *client.UserInfo {
 		Username: user.Name,
 		Password: user.Password,
 		Source:   string(user.Source),
+	}
+}
+
+func TestLoadJSONPathUploadMap(t *testing.T) {
+	testCases := []struct {
+		object    interface{}
+		expectMap map[string]client.Upload
+	}{
+		{
+			object:    nil,
+			expectMap: map[string]client.Upload{},
+		},
+		{
+			object: map[string]interface{}{
+				"string": "this is string",
+				"int":    10,
+				"slice":  []string{"stringA", "stringB"},
+				"file":   &client.Upload{FileName: "fileA"},
+			},
+			expectMap: map[string]client.Upload{"variables.file": {FileName: "fileA"}},
+		},
+		{
+			object: []client.Upload{
+				{FileName: "fileA"},
+				{FileName: "fileB"},
+			},
+			expectMap: map[string]client.Upload{"variables.0": {FileName: "fileA"}, "variables.1": {FileName: "fileB"}},
+		},
+		{
+			object: struct {
+				A string         `json:"tag_a"`
+				B *client.Upload `json:"tag_b"`
+				C *client.Upload `json:"-"`
+				d *client.Upload
+			}{
+				A: "this is string",
+				B: &client.Upload{FileName: "fileB"},
+				C: &client.Upload{FileName: "fileC"},
+				d: &client.Upload{FileName: "fileD"},
+			},
+			expectMap: map[string]client.Upload{"variables.tag_b": {FileName: "fileB"}},
+		},
+	}
+
+	for index, tc := range testCases {
+		t.Run(fmt.Sprintf("tc%2d", index), func(t *testing.T) {
+			actualMap := client.LoadJSONPathUploadMap("variables", tc.object)
+			if !reflect.DeepEqual(actualMap, tc.expectMap) {
+				t.Fatalf("expect LoadJSONPathUploadMap = %v, got LoadJSONPathUploadMap = %v", tc.expectMap, actualMap)
+			}
+		})
 	}
 }
