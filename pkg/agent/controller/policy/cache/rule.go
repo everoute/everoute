@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/utils"
@@ -79,6 +80,7 @@ type IPBlockItem struct {
 	AgentRef sets.String
 	// StaticCount is counter for ips which assigned directly in policy
 	StaticCount int
+	Ports       []securityv1alpha1.NamedPort
 }
 
 func (item *IPBlockItem) DeepCopy() interface{} {
@@ -89,6 +91,7 @@ func (item *IPBlockItem) DeepCopy() interface{} {
 	return &IPBlockItem{
 		AgentRef:    sets.NewString(item.AgentRef.List()...),
 		StaticCount: item.StaticCount,
+		Ports:       item.Ports,
 	}
 }
 
@@ -144,8 +147,36 @@ type RulePort struct {
 	// DstPortMask is destination port mask, 0x0000 & 0xffff have no effect.
 	DstPortMask uint16
 
+	// SrcPortName is a source port name, the mapped port depends on each endpoint.
+	SrcPortName string
+	// DstPortName is a destination port name, the mapped port depends on each endpoint.
+	DstPortName string
+
 	// Protocol should set "" if want match all protocol.
 	Protocol securityv1alpha1.Protocol
+}
+
+func (rule *CompleteRule) Clone() *CompleteRule {
+	if rule == nil {
+		return nil
+	}
+	rule.lock.RLock()
+	defer rule.lock.RUnlock()
+
+	return &CompleteRule{
+		RuleID:            rule.RuleID,
+		Tier:              rule.Tier,
+		EnforcementMode:   rule.EnforcementMode,
+		Action:            rule.Action,
+		Direction:         rule.Direction,
+		SymmetricMode:     rule.SymmetricMode,
+		DefaultPolicyRule: rule.DefaultPolicyRule,
+		SrcGroups:         DeepCopyMap(rule.SrcGroups).(map[string]int32),
+		DstGroups:         DeepCopyMap(rule.DstGroups).(map[string]int32),
+		SrcIPBlocks:       DeepCopyMap(rule.SrcIPBlocks).(map[string]*IPBlockItem),
+		DstIPBlocks:       DeepCopyMap(rule.DstIPBlocks).(map[string]*IPBlockItem),
+		Ports:             rule.Ports,
+	}
 }
 
 // ListRules return a list of security.everoute.io/v1alpha1 PolicyRule
@@ -166,18 +197,31 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks map[string]*
 				continue
 			}
 			for _, port := range ports {
-				if rule.SymmetricMode {
-					// SymmetricMode will ignore rule direction, create both ingress and egress
-					if rule.hasLocalRule(dstIPBlock) {
-						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, port))
+				dstPorts := []RulePort{port}
+				if port.DstPortName != "" {
+					if dstIPBlock == nil {
+						klog.Infof("dstIPBlock of %s is nil, can't resolve portname %#v", dstIP, port)
+						continue
 					}
-					if rule.hasLocalRule(srcIPBlock) {
-						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, port))
+					dstPorts = resolveDstPort(port, dstIPBlock.Ports)
+					if len(dstPorts) == 0 {
+						// dstIPBlocks has no namedPort map the port, skip
+						klog.Infof("dstIPBlocks %#v of %s has no namedPort map the policy portname %#v", dstIPBlock.Ports, dstIP, port)
+						continue
 					}
-				} else {
-					if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock)) ||
+				}
+				for _, dstPort := range dstPorts {
+					if rule.SymmetricMode {
+						// SymmetricMode will ignore rule direction, create both ingress and egress
+						if rule.hasLocalRule(dstIPBlock) {
+							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, dstPort))
+						}
+						if rule.hasLocalRule(srcIPBlock) {
+							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, dstPort))
+						}
+					} else if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock)) ||
 						(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock)) {
-						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, port))
+						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, dstPort))
 					}
 				}
 			}
@@ -289,8 +333,10 @@ func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlo
 		if _, exist := count[ip]; !exist {
 			continue
 		}
-		count[ip].StaticCount -= del.StaticCount
-		count[ip].AgentRef.Delete(del.AgentRef.List()...)
+		if del != nil {
+			count[ip].StaticCount -= del.StaticCount
+			count[ip].AgentRef.Delete(del.AgentRef.List()...)
+		}
 
 		if count[ip].StaticCount < 0 {
 			count[ip].StaticCount = 0
@@ -305,8 +351,11 @@ func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlo
 		if _, exist := count[ip]; !exist {
 			count[ip] = NewIPBlockItem()
 		}
-		count[ip].StaticCount += add.StaticCount
-		count[ip].AgentRef.Insert(add.AgentRef.List()...)
+		if add != nil {
+			count[ip].StaticCount += add.StaticCount
+			count[ip].AgentRef.Insert(add.AgentRef.List()...)
+			count[ip].Ports = AppendIPBlockPorts(count[ip].Ports, add.Ports)
+		}
 	}
 }
 
@@ -344,6 +393,23 @@ func policyIndexFunc(obj interface{}) ([]string, error) {
 	return []string{policyNamespaceName}, nil
 }
 
+func resolveDstPort(port RulePort, namedPorts []securityv1alpha1.NamedPort) []RulePort {
+	resPorts := make([]RulePort, 0)
+	if port.DstPortName == "" {
+		return resPorts
+	}
+	for _, namedPort := range namedPorts {
+		if namedPort.Name == port.DstPortName && namedPort.Protocol == port.Protocol {
+			resPorts = append(resPorts, RulePort{
+				Protocol:    port.Protocol,
+				DstPort:     uint16(namedPort.Port),
+				DstPortMask: 0xffff,
+			})
+		}
+	}
+	return resPorts
+}
+
 func NewCompleteRuleCache() cache.Indexer {
 	return cache.NewIndexer(
 		ruleKeyFunc,
@@ -361,4 +427,19 @@ func GenerateFlowKey(rule PolicyRule) string {
 	// Some we remove the action to generate FlowKey here.
 	rule.Action = ""
 	return HashName(32, rule)
+}
+
+func AppendIPBlockPorts(dst []securityv1alpha1.NamedPort, src []securityv1alpha1.NamedPort) []securityv1alpha1.NamedPort {
+	dstMap := make(map[string]securityv1alpha1.NamedPort, len(dst))
+	for i := range dst {
+		dstMap[dst[i].ToString()] = dst[i]
+	}
+	for i := range src {
+		dstMap[src[i].ToString()] = src[i]
+	}
+	res := make([]securityv1alpha1.NamedPort, 0, len(dstMap))
+	for _, v := range dstMap {
+		res = append(res, v)
+	}
+	return res
 }

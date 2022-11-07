@@ -454,8 +454,11 @@ func (v *securityPolicyValidator) validateRulePeer(peer *securityv1alpha1.Securi
 }
 
 func (v *securityPolicyValidator) validatePort(port *securityv1alpha1.SecurityPolicyPort) error {
-	// Only validate PortRange, port.Protocol validate by crd
-	return v.validatePortRange(port.PortRange)
+	// Only validate PortRange, port.Protocol and port.Type validate by crd
+	if port.Type != securityv1alpha1.PortTypeName {
+		return v.validatePortRange(port.PortRange)
+	}
+	return nil
 }
 
 func (v *securityPolicyValidator) validatePortRange(portRange string) error {

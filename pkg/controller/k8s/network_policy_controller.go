@@ -199,12 +199,15 @@ func getSecurityPolicyPort(networkPolicyPort []networkingv1.NetworkPolicyPort) [
 	for _, port := range networkPolicyPort {
 		newPort := v1alpha1.SecurityPolicyPort{
 			Protocol: v1alpha1.Protocol(*port.Protocol),
+			Type:     v1alpha1.PortTypeNumber,
 		}
 		if port.Port == nil {
 			newPort.PortRange = ""
 		} else if port.Port.Type == intstr.Int {
 			newPort.PortRange = port.Port.String()
-			// TODO: support named port
+		} else {
+			newPort.PortRange = port.Port.String()
+			newPort.Type = v1alpha1.PortTypeName
 		}
 		// handle port range for Kubernetes v1.22+
 		/*

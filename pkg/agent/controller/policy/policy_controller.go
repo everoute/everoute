@@ -291,6 +291,19 @@ func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.Secur
 	return policyRuleList, nil
 }
 
+// classifyEgressPorts classify egress ports by port type.
+func classifyEgressPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]securityv1alpha1.SecurityPolicyPort, []securityv1alpha1.SecurityPolicyPort) {
+	var numberPorts, namedPorts []securityv1alpha1.SecurityPolicyPort
+	for _, p := range ports {
+		if p.Type == securityv1alpha1.PortTypeName {
+			namedPorts = append(namedPorts, p)
+		} else {
+			numberPorts = append(numberPorts, p)
+		}
+	}
+	return numberPorts, namedPorts
+}
+
 //nolint:dupl,funlen // todo: remove dupl codes
 func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
 	var completeRules []*policycache.CompleteRule
@@ -334,14 +347,9 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				}
 			}
 
-			if len(rule.Ports) == 0 {
-				// empty Ports matches all ports
-				ingressRule.Ports = []policycache.RulePort{{}}
-			} else {
-				ingressRule.Ports, err = FlattenPorts(rule.Ports)
-				if err != nil {
-					return nil, err
-				}
+			ingressRule.Ports, err = FlattenPorts(rule.Ports)
+			if err != nil {
+				return nil, err
 			}
 
 			completeRules = append(completeRules, ingressRule)
@@ -367,7 +375,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 	if egressEnabled {
 		for _, rule := range policy.Spec.EgressRules {
-			egressRule := &policycache.CompleteRule{
+			egressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
 				Tier:            policy.Spec.Tier,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -378,28 +386,50 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				SrcIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
 			}
 
-			if len(rule.To) == 0 {
-				// If "rule.To" is empty or missing, this rule matches all destinations
-				egressRule.DstIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
-			} else {
+			if len(rule.To) > 0 {
+				egressRule := egressRuleTmpl.Clone()
 				// use policy namespace as egress endpoint namespace
 				egressRule.DstGroups, egressRule.DstIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.To)
 				if err != nil {
 					return nil, err
 				}
-			}
-
-			if len(rule.Ports) == 0 {
-				// Empty ports matches all ports
-				egressRule.Ports = []policycache.RulePort{{}}
-			} else {
 				egressRule.Ports, err = FlattenPorts(rule.Ports)
 				if err != nil {
 					return nil, err
 				}
-			}
+				completeRules = append(completeRules, egressRule)
+			} else {
+				numberPorts, namedPorts := classifyEgressPorts(rule.Ports)
 
-			completeRules = append(completeRules, egressRule)
+				// For numberPorts, assembly a completeRule
+				// or if rule.Ports is empty, assembly a completeRule match all ports
+				if len(numberPorts) > 0 || len(rule.Ports) == 0 {
+					egressRuleCur := egressRuleTmpl.Clone()
+					// If "rule.To" is empty or missing, this rule matches all destinations
+					egressRuleCur.DstIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
+					egressRuleCur.Ports, err = FlattenPorts(numberPorts)
+					if err != nil {
+						return nil, err
+					}
+					completeRules = append(completeRules, egressRuleCur)
+				}
+
+				// For namedPorts, assembly a completeRule
+				if len(namedPorts) > 0 {
+					egressRuleCur := egressRuleTmpl.Clone()
+					egressRuleCur.RuleID = fmt.Sprintf("%s.%s", egressRuleTmpl.RuleID, "namedport")
+					// If "rule.To" is empty or missing, this rule matches all endpoints with named port
+					egressRuleCur.DstGroups, egressRuleCur.DstIPBlocks, err = r.getAllEpWithNamedPortGroupAndIPBlocks()
+					if err != nil {
+						return nil, err
+					}
+					egressRuleCur.Ports, err = FlattenPorts(namedPorts)
+					if err != nil {
+						return nil, err
+					}
+					completeRules = append(completeRules, egressRuleCur)
+				}
+			}
 		}
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
@@ -456,10 +486,33 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string,
 					ipBlocks[ip] = policycache.NewIPBlockItem()
 				}
 				ipBlocks[ip].AgentRef.Insert(ipBlock.AgentRef.List()...)
+				ipBlocks[ip].Ports = policycache.AppendIPBlockPorts(ipBlocks[ip].Ports, ipBlock.Ports)
 			}
 		default:
 			klog.Errorf("Empty SecurityPolicyPeer, check your SecurityPolicy definition!")
 		}
+	}
+
+	return groups, ipBlocks, nil
+}
+
+func (r *Reconciler) getAllEpWithNamedPortGroupAndIPBlocks() (map[string]int32, map[string]*policycache.IPBlockItem, error) {
+	var groups = make(map[string]int32)
+	var ipBlocks = make(map[string]*policycache.IPBlockItem)
+
+	group := ctrlpolicy.GetAllEpWithNamedPortGroup().GetName()
+	revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
+	if !exist {
+		return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
+	}
+	groups[group] = revision
+
+	for ip, ipBlock := range ipAddrs {
+		if _, exist = ipBlocks[ip]; !exist {
+			ipBlocks[ip] = policycache.NewIPBlockItem()
+		}
+		ipBlocks[ip].AgentRef.Insert(ipBlock.AgentRef.List()...)
+		ipBlocks[ip].Ports = policycache.AppendIPBlockPorts(ipBlocks[ip].Ports, ipBlock.Ports)
 	}
 
 	return groups, ipBlocks, nil

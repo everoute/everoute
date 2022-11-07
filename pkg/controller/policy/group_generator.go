@@ -136,8 +136,23 @@ func (r *Reconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1alpha1
 		}
 	}
 
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		for _, peer := range append(rule.From, rule.To...) {
+	for _, rule := range policy.Spec.IngressRules {
+		for _, peer := range rule.From {
+			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
+			if group != nil && group.GetName() == groupName {
+				return group
+			}
+		}
+	}
+
+	for _, rule := range policy.Spec.EgressRules {
+		if isNamedPortExists(rule.Ports) && len(rule.To) == 0 {
+			group := GetAllEpWithNamedPortGroup()
+			if group.GetName() == groupName {
+				return group
+			}
+		}
+		for _, peer := range rule.To {
 			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
 			if group != nil && group.GetName() == groupName {
 				return group
@@ -146,6 +161,13 @@ func (r *Reconciler) getEndpointGroupFromSecurityPolicy(policy *securityv1alpha1
 	}
 
 	return nil
+}
+
+func GetAllEpWithNamedPortGroup() *groupv1alpha1.EndpointGroup {
+	group := new(groupv1alpha1.EndpointGroup)
+	group.Name = constants.AllEpWithNamedPort
+	group.Spec.EndpointSelector = &labels.Selector{}
+	return group
 }
 
 // EndpointGroupIndexSecurityPolicyFunc return the SecurityPolicy reference EndpointGroup names
@@ -160,8 +182,24 @@ func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
 		}
 	}
 
-	for _, rule := range append(policy.Spec.IngressRules, policy.Spec.EgressRules...) {
-		for _, peer := range append(rule.From, rule.To...) {
+	for _, rule := range policy.Spec.IngressRules {
+		for _, peer := range rule.From {
+			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
+			if group != nil {
+				groupSet.Insert(group.GetName())
+			}
+		}
+	}
+
+	for _, rule := range policy.Spec.EgressRules {
+		// For an egress Peer that specifies any named ports, it creates or
+		// reuses the AllEndpointsGroup matching all Endpoints in all Namespaces,
+		// such that it can be used to resolve the named ports.
+		if isNamedPortExists(rule.Ports) && len(rule.To) == 0 {
+			groupSet.Insert(GetAllEpWithNamedPortGroup().GetName())
+			continue
+		}
+		for _, peer := range rule.To {
 			group := PeerAsEndpointGroup(policy.GetNamespace(), peer)
 			if group != nil {
 				groupSet.Insert(group.GetName())
@@ -233,4 +271,14 @@ func AppliedAsSecurityPeer(namespace string, applied securityv1alpha1.ApplyToPee
 func GenerateGroupName(spec *groupv1alpha1.EndpointGroupSpec) string {
 	hashName := cache.HashName(32, spec)
 	return fmt.Sprintf("sys-%s", hashName)
+}
+
+// isNamedPortExists returns true if any one of param ports is named port.
+func isNamedPortExists(ports []securityv1alpha1.SecurityPolicyPort) bool {
+	for _, p := range ports {
+		if p.Type == securityv1alpha1.PortTypeName {
+			return true
+		}
+	}
+	return false
 }

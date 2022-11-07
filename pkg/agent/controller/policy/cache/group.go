@@ -112,6 +112,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 				patch.Add[cidr] = NewIPBlockItem()
 			}
 			patch.Add[cidr].AgentRef.Insert(member.EndpointAgent...)
+			patch.Add[cidr].Ports = AppendIPBlockPorts(patch.Add[cidr].Ports, member.Ports)
 		}
 	}
 
@@ -123,6 +124,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 				patch.Del[cidr] = NewIPBlockItem()
 			}
 			patch.Del[cidr].AgentRef.Insert(oldMember.EndpointAgent...)
+			patch.Del[cidr].Ports = AppendIPBlockPorts(patch.Del[cidr].Ports, oldMember.Ports)
 		}
 		for _, ipAddr := range member.IPs {
 			cidr := GetIPCidr(ipAddr)
@@ -130,6 +132,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 				patch.Add[cidr] = NewIPBlockItem()
 			}
 			patch.Add[cidr].AgentRef.Insert(member.EndpointAgent...)
+			patch.Add[cidr].Ports = AppendIPBlockPorts(patch.Add[cidr].Ports, member.Ports)
 		}
 	}
 
@@ -140,6 +143,7 @@ func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
 				patch.Del[cidr] = NewIPBlockItem()
 			}
 			patch.Del[cidr].AgentRef.Insert(member.EndpointAgent...)
+			patch.Del[cidr].Ports = AppendIPBlockPorts(patch.Del[cidr].Ports, member.Ports)
 		}
 	}
 
@@ -254,6 +258,7 @@ func (cache *GroupCache) ListGroupIPBlocks(groupName string) (revision int32, ip
 				ipBlocks[GetIPCidr(ipAddr)] = NewIPBlockItem()
 			}
 			ipBlocks[GetIPCidr(ipAddr)].AgentRef.Insert(member.EndpointAgent...)
+			ipBlocks[GetIPCidr(ipAddr)].Ports = AppendIPBlockPorts(ipBlocks[GetIPCidr(ipAddr)].Ports, member.Ports)
 		}
 	}
 

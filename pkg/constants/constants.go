@@ -54,6 +54,8 @@ const (
 
 	RPCSocketAddr   = "/var/lib/everoute/rpc.sock"
 	EverouteLibPath = "/var/lib/everoute"
+
+	AllEpWithNamedPort = "all-endpoints-with-named-port"
 )
 
 const (
