@@ -206,6 +206,11 @@ func processFlattenPorts(portMap [65536]bool, protocol securityv1alpha1.Protocol
 }
 
 func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.RulePort, error) {
+	// empty Ports matches all ports
+	if len(ports) == 0 {
+		return []policycache.RulePort{{}}, nil
+	}
+
 	var rulePortList []policycache.RulePort
 	var portMapTCP [65536]bool
 	var portMapUDP [65536]bool
@@ -215,6 +220,17 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 		if port.Protocol == securityv1alpha1.ProtocolICMP {
 			// ignore port when Protocol is ICMP
 			hasICMP = true
+			continue
+		}
+
+		if port.Type == securityv1alpha1.PortTypeName {
+			portNameList := strings.Split(port.PortRange, ",")
+			for _, portName := range portNameList {
+				rulePortList = append(rulePortList, policycache.RulePort{
+					DstPortName: portName,
+					Protocol:    port.Protocol,
+				})
+			}
 			continue
 		}
 

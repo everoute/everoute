@@ -16,6 +16,6 @@
 
 set -o pipefail
 
-./kubernetes/_output/bin/ginkgo -nodes=20 --skip="named port|SCTP" --focus="NetworkPolicy" \
+./kubernetes/_output/bin/ginkgo -nodes=20 --skip="SCTP" --focus="NetworkPolicy" \
 ./kubernetes/_output/bin/e2e.test -- --disable-log-dump --provider="skeleton" \
 --kubeconfig="/home/centos/.kube/config"

@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"strings"
+
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -80,7 +82,8 @@ type SecurityPolicySpec struct {
 	SymmetricMode bool `json:"symmetricMode,omitempty"`
 
 	// Selects the endpoints to which this SecurityPolicy object applies.
-	// Empty or nil means select all endpoints
+	// Empty or nil means select all endpoints.
+	// Notice: if AppliedTo is empty, IngressRule's Ports can't be namedPorts.
 	AppliedTo []ApplyToPeer `json:"appliedTo,omitempty"`
 
 	// List of ingress rules to be applied to the selected endpoints. If this field
@@ -197,6 +200,15 @@ type SecurityPolicyPeer struct {
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }
 
+// PortType defaines the PortRange is real port numbers or port names which needed resolve. If it is empty, equal to "number".
+// +kubebuilder:validation:Enum=number;name
+type PortType string
+
+const (
+	PortTypeName   PortType = "name"
+	PortTypeNumber PortType = "number"
+)
+
 // SecurityPolicyPort describes the port and protocol to match in a rule.
 type SecurityPolicyPort struct {
 	// The protocol (TCP, UDP or ICMP) which traffic must match.
@@ -206,8 +218,12 @@ type SecurityPolicyPort struct {
 	// want match single port, you should write like 22. If you want match a range of port, you
 	// should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
 	// want match multiple ports, you should write like 20,22-24,90.
-	// +kubebuilder:validation:Pattern="^(((\\d{1,5}-\\d{1,5})|(\\d{1,5})),)*((\\d{1,5}-\\d{1,5})|(\\d{1,5}))$|^$"
 	PortRange string `json:"portRange,omitempty"` // only valid when Protocol is not ICMP
+
+	// Type defines the PortRange is real port numbers or port names which needed resolve. If it is empty,
+	// the effect is equal to "number" for compatibility.
+	// +kubebuilder:default:=number
+	Type PortType `json:"type,omitempty"`
 }
 
 // NamespacedName contains information to specify an object.
@@ -299,6 +315,8 @@ type EndpointSpec struct {
 	// Type of this Endpoint
 	// +kubebuilder:default="dynamic"
 	Type EndpointType `json:"type,omitempty"`
+
+	Ports []NamedPort `json:"ports,omitempty"`
 }
 
 // EndpointReference uniquely identifies an endpoint
@@ -378,4 +396,18 @@ type GlobalPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []GlobalPolicy `json:"items"`
+}
+
+// NamedPort represents a Port with a name on Pod.
+type NamedPort struct {
+	// Port represents the Port number.
+	Port int32 `json:"port,omitempty" protobuf:"varint,1,opt,name=port"`
+	// Name represents the associated name with this Port number.
+	Name string `json:"name,omitempty" protobuf:"bytes,2,opt,name=name"`
+	// Protocol for port. Must be UDP, TCP  TODO not icmp webhook
+	Protocol Protocol `json:"protocol,omitempty" protobuf:"bytes,3,opt,name=protocol"`
+}
+
+func (p *NamedPort) ToString() string {
+	return strings.Join([]string{p.Name, string(p.Port), string(p.Protocol)}, "-")
 }

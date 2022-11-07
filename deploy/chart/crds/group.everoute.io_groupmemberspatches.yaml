@@ -49,6 +49,28 @@ spec:
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
                   type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
+                  type: array
               required:
               - endpointReference
               type: object
@@ -107,6 +129,28 @@ spec:
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
                   type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
+                  type: array
               required:
               - endpointReference
               type: object
@@ -139,6 +183,28 @@ spec:
                       Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
+                  type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
                   type: array
               required:
               - endpointReference

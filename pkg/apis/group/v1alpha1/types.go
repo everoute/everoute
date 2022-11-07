@@ -50,8 +50,9 @@ type GroupMember struct {
 	EndpointReference EndpointReference `json:"endpointReference"`
 	// EndpointAgent means where this groupMember may appear.
 	// if this field is empty, this group member will apply to all agents.
-	EndpointAgent []string          `json:"endpointAgent,omitempty"`
-	IPs           []types.IPAddress `json:"ips,omitempty"`
+	EndpointAgent []string             `json:"endpointAgent,omitempty"`
+	IPs           []types.IPAddress    `json:"ips,omitempty"`
+	Ports         []v1alpha1.NamedPort `json:"ports,omitempty"`
 }
 
 type EndpointReference struct {

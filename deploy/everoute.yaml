@@ -389,6 +389,28 @@ spec:
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
                   type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
+                  type: array
               required:
               - endpointReference
               type: object
@@ -470,6 +492,28 @@ spec:
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
                   type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
+                  type: array
               required:
               - endpointReference
               type: object
@@ -528,6 +572,28 @@ spec:
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
                   type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
+                  type: array
               required:
               - endpointReference
               type: object
@@ -560,6 +626,28 @@ spec:
                       Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
                     pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                     type: string
+                  type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        type: string
+                    type: object
                   type: array
               required:
               - endpointReference
@@ -642,6 +730,28 @@ spec:
                   be specified. The ExtendLabels could be selected by selector in
                   SecurityPolicy or EndpointGroup.
                 type: object
+              ports:
+                items:
+                  description: NamedPort represents a Port with a name on Pod.
+                  properties:
+                    name:
+                      description: Name represents the associated name with this Port
+                        number.
+                      type: string
+                    port:
+                      description: Port represents the Port number.
+                      format: int32
+                      type: integer
+                    protocol:
+                      description: Protocol for port. Must be UDP, TCP  TODO not icmp
+                        webhook
+                      enum:
+                      - TCP
+                      - UDP
+                      - ICMP
+                      type: string
+                  type: object
+                type: array
               reference:
                 description: Reference of an endpoint, also the external_id of an
                   ovs interface. We map between endpoint and ovs interface use the
@@ -830,8 +940,9 @@ spec:
             description: Specification of the desired behavior for this SecurityPolicy.
             properties:
               appliedTo:
-                description: Selects the endpoints to which this SecurityPolicy object
-                  applies. Empty or nil means select all endpoints
+                description: 'Selects the endpoints to which this SecurityPolicy object
+                  applies. Empty or nil means select all endpoints. Notice: if AppliedTo
+                  is empty, IngressRule''s Ports can''t be namedPorts.'
                 items:
                   description: ApplyToPeer describes sets of endpoints which this
                     SecurityPolicy object applies At least one field (Endpoint or
@@ -1112,7 +1223,6 @@ spec:
                               between 20 and 80 (include 20 and 80) will matches.
                               If you want match multiple ports, you should write like
                               20,22-24,90.
-                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic
@@ -1121,6 +1231,15 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
                             type: string
                         required:
                         - protocol
@@ -1493,7 +1612,6 @@ spec:
                               between 20 and 80 (include 20 and 80) will matches.
                               If you want match multiple ports, you should write like
                               20,22-24,90.
-                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic
@@ -1502,6 +1620,15 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
                             type: string
                         required:
                         - protocol

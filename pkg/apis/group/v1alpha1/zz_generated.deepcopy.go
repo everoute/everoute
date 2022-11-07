@@ -155,6 +155,11 @@ func (in *GroupMember) DeepCopyInto(out *GroupMember) {
 		*out = make([]types.IPAddress, len(*in))
 		copy(*out, *in)
 	}
+	if in.Ports != nil {
+		in, out := &in.Ports, &out.Ports
+		*out = make([]securityv1alpha1.NamedPort, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
