@@ -51,8 +51,9 @@ spec:
             description: Specification of the desired behavior for this SecurityPolicy.
             properties:
               appliedTo:
-                description: Selects the endpoints to which this SecurityPolicy object
-                  applies. Empty or nil means select all endpoints
+                description: 'Selects the endpoints to which this SecurityPolicy object
+                  applies. Empty or nil means select all endpoints. Notice: if AppliedTo
+                  is empty, IngressRule''s Ports can''t be namedPorts.'
                 items:
                   description: ApplyToPeer describes sets of endpoints which this
                     SecurityPolicy object applies At least one field (Endpoint or
@@ -333,7 +334,6 @@ spec:
                               between 20 and 80 (include 20 and 80) will matches.
                               If you want match multiple ports, you should write like
                               20,22-24,90.
-                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic
@@ -342,6 +342,15 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
                             type: string
                         required:
                         - protocol
@@ -714,7 +723,6 @@ spec:
                               between 20 and 80 (include 20 and 80) will matches.
                               If you want match multiple ports, you should write like
                               20,22-24,90.
-                            pattern: ^(((\d{1,5}-\d{1,5})|(\d{1,5})),)*((\d{1,5}-\d{1,5})|(\d{1,5}))$|^$
                             type: string
                           protocol:
                             description: The protocol (TCP, UDP or ICMP) which traffic
@@ -723,6 +731,15 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
                             type: string
                         required:
                         - protocol

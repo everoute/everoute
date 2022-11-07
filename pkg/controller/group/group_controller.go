@@ -297,6 +297,10 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 		groupList               groupv1alpha1.EndpointGroupList
 		endpointNamespaceLabels k8slabels.Set
 	)
+	namedPortExists := false
+	if len(endpoint.Spec.Ports) > 0 {
+		namedPortExists = true
+	}
 
 	err := r.List(ctx, &groupList)
 	if err != nil {
@@ -314,6 +318,15 @@ func (r *GroupReconciler) filterEndpointGroupsByEndpoint(ctx context.Context, en
 	endpointNamespaceLabels = endpointNamespace.Labels
 
 	for _, group := range groupList.Items {
+		// Only SecurityPolicy's named port feature need all-endpoins group,
+		// so if endpoint doesn't define named port, it doesn't need to related to the group.
+		if group.Name == constants.AllEpWithNamedPort {
+			if namedPortExists {
+				groupNameSet.Insert(group.Name)
+			}
+			continue
+		}
+
 		// if endpoint set, match endpoint name and namespace
 		if group.Spec.Endpoint != nil {
 			if group.Spec.Endpoint.Name == endpoint.Name && group.Spec.Endpoint.Namespace == endpoint.Namespace {
@@ -502,6 +515,7 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 		matchedNamespaces []string
 		matchedEndpoints  []securityv1alpha1.Endpoint
 	)
+	isAllEpsGroup := group.Name == constants.AllEpWithNamedPort
 
 	// filter matched namespace
 	if group.Spec.Namespace == nil && group.Spec.NamespaceSelector == nil {
@@ -573,6 +587,11 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 			continue
 		}
 
+		if isAllEpsGroup && len(ep.Spec.Ports) == 0 {
+			// for AllEndpointsGroup skip endpoint has no named port
+			continue
+		}
+
 		member := groupv1alpha1.GroupMember{
 			EndpointReference: groupv1alpha1.EndpointReference{
 				ExternalIDName:  ep.Spec.Reference.ExternalIDName,
@@ -580,6 +599,7 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 			},
 			EndpointAgent: ep.Status.Agents,
 			IPs:           ep.Status.IPs,
+			Ports:         ep.Spec.Ports,
 		}
 		memberList = append(memberList, member)
 	}
@@ -775,7 +795,7 @@ func applyGroupMembersPatch(groupmembers *groupv1alpha1.GroupMembers, patch grou
 
 // showGroupMembersPatch show members change info as string.
 // format like:
-//   AddMember: {ID:"idk1/idv1", IPs:[192.168.1.1]}, {ID:"idk2/idv2", IPs:[192.168.2.1]} DelMember: {ID:"idk3/idv3"}
+// AddMember: {ID:"idk1/idv1", IPs:[192.168.1.1]}, {ID:"idk2/idv2", IPs:[192.168.2.1]} DelMember: {ID:"idk3/idv3"}
 func showGroupMembersPatch(patch groupv1alpha1.GroupMembersPatch) string {
 	toString := func(head string, members []groupv1alpha1.GroupMember) (str string) {
 		for _, member := range members {

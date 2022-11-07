@@ -98,6 +98,13 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		for key, value := range pod.ObjectMeta.Labels {
 			endpoint.ObjectMeta.Labels[key] = value
 		}
+
+		var namedPorts []v1alpha1.NamedPort
+		for _, container := range pod.Spec.Containers {
+			namedPorts = append(namedPorts, toNamedPorts(container.Ports)...)
+		}
+		endpoint.Spec.Ports = namedPorts
+
 		// submit creation
 		if err := r.Create(ctx, &endpoint); err != nil {
 			klog.Errorf("create endpoint %s err: %s", endpointName, err)

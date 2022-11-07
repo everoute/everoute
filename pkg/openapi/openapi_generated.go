@@ -60,6 +60,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.GlobalPolicy":       schema_pkg_apis_security_v1alpha1_GlobalPolicy(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.GlobalPolicyList":   schema_pkg_apis_security_v1alpha1_GlobalPolicyList(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.GlobalPolicySpec":   schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref),
+		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamedPort":          schema_pkg_apis_security_v1alpha1_NamedPort(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamespacedName":     schema_pkg_apis_security_v1alpha1_NamespacedName(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.Rule":               schema_pkg_apis_security_v1alpha1_Rule(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.SecurityPolicy":     schema_pkg_apis_security_v1alpha1_SecurityPolicy(ref),
@@ -930,12 +931,24 @@ func schema_pkg_apis_group_v1alpha1_GroupMember(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"ports": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamedPort"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"endpointReference"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/group/v1alpha1.EndpointReference"},
+			"github.com/everoute/everoute/pkg/apis/group/v1alpha1.EndpointReference", "github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamedPort"},
 	}
 }
 
@@ -1386,12 +1399,24 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 							Format:      "",
 						},
 					},
+					"ports": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamedPort"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"vid", "reference"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference"},
+			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.EndpointReference", "github.com/everoute/everoute/pkg/apis/security/v1alpha1.NamedPort"},
 	}
 }
 
@@ -1546,6 +1571,40 @@ func schema_pkg_apis_security_v1alpha1_GlobalPolicySpec(ref common.ReferenceCall
 					"globalPolicyEnforcementMode": {
 						SchemaProps: spec.SchemaProps{
 							Description: "GlobalPolicy enforcement mode",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_security_v1alpha1_NamedPort(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NamedPort represents a Port with a name on Pod.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Port represents the Port number.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name represents the associated name with this Port number.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Protocol for port. Must be UDP, TCP  TODO not icmp webhook",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1794,6 +1853,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPort(ref common.ReferenceCa
 							Format:      "",
 						},
 					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type defines the PortRange is real port numbers or port names which needed resolve. If it is empty, the effect is equal to \"number\" for compatibility.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"protocol"},
 			},
@@ -1831,7 +1897,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 					},
 					"appliedTo": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Selects the endpoints to which this SecurityPolicy object applies. Empty or nil means select all endpoints",
+							Description: "Selects the endpoints to which this SecurityPolicy object applies. Empty or nil means select all endpoints. Notice: if AppliedTo is empty, IngressRule's Ports can't be namedPorts.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

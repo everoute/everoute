@@ -127,6 +127,18 @@ EndpointType
 <p>Type of this Endpoint</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>ports</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.NamedPort">
+[]NamedPort
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
 </table>
 </td>
 </tr>
@@ -320,7 +332,8 @@ Defaults to false.</p>
 </td>
 <td>
 <p>Selects the endpoints to which this SecurityPolicy object applies.
-Empty or nil means select all endpoints</p>
+Empty or nil means select all endpoints.
+Notice: if AppliedTo is empty, IngressRule&rsquo;s Ports can&rsquo;t be namedPorts.</p>
 </td>
 </tr>
 <tr>
@@ -577,6 +590,18 @@ EndpointType
 <p>Type of this Endpoint</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>ports</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.NamedPort">
+[]NamedPort
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.EndpointStatus">EndpointStatus
@@ -727,6 +752,58 @@ PolicyMode
 </tr>
 </tbody>
 </table>
+<h3 id="security.everoute.io/v1alpha1.NamedPort">NamedPort
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.EndpointSpec">EndpointSpec</a>)
+</p>
+<p>NamedPort represents a Port with a name on Pod.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>port</code><br/>
+<em>
+int32
+</em>
+</td>
+<td>
+<p>Port represents the Port number.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name represents the associated name with this Port number.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>protocol</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Protocol">
+Protocol
+</a>
+</em>
+</td>
+<td>
+<p>Protocol for port. Must be UDP, TCP  TODO not icmp webhook</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="security.everoute.io/v1alpha1.NamespacedName">NamespacedName
 </h3>
 <p>
@@ -788,10 +865,33 @@ string
 <td></td>
 </tr></tbody>
 </table>
+<h3 id="security.everoute.io/v1alpha1.PortType">PortType
+(<code>string</code> alias)</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.SecurityPolicyPort">SecurityPolicyPort</a>)
+</p>
+<p>PortType defaines the PortRange is real port numbers or port names which needed resolve. If it is empty, equal to &ldquo;number&rdquo;.</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><p>&#34;name&#34;</p></td>
+<td></td>
+</tr><tr>
+<td><p>&#34;number&#34;</p></td>
+<td></td>
+</tr></tbody>
+</table>
 <h3 id="security.everoute.io/v1alpha1.Protocol">Protocol
 (<code>string</code> alias)</h3>
 <p>
 (<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.NamedPort">NamedPort</a>, 
 <a href="#security.everoute.io/v1alpha1.SecurityPolicyPort">SecurityPolicyPort</a>)
 </p>
 <p>Protocol defines network protocols supported for SecurityPolicy.</p>
@@ -1025,6 +1125,20 @@ should write like 20-80, ports between 20 and 80 (include 20 and 80) will matche
 want match multiple ports, you should write like 20,22-24,90.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>type</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.PortType">
+PortType
+</a>
+</em>
+</td>
+<td>
+<p>Type defines the PortRange is real port numbers or port names which needed resolve. If it is empty,
+the effect is equal to &ldquo;number&rdquo; for compatibility.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec
@@ -1090,7 +1204,8 @@ Defaults to false.</p>
 </td>
 <td>
 <p>Selects the endpoints to which this SecurityPolicy object applies.
-Empty or nil means select all endpoints</p>
+Empty or nil means select all endpoints.
+Notice: if AppliedTo is empty, IngressRule&rsquo;s Ports can&rsquo;t be namedPorts.</p>
 </td>
 </tr>
 <tr>
