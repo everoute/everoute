@@ -26,9 +26,9 @@ require (
 	github.com/j-keck/arping v1.0.2
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.15.0
+	github.com/orcaman/concurrent-map v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.3
-	github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.1.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
