@@ -37,7 +37,7 @@ import (
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/fsnotify/fsnotify"
-	cmap "github.com/streamrail/concurrent-map"
+	cmap "github.com/orcaman/concurrent-map"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
