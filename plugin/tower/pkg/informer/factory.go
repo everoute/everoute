@@ -58,6 +58,10 @@ type SharedInformerFactory interface {
 	Task() cache.SharedIndexInformer
 	// SecurityGroup return informer for &schema.SecurityGroup{}
 	SecurityGroup() cache.SharedIndexInformer
+	// ServiceGroup return informer for &schema.ServiceGroup{}
+	ServiceGroup() cache.SharedIndexInformer
+	// Service return informer for &schema.Service{}
+	Service() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -144,6 +148,11 @@ func (f *sharedInformerFactory) SystemEndpoints() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.SystemEndpoints{})
 }
 
+// ServiceGroup implements SharedInformerFactory.ServiceGroup
+func (f *sharedInformerFactory) ServiceGroup() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.ServiceGroup{})
+}
+
 // InformerFor implements SharedInformerFactory.InformerFor
 func (f *sharedInformerFactory) InformerFor(obj schema.Object) cache.SharedIndexInformer {
 	f.lock.Lock()
@@ -184,6 +193,10 @@ func (f *sharedInformerFactory) Task() cache.SharedIndexInformer {
 // SecurityGroup implements SharedInformerFactory.SecurityGroup
 func (f *sharedInformerFactory) SecurityGroup() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.SecurityGroup{})
+}
+
+func (f *sharedInformerFactory) Service() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.Service{})
 }
 
 func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration) cache.SharedIndexInformer {

@@ -98,6 +98,14 @@ func (f *Factory) SecurityGroup() *Tracker {
 	return f.TrackerFor(&schema.SecurityGroup{}, nil, 0)
 }
 
+func (f *Factory) Service() *Tracker {
+	return f.TrackerFor(&schema.Service{}, nil, 0)
+}
+
+func (f *Factory) ServiceGroup() *Tracker {
+	return f.TrackerFor(&schema.ServiceGroup{}, nil, 0)
+}
+
 func (f *Factory) ResetAll() {
 	f.lock.Lock()
 	defer f.lock.Unlock()

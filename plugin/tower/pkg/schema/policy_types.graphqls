@@ -44,6 +44,8 @@ type NetworkPolicyRule {
     ip_block: String
     except_ip_block: [String!]
     ports: [NetworkPolicyRulePort!]
+    services: [String!]
+    service_groups: [String!]
     selector: [ObjectReference!]
     security_group: ObjectReference
 }
@@ -91,4 +93,15 @@ type SecurityGroup {
 
 type LabelGroup {
     labels: [ObjectReference!]!
+}
+
+type Service {
+    id: ID!
+    protocol: NetworkPolicyRulePortProtocol!
+    port_range: String!
+}
+
+type ServiceGroup {
+    id: ID!
+    service_members: [String!]
 }

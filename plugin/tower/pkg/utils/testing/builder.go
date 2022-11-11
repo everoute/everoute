@@ -102,6 +102,24 @@ func NewSecurityPolicy(everouteCluster string, communicable bool, group *schema.
 	return policy
 }
 
+func NewService(protocol, portRange string) *schema.Service {
+	return &schema.Service{
+		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
+		Protocol:   schema.NetworkPolicyRulePortProtocol(protocol),
+		PortRange:  portRange,
+	}
+}
+func NewServiceGroup(svcs []*schema.Service) *schema.ServiceGroup {
+	var svcIDs []string
+	for _, svc := range svcs {
+		svcIDs = append(svcIDs, svc.GetID())
+	}
+	return &schema.ServiceGroup{
+		ObjectMeta:     schema.ObjectMeta{ID: rand.String(10)},
+		ServiceMembers: svcIDs,
+	}
+}
+
 func NewIsolationPolicy(everouteCluster string, vm *schema.VM, isolationMode schema.IsolationMode) *schema.IsolationPolicy {
 	return &schema.IsolationPolicy{
 		ObjectMeta:      schema.ObjectMeta{ID: rand.String(10)},
@@ -133,6 +151,28 @@ func NewNetworkPolicyRule(protocol, port string, ipBlock *networkingv1.IPBlock, 
 	}
 
 	return &rule
+}
+
+func RuleAddSvc(rule *schema.NetworkPolicyRule, svcs ...*schema.Service) {
+	for _, svc := range svcs {
+		rule.Services = append(rule.Services, svc.GetID())
+	}
+}
+
+func RuleAddSvcGroup(rule *schema.NetworkPolicyRule, groups ...*schema.ServiceGroup) {
+	for _, grp := range groups {
+		rule.ServiceGroups = append(rule.ServiceGroups, grp.GetID())
+	}
+}
+
+func RuleAddPorts(rule *v1alpha1.Rule, portInfo ...string) {
+	portsLen := len(portInfo) / 2
+	for i := 0; i < portsLen; i++ {
+		rule.Ports = append(rule.Ports, v1alpha1.SecurityPolicyPort{
+			Protocol:  v1alpha1.Protocol(portInfo[2*i]),
+			PortRange: portInfo[2*i+1],
+		})
+	}
 }
 
 func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {

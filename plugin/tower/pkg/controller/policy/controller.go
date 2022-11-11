@@ -61,15 +61,17 @@ const (
 	securityGroupIndex   = "securityGroupIndex"
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
+	serviceIndex         = "serviceIndex"
+	serviceGroupIndex    = "serviceGroupIndex"
 )
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
 // from tower. For v1alpha1.SecurityPolicy, has the following naming rules:
-//   1. If origin policy is SecurityPolicy, policy.name = {{SecurityPolicyPrefix}}{{SecurityPolicy.ID}}
-//   2. If origin policy is IsolationPolicy, policy.name = {{IsolationPolicyPrefix}}{{IsolationPolicy.ID}}
-//   3. If policy was generated to make intragroup communicable, policy.name = {{SecurityPolicyCommunicablePrefix}}{{SelectorHash}}-{{SecurityPolicy.ID}}
-//   4. If origin policy is SystemEndpointsPolicy, policy.name = {{SystemEndpointsPolicyName}}
-//   5. If origin policy is ControllerPolicy, policy.name = {{ControllerPolicyName}}
+//  1. If origin policy is SecurityPolicy, policy.name = {{SecurityPolicyPrefix}}{{SecurityPolicy.ID}}
+//  2. If origin policy is IsolationPolicy, policy.name = {{IsolationPolicyPrefix}}{{IsolationPolicy.ID}}
+//  3. If policy was generated to make intragroup communicable, policy.name = {{SecurityPolicyCommunicablePrefix}}{{SelectorHash}}-{{SecurityPolicy.ID}}
+//  4. If origin policy is SystemEndpointsPolicy, policy.name = {{SystemEndpointsPolicyName}}
+//  5. If origin policy is ControllerPolicy, policy.name = {{ControllerPolicyName}}
 type Controller struct {
 	// name of this controller
 	name string
@@ -113,6 +115,14 @@ type Controller struct {
 	securityGroupLister         informer.Lister
 	securityGroupInformerSynced cache.InformerSynced
 
+	serviceGroupInformer       cache.SharedIndexInformer
+	serviceGroupLister         informer.Lister
+	serviceGroupInformerSynced cache.InformerSynced
+
+	serviceInformer       cache.SharedIndexInformer
+	serviceLister         informer.Lister
+	serviceInformerSynced cache.InformerSynced
+
 	isolationPolicyQueue       workqueue.RateLimitingInterface
 	securityPolicyQueue        workqueue.RateLimitingInterface
 	systemEndpointPolicyQueue  workqueue.RateLimitingInterface
@@ -120,6 +130,7 @@ type Controller struct {
 }
 
 // New creates a new instance of controller.
+//
 //nolint:funlen
 func New(
 	towerFactory informer.SharedInformerFactory,
@@ -137,6 +148,8 @@ func New(
 	erClusterInformer := towerFactory.EverouteCluster()
 	systemEndpointInformer := towerFactory.SystemEndpoints()
 	securityGroupInformer := towerFactory.SecurityGroup()
+	serviceGroupInformer := towerFactory.ServiceGroup()
+	serviceInformer := towerFactory.Service()
 
 	c := &Controller{
 		name:                          "PolicyController",
@@ -167,6 +180,12 @@ func New(
 		securityGroupInformer:         securityGroupInformer,
 		securityGroupLister:           securityGroupInformer.GetIndexer(),
 		securityGroupInformerSynced:   securityGroupInformer.HasSynced,
+		serviceGroupInformer:          serviceGroupInformer,
+		serviceGroupLister:            serviceGroupInformer.GetIndexer(),
+		serviceGroupInformerSynced:    serviceGroupInformer.HasSynced,
+		serviceInformer:               serviceInformer,
+		serviceLister:                 serviceInformer.GetIndexer(),
+		serviceInformerSynced:         serviceInformer.HasSynced,
 		isolationPolicyQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		securityPolicyQueue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		systemEndpointPolicyQueue:     workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -239,6 +258,24 @@ func New(
 		resyncPeriod,
 	)
 
+	serviceInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleService,
+			UpdateFunc: c.updateService,
+			DeleteFunc: c.handleService,
+		},
+		resyncPeriod,
+	)
+
+	serviceGroupInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleServiceGroup,
+			UpdateFunc: c.updateServiceGroup,
+			DeleteFunc: c.handleServiceGroup,
+		},
+		resyncPeriod,
+	)
+
 	securityGroupInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleSecurityGroup,
@@ -252,6 +289,8 @@ func New(
 	_ = securityPolicyInformer.AddIndexers(cache.Indexers{
 		labelIndex:         c.labelIndexFunc,
 		securityGroupIndex: c.securityGroupIndexFunc,
+		serviceIndex:       c.serviceIndexFunc,
+		serviceGroupIndex:  c.serviceGroupIndexFunc,
 	})
 
 	// relate isolate vm, selected labels and security groups
@@ -259,6 +298,8 @@ func New(
 		vmIndex:            c.vmIndexFunc,
 		labelIndex:         c.labelIndexFunc,
 		securityGroupIndex: c.securityGroupIndexFunc,
+		serviceIndex:       c.serviceIndexFunc,
+		serviceGroupIndex:  c.serviceGroupIndexFunc,
 	})
 
 	// relate vms and selected labels
@@ -276,6 +317,11 @@ func New(
 	_ = crdPolicyInformer.AddIndexers(cache.Indexers{
 		securityPolicyIndex:  c.securityPolicyIndexFunc,
 		isolationPolicyIndex: c.isolationPolicyIndexFunc,
+	})
+
+	// relate services
+	_ = serviceGroupInformer.AddIndexers(cache.Indexers{
+		serviceIndex: c.serviceIndexFunc,
 	})
 
 	return c
@@ -298,6 +344,8 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		c.everouteClusterInformerSynced,
 		c.systemEndpointInformerSynced,
 		c.securityGroupInformerSynced,
+		c.serviceInformerSynced,
+		c.serviceGroupInformerSynced,
 	) {
 		return
 	}
@@ -385,6 +433,42 @@ func (c *Controller) securityGroupIndexFunc(obj interface{}) ([]string, error) {
 	}
 
 	return securityGroups, nil
+}
+
+func (c *Controller) serviceIndexFunc(obj interface{}) ([]string, error) {
+	var services []string
+
+	switch o := obj.(type) {
+	case *schema.SecurityPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			services = append(services, rule.Services...)
+		}
+	case *schema.IsolationPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			services = append(services, rule.Services...)
+		}
+	case *schema.ServiceGroup:
+		services = o.ServiceMembers
+	}
+
+	return services, nil
+}
+
+func (c *Controller) serviceGroupIndexFunc(obj interface{}) ([]string, error) {
+	var svcGroups []string
+
+	switch o := obj.(type) {
+	case *schema.SecurityPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			svcGroups = append(svcGroups, rule.ServiceGroups...)
+		}
+	case *schema.IsolationPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			svcGroups = append(svcGroups, rule.ServiceGroups...)
+		}
+	}
+
+	return svcGroups, nil
 }
 
 func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) {
@@ -482,6 +566,66 @@ func (c *Controller) updateLabel(old, new interface{}) {
 		return
 	}
 	c.handleLabel(newLabel)
+}
+
+func (c *Controller) handleService(obj interface{}) {
+	unknow, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		obj = unknow.Obj
+	}
+
+	svc := obj.(*schema.Service)
+
+	svcGroups, _ := c.serviceGroupLister.ByIndex(serviceIndex, svc.GetID())
+	for _, g := range svcGroups {
+		c.handleServiceGroup(g)
+	}
+
+	secPolicies, _ := c.securityPolicyLister.ByIndex(serviceIndex, svc.GetID())
+	for _, p := range secPolicies {
+		c.handleSecurityPolicy(p)
+	}
+
+	isoPolices, _ := c.isolationPolicyLister.ByIndex(serviceIndex, svc.GetID())
+	for _, p := range isoPolices {
+		c.handleIsolationPolicy(p)
+	}
+}
+
+func (c *Controller) updateService(old, new interface{}) {
+	oldSvc := old.(*schema.Service)
+	newSvc := new.(*schema.Service)
+
+	if oldSvc.Protocol != newSvc.Protocol || oldSvc.PortRange != newSvc.PortRange {
+		c.handleService(newSvc)
+	}
+}
+
+func (c *Controller) handleServiceGroup(obj interface{}) {
+	unknow, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		obj = unknow.Obj
+	}
+
+	svcGroup := obj.(*schema.ServiceGroup)
+
+	secPolices, _ := c.securityPolicyLister.ByIndex(serviceGroupIndex, svcGroup.GetID())
+	for _, p := range secPolices {
+		c.handleSecurityPolicy(p)
+	}
+
+	isoPolices, _ := c.isolationPolicyLister.ByIndex(serviceGroupIndex, svcGroup.GetID())
+	for _, p := range isoPolices {
+		c.handleIsolationPolicy(p)
+	}
+}
+
+func (c *Controller) updateServiceGroup(old, new interface{}) {
+	oldGroup := old.(*schema.ServiceGroup)
+	newGroup := new.(*schema.ServiceGroup)
+	if !sets.NewString(oldGroup.ServiceMembers...).Equal(sets.NewString(newGroup.ServiceMembers...)) {
+		c.handleServiceGroup(new)
+	}
 }
 
 func (c *Controller) handleSecurityPolicy(obj interface{}) {
@@ -1197,6 +1341,38 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 	return ingress, egress, nil
 }
 
+func (c *Controller) parseNetworkPolicyRuleService(svcIDs []string) ([]v1alpha1.SecurityPolicyPort, error) {
+	var ports []v1alpha1.SecurityPolicyPort
+	for _, svcID := range svcIDs {
+		obj, exist, err := c.serviceLister.GetByKey(svcID)
+		if err != nil || !exist {
+			return nil, fmt.Errorf("service %s not found, err is %s", svcID, err)
+		}
+		svc := obj.(*schema.Service)
+		ports = append(ports, v1alpha1.SecurityPolicyPort{
+			Protocol:  v1alpha1.Protocol(svc.Protocol),
+			PortRange: svc.PortRange,
+		})
+	}
+	return ports, nil
+}
+
+func (c *Controller) parseNetworkPolicyRuleServiceGroup(grpIDs []string) ([]v1alpha1.SecurityPolicyPort, error) {
+	var ports []v1alpha1.SecurityPolicyPort
+	for _, grpID := range grpIDs {
+		obj, exist, err := c.serviceGroupLister.GetByKey(grpID)
+		if err != nil || !exist {
+			return nil, fmt.Errorf("serviceGroup %s not found, err is %s", grpID, err)
+		}
+		curPorts, err := c.parseNetworkPolicyRuleService(obj.(*schema.ServiceGroup).ServiceMembers)
+		if err != nil {
+			return nil, err
+		}
+		ports = append(ports, curPorts...)
+	}
+	return ports, nil
+}
+
 // parseNetworkPolicyRule parse NetworkPolicyRule to []v1alpha1.SecurityPolicyPeer and []v1alpha1.SecurityPolicyPort
 func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v1alpha1.SecurityPolicyPeer, []v1alpha1.SecurityPolicyPort, error) {
 	var policyPeers []v1alpha1.SecurityPolicyPeer
@@ -1212,6 +1388,16 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 			PortRange: portRange,
 		})
 	}
+	portsBySvc, err := c.parseNetworkPolicyRuleService(rule.Services)
+	if err != nil {
+		return nil, nil, err
+	}
+	portsByGrp, err := c.parseNetworkPolicyRuleServiceGroup(rule.ServiceGroups)
+	if err != nil {
+		return nil, nil, err
+	}
+	policyPorts = append(policyPorts, portsBySvc...)
+	policyPorts = append(policyPorts, portsByGrp...)
 
 	switch rule.Type {
 	case schema.NetworkPolicyRuleTypeAll:
