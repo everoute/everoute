@@ -104,17 +104,16 @@ func (n *Agent) CheckConntrackExist(proto, srcIP, dstIP string, srcPort, dstPort
 
 	rc, out, err := n.runCommand(realCommand)
 	if rc != 0 || err != nil {
-		return false, fmt.Errorf("error running "+realCommand+". Code: %d, error: %v", rc, err)
+		return false, fmt.Errorf("error running "+realCommand+", code: %d, error: %v", rc, err)
 	}
 
 	reg, _ := regexp.Compile("[0-9]+ flow entries")
-	// flowCount, err := strconv.Atoi(strings.TrimSpace(reg.FindStringSubmatch(string(out))[1]))
 	flowCount, err := strconv.Atoi(strings.TrimSpace(strings.Split(reg.FindStringSubmatch(string(out))[0], " ")[0]))
 	if err != nil {
 		klog.Error("error parse the number of flows, err:", err)
 		return false, err
 	}
-	klog.Infof("checkConntrackExist find %d flows with command %s in agent %s", flowCount, realCommand, n.Name)
+	klog.Infof("Check conntrack exist find %d flows with command %s in agent %s", flowCount, realCommand, n.Name)
 
 	return flowCount != 0, nil
 }
