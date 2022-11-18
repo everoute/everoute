@@ -144,6 +144,7 @@ func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 				log.Errorf("error inport filed")
 			}
 		}
+
 	case protocol.IPv4_MSG: // other type of packet that must processing by controller
 		log.Errorf("controller received non arp packet error.")
 		return
@@ -158,11 +159,6 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	case *protocol.ARP:
 		var arpIn protocol.ARP = *t
 
-		select {
-		case l.datapathManager.ArpChan <- arpIn:
-		default: // Non-block when arpChan is full
-		}
-
 		l.learnedIPAddressMapMutex.Lock()
 		defer l.learnedIPAddressMapMutex.Unlock()
 		l.setLocalEndpointIPAddr(arpIn, inPort)
@@ -171,6 +167,11 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			l.processLocalEndpointUpdate(arpIn, inPort)
 		} else if ok && ipReference.updateTimes > 0 {
 			l.processLocalEndpointUpdate(arpIn, inPort)
+		}
+
+		select {
+		case l.datapathManager.ArpChan <- ArpInfo{InPort: inPort, Pkt: arpIn, BrName: l.name}:
+		default: // Non-block when arpChan is full
 		}
 	default:
 		log.Infof("error pkt type")
