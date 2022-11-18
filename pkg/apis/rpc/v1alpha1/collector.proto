@@ -6,6 +6,8 @@ import "google/protobuf/empty.proto";
 
 message ArpResponse {
   bytes pkt = 1;
+  uint32 in_port = 2;
+  string br_name = 3;
 }
 
 message PolicyRequest{
