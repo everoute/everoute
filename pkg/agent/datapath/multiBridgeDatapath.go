@@ -189,7 +189,7 @@ type DpManager struct {
 	ovsdbReconnectChan        chan struct{}
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
-	ArpChan chan protocol.ARP
+	ArpChan chan ArpInfo
 
 	AgentInfo *AgentConf
 }
@@ -280,6 +280,12 @@ type PolicyItem struct {
 	PolicyType policycache.PolicyType
 }
 
+type ArpInfo struct {
+	InPort uint32
+	Pkt    protocol.ARP
+	BrName string
+}
+
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
@@ -299,7 +305,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.ovsdbReconnectChan = make(chan struct{})
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
-	datapathManager.ArpChan = make(chan protocol.ARP, MaxArpChanCache)
+	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
