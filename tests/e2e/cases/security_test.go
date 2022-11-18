@@ -741,7 +741,7 @@ var _ = Describe("GlobalPolicy", func() {
 				return s && d
 			}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(BeTrue())
 
-			healthyChan := cheekConnectionHealth(endpointA, endpointB)
+			healthyChan := checkConnectionHealth(endpointA, endpointB)
 			time.Sleep(2 * time.Second)
 			Expect(e2eEnv.GlobalPolicyProvider().SetDefaultAction(ctx, securityv1alpha1.GlobalDefaultActionDrop)).Should(Succeed())
 
@@ -1089,21 +1089,19 @@ const (
 	UNKNOWN      ConnHealth = "unknown"
 )
 
-const CheekConnectionHealthTime int = 20 // 20s
+const CheckConnectionHealthTime int = 20 // 20s
 
-func cheekConnectionHealth(src, dst *model.Endpoint) <-chan ConnHealth {
-	result := make(chan ConnHealth)
-	klog.Info("CheekConnectionHealth from endpoint ", src.Name, " to endpoint ", dst.Name, ".")
-	go func(src, dst *model.Endpoint, result chan ConnHealth) {
+func checkConnectionHealth(src, dst *model.Endpoint) <-chan ConnHealth {
+	resultChan := make(chan ConnHealth)
+	klog.Info("Check connection health from endpoint ", src.Name, " to endpoint ", dst.Name, ".")
+	go func(src, dst *model.Endpoint, resultChan chan ConnHealth) {
 		var command string = "ping"
-		var args []string = []string{"-W", "1", "-c", strconv.Itoa(CheekConnectionHealthTime / 1), "-q", strings.Split(dst.Status.IPAddr, "/")[0]}
-		fmt.Println("call ", command, args)
+		var args []string = []string{"-W", "1", "-c", strconv.Itoa(CheckConnectionHealthTime / 1), "-q", strings.Split(dst.Status.IPAddr, "/")[0]}
 		rc, b, err := e2eEnv.EndpointManager().RunCommand(ctx, src.Name, command, args...)
 		fullOut := string(b)
-		fmt.Println("Cheek connectionHealth output:\n", fullOut)
 		if err != nil {
-			klog.Error("Error cheek connection health endpoint {", src.Name, ",", dst.Name, "}.", "Return code: ", rc, ".", "Error:", err)
-			result <- UNKNOWN
+			klog.Error("Error check connection health endpoint {", src.Name, ",", dst.Name, "}, return code:", rc, ", error:", err)
+			resultChan <- UNKNOWN
 			return
 		}
 		// Expect 4 lines at least:
@@ -1117,14 +1115,14 @@ func cheekConnectionHealth(src, dst *model.Endpoint) <-chan ConnHealth {
 		klog.Info("Total,Received,Loss Rate,Time:", connInfo)
 		lossRate, err := strconv.Atoi(connInfo[2])
 		if err != nil {
-			result <- UNKNOWN
+			resultChan <- UNKNOWN
 		} else if lossRate == 0 {
-			result <- HEALTHY
+			resultChan <- HEALTHY
 		} else if lossRate == 100 {
-			result <- DISCONNECTED
+			resultChan <- DISCONNECTED
 		} else {
-			result <- UNHEALTHY
+			resultChan <- UNHEALTHY
 		}
-	}(src, dst, result)
-	return result
+	}(src, dst, resultChan)
+	return resultChan
 }
