@@ -35,3 +35,35 @@ jobs:
           tags: everoute/release:${{ env.IMAGE_TAG }}
           platforms: linux/amd64,linux/arm64
           push: true
+
+      - name: Check if tag is a release tag
+        run: |
+          if [[ ${{ github.ref }} =~ ^refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then 
+            echo "NEED_RELEASE=true" >> $GITHUB_ENV
+          else 
+            echo "NEED_RELEASE=false" >> $GITHUB_ENV
+          fi
+
+    outputs:
+      ReleaseTag: ${{ env.IMAGE_TAG }}
+      NeedRelease: ${{ env.NEED_RELEASE }}
+
+  publish-release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: ${{ needs.build.outputs.NeedRelease == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Generate deploy yaml
+        run: helm template deploy/chart --include-crds --set image.tag=${{ needs.build.outputs.ReleaseTag }} > deploy/everoute.yaml
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: deploy/everoute.yaml
+          name: ${{ needs.build.outputs.ReleaseTag }}
