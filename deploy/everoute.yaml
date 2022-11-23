@@ -2120,7 +2120,7 @@ spec:
       containers:
         - name: init-agent
           command: ["init_agent"]
-          image: everoute/release:1.0.6-rc-20220926-01
+          image: everoute/release:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: true
@@ -2159,7 +2159,7 @@ spec:
             successThreshold: 1
             failureThreshold: 3
         - name: everoute-agent
-          image: everoute/release:1.0.6-rc-20220926-01
+          image: everoute/release:latest
           imagePullPolicy: IfNotPresent
           command: ["start-everoute-agent"]
           args:
@@ -2283,7 +2283,7 @@ spec:
       serviceAccountName: everoute-controller
       containers:
         - name: everoute-controller
-          image: everoute/release:1.0.6-rc-20220926-01
+          image: everoute/release:latest
           imagePullPolicy: IfNotPresent
           command: ["everoute-controller"]
           args:
