@@ -254,9 +254,34 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	}
 
 	// Table 70 conntrack commit table
+	// DONOT commit new tcp without syn flag, otherwise an +new+est CT flow
+	// will generate by conntrack module automatically. If happen to receive
+	// a reverse pkt, valid CT flow will be created, and drop rule does not work.
 	ctTrkState := openflow13.NewCTStates()
 	ctTrkState.SetNew()
 	ctTrkState.SetTrk()
+	zeroFlag := uint16(0)
+	tcpSynMask := uint16(0x2)
+	ctCommitFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		IpProto:   ofctrl.IP_PROTO_TCP,
+		CtStates:  ctTrkState,
+		Regs: []*ofctrl.NXRegister{
+			{
+				RegID: constants.OVSReg4,
+				Data:  0x20,
+				Range: openflow13.NewNXRange(0, 15),
+			},
+		},
+		TcpFlags:     &zeroFlag,
+		TcpFlagsMask: &tcpSynMask,
+	})
+	if err := ctCommitFilterFlow.Next(sw.DropAction()); err != nil {
+		return fmt.Errorf("failed to install ct commit flow, error: %v", err)
+	}
+
+	// commit normal ip packet into ct
 	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
