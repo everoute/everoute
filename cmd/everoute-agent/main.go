@@ -93,6 +93,12 @@ func main() {
 	})
 	go ovsdbMonitor.Run(stopChan)
 
+	if err := datapath.ExcuteCommand("sudo %s", "conntrack -F"); err != nil {
+		klog.Error("Clean conntrack failed, err:", err)
+	} else {
+		klog.Info("Clean conntrack success.")
+	}
+
 	var mgr manager.Manager
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
