@@ -36,13 +36,15 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/tests/e2e/framework"
+	"github.com/everoute/everoute/tests/e2e/framework/node"
 )
 
 var (
 	startTime time.Time
 
-	ctx    context.Context
-	e2eEnv *framework.Framework
+	ctx              context.Context
+	e2eEnv           *framework.Framework
+	serviceRestarter *node.ServiceRestarter
 )
 
 func TestE2e(t *testing.T) {
@@ -67,8 +69,8 @@ var _ = BeforeSuite(func() {
 		Expect(strings.TrimSpace(resp)).To(Equal("net.netfilter.nf_conntrack_tcp_timeout_close = " + timeoutSec))
 	}
 
-	restarter := e2eEnv.NodeManager().ServiceRestarter(10, 30)
-	go restarter.Run(ctx.Done())
+	serviceRestarter = e2eEnv.NodeManager().ServiceRestarter(15, 20)
+	serviceRestarter.RunAsync()
 })
 
 var _ = AfterSuite(func() {
