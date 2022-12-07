@@ -103,9 +103,8 @@ spec:
                               tag:
                                 format: int32
                                 type: integer
-                              trunks:
-                                format: int32
-                                type: integer
+                              trunk:
+                                type: string
                               vlanMode:
                                 type: string
                             type: object

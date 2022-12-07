@@ -729,10 +729,10 @@ func schema_pkg_apis_agent_v1alpha1_VlanConfig(ref common.ReferenceCallback) com
 							Format: "int32",
 						},
 					},
-					"trunks": {
+					"trunk": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
