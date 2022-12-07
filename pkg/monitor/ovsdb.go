@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -165,18 +166,30 @@ func (monitor *OVSDBMonitor) interfaceToEndpoint(ofport uint32, interfaceName, m
 	// NOTE should use interface uuid to caculate endpoint info
 	var bridgeName string
 	var portUUID string
-	var vlanID uint16
+	var vlanID *float64
+	var trunk string
 
 	monitor.cacheLock.RLock()
 	defer monitor.cacheLock.RUnlock()
 	for uuid, port := range monitor.ovsdbCache["Port"] {
 		if port.Fields["name"].(string) == interfaceName {
 			portUUID = uuid
-			tag, ok := port.Fields["tag"].(float64)
-			if !ok {
-				break
+			if port.Fields["tag"] != nil {
+				tag, ok := port.Fields["tag"].(float64)
+				if !ok {
+					vlanID = nil
+				} else {
+					vlanID = &tag
+				}
 			}
-			vlanID = uint16(tag)
+			if port.Fields["Trunk"] != nil {
+				trunks, ok := port.Fields["trunks"].(string)
+				if !ok {
+					trunk = ""
+				} else {
+					trunk = trunks
+				}
+			}
 			break
 		}
 	}
@@ -191,13 +204,26 @@ func (monitor *OVSDBMonitor) interfaceToEndpoint(ofport uint32, interfaceName, m
 		}
 	}
 
-	return &datapath.Endpoint{
-		InterfaceName: interfaceName,
-		MacAddrStr:    macAddrStr,
-		PortNo:        ofport,
-		BridgeName:    bridgeName,
-		VlanID:        vlanID,
+	var endpoint *datapath.Endpoint
+	if vlanID != nil {
+		endpoint = &datapath.Endpoint{
+			InterfaceName: interfaceName,
+			MacAddrStr:    macAddrStr,
+			PortNo:        ofport,
+			BridgeName:    bridgeName,
+			VlanID:        uint16(*vlanID),
+		}
+	} else {
+		endpoint = &datapath.Endpoint{
+			InterfaceName: interfaceName,
+			MacAddrStr:    macAddrStr,
+			PortNo:        ofport,
+			BridgeName:    bridgeName,
+			Trunk:         trunk,
+		}
 	}
+
+	return endpoint
 }
 
 func (monitor *OVSDBMonitor) filterEndpoint(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
@@ -364,6 +390,96 @@ func (monitor *OVSDBMonitor) filterEndpointDeleted(rowupdate ovsdb.RowUpdate) *d
 	return monitor.interfaceToEndpoint(ofport, rowupdate.Old.Fields["name"].(string), macStr)
 }
 
+func (monitor *OVSDBMonitor) filterPortVlanModeUpdate(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
+	monitor.cacheLock.Lock()
+	ok, localEndpointIface := monitor.isLocalEndpointPort(rowupdate.New.Fields["name"].(string))
+	if !ok {
+		monitor.cacheLock.Unlock()
+		return nil, nil
+	}
+	monitor.cacheLock.Unlock()
+
+	var newEndpoint, oldEndpoint *datapath.Endpoint
+	var oldTag, newTag *float64
+	var oldTrunk, newTrunk []float64
+	var ofport uint32
+
+	portName := localEndpointIface.Fields["name"].(string)
+	externalIDs := localEndpointIface.Fields["external_ids"].(ovsdb.OvsMap).GoMap
+	ofPort, ok := localEndpointIface.Fields["ofport"].(float64)
+	if !ok {
+		return nil, nil
+	}
+	if ofPort <= 0 {
+		monitor.localEndpointHardwareAddrCacheLock.Lock()
+		ofport = monitor.localEndpointHardwareAddrCache[externalIDs[LocalEndpointIdentity].(string)]
+		monitor.localEndpointHardwareAddrCacheLock.Unlock()
+	} else {
+		ofport = uint32(ofPort)
+	}
+	if rowupdate.New.Fields["tag"] != nil {
+		newID, ok := rowupdate.New.Fields["tag"].(float64)
+		if ok {
+			newTag = &newID
+		}
+	}
+	if rowupdate.Old.Fields["tag"] != nil {
+		oldID, ok := rowupdate.Old.Fields["tag"].(float64)
+		if ok {
+			oldTag = &oldID
+		}
+	}
+	if rowupdate.New.Fields["trunks"] != nil {
+		newTrunks, ok := rowupdate.New.Fields["trunks"].(ovsdb.OvsSet)
+		if ok {
+			trunkSet := newTrunks.GoSet
+			for _, item := range trunkSet {
+				newTrunk = append(newTrunk, item.(float64))
+			}
+		} else {
+			newTrunk = []float64{}
+		}
+	}
+	if rowupdate.Old.Fields["trunks"] != nil {
+		oldTrunks, ok := rowupdate.Old.Fields["trunks"].(ovsdb.OvsSet)
+		if ok {
+			trunkSet := oldTrunks.GoSet
+			for _, item := range trunkSet {
+				oldTrunk = append(oldTrunk, item.(float64))
+			}
+		} else {
+			oldTrunk = []float64{}
+		}
+	}
+
+	// access to trunk
+	if newTag == nil && oldTag != nil && len(newTrunk) != 0 && len(oldTrunk) == 0 {
+		newEndpoint = monitor.interfaceToEndpoint(ofport, portName, externalIDs[LocalEndpointIdentity].(string))
+		newEndpoint.Trunk = strings.Trim(strings.Join(strings.Split(fmt.Sprintf("%v", newTrunk), " "), ","), "[]")
+		oldEndpoint = &datapath.Endpoint{
+			InterfaceName: newEndpoint.InterfaceName,
+			MacAddrStr:    newEndpoint.MacAddrStr,
+			PortNo:        newEndpoint.PortNo,
+			BridgeName:    newEndpoint.BridgeName,
+			VlanID:        uint16(*oldTag),
+		}
+	}
+	// trunk to access
+	if newTag != nil && oldTag == nil && len(newTrunk) == 0 && len(oldTrunk) != 0 {
+		newEndpoint = monitor.interfaceToEndpoint(ofport, portName, externalIDs[LocalEndpointIdentity].(string))
+		newEndpoint.VlanID = uint16(*newTag)
+		oldEndpoint = &datapath.Endpoint{
+			InterfaceName: newEndpoint.InterfaceName,
+			MacAddrStr:    newEndpoint.MacAddrStr,
+			PortNo:        newEndpoint.PortNo,
+			BridgeName:    newEndpoint.BridgeName,
+			Trunk:         strings.Trim(strings.Join(strings.Split(fmt.Sprintf("%v", oldTrunk), " "), ","), "[]"),
+		}
+	}
+
+	return newEndpoint, oldEndpoint
+}
+
 func (monitor *OVSDBMonitor) filterPortVlanTagUpdate(rowupdate ovsdb.RowUpdate) (*datapath.Endpoint, *datapath.Endpoint) {
 	monitor.cacheLock.Lock()
 	ok, localEndpointIface := monitor.isLocalEndpointPort(rowupdate.New.Fields["name"].(string))
@@ -425,9 +541,14 @@ func (monitor *OVSDBMonitor) isLocalEndpointPort(portName string) (bool, ovsdb.R
 }
 
 func (monitor *OVSDBMonitor) processPortUpdate(rowupdate ovsdb.RowUpdate) {
-	newEndpoint, oldEndpoint := monitor.filterPortVlanTagUpdate(rowupdate)
+	newEndpoint, oldEndpoint := monitor.filterPortVlanModeUpdate(rowupdate)
 	if newEndpoint != nil && oldEndpoint != nil {
 		go monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
+	} else {
+		newEndpoint, oldEndpoint = monitor.filterPortVlanTagUpdate(rowupdate)
+		if newEndpoint != nil && oldEndpoint != nil {
+			go monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
+		}
 	}
 }
 

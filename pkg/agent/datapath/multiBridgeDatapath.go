@@ -227,6 +227,7 @@ type Endpoint struct {
 	PortNo               uint32 // endpoint of port
 	MacAddrStr           string
 	VlanID               uint16 // endpoint vlan id
+	Trunk                string // vlan trunk config
 	BridgeName           string // bridge name that endpoint attached to
 }
 
