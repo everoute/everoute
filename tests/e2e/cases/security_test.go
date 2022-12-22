@@ -100,10 +100,12 @@ var _ = Describe("SecurityPolicy", func() {
 		})
 
 		It("should clean exist connection after adding drop policy without restarting", func() {
-			assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01}, "TCP", true)
-
 			serviceRestarter.Stop()
 			defer serviceRestarter.RunAsync()
+
+			time.Sleep(1 * time.Second)
+
+			assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01}, "TCP", true)
 
 			nginxPolicy := newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
 			addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
