@@ -318,14 +318,14 @@ github.com/evanphx/json-patch v4.5.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLi
 github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQobrkAqrL+WFZwQses=
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514/go.mod h1:uYj4ANn0CmtCIfmR9Y6uStSxNBHR4VIZvTw/4Fyoy8g=
-github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5 h1:+z3ZBux28VicGlFQLrXpIe1DytIScR+eM2My8Yl480w=
-github.com/everoute/libOpenflow v0.0.0-20210716071814-4ef09249fae5/go.mod h1:xsbTUkWYuDqVv4jMxwinRGdjlYwj0aZS8Rzf6HoNLdg=
+github.com/everoute/libOpenflow v0.0.0-20221222093906-b37f0b6bd8e3 h1:Ch6dw5rmeLifWbYJfkyl0BV9mFN4qwwE/8l3H2JZAlU=
+github.com/everoute/libOpenflow v0.0.0-20221222093906-b37f0b6bd8e3/go.mod h1:xsbTUkWYuDqVv4jMxwinRGdjlYwj0aZS8Rzf6HoNLdg=
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65 h1:a3dwYQt/Y9Yfz1XKpUelQKS5YDgmG4NtVpBrRguQY9k=
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65/go.mod h1:N8fR1bYMqi4pQ7jL17QlBlpJ0hHmqRAXVKkBwuIjClw=
 github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66 h1:/QretgciXKji8tf5ZqaqHL17hkAk+EiNmwc3nnrB5ok=
 github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
-github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb h1:9n+KfNXOHZQhmqbt0BQTsdgKxIib9SEuQYKCw22HyWU=
-github.com/everoute/ofnet v0.0.0-20220412063200-c0360fe2ddcb/go.mod h1:VI923BFjPJipkV0SbiOmQ1qXefJnBBkjGxA3F56fenM=
+github.com/everoute/ofnet v0.0.0-20221222090500-423827b94654 h1:A6IStmWAN6SgajULFuqgSDTW6lcFNgHGrA8IKre2ISQ=
+github.com/everoute/ofnet v0.0.0-20221222090500-423827b94654/go.mod h1:AcycmNq6Ndg3LLPlAccYFAOB5ynzMMpesh29YLYmysY=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
@@ -832,8 +832,6 @@ github.com/spf13/viper v1.4.0/go.mod h1:PTJ7Z/lr49W6bUbkmS1V3by4uWynFiR9p7+dSq/y
 github.com/spf13/viper v1.7.0/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/spf13/viper v1.7.1/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980/go.mod h1:AO3tvPzVZ/ayst6UlUKUv6rcPQInYe3IknH3jYhAKu8=
-github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6 h1:XklXvOrWxWCDX2n4vdEQWkjuIP820XD6C4kF0O0FzH4=
-github.com/streamrail/concurrent-map v0.0.0-20160823150647-8bf1e9bacbf6/go.mod h1:yqDD2twFAqxvvH5gtpwwgLsj5L1kbNwtoPoDOwBzXcs=
 github.com/stretchr/objx v0.0.0-20180129172003-8a3f7159479f/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
