@@ -48,7 +48,7 @@ jobs:
         run: sudo make docker-e2e-test
 
   run-k8s-e2e:
-    runs-on: self-hosted
+    runs-on: [self-hosted, k8s]
     steps:
       - uses: actions/checkout@v2
 
