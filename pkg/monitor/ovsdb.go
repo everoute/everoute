@@ -79,6 +79,8 @@ type OVSDBMonitor struct {
 
 	// syncQueue used to notify ovsdb update
 	syncQueue workqueue.RateLimitingInterface
+
+	OvsdbReconnChan chan struct{}
 }
 
 // NewOVSDBMonitor create a new instance of OVSDBMonitor
@@ -95,6 +97,7 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		localEndpointHardwareAddrCacheLock: sync.RWMutex{},
 		localEndpointHardwareAddrCache:     make(map[string]uint32),
 		syncQueue:                          workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		OvsdbReconnChan:                    make(chan struct{}),
 	}
 
 	return monitor, nil
@@ -131,8 +134,23 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 	if err != nil {
 		klog.Fatalf("unable start ovsdb monitor: %s", err)
 	}
-
-	<-stopChan
+	for {
+		select {
+		case <-monitor.OvsdbReconnChan:
+			klog.Infof("reconnect ovsdb monitor")
+			monitor.ovsClient.Disconnect()
+			monitor.ovsClient, err = ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
+			if err != nil {
+				klog.Fatalf("unable reconnect ovsdb socket: %s", err)
+			}
+			err := monitor.startOvsdbMonitor()
+			if err != nil {
+				klog.Fatalf("unable start ovsdb monitor: %s", err)
+			}
+		case <-stopChan:
+			return
+		}
+	}
 }
 
 func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
