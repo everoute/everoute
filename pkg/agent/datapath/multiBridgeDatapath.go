@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"reflect"
 	"strconv"
@@ -36,7 +35,6 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
-	"github.com/fsnotify/fsnotify"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -186,7 +184,7 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
-	ovsdbReconnectChan        chan struct{}
+	OvsdbReconnectChan        chan struct{}
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan ArpInfo
@@ -304,7 +302,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.AgentInfo.EnableCNI = false
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
-	datapathManager.ovsdbReconnectChan = make(chan struct{})
+	datapathManager.OvsdbReconnectChan = make(chan struct{})
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 
@@ -347,10 +345,8 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		go datapathManager.syncIntenalIPs(stopChan)
 	}
 
-	go watchFile(ovsdbDomainSock, stopChan, datapathManager.ovsdbReconnectChan)
-
 	go func() {
-		for range datapathManager.ovsdbReconnectChan {
+		for range datapathManager.OvsdbReconnectChan {
 			if err := datapathManager.ovsdbConnectionReset(); err != nil {
 				log.Fatalf("Failed to reset ovsbd connection while ovsdb recovery")
 			}
@@ -706,8 +702,6 @@ func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string) error
 		if err != nil {
 			return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
 		}
-
-		break
 	}
 
 	return nil
@@ -1169,84 +1163,6 @@ func SetPortNoFlood(bridge string, ofport int) error {
 			stderr.String())
 	}
 	return nil
-}
-
-func watchFile(fileName string, stopChan <-chan struct{}, recoveryEventChan chan struct{}) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatalf("Failed to watch file: %v", fileName)
-	}
-
-	if err := addWatchFile(watcher, fileName); err != nil {
-		log.Fatalf("Failed to add file to watcher, error: %v", err)
-	}
-
-	createChan := make(chan bool)
-	removeChan := make(chan bool)
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					continue
-				}
-				if event.Op&fsnotify.Create == fsnotify.Create {
-					createChan <- true
-				}
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					removeChan <- true
-				}
-			case err := <-watcher.Errors:
-				// Error chan need handle
-				log.Errorf("File watcher error: %v", err)
-			}
-		}
-	}()
-
-	go func(watcher *fsnotify.Watcher) {
-		for {
-			select {
-			case <-removeChan:
-				log.Infof("Deleted unix domain sock : %v", fileName)
-
-				// wait for watched file recovery (e.g ovsdb/vswitchd failover). we need timeout constant, 10s is temporary value. FIXME
-				if err := waitUntilFileCreate(fileName, 10*time.Second); err != nil {
-					log.Infof("Time out for wait file restore")
-				}
-				// watch vswitchd doamain socket again
-				if err := addWatchFile(watcher, fileName); err != nil {
-					log.Fatalf("Failed to watch file after removed file was re-added")
-				}
-
-				// trigger datapathManager faileover event (e.g flow replay or ovsdb connection reset)
-				recoveryEventChan <- struct{}{}
-			case <-createChan:
-				log.Infof("Created unix domain sock : %v", fileName)
-			}
-		}
-	}(watcher)
-
-	<-stopChan
-	watcher.Close()
-}
-
-func addWatchFile(watcher *fsnotify.Watcher, filepath string) error {
-	if err := watcher.Add(filepath); err != nil {
-		return err
-	}
-	log.Infof("Add file watcher for file: %v", filepath)
-
-	return nil
-}
-
-func waitUntilFileCreate(fileName string, timeout time.Duration) error {
-	return wait.PollImmediate(10*time.Millisecond, timeout, func() (do bool, err error) {
-		if _, err := os.Stat(fileName); os.IsNotExist(err) {
-			return false, nil
-		}
-
-		return true, nil
-	})
 }
 
 // newInternalIngressRule generate a rule allow all ingress to internalIP
