@@ -19,8 +19,11 @@ package main
 import (
 	"flag"
 	"net"
+	"os"
 	"time"
 
+	"github.com/contiv/libovsdb"
+	"gopkg.in/fsnotify.v1"
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -70,6 +73,8 @@ func main() {
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
 	}
+
+	go watchFile(libovsdb.DEFAULT_SOCK, stopChan, datapathManager.OvsdbReconnectChan, ovsdbMonitor.OvsdbReconnChan)
 
 	ovsdbMonitor.RegisterOvsdbEventHandler(monitor.OvsdbEventHandlerFuncs{
 		LocalEndpointAddFunc: func(endpoint *datapath.Endpoint) {
@@ -164,4 +169,86 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}()
 
 	return nil
+}
+
+func watchFile(fileName string, stopChan <-chan struct{}, recoveryEventChan ...chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		klog.Fatalf("Failed to watch file: %v", fileName)
+	}
+
+	if err := addWatchFile(watcher, fileName); err != nil {
+		klog.Fatalf("Failed to add file to watcher, error: %v", err)
+	}
+
+	createChan := make(chan bool)
+	removeChan := make(chan bool)
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					continue
+				}
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					createChan <- true
+				}
+				if event.Op&fsnotify.Remove == fsnotify.Remove {
+					removeChan <- true
+				}
+			case err := <-watcher.Errors:
+				// Error chan need handle
+				klog.Errorf("File watcher error: %v", err)
+			}
+		}
+	}()
+
+	go func(watcher *fsnotify.Watcher) {
+		for {
+			select {
+			case <-removeChan:
+				klog.Infof("Deleted unix domain sock : %v", fileName)
+
+				// wait for watched file recovery (e.g ovsdb/vswitchd failover). we need timeout constant, 10s is temporary value. FIXME
+				if err := waitUntilFileCreate(fileName, 10*time.Second); err != nil {
+					klog.Infof("Time out for wait file restore")
+				}
+				// watch vswitchd doamain socket again
+				if err := addWatchFile(watcher, fileName); err != nil {
+					klog.Fatalf("Failed to watch file after removed file was re-added")
+				}
+
+				// trigger datapathManager faileover event (e.g flow replay or ovsdb connection reset)
+				for _, c := range recoveryEventChan {
+					select {
+					case c <- struct{}{}:
+					default:
+					}
+				}
+			case <-createChan:
+				klog.Infof("Created unix domain sock : %v", fileName)
+			}
+		}
+	}(watcher)
+
+	<-stopChan
+	watcher.Close()
+}
+
+func addWatchFile(watcher *fsnotify.Watcher, filepath string) error {
+	if err := watcher.Add(filepath); err != nil {
+		return err
+	}
+	klog.Infof("Add file watcher for file: %v", filepath)
+
+	return nil
+}
+
+func waitUntilFileCreate(fileName string, timeout time.Duration) error {
+	return wait.PollImmediate(10*time.Millisecond, timeout, func() (do bool, err error) {
+		if _, err := os.Stat(fileName); os.IsNotExist(err) {
+			return false, nil
+		}
+		return true, nil
+	})
 }
