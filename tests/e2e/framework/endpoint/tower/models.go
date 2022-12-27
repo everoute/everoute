@@ -122,11 +122,16 @@ type Vlan struct {
 }
 
 type VlanCreateInput struct {
-	LocalID string        `json:"local_id"`
-	Name    string        `json:"name"`
-	Type    NetworkType   `json:"type"`
-	Vds     *ConnectInput `json:"vds"`
-	VlanID  int           `json:"vlan_id"`
+	LocalID           string             `json:"local_id"`
+	Name              string             `json:"name"`
+	Type              NetworkType        `json:"type"`
+	Vds               *ConnectInput      `json:"vds"`
+	VlanID            int                `json:"vlan_id"`
+	NetworkIdentities *NetworkIdentities `json:"network_identities,omitempty"`
+}
+
+type NetworkIdentities struct {
+	Set []int `json:"set"`
 }
 
 type VlanWhereUniqueInput struct {

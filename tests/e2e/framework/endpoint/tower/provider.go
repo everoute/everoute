@@ -408,7 +408,7 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 	}
 
 	if vlanUUID == "" {
-		vlan, err := mutationCreateVlan(m.towerClient, &VlanCreateInput{
+		vlan, err := adaptMutationCreateVlan(m.towerClient, &VlanCreateInput{
 			Name:   fmt.Sprintf("vlan%d", vlanID),
 			Type:   NetworkTypeVM,
 			Vds:    &ConnectInput{Connect: &UniqueInput{ID: &m.vdsID}},
