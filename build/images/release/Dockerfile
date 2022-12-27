@@ -12,13 +12,13 @@ ARG TARGETARCH
 RUN wget -q -O - https://github.com/containernetworking/plugins/releases/download/$CNI_BINARIES_VERSION/cni-plugins-linux-$TARGETARCH-$CNI_BINARIES_VERSION.tgz | tar xz -C /opt/everoute/bin ./host-local ./loopback ./portmap
 
 ADD go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 ADD ./build/script/* /opt/everoute/bin/
 ADD . $GOPATH/src/everoute
 
 # Build
-RUN make bin
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod make bin
 
 RUN cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
 RUN chmod 755 /opt/everoute/bin/*
