@@ -163,6 +163,18 @@ func mutationDeleteLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label
 	return &label, err
 }
 
+func adaptMutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) {
+	vlan, err := mutationCreateVlan(c, data)
+	if err == nil {
+		return vlan, nil
+	}
+
+	// add required property network_identities to adapt SMTXOS 504
+	deepcopyData := &(*data)
+	deepcopyData.NetworkIdentities = &NetworkIdentities{Set: []int{data.VlanID}}
+	return mutationCreateVlan(c, deepcopyData)
+}
+
 /*
    createVlan(data: VlanCreateInput!): Vlan!
 */
