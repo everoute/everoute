@@ -129,7 +129,7 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 	klog.Infof("start ovsdb monitor")
 	defer klog.Infof("shutting down ovsdb monitor")
 
-	err := monitor.startOvsdbMonitor()
+	err := monitor.startOvsdbMonitor(false)
 	if err != nil {
 		klog.Fatalf("unable start ovsdb monitor: %s", err)
 	}
@@ -142,7 +142,7 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 			if err != nil {
 				klog.Fatalf("unable reconnect ovsdb socket: %s", err)
 			}
-			err := monitor.startOvsdbMonitor()
+			err := monitor.startOvsdbMonitor(true)
 			if err != nil {
 				klog.Fatalf("unable start ovsdb monitor: %s", err)
 			}
@@ -152,9 +152,9 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 	}
 }
 
-func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
+func (monitor *OVSDBMonitor) startOvsdbMonitor(isReconnect bool) error {
 	klog.Infof("start monitor ovsdb %s", "Open_vSwitch")
-	monitor.ovsClient.Register(ovsUpdateHandlerFunc(monitor.handleOvsUpdates))
+	monitor.ovsClient.Register(ovsUpdateHandlerFunc(monitor.handleOvsUpdates(false)))
 
 	selectAll := ovsdb.MonitorSelect{
 		Initial: true,
@@ -173,7 +173,7 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 	if err != nil {
 		return fmt.Errorf("monitor ovsdb %s: %s", "Open_vSwitch", err)
 	}
-	monitor.handleOvsUpdates(*initial)
+	monitor.handleOvsUpdates(isReconnect)(*initial)
 
 	return nil
 }
@@ -465,34 +465,50 @@ func (monitor *OVSDBMonitor) processEndpointDel(rowupdate ovsdb.RowUpdate) {
 	}
 }
 
-func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
-	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
+func (monitor *OVSDBMonitor) handleOvsUpdates(isReconn bool) func(updates ovsdb.TableUpdates) {
+	return func(updates ovsdb.TableUpdates) {
+		monitor.cacheLock.Lock()
+		defer monitor.cacheLock.Unlock()
 
-	for table, tableUpdate := range updates.Updates {
-		if _, ok := monitor.ovsdbCache[table]; !ok {
-			monitor.ovsdbCache[table] = make(map[string]ovsdb.Row)
-		}
-		for uuid, row := range tableUpdate.Rows {
-			empty := ovsdb.Row{}
-			if !reflect.DeepEqual(row.New, empty) {
-				if table == "Interface" {
-					go monitor.processEndpointUpdate(row)
+		if isReconn {
+			for table := range monitor.ovsdbCache {
+				for uuid, row := range monitor.ovsdbCache[table] {
+					if _, ok := updates.Updates[table].Rows[uuid]; !ok {
+						updates.Updates[table].Rows[uuid] = ovsdb.RowUpdate{
+							Uuid: ovsdb.UUID{GoUuid: uuid},
+							Old:  row,
+							New:  ovsdb.Row{},
+						}
+					}
 				}
-				if table == "Port" {
-					go monitor.processPortUpdate(row)
-				}
-
-				monitor.ovsdbCache[table][uuid] = row.New
-			} else {
-				if table == "Interface" {
-					go monitor.processEndpointDel(row)
-				}
-
-				delete(monitor.ovsdbCache[table], uuid)
 			}
 		}
-	}
 
-	monitor.syncQueue.Add("ovsdb-event")
+		for table, tableUpdate := range updates.Updates {
+			if _, ok := monitor.ovsdbCache[table]; !ok {
+				monitor.ovsdbCache[table] = make(map[string]ovsdb.Row)
+			}
+			for uuid, row := range tableUpdate.Rows {
+				empty := ovsdb.Row{}
+				if !reflect.DeepEqual(row.New, empty) {
+					if table == "Interface" {
+						go monitor.processEndpointUpdate(row)
+					}
+					if table == "Port" {
+						go monitor.processPortUpdate(row)
+					}
+
+					monitor.ovsdbCache[table][uuid] = row.New
+				} else {
+					if table == "Interface" {
+						go monitor.processEndpointDel(row)
+					}
+
+					delete(monitor.ovsdbCache[table], uuid)
+				}
+			}
+		}
+
+		monitor.syncQueue.Add("ovsdb-event")
+	}
 }
