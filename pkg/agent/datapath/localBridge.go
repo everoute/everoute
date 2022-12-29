@@ -48,9 +48,7 @@ const (
 )
 
 type LocalBridge struct {
-	name            string
-	OfSwitch        *ofctrl.OFSwitch
-	datapathManager *DpManager
+	BaseBridge
 
 	vlanInputTable                 *ofctrl.Table // Table 0
 	localEndpointL2ForwardingTable *ofctrl.Table // Table 5
@@ -67,9 +65,6 @@ type LocalBridge struct {
 	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
 	learnedIPAddressMapMutex sync.RWMutex
 	learnedIPAddressMap      map[string]IPAddressReference
-
-	localSwitchStatusMuxtex sync.RWMutex
-	isLocalSwitchConnected  bool
 }
 
 type IPAddressReference struct {
@@ -86,48 +81,6 @@ func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 	localBridge.learnedIPAddressMap = make(map[string]IPAddressReference)
 
 	return localBridge
-}
-
-// Controller interface
-func (l *LocalBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s connected", l.name)
-
-	l.OfSwitch = sw
-
-	l.localSwitchStatusMuxtex.Lock()
-	l.isLocalSwitchConnected = true
-	l.localSwitchStatusMuxtex.Unlock()
-}
-
-func (l *LocalBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s disconnected", l.name)
-
-	l.localSwitchStatusMuxtex.Lock()
-	l.isLocalSwitchConnected = false
-	l.localSwitchStatusMuxtex.Unlock()
-
-	l.OfSwitch = nil
-}
-
-func (l *LocalBridge) IsSwitchConnected() bool {
-	l.localSwitchStatusMuxtex.Lock()
-	defer l.localSwitchStatusMuxtex.Unlock()
-
-	return l.isLocalSwitchConnected
-}
-
-func (l *LocalBridge) WaitForSwitchConnection() {
-	for i := 0; i < 20; i++ {
-		time.Sleep(1 * time.Second)
-		l.localSwitchStatusMuxtex.Lock()
-		if l.isLocalSwitchConnected {
-			l.localSwitchStatusMuxtex.Unlock()
-			return
-		}
-		l.localSwitchStatusMuxtex.Unlock()
-	}
-
-	log.Fatalf("OVS switch %s Failed to connect", l.name)
 }
 
 func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
@@ -768,6 +721,9 @@ func (l *LocalBridge) BridgeReset() {
 func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	// skip ovs patch port
 	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
+		return nil
+	}
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
 		return nil
 	}
 

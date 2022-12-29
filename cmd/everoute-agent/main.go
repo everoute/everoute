@@ -51,7 +51,6 @@ func init() {
 }
 
 func main() {
-	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -62,11 +61,12 @@ func main() {
 	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
 
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
-	datapathConfig, err := getDatapathConfig()
+	datapathConfig, agentConf, err := getDatapathConfig()
 	if err != nil {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
-	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	enableCNI = agentConf.EnableCNI
+	datapathManager := datapath.NewDatapathManager(datapathConfig, agentConf, ofPortIPAddrMoniotorChan)
 	datapathManager.InitializeDatapath(stopChan)
 
 	ovsdbMonitor, err := monitor.NewOVSDBMonitor()

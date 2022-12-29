@@ -72,6 +72,7 @@ GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
 POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
 CLS_BRIDGE="${DEFAULT_BRIDGE}-cls"
 UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
+NAT_BRIDGE="${DEFAULT_BRIDGE}-nat"
 
 LOCAL_TO_POLICY_PATCH="${DEFAULT_BRIDGE}-local-to-policy"
 POLICY_TO_LOCAL_PATCH="${POLICY_BRIDGE}-policy-to-local"
@@ -79,22 +80,32 @@ POLICY_TO_CLS_PATCH="${POLICY_BRIDGE}-policy-to-cls"
 CLS_TO_POLICY_PATCH="${CLS_BRIDGE}-cls-to-policy"
 CLS_TO_UPLINK_PATCH="${CLS_BRIDGE}-cls-to-uplink"
 UPLINK_TO_CLS_PATCH="${UPLINK_BRIDGE}-uplink-to-cls"
+LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
+NAT_TO_LOCAL_PATCH="${DEFAULT_BRIDGE}-nat-to-local"
 
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${POLICY_BRIDGE} -- set bridge ${POLICY_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${CLS_BRIDGE} -- set bridge ${CLS_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${UPLINK_BRIDGE} -- set bridge ${UPLINK_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 
 ip link set ${DEFAULT_BRIDGE} up
 ip link set ${POLICY_BRIDGE} up
 ip link set ${CLS_BRIDGE} up
 ip link set ${UPLINK_BRIDGE} up
+ip link set ${NAT_BRIDGE} up
 
 ovs-vsctl \
     -- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_POLICY_PATCH} \
     -- set interface ${LOCAL_TO_POLICY_PATCH} type=patch options:peer=${POLICY_TO_LOCAL_PATCH} \
     -- add-port ${POLICY_BRIDGE} ${POLICY_TO_LOCAL_PATCH} \
     -- set interface ${POLICY_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_POLICY_PATCH}
+
+ovs-vsctl \
+    -- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_NAT_PATCH} \
+    -- set interface ${LOCAL_TO_NAT_PATCH} type=patch options:peer=${NAT_TO_LOCAL_PATCH} \
+    -- add-port ${NAT_BRIDGE} ${NAT_TO_LOCAL_PATCH} \
+    -- set interface ${NAT_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_NAT_PATCH}
 
 ovs-vsctl \
     -- add-port ${POLICY_BRIDGE} ${POLICY_TO_CLS_PATCH} \

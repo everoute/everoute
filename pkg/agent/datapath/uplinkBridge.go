@@ -18,8 +18,6 @@ package datapath
 
 import (
 	"fmt"
-	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
@@ -27,13 +25,9 @@ import (
 )
 
 type UplinkBridge struct {
-	name            string
-	OfSwitch        *ofctrl.OFSwitch
-	datapathManager *DpManager
+	BaseBridge
 
-	defaultTable            *ofctrl.Table
-	uplinkSwitchStatueMutex sync.RWMutex
-	isUplinkSwitchConnected bool
+	defaultTable *ofctrl.Table
 }
 
 func NewUplinkBridge(brName string, datapathManager *DpManager) *UplinkBridge {
@@ -41,47 +35,6 @@ func NewUplinkBridge(brName string, datapathManager *DpManager) *UplinkBridge {
 	uplinkBridge.name = fmt.Sprintf("%s-uplink", brName)
 	uplinkBridge.datapathManager = datapathManager
 	return uplinkBridge
-}
-
-func (u *UplinkBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s connected", u.name)
-
-	u.OfSwitch = sw
-
-	u.uplinkSwitchStatueMutex.Lock()
-	u.isUplinkSwitchConnected = true
-	u.uplinkSwitchStatueMutex.Unlock()
-}
-
-func (u *UplinkBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s disconnected", u.name)
-
-	u.uplinkSwitchStatueMutex.Lock()
-	u.isUplinkSwitchConnected = false
-	u.uplinkSwitchStatueMutex.Unlock()
-
-	u.OfSwitch = nil
-}
-
-func (u *UplinkBridge) IsSwitchConnected() bool {
-	u.uplinkSwitchStatueMutex.Lock()
-	defer u.uplinkSwitchStatueMutex.Unlock()
-
-	return u.isUplinkSwitchConnected
-}
-
-func (u *UplinkBridge) WaitForSwitchConnection() {
-	for i := 0; i < 20; i++ {
-		time.Sleep(1 * time.Second)
-		u.uplinkSwitchStatueMutex.Lock()
-		if u.isUplinkSwitchConnected {
-			u.uplinkSwitchStatueMutex.Unlock()
-			return
-		}
-		u.uplinkSwitchStatueMutex.Unlock()
-	}
-
-	log.Fatalf("OVS switch %s Failed to connect", u.name)
 }
 
 func (u *UplinkBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {

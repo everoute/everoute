@@ -117,7 +117,7 @@ var _ = BeforeSuite(func() {
 	datapathManager := datapath.NewDatapathManager(&datapath.Config{
 		ManagedVDSMap: map[string]string{
 			brName: brName,
-		}}, updateChan)
+		}}, &datapath.AgentConf{}, updateChan)
 	datapathManager.InitializeDatapath(stopCh)
 
 	policyController := &policy.Reconciler{

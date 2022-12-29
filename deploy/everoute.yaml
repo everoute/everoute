@@ -1870,7 +1870,10 @@ data:
   agentconfig.yaml: |
     datapathConfig:
       cnibr0: cnibr0
-    localGwIP: 100.64.254.254
+    enableCNI: true
+    CNIConf:
+      localGwIP: 100.64.254.254
+      enableProxy: true
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -2162,7 +2165,6 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["start-everoute-agent"]
           args:
-            - --enable-cni=true
             - -v=0
             - --metrics-addr=127.0.0.1:30002
           env:
