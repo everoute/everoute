@@ -168,6 +168,9 @@ type Bridge interface {
 
 	// Controller received a multi-part reply from the switch
 	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
+
+	GetName() string
+	getOfSwitch() *ofctrl.OFSwitch
 }
 
 type DpManager struct {
@@ -357,9 +360,8 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
 	}
 
-	bridgeKeywordList := []string{LOCAL_BRIDGE_KEYWORD, POLICY_BRIDGE_KEYWORD, CLS_BRIDGE_KEYWORD, UPLINK_BRIDGE_KEYWORD}
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		for _, bridgeKeyword := range bridgeKeywordList {
+		for bridgeKeyword := range datapathManager.ControllerMap[vdsID] {
 			go func(vdsID, bridgeKeyword string) {
 				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
@@ -455,16 +457,20 @@ func (datapathManager *DpManager) InitializeCNI() {
 		wg.Add(1)
 		go func(vdsID string) {
 			defer wg.Done()
-			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInitCNI()
-			datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInitCNI()
-			datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInitCNI()
-			datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInitCNI()
+			for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
+				datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInitCNI()
+			}
 		}(vdsID)
 	}
 	wg.Wait()
 }
 
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
+	NewVDSForConfigBase(datapathManager, vdsID, ovsbrname)
+}
+
+//nolint
+func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
 	policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
@@ -497,8 +503,9 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 		wg.Add(1)
 		go func(suffix, brName string, vdsOvsdbDriverMap map[string]*ovsdbDriver.OvsDriver) {
 			defer wg.Done()
+			driver := ovsdbDriver.NewOvsDriverForExistBridge(brName)
 			vdsOvsdbDriverMapMutex.Lock()
-			vdsOvsdbDriverMap[suffix] = ovsdbDriver.NewOvsDriverForExistBridge(brName)
+			vdsOvsdbDriverMap[suffix] = driver
 			vdsOvsdbDriverMapMutex.Unlock()
 		}(suffix, brName, vdsOvsdbDriverMap)
 	}
@@ -576,24 +583,15 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
-	// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
-	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.curRoundNum)
-
-	// update cookie
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
-
-	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
-	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
-	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
-	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
-
-	datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].BridgeInit()
-	datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].BridgeInit()
-	datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].BridgeInit()
-	datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].BridgeInit()
+	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
+		// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
+		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		// update cookie
+		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = cookieAllocator
+		// bridge init
+		datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInit()
+	}
 
 	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
 		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
@@ -614,10 +612,9 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 	go func(vdsID string) {
 		time.Sleep(time.Second * 15)
 
-		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-		datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-		datapathManager.BridgeChainMap[vdsID][CLS_BRIDGE_KEYWORD].(*ClsBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-		datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].(*UplinkBridge).OfSwitch.DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
+			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		}
 
 		err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 		if err != nil {
@@ -628,17 +625,10 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 
 func (datapathManager *DpManager) ovsdbConnectionReset() error {
 	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v localBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v policyBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v clsBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v uplinkBridge ovsdb, error: %v", vdsID, err)
+		for brKeyword := range datapathManager.OvsdbDriverMap[vdsID] {
+			if err := datapathManager.OvsdbDriverMap[vdsID][brKeyword].ReConnectOvsdb(); err != nil {
+				return fmt.Errorf("failed to reconnect vds %v localBridge ovsdb, error: %v", vdsID, err)
+			}
 		}
 	}
 
@@ -660,16 +650,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeKeyword string) err
 		return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
 	}
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
-	switch bridgeKeyword {
-	case LOCAL_BRIDGE_KEYWORD:
-		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*LocalBridge).OfSwitch.CookieAllocator = cookieAllocator
-	case POLICY_BRIDGE_KEYWORD:
-		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*PolicyBridge).OfSwitch.CookieAllocator = cookieAllocator
-	case CLS_BRIDGE_KEYWORD:
-		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*ClsBridge).OfSwitch.CookieAllocator = cookieAllocator
-	case UPLINK_BRIDGE_KEYWORD:
-		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*UplinkBridge).OfSwitch.CookieAllocator = cookieAllocator
-	}
+	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInit()
 	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
 
@@ -737,17 +718,10 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	var dpStatus bool = false
 
 	for _, bridgeChain := range datapathManager.BridgeChainMap {
-		if !bridgeChain[LOCAL_BRIDGE_KEYWORD].IsSwitchConnected() {
-			return dpStatus
-		}
-		if !bridgeChain[POLICY_BRIDGE_KEYWORD].IsSwitchConnected() {
-			return dpStatus
-		}
-		if !bridgeChain[CLS_BRIDGE_KEYWORD].IsSwitchConnected() {
-			return dpStatus
-		}
-		if !bridgeChain[UPLINK_BRIDGE_KEYWORD].IsSwitchConnected() {
-			return dpStatus
+		for bridgeKey := range bridgeChain {
+			if !bridgeChain[bridgeKey].IsSwitchConnected() {
+				return dpStatus
+			}
 		}
 	}
 
