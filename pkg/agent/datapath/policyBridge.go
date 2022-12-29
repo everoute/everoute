@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
@@ -37,9 +35,7 @@ const (
 )
 
 type PolicyBridge struct {
-	name            string
-	OfSwitch        *ofctrl.OFSwitch
-	datapathManager *DpManager
+	BaseBridge
 
 	inputTable                     *ofctrl.Table
 	ctStateTable                   *ofctrl.Table
@@ -58,9 +54,6 @@ type PolicyBridge struct {
 	ctDropTable                    *ofctrl.Table
 	sfcPolicyTable                 *ofctrl.Table
 	policyForwardingTable          *ofctrl.Table
-
-	policySwitchStatusMutex sync.RWMutex
-	isPolicySwitchConnected bool
 }
 
 func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
@@ -68,47 +61,6 @@ func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
 	policyBridge.name = fmt.Sprintf("%s-policy", brName)
 	policyBridge.datapathManager = datapathManager
 	return policyBridge
-}
-
-func (p *PolicyBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s connected", p.name)
-
-	p.OfSwitch = sw
-
-	p.policySwitchStatusMutex.Lock()
-	p.isPolicySwitchConnected = true
-	p.policySwitchStatusMutex.Unlock()
-}
-
-func (p *PolicyBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s disconnected", p.name)
-
-	p.policySwitchStatusMutex.Lock()
-	p.isPolicySwitchConnected = false
-	p.policySwitchStatusMutex.Unlock()
-
-	p.OfSwitch = nil
-}
-
-func (p *PolicyBridge) IsSwitchConnected() bool {
-	p.policySwitchStatusMutex.Lock()
-	defer p.policySwitchStatusMutex.Unlock()
-
-	return p.isPolicySwitchConnected
-}
-
-func (p *PolicyBridge) WaitForSwitchConnection() {
-	for i := 0; i < 20; i++ {
-		time.Sleep(1 * time.Second)
-		p.policySwitchStatusMutex.Lock()
-		if p.isPolicySwitchConnected {
-			p.policySwitchStatusMutex.Unlock()
-			return
-		}
-		p.policySwitchStatusMutex.Unlock()
-	}
-
-	log.Fatalf("OVS switch %s Failed to connect", p.name)
 }
 
 func (p *PolicyBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {

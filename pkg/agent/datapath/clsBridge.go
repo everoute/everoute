@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
@@ -44,16 +42,11 @@ const (
 )
 
 type ClsBridge struct {
-	name            string
-	OfSwitch        *ofctrl.OFSwitch
-	datapathManager *DpManager
+	BaseBridge
 
 	clsBridgeLearningTable   *ofctrl.Table
 	clsBridgeForwardingTable *ofctrl.Table
 	clsBridgeOutputTable     *ofctrl.Table
-
-	clsSwitchStatusMutex sync.RWMutex
-	isClsSwitchConnected bool
 }
 
 func NewClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
@@ -62,47 +55,6 @@ func NewClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
 	clsBridge.datapathManager = datapathManager
 
 	return clsBridge
-}
-
-func (c *ClsBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s connected", c.name)
-
-	c.OfSwitch = sw
-
-	c.clsSwitchStatusMutex.Lock()
-	c.isClsSwitchConnected = true
-	c.clsSwitchStatusMutex.Unlock()
-}
-
-func (c *ClsBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s disconnected", c.name)
-
-	c.clsSwitchStatusMutex.Lock()
-	c.isClsSwitchConnected = false
-	c.clsSwitchStatusMutex.Unlock()
-
-	c.OfSwitch = nil
-}
-
-func (c *ClsBridge) IsSwitchConnected() bool {
-	c.clsSwitchStatusMutex.Lock()
-	defer c.clsSwitchStatusMutex.Unlock()
-
-	return c.isClsSwitchConnected
-}
-
-func (c *ClsBridge) WaitForSwitchConnection() {
-	for i := 0; i < 20; i++ {
-		time.Sleep(1 * time.Second)
-		c.clsSwitchStatusMutex.Lock()
-		if c.isClsSwitchConnected {
-			c.clsSwitchStatusMutex.Unlock()
-			return
-		}
-		c.clsSwitchStatusMutex.Unlock()
-	}
-
-	log.Fatalf("OVS switch %s Failed to connect", c.name)
 }
 
 func (c *ClsBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
