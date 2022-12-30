@@ -91,6 +91,8 @@ const (
 const (
 	PROTOCOL_ARP = 0x0806
 	PROTOCOL_IP  = 0x0800
+	PROTOCOL_UDP = 0x11
+	PROTOCOL_TCP = 0x06
 )
 
 //nolint
@@ -99,6 +101,7 @@ const (
 	POLICY_BRIDGE_KEYWORD = "policy"
 	CLS_BRIDGE_KEYWORD    = "cls"
 	UPLINK_BRIDGE_KEYWORD = "uplink"
+	NAT_BRIDGE_KEYWORD    = "nat"
 )
 
 const (
@@ -477,12 +480,37 @@ func NewVDSForConfigCNI(datapathManager *DpManager, vdsID, ovsbrname string) {
 }
 
 func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
-	// todo newbridgeDnat
+	natBr := NewNatBridge(ovsbrname, datapathManager)
+	natControl := ofctrl.NewControllerAsOFClient(natBr, utils.GenerateControllerID(constants.EverouteComponentType))
+	natDriver := ovsdbDriver.NewOvsDriverForExistBridge(natBr.GetName())
+
+	protocols := map[string][]string{
+		"protocols": {
+			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+		},
+	}
+	if err := natDriver.UpdateBridge(protocols); err != nil {
+		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+	}
+
+	natToLocalOfPort, err := natDriver.GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToLocalSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get natToLocalOfPort ovs ovsbrname %v, error: %v", natBr.GetName(), err)
+	}
 	localToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToNatSuffix))
 	if err != nil {
 		log.Fatalf("Failed to get localToNatOfPort ovs ovsbrname %v, error: %v", ovsbrname, err)
 	}
+
+	datapathManager.DpManagerMutex.Lock()
+	datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD] = natBr
+	datapathManager.ControllerMap[vdsID][NAT_BRIDGE_KEYWORD] = natControl
+	datapathManager.OvsdbDriverMap[vdsID][NAT_BRIDGE_KEYWORD] = natDriver
 	datapathManager.BridgeChainPortMap[ovsbrname][LocalToNatSuffix] = localToNatOfPort
+	datapathManager.BridgeChainPortMap[ovsbrname][NatToLocalSuffix] = natToLocalOfPort
+	datapathManager.DpManagerMutex.Unlock()
+
+	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
 //nolint

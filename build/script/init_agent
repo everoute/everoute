@@ -82,7 +82,7 @@ CLS_TO_POLICY_PATCH="${CLS_BRIDGE}-cls-to-policy"
 CLS_TO_UPLINK_PATCH="${CLS_BRIDGE}-cls-to-uplink"
 UPLINK_TO_CLS_PATCH="${UPLINK_BRIDGE}-uplink-to-cls"
 LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
-NAT_TO_LOCAL_PATCH="${DEFAULT_BRIDGE}-nat-to-local"
+NAT_TO_LOCAL_PATCH="${NAT_BRIDGE}-nat-to-local"
 
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${POLICY_BRIDGE} -- set bridge ${POLICY_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure

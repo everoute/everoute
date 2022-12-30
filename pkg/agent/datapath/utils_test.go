@@ -19,6 +19,7 @@ package datapath
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"testing"
 )
 
@@ -101,5 +102,41 @@ func TestMatchPort(t *testing.T) {
 				t.Fatalf("expect matchPort = %t, got matchPort = %t", tc.shouldMatch, !tc.shouldMatch)
 			}
 		})
+	}
+}
+
+func TestUintToByteBigEndian(t *testing.T) {
+	tests := []struct {
+		name string
+		src  interface{}
+		res  []byte
+	}{
+		{
+			name: "uint16 to []byte",
+			src:  uint16(0x11),
+			res:  []byte{0, 17},
+		}, {
+			name: "uint32 to []byte",
+			src:  uint32(0x27080c09),
+			res:  []byte{39, 8, 12, 9},
+		}, {
+			name: "uint64 to []byte",
+			src:  uint64(0xff16),
+			res:  []byte{0, 0, 0, 0, 0, 0, 255, 22},
+		}, {
+			name: "invalid type",
+			src:  uint8(2),
+			res:  nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			real := uintToByteBigEndian(test.src)
+			if !reflect.DeepEqual(real, test.res) {
+				t.Errorf("the expect value is %v, the real value is %v", test.res, real)
+			}
+		})
+
 	}
 }
