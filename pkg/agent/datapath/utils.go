@@ -17,11 +17,13 @@ limitations under the License.
 package datapath
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os/exec"
 	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -189,4 +191,24 @@ func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlo
 		}
 	}
 	return false
+}
+
+func uintToByteBigEndian(src interface{}) []byte {
+	var res []byte
+
+	switch src := src.(type) {
+	case uint16:
+		res = make([]byte, 2)
+		binary.BigEndian.PutUint16(res, src)
+	case uint32:
+		res = make([]byte, 4)
+		binary.BigEndian.PutUint32(res, src)
+	case uint64:
+		res = make([]byte, 8)
+		binary.BigEndian.PutUint64(res, src)
+	default:
+		log.Errorf("Not support convert type %T to []byte", src)
+	}
+
+	return res
 }
