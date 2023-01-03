@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	rthttp "github.com/hashicorp/go-retryablehttp"
@@ -398,6 +399,10 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 	var vlanUUID string
 	if towerVlans, err := queryVlans(m.towerClient); err == nil {
 		for _, vlan := range towerVlans {
+			if !strings.Contains(vlan.LocalID, "_") || vlan.Type != NetworkTypeVM {
+				// filter out invalid vlan
+				continue
+			}
 			if vlan.Vds.ID == m.vdsID && vlan.VlanID == vlanID {
 				vlanUUID = vlan.ID
 				break
