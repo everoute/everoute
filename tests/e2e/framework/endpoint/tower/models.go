@@ -119,6 +119,7 @@ type Vlan struct {
 	Name              string             `json:"name"`
 	Vds               *Vds               `json:"vds"`
 	VlanID            int                `json:"vlan_id"`
+	Type              NetworkType        `json:"type"`
 }
 
 type VlanCreateInput struct {
