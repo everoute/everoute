@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 type Agent struct {
@@ -28,10 +30,15 @@ type Agent struct {
 
 const (
 	agentBinaryName = "everoute-agent"
+	ovsRestart      = "systemctl restart openvswitch"
 )
 
 func (n *Agent) Restart() error {
-	return n.reRunProcess(agentBinaryName)
+	if rand.Intn(2) == 0 {
+		return n.reRunProcess(agentBinaryName)
+	}
+	_, _, err := n.runCommand(ovsRestart)
+	return err
 }
 
 func (n *Agent) FetchLog() ([]byte, error) {

@@ -184,7 +184,6 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
-	OvsdbReconnectChan        chan struct{}
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan protocol.ARP
@@ -295,7 +294,6 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.AgentInfo.EnableCNI = false
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
-	datapathManager.OvsdbReconnectChan = make(chan struct{})
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan protocol.ARP, MaxArpChanCache)
 
@@ -337,14 +335,6 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	if len(datapathManager.datapathConfig.InternalIPs) != 0 {
 		go datapathManager.syncIntenalIPs(stopChan)
 	}
-
-	go func() {
-		for range datapathManager.OvsdbReconnectChan {
-			if err := datapathManager.ovsdbConnectionReset(); err != nil {
-				log.Fatalf("Failed to reset ovsbd connection while ovsdb recovery")
-			}
-		}
-	}()
 
 	for i := 0; i < MaxCleanConntrackWorkerNum; i++ {
 		go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
@@ -617,25 +607,6 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 		}
 	}(vdsID)
-}
-
-func (datapathManager *DpManager) ovsdbConnectionReset() error {
-	for vdsID := range datapathManager.datapathConfig.ManagedVDSMap {
-		if err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v localBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][POLICY_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v policyBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][CLS_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v clsBridge ovsdb, error: %v", vdsID, err)
-		}
-		if err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].ReConnectOvsdb(); err != nil {
-			return fmt.Errorf("failed to reconnect vds %v uplinkBridge ovsdb, error: %v", vdsID, err)
-		}
-	}
-
-	return nil
 }
 
 func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeKeyword string) error {
