@@ -34,7 +34,6 @@ require (
 	golang.org/x/sys v0.1.0
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
-	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.2
 	k8s.io/apimachinery v0.22.2
@@ -103,6 +102,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.0.1 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20201110150050-8816d57aaa9a // indirect
+	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	k8s.io/apiextensions-apiserver v0.18.2 // indirect
@@ -114,8 +114,8 @@ require (
 
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20221227081521-581066a8b4dc
-	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230109035650-66800da0a8a2
+	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230109020235-5be40f26b455
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230113044907-b82060d6fd13
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
