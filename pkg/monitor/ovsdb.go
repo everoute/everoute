@@ -79,8 +79,6 @@ type OVSDBMonitor struct {
 
 	// syncQueue used to notify ovsdb update
 	syncQueue workqueue.RateLimitingInterface
-
-	OvsdbReconnChan chan struct{}
 }
 
 // NewOVSDBMonitor create a new instance of OVSDBMonitor
@@ -97,7 +95,6 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		localEndpointHardwareAddrCacheLock: sync.RWMutex{},
 		localEndpointHardwareAddrCache:     make(map[string]uint32),
 		syncQueue:                          workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		OvsdbReconnChan:                    make(chan struct{}),
 	}
 
 	return monitor, nil
@@ -130,32 +127,17 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 	klog.Infof("start ovsdb monitor")
 	defer klog.Infof("shutting down ovsdb monitor")
 
-	err := monitor.startOvsdbMonitor(false)
+	err := monitor.startOvsdbMonitor()
 	if err != nil {
 		klog.Fatalf("unable start ovsdb monitor: %s", err)
 	}
-	for {
-		select {
-		case <-monitor.OvsdbReconnChan:
-			klog.Infof("reconnect ovsdb monitor")
-			monitor.ovsClient.Disconnect()
-			monitor.ovsClient, err = ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
-			if err != nil {
-				klog.Fatalf("unable reconnect ovsdb socket: %s", err)
-			}
-			err := monitor.startOvsdbMonitor(true)
-			if err != nil {
-				klog.Fatalf("unable start ovsdb monitor: %s", err)
-			}
-		case <-stopChan:
-			return
-		}
-	}
+
+	<-stopChan
 }
 
-func (monitor *OVSDBMonitor) startOvsdbMonitor(isReconnect bool) error {
+func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 	klog.Infof("start monitor ovsdb %s", "Open_vSwitch")
-	monitor.ovsClient.Register(ovsUpdateHandlerFunc(monitor.handleOvsUpdates(false)))
+	monitor.ovsClient.Register(ovsUpdateHandlerFunc(monitor.handleOvsUpdates))
 
 	selectAll := ovsdb.MonitorSelect{
 		Initial: true,
@@ -170,11 +152,10 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor(isReconnect bool) error {
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
 	}
 
-	initial, err := monitor.ovsClient.Monitor("Open_vSwitch", nil, requests)
+	err := monitor.ovsClient.Monitor("Open_vSwitch", nil, requests)
 	if err != nil {
 		return fmt.Errorf("monitor ovsdb %s: %s", "Open_vSwitch", err)
 	}
-	monitor.handleOvsUpdates(isReconnect)(*initial)
 
 	return nil
 }
@@ -586,50 +567,34 @@ func (monitor *OVSDBMonitor) processEndpointDel(rowupdate ovsdb.RowUpdate) {
 	}
 }
 
-func (monitor *OVSDBMonitor) handleOvsUpdates(isReconn bool) func(updates ovsdb.TableUpdates) {
-	return func(updates ovsdb.TableUpdates) {
-		monitor.cacheLock.Lock()
-		defer monitor.cacheLock.Unlock()
+func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
+	monitor.cacheLock.Lock()
+	defer monitor.cacheLock.Unlock()
 
-		if isReconn {
-			for table := range monitor.ovsdbCache {
-				for uuid, row := range monitor.ovsdbCache[table] {
-					if _, ok := updates.Updates[table].Rows[uuid]; !ok {
-						updates.Updates[table].Rows[uuid] = ovsdb.RowUpdate{
-							Uuid: ovsdb.UUID{GoUuid: uuid},
-							Old:  row,
-							New:  ovsdb.Row{},
-						}
-					}
+	for table, tableUpdate := range updates.Updates {
+		if _, ok := monitor.ovsdbCache[table]; !ok {
+			monitor.ovsdbCache[table] = make(map[string]ovsdb.Row)
+		}
+		for uuid, row := range tableUpdate.Rows {
+			empty := ovsdb.Row{}
+			if !reflect.DeepEqual(row.New, empty) {
+				if table == "Interface" {
+					go monitor.processEndpointUpdate(row)
 				}
+				if table == "Port" {
+					go monitor.processPortUpdate(row)
+				}
+
+				monitor.ovsdbCache[table][uuid] = row.New
+			} else {
+				if table == "Interface" {
+					go monitor.processEndpointDel(row)
+				}
+
+				delete(monitor.ovsdbCache[table], uuid)
 			}
 		}
-
-		for table, tableUpdate := range updates.Updates {
-			if _, ok := monitor.ovsdbCache[table]; !ok {
-				monitor.ovsdbCache[table] = make(map[string]ovsdb.Row)
-			}
-			for uuid, row := range tableUpdate.Rows {
-				empty := ovsdb.Row{}
-				if !reflect.DeepEqual(row.New, empty) {
-					if table == "Interface" {
-						go monitor.processEndpointUpdate(row)
-					}
-					if table == "Port" {
-						go monitor.processPortUpdate(row)
-					}
-
-					monitor.ovsdbCache[table][uuid] = row.New
-				} else {
-					if table == "Interface" {
-						go monitor.processEndpointDel(row)
-					}
-
-					delete(monitor.ovsdbCache[table], uuid)
-				}
-			}
-		}
-
-		monitor.syncQueue.Add("ovsdb-event")
 	}
+
+	monitor.syncQueue.Add("ovsdb-event")
 }

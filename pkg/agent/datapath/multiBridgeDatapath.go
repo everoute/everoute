@@ -190,7 +190,6 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
-	OvsdbReconnectChan        chan struct{}
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan ArpInfo
@@ -309,7 +308,6 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.Info = new(DpManagerInfo)
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
-	datapathManager.OvsdbReconnectChan = make(chan struct{})
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 
@@ -351,14 +349,6 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	if len(datapathManager.Config.InternalIPs) != 0 {
 		go datapathManager.syncIntenalIPs(stopChan)
 	}
-
-	go func() {
-		for range datapathManager.OvsdbReconnectChan {
-			if err := datapathManager.ovsdbConnectionReset(); err != nil {
-				log.Fatalf("Failed to reset ovsbd connection while ovsdb recovery")
-			}
-		}
-	}()
 
 	for i := 0; i < MaxCleanConntrackWorkerNum; i++ {
 		go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
@@ -653,18 +643,6 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 		}
 	}(vdsID)
-}
-
-func (datapathManager *DpManager) ovsdbConnectionReset() error {
-	for vdsID := range datapathManager.Config.ManagedVDSMap {
-		for brKeyword := range datapathManager.OvsdbDriverMap[vdsID] {
-			if err := datapathManager.OvsdbDriverMap[vdsID][brKeyword].ReConnectOvsdb(); err != nil {
-				return fmt.Errorf("failed to reconnect vds %v localBridge ovsdb, error: %v", vdsID, err)
-			}
-		}
-	}
-
-	return nil
 }
 
 func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeKeyword string) error {
