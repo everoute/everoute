@@ -128,7 +128,7 @@ func (c *ClsBridge) InitVlanMacLearningAction(learnAction *ofctrl.LearnAction, l
 		Name:  "nxm_of_eth_src",
 		Start: 0,
 	}
-	err := learnAction.AddLearnedMatch(learnDstMatchField1, 16, learnSrcMatchField1, nil)
+	err := learnAction.AddLearnedMatch(learnDstMatchField1, 12, learnSrcMatchField1, nil)
 	if err != nil {
 		return fmt.Errorf("failed to initialize learn action, AddLearnedMatch nxm_of_vlan_tci failure, error: %v", err)
 	}
