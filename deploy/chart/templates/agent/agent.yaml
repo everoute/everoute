@@ -4,7 +4,10 @@ data:
   agentconfig.yaml: |
     datapathConfig:
       {{ .Values.bridgeName }}: {{ .Values.bridgeName }}
-    localGwIP: {{ .Values.localGwIP }}
+    enableCNI: {{ .Values.enableCNI }}
+    CNIConf:
+      localGwIP: {{ .Values.CNIConf.localGwIP }}
+      enableProxy: {{ .Values.CNIConf.enableProxy }}
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -100,7 +103,6 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["start-everoute-agent"]
           args:
-            - --enable-cni=true
             - -v=0
             - --metrics-addr=127.0.0.1:30002
           env:

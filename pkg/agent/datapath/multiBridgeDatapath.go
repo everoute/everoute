@@ -196,7 +196,8 @@ type DpManager struct {
 }
 
 type AgentConf struct {
-	EnableCNI bool // enable CNI in Everoute
+	EnableCNI   bool // enable CNI in Everoute
+	EnableProxy bool // enable proxy
 
 	NodeName   string
 	PodCIDR    []cnitypes.IPNet
@@ -291,7 +292,7 @@ type ArpInfo struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
+func NewDatapathManager(datapathConfig *Config, agentConf *AgentConf, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
@@ -301,8 +302,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.datapathConfig = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
-	datapathManager.AgentInfo = new(AgentConf)
-	datapathManager.AgentInfo.EnableCNI = false
+	datapathManager.AgentInfo = agentConf
 	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.OvsdbReconnectChan = make(chan struct{})
@@ -467,6 +467,12 @@ func (datapathManager *DpManager) InitializeCNI() {
 
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	NewVDSForConfigBase(datapathManager, vdsID, ovsbrname)
+	if datapathManager.AgentInfo.EnableCNI && datapathManager.AgentInfo.EnableProxy {
+		NewVDSForConfigProxy(datapathManager, vdsID, ovsbrname)
+	}
+}
+
+func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 }
 
 //nolint
