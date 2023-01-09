@@ -37,12 +37,19 @@ import (
 
 const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 
+type CNIConf struct {
+	EnableProxy bool `yaml:"enableProxy,omitempty"`
+}
+
 type agentConfig struct {
 	DatapathConfig map[string]string `yaml:"datapathConfig"`
-	LocalGwIP      string            `yaml:"localGwIP,omitempty"`
 
 	// InternalIPs allow the items all ingress and egress traffics
 	InternalIPs []string `yaml:"internalIPs,omitempty"`
+
+	// cni config
+	EnableCNI bool    `yaml:"enableCNI,omitempty"`
+	CNIConf   CNIConf `yaml:"CNIConf,omitempty"`
 }
 
 func getAgentConfig() (*agentConfig, error) {
@@ -62,14 +69,15 @@ func getAgentConfig() (*agentConfig, error) {
 	return &agentConfig, nil
 }
 
-func getDatapathConfig() (*datapath.Config, error) {
+func getDatapathConfig() (*datapath.DpManagerConfig, error) {
 	agentConfig, err := getAgentConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
 
-	dpConfig := &datapath.Config{
+	dpConfig := &datapath.DpManagerConfig{
 		InternalIPs: agentConfig.InternalIPs,
+		EnableCNI:   agentConfig.EnableCNI,
 	}
 
 	managedVDSMap := make(map[string]string)
@@ -78,6 +86,13 @@ func getDatapathConfig() (*datapath.Config, error) {
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
 
+	if dpConfig.EnableCNI {
+		cniConfig := &datapath.DpManagerCNIConfig{
+			EnableProxy: agentConfig.CNIConf.EnableProxy,
+		}
+		dpConfig.CNIConfig = cniConfig
+	}
+
 	return dpConfig, nil
 }
 
@@ -85,8 +100,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	var err error
 
 	k8sClient := k8sReader.(client.Client)
-	agentInfo := datapathManager.AgentInfo
-	agentInfo.EnableCNI = true
+	agentInfo := datapathManager.Info
 	agentInfo.NodeName = os.Getenv(constants.AgentNodeNameENV)
 
 	node := corev1.Node{}

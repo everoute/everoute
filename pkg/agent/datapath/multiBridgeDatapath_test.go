@@ -44,7 +44,7 @@ const (
 
 var (
 	datapathManager *DpManager
-	datapathConfig  = Config{
+	datapathConfig  = DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			"ovsbr0": "ovsbr0",
 		},

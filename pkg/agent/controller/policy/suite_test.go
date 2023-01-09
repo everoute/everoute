@@ -114,7 +114,7 @@ var _ = BeforeSuite(func() {
 
 	stopCh := ctrl.SetupSignalHandler()
 	updateChan := make(chan map[string]net.IP, 10)
-	datapathManager := datapath.NewDatapathManager(&datapath.Config{
+	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			brName: brName,
 		}}, updateChan)

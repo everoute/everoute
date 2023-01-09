@@ -321,15 +321,15 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
-		gwName:    datapathManager.AgentInfo.GatewayName,
-		ovsDriver: datapathManager.OvsdbDriverMap[datapathManager.AgentInfo.BridgeName][datapath.LOCAL_BRIDGE_KEYWORD],
-		podCIDR:   append([]cnitypes.IPNet{}, datapathManager.AgentInfo.PodCIDR...),
+		gwName:    datapathManager.Info.GatewayName,
+		ovsDriver: datapathManager.OvsdbDriverMap[datapathManager.Info.BridgeName][datapath.LOCAL_BRIDGE_KEYWORD],
+		podCIDR:   append([]cnitypes.IPNet{}, datapathManager.Info.PodCIDR...),
 	}
 
 	// set gateway ip address, first ip in first CIDR
 	if err := SetLinkAddr(s.gwName,
 		&net.IPNet{
-			IP:   datapathManager.AgentInfo.GatewayIP,
+			IP:   datapathManager.Info.GatewayIP,
 			Mask: s.podCIDR[0].Mask}); err != nil {
 		klog.Errorf("set gateway ip address error, err:%s", err)
 	}

@@ -51,7 +51,6 @@ func init() {
 }
 
 func main() {
-	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI in agent.")
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -66,6 +65,7 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
+	enableCNI = datapathConfig.EnableCNI
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
 	datapathManager.InitializeDatapath(stopChan)
 
