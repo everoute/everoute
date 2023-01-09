@@ -115,7 +115,7 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20221227081521-581066a8b4dc
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20221227021554-1e9bfca8c849
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230109035650-66800da0a8a2
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
