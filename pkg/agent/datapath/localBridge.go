@@ -271,7 +271,7 @@ func (l *LocalBridge) BridgeInit() {
 }
 
 func (l *LocalBridge) BridgeInitCNI() {
-	if l.datapathManager.AgentInfo.EnableCNI {
+	if l.datapathManager.Config.EnableCNI {
 		sw := l.OfSwitch
 		l.cniConntrackCommitTable, _ = sw.NewTable(CNI_CT_COMMIT_TABLE)
 		l.cniConntrackRedirectTable, _ = sw.NewTable(CNI_CT_REDIRECT_TABLE)
@@ -288,10 +288,10 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for local pod
 	arpPodFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   HIGH_MATCH_FLOW_PRIORITY,
-		InputPort:  l.datapathManager.AgentInfo.LocalGwOfPort,
+		InputPort:  l.datapathManager.Info.LocalGwOfPort,
 		Ethertype:  PROTOCOL_ARP,
-		ArpTpa:     &l.datapathManager.AgentInfo.PodCIDR[0].IP,
-		ArpTpaMask: (*net.IP)(&l.datapathManager.AgentInfo.PodCIDR[0].Mask),
+		ArpTpa:     &l.datapathManager.Info.PodCIDR[0].IP,
+		ArpTpaMask: (*net.IP)(&l.datapathManager.Info.PodCIDR[0].Mask),
 	})
 	flood, _ := sw.OutputPort(openflow13.P_FLOOD)
 	if err := arpPodFlow.Next(flood); err != nil {
@@ -301,14 +301,14 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for other ip, response arp with uplink gateway mac address
 	arpGwFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: l.datapathManager.AgentInfo.LocalGwOfPort,
+		InputPort: l.datapathManager.Info.LocalGwOfPort,
 		Ethertype: PROTOCOL_ARP,
 	})
 	// set actions for arp response
 	if err := arpGwFlow.MoveField(32, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false); err != nil {
 		return err
 	}
-	if err := arpGwFlow.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.AgentInfo.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
+	if err := arpGwFlow.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.Info.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
 	if err := arpGwFlow.MoveField(48, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
@@ -333,16 +333,16 @@ func (l *LocalBridge) initLocalGwArpFlow(sw *ofctrl.OFSwitch) error {
 	// target for other ip, response arp with uplink gateway mac address
 	arpGwFlowHigh, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		InputPort:  l.datapathManager.AgentInfo.LocalGwOfPort,
+		InputPort:  l.datapathManager.Info.LocalGwOfPort,
 		Ethertype:  PROTOCOL_ARP,
-		ArpTpa:     &l.datapathManager.AgentInfo.GatewayIP,
+		ArpTpa:     &l.datapathManager.Info.GatewayIP,
 		ArpTpaMask: &net.IPv4bcast,
 	})
 	// set actions for arp response
 	if err := arpGwFlowHigh.MoveField(32, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false); err != nil {
 		return err
 	}
-	if err := arpGwFlowHigh.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.AgentInfo.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
+	if err := arpGwFlowHigh.LoadField("nxm_nx_arp_sha", ParseMacToUint64(l.datapathManager.Info.GatewayMac), openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
 	if err := arpGwFlowHigh.MoveField(48, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
@@ -367,14 +367,14 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	localToLocalGw, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		IpDa:      &l.datapathManager.AgentInfo.ClusterCIDR.IP,
-		IpDaMask:  (*net.IP)(&l.datapathManager.AgentInfo.ClusterCIDR.Mask),
+		IpDa:      &l.datapathManager.Info.ClusterCIDR.IP,
+		IpDaMask:  (*net.IP)(&l.datapathManager.Info.ClusterCIDR.Mask),
 	})
-	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47))
 	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", 0x1,
 		openflow13.NewNXRange(29, 29))
-	outputPortLocalGateWay, _ := sw.OutputPort(l.datapathManager.AgentInfo.LocalGwOfPort)
+	outputPortLocalGateWay, _ := sw.OutputPort(l.datapathManager.Info.LocalGwOfPort)
 	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
 	}
@@ -399,7 +399,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
 	})
-	if err := outToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+	if err := outToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
@@ -448,11 +448,11 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	localGwToPolicy, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
-		InputPort:   l.datapathManager.AgentInfo.LocalGwOfPort,
+		InputPort:   l.datapathManager.Info.LocalGwOfPort,
 		PktMark:     0x20000000,
 		PktMarkMask: &pktMarkMask,
 	})
-	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
@@ -464,9 +464,9 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	localGwToLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		InputPort: l.datapathManager.AgentInfo.LocalGwOfPort,
+		InputPort: l.datapathManager.Info.LocalGwOfPort,
 	})
-	if err := localGwToLocal.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.AgentInfo.LocalGwMac),
+	if err := localGwToLocal.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
@@ -723,9 +723,11 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
 		return nil
 	}
-
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
+		return nil
+	}
 	// skip cni gateway
-	if l.datapathManager.AgentInfo.LocalGwName == endpoint.InterfaceName {
+	if l.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
 		return nil
 	}
 

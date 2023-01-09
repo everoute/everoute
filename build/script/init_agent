@@ -67,11 +67,13 @@ LOCAL_IP_RULE_PREF=200
 
 DEFAULT_BRIDGE=`cat ${AGENT_CONFIG_PATH} | grep datapathConfig: -A1 | grep -v datapathConfig: | awk -F ':' '{print $1}' | awk '$1=$1'`
 LOCAL_GW_IP=`cat ${AGENT_CONFIG_PATH} | grep localGwIP | awk -F ':' '{print $2}' | awk '$1=$1'`
+ENABLE_PROXY=`cat ${AGENT_CONFIG_PATH} | grep enableProxy | awk -F ':' '{print $2}' | awk '$1=$1'`
 GW_IFACE=${DEFAULT_BRIDGE}-gw
 GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
 POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
 CLS_BRIDGE="${DEFAULT_BRIDGE}-cls"
 UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
+NAT_BRIDGE="${DEFAULT_BRIDGE}-nat"
 
 LOCAL_TO_POLICY_PATCH="${DEFAULT_BRIDGE}-local-to-policy"
 POLICY_TO_LOCAL_PATCH="${POLICY_BRIDGE}-policy-to-local"
@@ -79,6 +81,8 @@ POLICY_TO_CLS_PATCH="${POLICY_BRIDGE}-policy-to-cls"
 CLS_TO_POLICY_PATCH="${CLS_BRIDGE}-cls-to-policy"
 CLS_TO_UPLINK_PATCH="${CLS_BRIDGE}-cls-to-uplink"
 UPLINK_TO_CLS_PATCH="${UPLINK_BRIDGE}-uplink-to-cls"
+LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
+NAT_TO_LOCAL_PATCH="${DEFAULT_BRIDGE}-nat-to-local"
 
 ovs-vsctl add-br ${DEFAULT_BRIDGE} -- set bridge ${DEFAULT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${POLICY_BRIDGE} -- set bridge ${POLICY_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
@@ -109,6 +113,17 @@ ovs-vsctl \
     -- set interface ${CLS_TO_UPLINK_PATCH} type=patch options:peer=${UPLINK_TO_CLS_PATCH}
 
 ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal
+
+if [ "${ENABLE_PROXY}" == "true" ];then
+    echo "create bridge nat and port"
+    ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+    ip link set ${NAT_BRIDGE} up
+    ovs-vsctl \
+        -- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_NAT_PATCH} \
+        -- set interface ${LOCAL_TO_NAT_PATCH} type=patch options:peer=${NAT_TO_LOCAL_PATCH} \
+        -- add-port ${NAT_BRIDGE} ${NAT_TO_LOCAL_PATCH} \
+        -- set interface ${NAT_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_NAT_PATCH}
+fi
 
 # add port gw-local
 ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
