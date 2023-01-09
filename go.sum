@@ -304,8 +304,8 @@ github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65 h1:a3dwYQt/Y9Yfz
 github.com/everoute/libovsdb v0.0.0-20210326110222-6c508538aa65/go.mod h1:N8fR1bYMqi4pQ7jL17QlBlpJ0hHmqRAXVKkBwuIjClw=
 github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66 h1:/QretgciXKji8tf5ZqaqHL17hkAk+EiNmwc3nnrB5ok=
 github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
-github.com/everoute/ofnet v0.0.0-20221227021554-1e9bfca8c849 h1:6UBW+s5MnsD1CXtsyAmsdEDoAxw4A/wA2jf8TFmT8us=
-github.com/everoute/ofnet v0.0.0-20221227021554-1e9bfca8c849/go.mod h1:1ykhSTKsn+UGs4MnSco+pwbM1pOLvjPfKp9oMysxPz0=
+github.com/everoute/ofnet v0.0.0-20230109035650-66800da0a8a2 h1:iJd7EQmGPDsAwnVhIWwR3IjmgzqaDO/Us1kTllGBDj4=
+github.com/everoute/ofnet v0.0.0-20230109035650-66800da0a8a2/go.mod h1:1ykhSTKsn+UGs4MnSco+pwbM1pOLvjPfKp9oMysxPz0=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
