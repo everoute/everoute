@@ -849,11 +849,6 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 			return nil
 		}
 		log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
-
-		// clear CT flow while updating from "allow" to "deny"
-		if ruleEntry.EveroutePolicyRule.Action == EveroutePolicyAllow && rule.Action == EveroutePolicyDeny {
-			datapathManager.cleanConntrackFlow(rule)
-		}
 	}
 
 	log.Infof("Received AddRule: %+v", rule)
@@ -868,10 +863,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 		ruleFlowMap[vdsID] = flowEntry
 	}
 
-	// clean related CT flows only for "deny" action while adding
-	if rule.Action == EveroutePolicyDeny {
-		datapathManager.cleanConntrackFlow(rule)
-	}
+	datapathManager.cleanConntrackFlow(rule)
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	if ruleEntry == nil {
@@ -888,7 +880,6 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	// save flowID reference
 	for _, v := range ruleEntry.RuleFlowMap {
 		datapathManager.FlowIDToRules[v.FlowID] = ruleEntry
-		log.Info(v.FlowID)
 	}
 
 	datapathManager.Rules[rule.RuleID] = ruleEntry
@@ -929,10 +920,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 		delete(datapathManager.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
 	}
 
-	// clean related CT flows only for "allow" action while deleting
-	if datapathManager.Rules[ruleID].EveroutePolicyRule.Action == EveroutePolicyAllow {
-		datapathManager.cleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
-	}
+	datapathManager.cleanConntrackFlow(datapathManager.Rules[ruleID].EveroutePolicyRule)
 
 	if pRule.PolicyRuleReference.Len() == 0 {
 		delete(datapathManager.Rules, ruleID)
