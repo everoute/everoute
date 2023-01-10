@@ -21,8 +21,6 @@ import (
 	"net"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/util/rand"
-
 	"github.com/everoute/everoute/tests/e2e/framework/config"
 )
 
@@ -75,7 +73,7 @@ func (f *pool) AssignFromSubnet(subnet string) (string, error) {
 		}
 	}
 
-	return f.randomIPv4(cidr)
+	return f.getIPv4(cidr)
 }
 
 func (f *pool) Release(ipnet string) error {
@@ -85,7 +83,7 @@ func (f *pool) Release(ipnet string) error {
 	return nil
 }
 
-func (f *pool) randomIPv4(subnet *net.IPNet) (string, error) {
+func (f *pool) getIPv4(subnet *net.IPNet) (string, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -93,37 +91,36 @@ func (f *pool) randomIPv4(subnet *net.IPNet) (string, error) {
 		return "", fmt.Errorf("subnet %s not in ip pool %s", subnet, f.cidr)
 	}
 
-	// todo: replace retry with check has available IP first
-	for i := 0; i < 10; i++ {
-		ipv4 := randomIPv4FromSubnet(subnet)
-		ipNet := (&net.IPNet{IP: ipv4, Mask: f.cidr.Mask}).String()
-
+	ones, bits := subnet.Mask.Size()
+	poolSize := 1 << (bits - ones)
+	if len(f.ipUsed) >= poolSize {
+		return "", fmt.Errorf("can't ip pool is full")
+	}
+	var offset uint32 = 0
+	for offset < uint32(poolSize-1) {
+		targetIP := uint32ToIP(ip2uint32(subnet.IP) + offset)
+		ipNet := (&net.IPNet{IP: targetIP, Mask: f.cidr.Mask}).String()
 		if !f.ipUsed[ipNet] {
 			f.ipUsed[ipNet] = true
 			return ipNet, nil
 		}
+		offset += 1
 	}
 
 	return "", fmt.Errorf("can't found valid ip addr")
 }
 
-func randomIPv4FromSubnet(subnet *net.IPNet) net.IP {
-	maskSize, _ := subnet.Mask.Size()
-	randIP := i32ToIP(ipToI32(subnet.IP) + int32(rand.Intn(1<<(32-maskSize))))
-	return randIP
-}
-
 func cidrV4Range(subnet *net.IPNet) (net.IP, net.IP) {
 	ones, bits := subnet.Mask.Size()
-	return subnet.IP, i32ToIP(ipToI32(subnet.IP) + int32(1<<(bits-ones)-1))
+	return subnet.IP, uint32ToIP(ip2uint32(subnet.IP) + uint32(1<<(bits-ones)-1))
 }
 
-func ipToI32(ip net.IP) int32 {
+func ip2uint32(ip net.IP) uint32 {
 	ip = ip.To4()
-	return int32(ip[0])<<24 | int32(ip[1])<<16 | int32(ip[2])<<8 | int32(ip[3])
+	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
 }
 
-func i32ToIP(a int32) net.IP {
+func uint32ToIP(a uint32) net.IP {
 	return net.IPv4(byte(a>>24), byte(a>>16), byte(a>>8), byte(a))
 }
 
