@@ -153,6 +153,8 @@ func (m *provider) Delete(ctx context.Context, name string) error {
 		return fmt.Errorf("unable delete endpoint %s on agent %s: %s", endpoint.Name, endpoint.Status.Host, err)
 	}
 
+	m.ipPool.Release(endpoint.Status.IPAddr)
+
 	return m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
@@ -175,7 +177,10 @@ func (m *provider) RenewIP(ctx context.Context, name string) (*model.Endpoint, e
 		return nil, fmt.Errorf("get agent %s client: %s", endpoint.Status.Host, err)
 	}
 
-	// todo: release old ip addr
+	// release old ip addr
+	m.ipPool.Release(endpoint.Status.IPAddr)
+
+	// get new ip addr
 	endpoint.Status.IPAddr, err = m.ipPool.AssignFromSubnet(endpoint.ExpectSubnet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get newIP for %s: %s", name, err)

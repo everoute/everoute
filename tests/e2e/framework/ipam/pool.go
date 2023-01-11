@@ -93,9 +93,6 @@ func (f *pool) getIPv4(subnet *net.IPNet) (string, error) {
 
 	ones, bits := subnet.Mask.Size()
 	poolSize := 1 << (bits - ones)
-	if len(f.ipUsed) >= poolSize {
-		return "", fmt.Errorf("can't ip pool is full")
-	}
 	var offset uint32 = 0
 	for offset < uint32(poolSize-1) {
 		targetIP := uint32ToIP(ip2uint32(subnet.IP) + offset)
