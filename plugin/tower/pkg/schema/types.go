@@ -19,13 +19,14 @@ package schema
 type VM struct {
 	ObjectMeta
 
-	Name        string     `json:"name"`
-	Description string     `json:"description,omitempty"`
-	Vcpu        int        `json:"vcpu,omitempty"`
-	Memory      float64    `json:"memory,omitempty"`
-	Status      VMStatus   `json:"status"`
-	VMNics      []VMNic    `json:"vm_nics,omitempty"`
-	Cluster     ELFCluster `json:"cluster"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Vcpu        int             `json:"vcpu,omitempty"`
+	Memory      float64         `json:"memory,omitempty"`
+	Status      VMStatus        `json:"status"`
+	VMNics      []VMNic         `json:"vm_nics,omitempty"`
+	Cluster     ELFCluster      `json:"cluster"`
+	Host        ObjectReference `json:"host"`
 }
 
 // VMStatus is enumeration of vm status
