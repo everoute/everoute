@@ -118,7 +118,7 @@ replace (
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230109035650-66800da0a8a2
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
-	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
+	k8s.io/api v0.22.2 => k8s.io/api v0.21.5
 	k8s.io/apimachinery v0.22.2 => k8s.io/apimachinery v0.20.6
 	k8s.io/client-go v0.22.2 => k8s.io/client-go v0.20.6
 	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e => k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
