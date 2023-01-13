@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 )
 
@@ -62,6 +63,36 @@ func (b *BaseBridge) WaitForSwitchConnection() {
 
 	log.Fatalf("OVS switch %s Failed to connect", b.name)
 }
+
+func (n *NatBridge) AddVNFInstance() error {
+	return nil
+}
+
+func (n *NatBridge) RemoveVNFInstance() error {
+	return nil
+}
+
+func (n *NatBridge) AddSFCRule() error {
+	return nil
+}
+
+func (n *NatBridge) RemoveSFCRule() error {
+	return nil
+}
+
+func (n *NatBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+	return nil, nil
+}
+
+func (n *NatBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
+	return nil
+}
+
+// Controller received a packet from the switch
+func (n *NatBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {}
+
+// Controller received a multi-part reply from the switch
+func (n *NatBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {}
 
 func (b *BaseBridge) getOfSwitch() *ofctrl.OFSwitch {
 	return b.OfSwitch

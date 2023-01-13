@@ -5,8 +5,11 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 )
+
+const InvalidGroupID uint32 = 0
 
 //nolint
 type idGenerate struct {
@@ -31,12 +34,23 @@ func (i *idGenerate) ascendUint64() {
 }
 
 var learnCookieID = &idGenerate{}
+var groupID = &idGenerate{}
 
 func getLearnCookieID() (uint64, error) {
 	learnCookieID.ascendUint64()
 	if learnCookieID.idUint64 >= (uint64(1) << cookie.BitWidthFlowId) {
-		log.Error("no enough avalible cookie id")
+		log.Error("No enough avalible cookie id")
 		return 0, errors.New("no enough avalible cookie id")
 	}
 	return learnCookieID.idUint64, nil
+}
+
+func getGroupID() (uint32, error) {
+	groupID.ascendUint32()
+	if groupID.idUint32 > openflow13.OFPG_MAX {
+		log.Error("No enough avalible group id")
+		return InvalidGroupID, errors.New("no enough avalible group id")
+	}
+
+	return groupID.idUint32, nil
 }

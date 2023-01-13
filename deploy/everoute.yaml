@@ -1899,6 +1899,9 @@ spec:
     - jsonPath: .spec.svcRef
       name: service
       type: string
+    - jsonPath: .spec.portName
+      name: portName
+      type: string
     - jsonPath: .spec.backends
       name: Backends
       type: string
@@ -1943,6 +1946,9 @@ spec:
                   - port
                   type: object
                 type: array
+              portName:
+                description: PortName is the service port name
+                type: string
               svcRef:
                 description: SvcRef is the ServicePort related Service name
                 type: string
@@ -2031,6 +2037,7 @@ rules:
   resources:
     - pods
     - nodes
+    - services
   verbs:
     - patch
     - create
@@ -2058,6 +2065,14 @@ rules:
     - list
     - watch
     - create
+- apiGroups:
+    - service.everoute.io
+  resources:
+    - serviceports
+  verbs:
+    - get
+    - list
+    - watch
 ---
 # Source: everoute/templates/controller/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
