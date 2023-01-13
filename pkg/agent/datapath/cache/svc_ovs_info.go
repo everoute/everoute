@@ -17,11 +17,11 @@ type SvcOvsInfo struct {
 	lock sync.RWMutex
 	// svcID is svcNs/svcName
 	svcID string
-	// groupMap key is portName, value is groupID
+	// groupMap key is portName, value is group
 	groupMap map[string]*ofctrl.Group
-	// lbMap the first key is lbIP, the second key is portName, value is flowID in NatBrServiceLBTable
+	// lbMap the first key is lbIP, the second key is portName, value is flow in NatBrServiceLBTable
 	lbMap map[string]map[string]*ofctrl.Flow
-	// sessionAffinityMap key is lbIP, value is flowID list in NatBrSessionAffinityLearnTable
+	// sessionAffinityMap key is lbIP, value is flow list in NatBrSessionAffinityLearnTable
 	sessionAffinityMap map[string][]*ofctrl.Flow
 }
 
@@ -57,23 +57,45 @@ func (s *SvcOvsInfo) DeleteGroup(portName string) {
 	log.Debugf("Delete the group id of port name %s", portName)
 }
 
-func (s *SvcOvsInfo) GetLBFlowIDsByIP(lbIP string) []*ofctrl.Flow {
+func (s *SvcOvsInfo) GetLBFlow(lbIP, portName string) *ofctrl.Flow {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	flowMap := s.lbMap[lbIP]
+	if flowMap == nil {
+		return nil
+	}
+	return flowMap[portName]
+}
+
+func (s *SvcOvsInfo) DelLBFlow(lbIP, portName string) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	flows := make([]*ofctrl.Flow, 0)
 	flowMap := s.lbMap[lbIP]
 	if flowMap == nil {
-		return flows
+		return
 	}
 
-	for _, v := range flowMap {
-		flows = append(flows, v)
-	}
-	return flows
+	delete(flowMap, portName)
 }
 
-func (s *SvcOvsInfo) GetLBFlowIDsByPortName(portName string) []*ofctrl.Flow {
+func (s *SvcOvsInfo) GetLBFlowsByIP(lbIP string) []LBFlowEntry {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var res []LBFlowEntry
+	flowMap := s.lbMap[lbIP]
+	if flowMap == nil {
+		return res
+	}
+
+	for portName, flow := range flowMap {
+		res = append(res, LBFlowEntry{LBIP: lbIP, PortName: portName, Flow: flow})
+	}
+	return res
+}
+
+func (s *SvcOvsInfo) GetLBFlowsByPortName(portName string) []*ofctrl.Flow {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 

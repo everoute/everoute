@@ -166,7 +166,6 @@ var _ = Describe("endpoints controller", func() {
 				}
 				return svcPorts.Items[0].Equal(expectSvcPort)
 			}, time.Minute, interval).Should(BeTrue())
-			Expect(svcPorts.Items[0].Equal(expectSvcPort)).Should(BeTrue())
 		})
 	})
 

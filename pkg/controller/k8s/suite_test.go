@@ -124,8 +124,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&EndpointsReconcile{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
+		APIReader: k8sManager.GetAPIReader(),
+		Client:    k8sManager.GetClient(),
+		Scheme:    k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

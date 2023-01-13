@@ -85,6 +85,34 @@ const (
 			-- del-br ${CLS_BRIDGE} \
 			-- del-br ${UPLINK_BRIDGE}
     `
+	SetupCNIBridgeChain = `
+		set -o errexit
+		set -o nounset
+		set -o xtrace
+
+		DEFAULT_BRIDGE=%s
+		NAT_BRIDGE="${DEFAULT_BRIDGE}-nat"
+		UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
+		LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
+		NAT_TO_LOCAL_PATCH="${NAT_BRIDGE}-nat-to-local"
+		GW_IFACE=${DEFAULT_BRIDGE}-gw
+		GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
+
+		ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal
+		ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
+
+		ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+		ip link set ${NAT_BRIDGE} up
+		ovs-vsctl \
+			-- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_NAT_PATCH} \
+			-- set interface ${LOCAL_TO_NAT_PATCH} type=patch options:peer=${NAT_TO_LOCAL_PATCH} \
+			-- add-port ${NAT_BRIDGE} ${NAT_TO_LOCAL_PATCH} \
+			-- set interface ${NAT_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_NAT_PATCH}
+	`
+	CleanCNIBridgeChain = `
+		NAT_BRIDGE="%s-nat"
+		ovs-vsctl -- del-br ${NAT_BRIDGE}
+	`
 )
 
 func ExcuteCommand(cmdStr, arg string) error {

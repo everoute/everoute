@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
+	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
@@ -162,6 +163,17 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 			StopChan:        stopChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create node controller: %s", err.Error())
+			return err
+		}
+	}
+
+	if opts.IsEnableProxy() {
+		if err = (&ctrlProxy.Reconcile{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			DpMgr:  datapathManager,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Errorf("unable to create proxy controller: %s", err.Error())
 			return err
 		}
 	}

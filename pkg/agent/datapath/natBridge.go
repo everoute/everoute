@@ -24,7 +24,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	corev1 "k8s.io/api/core/v1"
 
+	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -153,35 +155,151 @@ func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (n *NatBridge) AddVNFInstance() error {
+func (n *NatBridge) GetSvcIndexCache() *cache.SvcIndex {
+	return n.svcIndexCache
+}
+
+func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port) error {
+	ipDa := net.ParseIP(ip)
+	if ipDa == nil {
+		log.Errorf("Invalid lb ip %s for service %s", ip, svcID)
+		return fmt.Errorf("invalid lb ip: %s", ip)
+	}
+
+	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
+		n.svcIndexCache.SetSvcOvsInfo(svcID, cache.NewSvcOvsInfo(svcID))
+	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+
+	var lbFlows []cache.LBFlowEntry
+	for i := range ports {
+		if ports[i] == nil {
+			continue
+		}
+		portName := ports[i].Name
+		if svcOvsCache.GetLBFlow(ip, portName) != nil {
+			log.Infof("The lb flow has been installed for service: %s, lbip: %s, portname: %s, skip", svcID, ip, portName)
+			continue
+		}
+		if svcOvsCache.GetGroup(portName) == nil {
+			newGp, err := n.createEmptyGroup()
+			if err != nil {
+				log.Errorf("Failed to create a empty group %s for service %s, lbip: %s, portname: %s", err, svcID, ip, portName)
+				return err
+			}
+			svcOvsCache.SetGroup(portName, newGp)
+		}
+		gpID := svcOvsCache.GetGroup(portName).GroupID
+		lbFlow, err := n.addLBFlow(&ipDa, ports[i].Protocol, ports[i].Port, gpID)
+		if err != nil {
+			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, portName, err)
+			return err
+		}
+		lbFlows = append(lbFlows, cache.LBFlowEntry{LBIP: ip, PortName: portName, Flow: lbFlow})
+	}
+	svcOvsCache.SetLBMap(lbFlows)
+	// todo process sessionAffinity
 	return nil
 }
 
-func (n *NatBridge) RemoveVNFInstance() error {
+func (n *NatBridge) DelLBIP(svcID, ip string) error {
+	ipDa := net.ParseIP(ip)
+	if ipDa == nil {
+		log.Errorf("Invalid lb ip %s for service %s", ip, svcID)
+		return fmt.Errorf("invalid lb ip: %s", ip)
+	}
+	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
+		log.Infof("Has no lb flow for svcID: %s", svcID)
+		return nil
+	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+
+	lbFlows := svcOvsCache.GetLBFlowsByIP(ip)
+	for i := range lbFlows {
+		if err := lbFlows[i].Flow.Delete(); err != nil {
+			log.Errorf("Delete lb flow failed for lb ip: %s, svcID: %s, flow: %+v, err: %s", ip, svcID, lbFlows[i], err)
+			return err
+		}
+		svcOvsCache.DelLBFlow(ip, lbFlows[i].PortName)
+	}
+	// todo process sessionAffinity
 	return nil
 }
 
-func (n *NatBridge) AddSFCRule() error {
-	return nil
+func (n *NatBridge) addLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32, gpID uint32) (*ofctrl.Flow, error) {
+	newFlow, err := n.newLBFlow(ipDa, protocol, port)
+	if err != nil {
+		log.Errorf("Failed to New a lb flow: %s", err)
+		return nil, err
+	}
+	if err := newFlow.SetGroup(gpID); err != nil {
+		log.Errorf("Failed to set group action to lb flow: %+v, err: %s", newFlow, err)
+		return nil, err
+	}
+	if err := newFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install lb flow: %+v, err: %s", newFlow, err)
+		return nil, err
+	}
+	return newFlow, nil
 }
 
-func (n *NatBridge) RemoveSFCRule() error {
-	return nil
+func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32) (*ofctrl.Flow, error) {
+	if protocol == corev1.ProtocolTCP {
+		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        PROTOCOL_TCP,
+			IpDa:           ipDa,
+			IpDaMask:       &IPMaskMatchFullBit,
+			TcpDstPort:     uint16(port),
+			TcpDstPortMask: PortMaskMatchFullBit,
+		})
+		return newFlow, err
+	}
+
+	if protocol == corev1.ProtocolUDP {
+		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        PROTOCOL_UDP,
+			IpDa:           ipDa,
+			IpDaMask:       &IPMaskMatchFullBit,
+			UdpDstPort:     uint16(port),
+			UdpDstPortMask: PortMaskMatchFullBit,
+		})
+		return newFlow, err
+	}
+
+	return nil, fmt.Errorf("invalid protocol: %s", protocol)
 }
 
-func (n *NatBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
-	return nil, nil
+func (n *NatBridge) createEmptyGroup() (*ofctrl.Group, error) {
+	newGp, err := n.newEmptyGroup()
+	if err != nil {
+		log.Errorf("Failed to new a empty group, err: %s", err)
+		return nil, err
+	}
+	if err := newGp.Install(); err != nil {
+		log.Errorf("Failed to install group: %+v, err: %s", *newGp, err)
+		return nil, err
+	}
+	return newGp, nil
 }
 
-func (n *NatBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
-	return nil
+func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
+	sw := n.OfSwitch
+	groupID, err := getGroupID()
+	if err != nil {
+		log.Errorf("Allocate a new group id failed, err: %s", err)
+		return nil, err
+	}
+	newGp, err := sw.NewGroup(groupID, uint8(openflow13.OFPGT_SELECT))
+	if err != nil {
+		log.Errorf("Failed to new a group, err: %s", err)
+		return nil, err
+	}
+	return newGp, nil
 }
-
-// Controller received a packet from the switch
-func (n *NatBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {}
-
-// Controller received a multi-part reply from the switch
-func (n *NatBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {}
 
 func (n *NatBridge) initInputTable() error {
 	ipFlow, err := n.inputTable.NewFlow(ofctrl.FlowMatch{

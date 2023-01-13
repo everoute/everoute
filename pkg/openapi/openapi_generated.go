@@ -2100,6 +2100,13 @@ func schema_pkg_apis_service_v1alpha1_ServicePortSpec(ref common.ReferenceCallba
 				Description: "ServicePortSpec provides the specification of a ServicePort",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"portName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PortName is the service port name",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"svcRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "SvcRef is the ServicePort related Service name",

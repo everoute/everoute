@@ -149,8 +149,9 @@ func main() {
 
 		if enableProxy {
 			if err = (&k8s.EndpointsReconcile{
-				Client: mgr.GetClient(),
-				Scheme: mgr.GetScheme(),
+				APIReader: mgr.GetAPIReader(),
+				Client:    mgr.GetClient(),
+				Scheme:    mgr.GetScheme(),
 			}).SetupWithManager(mgr); err != nil {
 				klog.Fatalf("unable to create endpoints controller: %s", err.Error())
 			}

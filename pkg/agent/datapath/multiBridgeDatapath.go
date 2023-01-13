@@ -143,6 +143,10 @@ const (
 	MaxCleanConntrackWorkerNum = 5
 )
 
+var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
+
+const PortMaskMatchFullBit uint16 = 65535
+
 type Bridge interface {
 	BridgeInit()
 	BridgeReset()
@@ -982,6 +986,17 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	}
 
 	return nil
+}
+
+func (datapathManager *DpManager) GetNatBridges() []*NatBridge {
+	natBrs := []*NatBridge{}
+	for vdsID := range datapathManager.BridgeChainMap {
+		natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
+		if natBr != nil {
+			natBrs = append(natBrs, natBr.(*NatBridge))
+		}
+	}
+	return natBrs
 }
 
 func (datapathManager *DpManager) syncIntenalIPs(stopChan <-chan struct{}) {

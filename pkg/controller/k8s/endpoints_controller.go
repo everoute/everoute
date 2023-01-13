@@ -2,13 +2,13 @@ package k8s
 
 import (
 	"context"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -23,8 +23,9 @@ import (
 
 // EndpointsReconcile watch endpoints to gen servicePort
 type EndpointsReconcile struct {
-	client.Client
-	Scheme *runtime.Scheme
+	APIReader client.Reader
+	Client    client.Client
+	Scheme    *runtime.Scheme
 }
 
 // Reconcile receive Endpoints from workqueue, gen servicePort
@@ -115,7 +116,7 @@ func (r *EndpointsReconcile) updateEndpoints(ctx context.Context, svcEp corev1.E
 	oldSvcPorts := svc.ServicePortList{}
 	namespaceSelector := client.InNamespace(svcEp.Namespace)
 	labelSelector := client.MatchingLabels{svc.LabelRefEndpoints: svcEp.Name}
-	if err := r.Client.List(ctx, &oldSvcPorts, namespaceSelector, labelSelector); err != nil {
+	if err := r.APIReader.List(ctx, &oldSvcPorts, namespaceSelector, labelSelector); err != nil {
 		klog.Errorf("List endpoints %v related svcPort failed: %s", namespacedName, err)
 		return err
 	}
@@ -166,21 +167,18 @@ func compareServicePorts(new, old map[string]*svc.ServicePort) (add, update, del
 	return
 }
 
-func genSvcPortName(epName, portName string) string {
-	return epName + portName
-}
-
 func newSvcPort(epNamespacedName types.NamespacedName, portName string) *svc.ServicePort {
 	return &svc.ServicePort{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      genSvcPortName(epNamespacedName.Name, portName),
+			Name:      string(uuid.NewUUID()),
 			Namespace: epNamespacedName.Namespace,
 			Labels: map[string]string{
 				svc.LabelRefEndpoints: epNamespacedName.Name,
 			},
 		},
 		Spec: svc.ServicePortSpec{
-			SvcRef: epNamespacedName.Name,
+			PortName: portName,
+			SvcRef:   epNamespacedName.Name,
 		},
 	}
 }
@@ -215,7 +213,7 @@ func genSvcPortFromEndpoints(svcEp corev1.Endpoints) map[string]*svc.ServicePort
 func servicePortListToServicePortMap(servicePortList svc.ServicePortList) map[string]*svc.ServicePort {
 	svcPortsMap := make(map[string]*svc.ServicePort)
 	for i := range servicePortList.Items {
-		portName := strings.TrimPrefix(servicePortList.Items[i].Name, servicePortList.Items[i].Spec.SvcRef)
+		portName := servicePortList.Items[i].Spec.PortName
 		svcPortsMap[portName] = &servicePortList.Items[i]
 	}
 

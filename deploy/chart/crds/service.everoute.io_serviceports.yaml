@@ -22,6 +22,9 @@ spec:
     - jsonPath: .spec.svcRef
       name: service
       type: string
+    - jsonPath: .spec.portName
+      name: portName
+      type: string
     - jsonPath: .spec.backends
       name: Backends
       type: string
@@ -66,6 +69,9 @@ spec:
                   - port
                   type: object
                 type: array
+              portName:
+                description: PortName is the service port name
+                type: string
               svcRef:
                 description: SvcRef is the ServicePort related Service name
                 type: string

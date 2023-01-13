@@ -31,6 +31,7 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=sp
 // +kubebuilder:printcolumn:name="service",type="string",JSONPath=".spec.svcRef"
+// +kubebuilder:printcolumn:name="portName",type="string",JSONPath=".spec.portName"
 // +kubebuilder:printcolumn:name="Backends",type="string",JSONPath=".spec.backends"
 
 // ServicePort collect info from service endpoints
@@ -43,6 +44,8 @@ type ServicePort struct {
 
 // ServicePortSpec provides the specification of a ServicePort
 type ServicePortSpec struct {
+	// PortName is the service port name
+	PortName string `json:"portName,omitempty"`
 	// SvcRef is the ServicePort related Service name
 	SvcRef string `json:"svcRef,omitempty"`
 	// Backends is the Backend ip and port and node info
@@ -74,14 +77,15 @@ func (s *ServicePort) Equal(s1 *ServicePort) bool {
 		return false
 	}
 
-	if s.ObjectMeta.Name != s1.ObjectMeta.Name {
-		return false
-	}
 	if s.ObjectMeta.Namespace != s1.ObjectMeta.Namespace {
 		return false
 	}
 
 	if s.Spec.SvcRef != s1.Spec.SvcRef {
+		return false
+	}
+
+	if s.Spec.PortName != s1.Spec.PortName {
 		return false
 	}
 
