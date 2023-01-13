@@ -93,6 +93,7 @@ func GetClusterIPs(spec corev1.ServiceSpec) []string {
 	if utilnet.IsIPv4(net.ParseIP(spec.ClusterIP)) {
 		res = append(res, spec.ClusterIP)
 	}
+
 	return res
 }
 

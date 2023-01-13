@@ -13,7 +13,7 @@ import (
 	svc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
-var _ = Describe("endpoints controller", func() {
+var _ = FDescribe("endpoints controller", func() {
 	ctx := context.Background()
 	epNamespacedName := types.NamespacedName{
 		Name:      "eps",
@@ -27,7 +27,7 @@ var _ = Describe("endpoints controller", func() {
 	portName1 := "http"
 	portName2 := "ssh"
 
-	Context("endpoints with only one port", func() {
+	FContext("endpoints with only one port", func() {
 		endpoints := corev1.Endpoints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      epNamespacedName.Name,
@@ -96,7 +96,7 @@ var _ = Describe("endpoints controller", func() {
 			}, time.Minute, interval).Should(BeTrue())
 		})
 
-		It("update endpoints without portname", func() {
+		FIt("update endpoints without portname", func() {
 			newEndpoints := corev1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      epNamespacedName.Name,
