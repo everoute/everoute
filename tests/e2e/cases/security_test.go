@@ -1285,7 +1285,7 @@ func checkConnectionHealth(src, dst *model.Endpoint) <-chan ConnHealth {
 		// --- [dstIP] ping statistics ---
 		// [time] packets transmitted, [n1] packets received, [n2]% packet loss
 		output := regexp.MustCompile("\r\n|\n|\r").Split(fullOut, -1)
-		infoOutput := output[3] // expect: [n0] packets transmitted, [n1] packets recived, [n2]% packet loss
+		infoOutput := output[3] // expect: [n0] packets transmitted, [n1] packets received, [n2]% packet loss
 		connInfo := regexp.MustCompile("[0-9]+").FindAllString(infoOutput, -1)
 		klog.Info("Total,Received,Loss Rate,Time:", connInfo)
 		lossRate, err := strconv.Atoi(connInfo[2])
