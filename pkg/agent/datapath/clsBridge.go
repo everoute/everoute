@@ -185,7 +185,7 @@ func (c *ClsBridge) initForwardingTable() error {
 	return nil
 }
 
-func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
+func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 	localBrName := strings.TrimSuffix(c.name, "-cls")
 	// clsBridgeOutputTable floodingOutputFlow
 	floodingOutputFlow, _ := c.clsBridgeOutputTable.NewFlow(ofctrl.FlowMatch{
@@ -223,8 +223,8 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install cls bridge learnedLocalToLocalOutputFlow, error: %v", err)
 	}
 
-	// clsBridgeOutputTable learnedLocalToRemoteOuputFlow
-	learnedLocalToRemoteOuputFlow, _ := c.clsBridgeOutputTable.NewFlow(ofctrl.FlowMatch{
+	// clsBridgeOutputTable learnedLocalToRemoteOutputFlow
+	learnedLocalToRemoteOutputFlow, _ := c.clsBridgeOutputTable.NewFlow(ofctrl.FlowMatch{
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
@@ -235,8 +235,8 @@ func (c *ClsBridge) initOuputTable(sw *ofctrl.OFSwitch) error {
 		},
 	})
 	outputPort, _ = sw.OutputPort(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
-	if err := learnedLocalToRemoteOuputFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install cls bridge learnedLocalToRemoteOuputFlow, error: %v", err)
+	if err := learnedLocalToRemoteOutputFlow.Next(outputPort); err != nil {
+		return fmt.Errorf("failed to install cls bridge learnedLocalToRemoteOutputFlow, error: %v", err)
 	}
 
 	// clsBridgeOutputTable default flow
@@ -263,7 +263,7 @@ func (c *ClsBridge) BridgeInit() {
 	if err := c.initForwardingTable(); err != nil {
 		log.Fatalf("Failed to init cls bridge forwarding table, error: %v", err)
 	}
-	if err := c.initOuputTable(sw); err != nil {
+	if err := c.initOutputTable(sw); err != nil {
 		log.Fatalf("Failed to init cls bridge output table, error: %v", err)
 	}
 }

@@ -17,7 +17,7 @@ Everoute provides network and security services for the following platforms:
 * Hybrid Cloud
 * Legacy virtualized data center
 
-It can be intergated within these platforms easily.
+It can be integrated within these platforms easily.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ refer to [Everoute CNI](https://github.com/everoute/everoute/blob/main/docs/cni/
 
 * **Virtualization Platform**: [SMTX OS](https://www.smartx.com/global/smtx-os)
 is [SmartX](https://www.smartx.com/global) native virtualization platform.
-Everoute can be intergated with SMTX OS through the
+Everoute can be integrated with SMTX OS through the
 [CloudTower](https://www.smartx.com/global/cloud-tower) plugin to provide the
 Micro-Segmentation service.
 

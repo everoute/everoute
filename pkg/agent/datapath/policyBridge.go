@@ -389,7 +389,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install from local output flow, error: %v", err)
 	}
 
-	fromUpstreamOuputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
+	fromUpstreamOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 		Regs: []*ofctrl.NXRegister{
@@ -401,7 +401,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 		},
 	})
 	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
-	if err := fromUpstreamOuputFlow.Next(outputPort); err != nil {
+	if err := fromUpstreamOutputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}
 

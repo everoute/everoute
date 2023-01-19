@@ -62,7 +62,7 @@ const (
 	RoleAgent      = "agent"
 )
 
-// GetClient return client connect to this node, must not close the returnd client.
+// GetClient return client connect to this node, must not close the returned client.
 func (n *Node) GetClient() (*ssh.Client, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
