@@ -26,12 +26,20 @@ jobs:
         with:
           files: ./coverage.out
 
-  golint:
+  static-check:
     runs-on: [ubuntu-20.04]
     if: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v2
-      - uses: golangci/golangci-lint-action@v2
+
+      - name: Check conventional commits
+        uses: webiny/action-conventional-commits@v1.1.0
+
+      - name: Check spelling
+        uses: crate-ci/typos@v1.0.4
+
+      - name: Check golang lint
+        uses: golangci/golangci-lint-action@v2
         with:
           version: v1.48.0
           only-new-issues: true
@@ -137,12 +145,12 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,golint,run-e2e,run-k8s-e2e,run-tower-e2e,generate-check ]
+    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,run-tower-e2e,generate-check ]
     runs-on: [ ubuntu-20.04 ]
     env:
       SLACK_COLOR: 2EA44F
       RESULT_PR_CHECK: ":white_check_mark:"
-      RESULT_GOLINT: ":white_check_mark:"
+      RESULT_STATIC_CHECK: ":white_check_mark:"
       RESULT_RUN_E2E: ":white_check_mark:"
       RESULT_RUN_K8S_E2E: ":white_check_mark:"
       RESULT_RUN_TOWER_E2E: ":white_check_mark:"
@@ -150,8 +158,8 @@ jobs:
     steps:
       - if: ${{ needs.pr-check.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.golint.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GOLINT=:x:" >> $GITHUB_ENV
+      - if: ${{ needs.static-check.result == 'failure'}}
+        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_STATIC_CHECK=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
@@ -163,8 +171,8 @@ jobs:
 
       - if: ${{ needs.pr-check.result == 'cancelled'}}
         run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.golint.result == 'cancelled'}}
-        run: echo "RESULT_GOLINT=:ballot_box_with_check:" >> $GITHUB_ENV
+      - if: ${{ needs.static-check.result == 'cancelled'}}
+        run: echo "RESULT_STATIC_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'cancelled'}}
         run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
@@ -220,7 +228,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "${{ env.RESULT_GOLINT }} => *golint*"
+                        "text": "${{ env.RESULT_STATIC_CHECK }} => *static-check*"
                       },
                       {
                         "type": "mrkdwn",
