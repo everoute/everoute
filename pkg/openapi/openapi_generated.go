@@ -68,6 +68,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.SecurityPolicyPeer": schema_pkg_apis_security_v1alpha1_SecurityPolicyPeer(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.SecurityPolicyPort": schema_pkg_apis_security_v1alpha1_SecurityPolicyPort(ref),
 		"github.com/everoute/everoute/pkg/apis/security/v1alpha1.SecurityPolicySpec": schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref),
+		"github.com/everoute/everoute/pkg/apis/service/v1alpha1.Backend":             schema_pkg_apis_service_v1alpha1_Backend(ref),
+		"github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePort":         schema_pkg_apis_service_v1alpha1_ServicePort(ref),
+		"github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePortList":     schema_pkg_apis_service_v1alpha1_ServicePortList(ref),
+		"github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePortSpec":     schema_pkg_apis_service_v1alpha1_ServicePortSpec(ref),
 		"k8s.io/api/apps/v1.ControllerRevision":                                      schema_k8sio_api_apps_v1_ControllerRevision(ref),
 		"k8s.io/api/apps/v1.ControllerRevisionList":                                  schema_k8sio_api_apps_v1_ControllerRevisionList(ref),
 		"k8s.io/api/apps/v1.DaemonSet":                                               schema_k8sio_api_apps_v1_DaemonSet(ref),
@@ -1961,6 +1965,166 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 		},
 		Dependencies: []string{
 			"github.com/everoute/everoute/pkg/apis/security/v1alpha1.ApplyToPeer", "github.com/everoute/everoute/pkg/apis/security/v1alpha1.Rule"},
+	}
+}
+
+func schema_pkg_apis_service_v1alpha1_Backend(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Backend provides the specification of a ServicePortSpec.Backends",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"ip": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"node": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"ip", "port", "node"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_service_v1alpha1_ServicePort(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ServicePort collect info from service endpoints",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePortSpec"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePortSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_service_v1alpha1_ServicePortList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ServicePortList contains a list of ServicePort",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePort"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/everoute/everoute/pkg/apis/service/v1alpha1.ServicePort", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_service_v1alpha1_ServicePortSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ServicePortSpec provides the specification of a ServicePort",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"svcRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SvcRef is the ServicePort related Service name",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"backends": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Backends is the Backend ip and port and node info",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/everoute/everoute/pkg/apis/service/v1alpha1.Backend"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/everoute/everoute/pkg/apis/service/v1alpha1.Backend"},
 	}
 }
 

@@ -33,6 +33,7 @@ import (
 	group "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/group"
 	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
 	security "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/security"
+	service "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/service"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
@@ -178,6 +179,7 @@ type SharedInformerFactory interface {
 	Agent() agent.Interface
 	Group() group.Interface
 	Security() security.Interface
+	Service() service.Interface
 }
 
 func (f *sharedInformerFactory) Agent() agent.Interface {
@@ -190,4 +192,8 @@ func (f *sharedInformerFactory) Group() group.Interface {
 
 func (f *sharedInformerFactory) Security() security.Interface {
 	return security.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Service() service.Interface {
+	return service.New(f, f.namespace, f.tweakListOptions)
 }

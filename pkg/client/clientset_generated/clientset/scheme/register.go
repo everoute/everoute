@@ -28,6 +28,7 @@ import (
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	servicev1alpha1 "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
 var Scheme = runtime.NewScheme()
@@ -37,6 +38,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	agentv1alpha1.AddToScheme,
 	groupv1alpha1.AddToScheme,
 	securityv1alpha1.AddToScheme,
+	servicev1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

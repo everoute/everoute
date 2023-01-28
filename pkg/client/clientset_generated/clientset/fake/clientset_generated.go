@@ -32,6 +32,8 @@ import (
 	fakegroupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1/fake"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	fakesecurityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
+	servicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1"
+	fakeservicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.
@@ -94,4 +96,9 @@ func (c *Clientset) GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface {
 // SecurityV1alpha1 retrieves the SecurityV1alpha1Client
 func (c *Clientset) SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interface {
 	return &fakesecurityv1alpha1.FakeSecurityV1alpha1{Fake: &c.Fake}
+}
+
+// ServiceV1alpha1 retrieves the ServiceV1alpha1Client
+func (c *Clientset) ServiceV1alpha1() servicev1alpha1.ServiceV1alpha1Interface {
+	return &fakeservicev1alpha1.FakeServiceV1alpha1{Fake: &c.Fake}
 }

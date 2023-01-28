@@ -1,4 +1,4 @@
-// Copyright 2021 The Everoute Authors.
+// Copyright 2023 The Everoute Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
-	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
 // Install registers the API group and adds types to a scheme
