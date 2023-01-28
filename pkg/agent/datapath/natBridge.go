@@ -25,6 +25,7 @@ import (
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 
+	"github.com/everoute/everoute/pkg/agent/datapath/cache"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
@@ -79,12 +80,15 @@ type NatBridge struct {
 	dnatTable                 *ofctrl.Table
 	l3ForwardTable            *ofctrl.Table
 	outputTable               *ofctrl.Table
+
+	svcIndexCache *cache.SvcIndex // service flow and group database
 }
 
 func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 	natBr := new(NatBridge)
 	natBr.name = fmt.Sprintf("%s-nat", brName)
 	natBr.datapathManager = datapathManager
+	natBr.svcIndexCache = cache.NewSvcIndex()
 
 	return natBr
 }
