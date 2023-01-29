@@ -17,13 +17,10 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -99,22 +96,19 @@ func (c *Client) Subscription(req *Request) (respCh <-chan Response, stopWatch f
 
 // Query send query request to tower
 func (c *Client) Query(req *Request) (*Response, error) {
-	var reqBody, respBody bytes.Buffer
-	var resp Response
-	var contentType string
-
-	if err := encodeRequest(req, &contentType, &reqBody); err != nil {
+	request, err := EncodeRequest(req)
+	if err != nil {
 		return nil, fmt.Errorf("failed to encode request: %s", err)
 	}
 
-	klog.V(10).Infof("query request body %s", reqBody.String())
+	klog.V(10).Infof("query request body %s", request.String())
 
-	r, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, c.URL, &reqBody)
+	r, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, c.URL, request.GetReader())
 	if err != nil {
 		return nil, fmt.Errorf("failed call http.NewRequest: %s", err)
 	}
 	c.setScheme(r.URL, false)
-	c.setHeader(r.Header, contentType, false)
+	c.setHeader(r.Header, request.ContentType(), false)
 
 	httpResp, err := c.httpClient().Do(r)
 	if err != nil {
@@ -122,11 +116,9 @@ func (c *Client) Query(req *Request) (*Response, error) {
 	}
 	defer httpResp.Body.Close()
 
-	if _, err := io.Copy(&respBody, httpResp.Body); err != nil {
-		return nil, fmt.Errorf("failed to read response body: %s", err)
-	}
+	var resp Response
 
-	if err := json.NewDecoder(&respBody).Decode(&resp); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return nil, fmt.Errorf("server response code: %d, err: %s", httpResp.StatusCode, err)
 	}
 
@@ -146,10 +138,13 @@ func (c *Client) Query(req *Request) (*Response, error) {
 	return &resp, nil
 }
 
-func encodeRequest(req *Request, contentType *string, w io.Writer) error {
+// EncodeRequest encode graphql request to http request. If req contains an upload
+// file, it encode message as multipart/form-data, and the file will not be copied
+func EncodeRequest(req *Request) (RequestInterface, error) {
 	m := LoadJSONPathUploadMap("variables", req.Variables)
 	if len(m) == 0 {
-		return json.NewEncoder(w).Encode(req)
+		raw, err := json.Marshal(req)
+		return JSONRequest(raw), err
 	}
 
 	indexJSONPathMap := map[string][]string{}
@@ -159,45 +154,40 @@ func encodeRequest(req *Request, contentType *string, w io.Writer) error {
 		index++
 	}
 
-	multipartWriter := multipart.NewWriter(w)
+	multipartWriter := NewMultipartWriterRequest()
 	defer multipartWriter.Close()
 
 	// Content-Disposition: form-data; name="operations"
 	fw, err := multipartWriter.CreateFormField("operations")
 	if err != nil {
-		return fmt.Errorf("encode request: %s", err)
+		return nil, fmt.Errorf("encode request: %s", err)
 	}
 	err = json.NewEncoder(fw).Encode(req)
 	if err != nil {
-		return fmt.Errorf("encode request: %s", err)
+		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
 	// Content-Disposition: form-data; name="map"
 	fw, err = multipartWriter.CreateFormField("map")
 	if err != nil {
-		return fmt.Errorf("encode request: %s", err)
+		return nil, fmt.Errorf("encode request: %s", err)
 	}
 	err = json.NewEncoder(fw).Encode(indexJSONPathMap)
 	if err != nil {
-		return fmt.Errorf("encode request: %s", err)
+		return nil, fmt.Errorf("encode request: %s", err)
 	}
 
 	// Content-Disposition: form-data; name="0"; filename="fileName"
 	// Content-Type: application/octet-stream
 	for index, jsonPath := range indexJSONPathMap {
 		upload := m[jsonPath[0]]
-		fw, err = multipartWriter.CreateFormFile(index, upload.FileName)
+		err = multipartWriter.CreateFormFile(index, upload.FileName, upload.File)
 		if err != nil {
-			return fmt.Errorf("encode request: %s", err)
-		}
-		_, err = io.Copy(fw, upload.File)
-		if err != nil {
-			return fmt.Errorf("encode request: %s", err)
+			return nil, fmt.Errorf("encode request: %s", err)
 		}
 	}
 
-	*contentType = multipartWriter.FormDataContentType()
-	return nil
+	return multipartWriter, nil
 }
 
 // Auth send login request to tower, and save token
@@ -281,10 +271,6 @@ func (c *Client) initWebsocketConn(conn *websocket.Conn) error {
 }
 
 func (c *Client) setHeader(header http.Header, contentType string, websocket bool) {
-	if contentType == "" {
-		contentType = "application/json"
-	}
-
 	header.Set("Content-Type", contentType)
 	header.Set("Accept", "application/json")
 
