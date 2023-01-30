@@ -11,7 +11,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Pull Request size labeler
-        uses: CodelyTV/pr-size-labeler@v1.8.1
+        uses: wu-cl/pr-size-labeler@main
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           xs_label: 'size/xs'
@@ -28,3 +28,8 @@ jobs:
             This PR exceeds the recommended size of 1000 lines.
             Please make sure you are NOT addressing multiple issues with one PR.
             Note this PR might be rejected due to its size.
+          files_to_ignore: |
+            "deploy/chart/crds/*"
+            "*generated*.go"
+            "*.pb.go"
+            "pkg/client/*"
