@@ -71,11 +71,11 @@ e2e-test:
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests
-	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt \
+	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.generatego.txt \
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
 		--api-versions security/v1alpha1
-	deepcopy-gen --go-header-file hack/boilerplate.go.txt -O zz_generated.deepcopy --input-dirs ./pkg/labels/...
+	deepcopy-gen --go-header-file hack/boilerplate.generatego.txt -O zz_generated.deepcopy --input-dirs ./pkg/labels/...
 
 # Generate plugin-tower gql codes
 gqlgen:
