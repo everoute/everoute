@@ -81,3 +81,4 @@ jobs:
         with:
           files: deploy/everoute.yaml
           name: ${{ needs.build.outputs.ReleaseTag }}
+          generate_release_notes: true
