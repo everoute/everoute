@@ -89,8 +89,14 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	agentConfig := o.Config
 
 	dpConfig := &datapath.DpManagerConfig{
-		InternalIPs: agentConfig.InternalIPs,
-		EnableCNI:   agentConfig.EnableCNI,
+		InternalIPs:      agentConfig.InternalIPs,
+		EnableIPLearning: true,
+		EnableCNI:        agentConfig.EnableCNI,
+	}
+
+	// cni disable ip learning
+	if dpConfig.EnableCNI {
+		dpConfig.EnableIPLearning = false
 	}
 
 	managedVDSMap := make(map[string]string)

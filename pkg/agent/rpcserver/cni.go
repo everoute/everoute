@@ -172,6 +172,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 		Name:      "pod-" + string(args.K8S_POD_NAME),
 		Namespace: string(args.K8S_POD_NAMESPACE),
 	})
+	externalID["attached-ipv4"] = result.IPs[0].Address.IP.String()
 	if err = s.ovsDriver.UpdateInterface(vethName, externalID); err != nil {
 		klog.Errorf("set externalID for %s error, err: %s", vethName, err)
 		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "set externalID for %s error", err)

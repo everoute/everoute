@@ -54,6 +54,7 @@ type Iface struct {
 }
 
 type Ep struct {
+	IPAddr     net.IP
 	MacAddrStr string
 	OfPort     uint32
 	VlanID     uint16
@@ -95,12 +96,14 @@ func TestMain(m *testing.M) {
 			defer localEndpointLock.Unlock()
 
 			localEndpointMap[endpoint.PortNo] = Ep{
+				IPAddr:     endpoint.IPAddr,
 				MacAddrStr: endpoint.MacAddrStr,
 				VlanID:     endpoint.VlanID,
 				Trunk:      endpoint.Trunk,
 			}
 		},
 		LocalEndpointDeleteFunc: func(endpoint *datapath.Endpoint) {
+			klog.Errorf("------del ep: %+v", endpoint)
 			localEndpointLock.Lock()
 			defer localEndpointLock.Unlock()
 
@@ -112,6 +115,7 @@ func TestMain(m *testing.M) {
 
 			delete(localEndpointMap, oldEndpoint.PortNo)
 			localEndpointMap[newEndpoint.PortNo] = Ep{
+				IPAddr:     newEndpoint.IPAddr,
 				MacAddrStr: newEndpoint.MacAddrStr,
 				VlanID:     newEndpoint.VlanID,
 				Trunk:      newEndpoint.Trunk,

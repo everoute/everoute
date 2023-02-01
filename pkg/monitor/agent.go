@@ -42,7 +42,13 @@ import (
 
 const (
 	LocalEndpointIdentity = "attached-mac"
+	LocalEndpointIPv4     = "attached-ipv4"
+	InterfaceDriver       = "driver_name"
+	InterfaceStatus       = "status"
 	AgentInfoSyncInterval = 60
+
+	VMNicDriver  = "tun"
+	PodNicDriver = "veth"
 )
 
 // AgentMonitor monitor agent state, update agentinfo to apiserver.
