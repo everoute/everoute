@@ -18,9 +18,11 @@ package client
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
+	"reflect"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -118,4 +120,55 @@ func TestEncodeRequest(t *testing.T) {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(string(raw)).Should(Equal(fileContentRaw))
 	})
+}
+
+func TestLoadJSONPathUploadMap(t *testing.T) {
+	testCases := []struct {
+		object    interface{}
+		expectMap map[string]Upload
+	}{
+		{
+			object:    nil,
+			expectMap: map[string]Upload{},
+		},
+		{
+			object: map[string]interface{}{
+				"string": "this is string",
+				"int":    10,
+				"slice":  []string{"stringA", "stringB"},
+				"file":   &Upload{FileName: "fileA"},
+			},
+			expectMap: map[string]Upload{"variables.file": {FileName: "fileA"}},
+		},
+		{
+			object: []Upload{
+				{FileName: "fileA"},
+				{FileName: "fileB"},
+			},
+			expectMap: map[string]Upload{"variables.0": {FileName: "fileA"}, "variables.1": {FileName: "fileB"}},
+		},
+		{
+			object: struct {
+				A string  `json:"tag_a"`
+				B *Upload `json:"tag_b"`
+				C *Upload `json:"-"`
+				d *Upload
+			}{
+				A: "this is string",
+				B: &Upload{FileName: "fileB"},
+				C: &Upload{FileName: "fileC"},
+				d: &Upload{FileName: "fileD"},
+			},
+			expectMap: map[string]Upload{"variables.tag_b": {FileName: "fileB"}},
+		},
+	}
+
+	for index, tc := range testCases {
+		t.Run(fmt.Sprintf("tc%2d", index), func(t *testing.T) {
+			actualMap := loadJSONPathUploadMap("variables", tc.object)
+			if !reflect.DeepEqual(actualMap, tc.expectMap) {
+				t.Fatalf("expect loadJSONPathUploadMap = %v, got loadJSONPathUploadMap = %v", tc.expectMap, actualMap)
+			}
+		})
+	}
 }
