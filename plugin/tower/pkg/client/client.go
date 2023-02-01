@@ -23,9 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -136,58 +133,6 @@ func (c *Client) Query(req *Request) (*Response, error) {
 	}
 
 	return &resp, nil
-}
-
-// EncodeRequest encode graphql request to http request. If req contains an upload
-// file, it encode message as multipart/form-data, and the file will not be copied
-func EncodeRequest(req *Request) (RequestInterface, error) {
-	m := LoadJSONPathUploadMap("variables", req.Variables)
-	if len(m) == 0 {
-		raw, err := json.Marshal(req)
-		return JSONRequest(raw), err
-	}
-
-	indexJSONPathMap := map[string][]string{}
-	index := 0
-	for jsonPath := range m {
-		indexJSONPathMap[strconv.Itoa(index)] = []string{jsonPath}
-		index++
-	}
-
-	multipartWriter := NewMultipartWriterRequest()
-	defer multipartWriter.Close()
-
-	// Content-Disposition: form-data; name="operations"
-	fw, err := multipartWriter.CreateFormField("operations")
-	if err != nil {
-		return nil, fmt.Errorf("encode request: %s", err)
-	}
-	err = json.NewEncoder(fw).Encode(req)
-	if err != nil {
-		return nil, fmt.Errorf("encode request: %s", err)
-	}
-
-	// Content-Disposition: form-data; name="map"
-	fw, err = multipartWriter.CreateFormField("map")
-	if err != nil {
-		return nil, fmt.Errorf("encode request: %s", err)
-	}
-	err = json.NewEncoder(fw).Encode(indexJSONPathMap)
-	if err != nil {
-		return nil, fmt.Errorf("encode request: %s", err)
-	}
-
-	// Content-Disposition: form-data; name="0"; filename="fileName"
-	// Content-Type: application/octet-stream
-	for index, jsonPath := range indexJSONPathMap {
-		upload := m[jsonPath[0]]
-		err = multipartWriter.CreateFormFile(index, upload.FileName, upload.File)
-		if err != nil {
-			return nil, fmt.Errorf("encode request: %s", err)
-		}
-	}
-
-	return multipartWriter, nil
 }
 
 // Auth send login request to tower, and save token
@@ -433,59 +378,4 @@ func closeChanFunc(ch chan struct{}) func() {
 
 type TaskMonitor interface {
 	WaitForTask(ctx context.Context, taskID string) (*schema.Task, error)
-}
-
-// LoadJSONPathUploadMap get all upload from the object
-func LoadJSONPathUploadMap(pathPrefix string, obj interface{}) map[string]Upload {
-	m := make(map[string]Upload)
-	if obj != nil {
-		setJSONPathUploadMap(m, pathPrefix, reflect.ValueOf(obj))
-	}
-	return m
-}
-
-func setJSONPathUploadMap(m map[string]Upload, parentJSONPath string, obj reflect.Value) {
-	switch obj.Type().Kind() {
-	case reflect.Interface, reflect.Ptr:
-		if !obj.IsNil() {
-			setJSONPathUploadMap(m, parentJSONPath, obj.Elem())
-		}
-
-	case reflect.Array, reflect.Slice:
-		for i := 0; i < obj.Len(); i++ {
-			setJSONPathUploadMap(m, fmt.Sprintf("%s.%d", parentJSONPath, i), obj.Index(i))
-		}
-
-	case reflect.Map:
-		for _, mapKey := range obj.MapKeys() {
-			setJSONPathUploadMap(m, fmt.Sprintf("%s.%s", parentJSONPath, mapKey), obj.MapIndex(mapKey))
-		}
-
-	case reflect.Struct:
-		if obj.Type() == reflect.TypeOf(Upload{}) {
-			m[parentJSONPath] = obj.Interface().(Upload)
-			return
-		}
-		for i := 0; i < obj.NumField(); i++ {
-			jsonTagName := getFieldJSONTag(obj.Type().Field(i))
-			if jsonTagName == "" {
-				continue
-			}
-			setJSONPathUploadMap(m, fmt.Sprintf("%s.%s", parentJSONPath, jsonTagName), obj.Field(i))
-		}
-	}
-}
-
-func getFieldJSONTag(field reflect.StructField) string {
-	jsonTag := field.Tag.Get("json")
-
-	if field.PkgPath != "" || field.Anonymous || jsonTag == "-" {
-		return ""
-	}
-
-	tag := strings.Split(jsonTag, ",")[0]
-	if tag != "" {
-		return tag
-	}
-	return field.Name
 }
