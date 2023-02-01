@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -158,7 +159,7 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 	}
 	requests := map[string]ovsdb.MonitorRequest{
 		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
-		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error"}},
+		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error", "status"}},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
 	}
@@ -379,24 +380,21 @@ func (monitor *OVSDBMonitor) processOvsInterfaceAdd(uuid string, rowupdate ovsdb
 	monitor.endpointMap[uuid].InterfaceName = interfaceName
 	monitor.endpointMap[uuid].InterfaceUUID = uuid
 
-	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-	_, ok := newExternalIds[LocalEndpointIdentity]
-	if !ok {
-		macStr, _ = rowupdate.New.Fields["mac_in_use"].(string)
-	} else {
-		macStr, _ = newExternalIds[LocalEndpointIdentity].(string)
-	}
-
 	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
 	if ok && ofPort > 0 {
 		monitor.endpointMap[uuid].PortNo = uint32(ofPort)
 	}
 
-	_, err := net.ParseMAC(macStr)
+	macStr, err := getMacStrFromInterface(rowupdate.New)
 	if err != nil {
-		macStr = ""
+		klog.Errorf("Failed to get interface %+v mac, err: %s", rowupdate, err)
 	}
 	monitor.endpointMap[uuid].MacAddrStr = macStr
+
+	if newExternalIds, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
+		ip := getIPv4Addr(newExternalIds.GoMap)
+		monitor.endpointMap[uuid].IPAddr = ip
+	}
 
 	// if endpoint info is ready, trigger endpoint add callback
 	if monitor.isEndpointReady(monitor.endpointMap[uuid]) {
@@ -476,28 +474,25 @@ func (monitor *OVSDBMonitor) processVlanUpdate(rowupdate ovsdb.RowUpdate, ifaceU
 }
 
 func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ovsdb.RowUpdate) {
-	var newMacStr, ifaceName string
+	var ifaceName string
 	var ok bool
 	var newOfPort uint32
 
 	ifaceName = rowupdate.New.Fields["name"].(string)
-	newExternalIds := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap).GoMap
-	_, ok = newExternalIds[LocalEndpointIdentity]
-	if !ok {
-		newMacStr, _ = rowupdate.New.Fields["mac_in_use"].(string)
-	} else {
-		newMacStr, _ = newExternalIds[LocalEndpointIdentity].(string)
-	}
 
 	ofPort, ok := rowupdate.New.Fields["ofport"].(float64)
 	if ok && ofPort > 0 {
 		newOfPort = uint32(ofPort)
 	}
 
-	_, err := net.ParseMAC(newMacStr)
+	newMacStr, err := getMacStrFromInterface(rowupdate.New)
 	if err != nil {
-		// invalid mac addr, set it to null string, ensure not update endpoint mac
-		newMacStr = ""
+		klog.Errorf("Failed to get interface %+v mac, err: %s", rowupdate, err)
+	}
+
+	var newIP net.IP
+	if newExternalIds, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
+		newIP = getIPv4Addr(newExternalIds.GoMap)
 	}
 
 	var newEndpoint, oldEndpoint *datapath.Endpoint
@@ -507,15 +502,18 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 			InterfaceName: ifaceName,
 			InterfaceUUID: uuid,
 			MacAddrStr:    newMacStr,
+			IPAddr:        utils.IPCopy(newIP),
 			PortNo:        newOfPort,
 		}
 		return
 	}
+
 	newEndpoint = &datapath.Endpoint{
 		InterfaceName: oldEndpoint.InterfaceName,
 		InterfaceUUID: oldEndpoint.InterfaceUUID,
 		BridgeName:    oldEndpoint.BridgeName,
 		MacAddrStr:    oldEndpoint.MacAddrStr,
+		IPAddr:        utils.IPCopy(oldEndpoint.IPAddr),
 		PortNo:        oldEndpoint.PortNo,
 		VlanID:        oldEndpoint.VlanID,
 		Trunk:         oldEndpoint.Trunk,
@@ -524,6 +522,9 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 	if oldEndpoint.MacAddrStr != newMacStr {
 		newEndpoint.MacAddrStr = newMacStr
 	}
+
+	newEndpoint.IPAddr = utils.IPCopy(newIP)
+
 	if oldEndpoint.PortNo != newOfPort {
 		newEndpoint.PortNo = newOfPort
 	}
