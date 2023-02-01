@@ -9,4 +9,8 @@ set -o xtrace
 modprobe openvswitch || depmod -a || modprobe openvswitch
 /usr/share/openvswitch/scripts/ovs-ctl --system-id=random start
 
+# start sshd
+mkdir /run/sshd
+/usr/sbin/sshd
+
 eval $@
