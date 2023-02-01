@@ -69,6 +69,17 @@ docker-race-test: image-test
 e2e-test:
 	go test ./tests/e2e/...
 
+setup-e2e-env:
+	sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
+	bash tests/e2e/scripts/e2e-setup.sh
+
+docker-e2e-test-entry: setup-e2e-env
+	go test ./tests/e2e/... -v
+
+docker-e2e-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make docker-e2e-test-entry
+
 # Generate deepcopy, client, openapi codes
 codegen: manifests
 	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.go.txt \
