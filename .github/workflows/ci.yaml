@@ -32,6 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - run: git log | cat
+
       - name: Check conventional commits
         uses: webiny/action-conventional-commits@v1.1.0
 
