@@ -52,17 +52,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: install e2e environment dependency
-        run: sudo sh -c "apt update && apt install -y openvswitch-switch=2.13.* conntrack && systemctl start openvswitch-switch"
-
-      - name: allow ssh connect to localhost
-        run: sudo -H sh -c "ssh-keygen -qN '' </dev/zero; cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys"
-
-      - name: setup e2e environment
-        run: sudo -H bash tests/e2e/scripts/e2e-setup.sh
-
-      - name: run e2e test cases
-        run: sudo -H make e2e-test
+      - name: run everoute e2e test
+        run: sudo make docker-e2e-test
 
   run-k8s-e2e:
     runs-on: [self-hosted, k8s]
