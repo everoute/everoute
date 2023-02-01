@@ -248,7 +248,6 @@ func (l *LocalBridge) BridgeInit() {
 	l.localEndpointL2LearningTable, _ = sw.NewTable(L2_LEARNING_TABLE)
 	l.fromLocalRedirectTable, _ = sw.NewTable(FROM_LOCAL_REDIRECT_TABLE)
 	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
-	l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
 
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
@@ -265,8 +264,12 @@ func (l *LocalBridge) BridgeInit() {
 	if err := l.initFromLocalArpPassTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge from local arp pass table, error: %v", err)
 	}
-	if err := l.initFromLocalArpSendToCtrlTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
+
+	if l.datapathManager.Config.EnableIPLearning {
+		l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
+		if err := l.initFromLocalArpSendToCtrlTable(sw); err != nil {
+			log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
+		}
 	}
 }
 
@@ -670,8 +673,11 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalArpPassTable.TableId); err != nil {
 		return err
 	}
-	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalArpSendToCtrlTable.TableId); err != nil {
-		return err
+	if l.datapathManager.Config.EnableIPLearning {
+		var fromLocalArpToCtrlTableID uint8 = FROM_LOCAL_ARP_TO_CONTROLLER_TABLE
+		if err := fromLocalArpFlow.Resubmit(nil, &fromLocalArpToCtrlTableID); err != nil {
+			return err
+		}
 	}
 	if err := fromLocalArpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install from local arp redirect flow, error: %v", err)

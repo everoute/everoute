@@ -222,10 +222,11 @@ type DpManagerInfo struct {
 }
 
 type DpManagerConfig struct {
-	ManagedVDSMap map[string]string   // map vds to ovsbr-name
-	InternalIPs   []string            // internal IPs
-	EnableCNI     bool                // enable CNI in Everoute
-	CNIConfig     *DpManagerCNIConfig // config related CNI
+	ManagedVDSMap    map[string]string   // map vds to ovsbr-name
+	InternalIPs      []string            // internal IPs
+	EnableIPLearning bool                // enable ip learning
+	EnableCNI        bool                // enable CNI in Everoute
+	CNIConfig        *DpManagerCNIConfig // config related CNI
 }
 
 type DpManagerCNIConfig struct {
@@ -654,11 +655,13 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 		datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInit()
 	}
 
-	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
-		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+	if datapathManager.Config.EnableIPLearning {
+		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
+			IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
 
-	go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalEndpointIPAddrWorker(
-		IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalEndpointIPAddrWorker(
+			IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+	}
 
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[ovsbrName][portSuffix] == 0 {
@@ -710,8 +713,8 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
 
 	// replay local endpoint flow
-	if bridgeKeyword == LOCAL_BRIDGE_KEYWORD {
-		if err := datapathManager.ReplayVDSLocalEndpointFlow(vdsID); err != nil {
+	if bridgeKeyword == LOCAL_BRIDGE_KEYWORD || bridgeKeyword == NAT_BRIDGE_KEYWORD {
+		if err := datapathManager.ReplayVDSLocalEndpointFlow(vdsID, bridgeKeyword); err != nil {
 			return fmt.Errorf("failed to replay local endpoint flow while vswitchd restart, error: %v", err)
 		}
 	}
@@ -744,7 +747,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 	return nil
 }
 
-func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string) error {
+func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string, keyWord string) error {
 	ovsbrname := datapathManager.Config.ManagedVDSMap[vdsID]
 	for endpointObj := range datapathManager.localEndpointDB.IterBuffered() {
 		endpoint := endpointObj.Val.(*Endpoint)
@@ -752,9 +755,9 @@ func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string) error
 			continue
 		}
 
-		err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
-		if err != nil {
-			return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
+		bridge := datapathManager.BridgeChainMap[vdsID][keyWord]
+		if err := bridge.AddLocalEndpoint(endpoint); err != nil {
+			return fmt.Errorf("failed to add local endpoint %s to vds %s, bridge %s, error: %v", endpoint.InterfaceUUID, vdsID, bridge.GetName(), err)
 		}
 	}
 
@@ -829,9 +832,14 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 			datapathManager.localEndpointDB.Set(endpoint.InterfaceUUID, endpoint)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
-
+			if datapathManager.isEnableProxy() {
+				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
+				if err := natBr.AddLocalEndpoint(endpoint); err != nil {
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+				}
+			}
 			break
 		}
 	}
@@ -854,15 +862,15 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 				return fmt.Errorf("old local endpoint: %v not found", oldEP)
 			}
 			ep := oldEP.(*Endpoint)
-			// NOTE copy ip addr cached in oldEP to newEndpoint can skip ip address learning operation
-			learnedIP := make(net.IP, len(ep.IPAddr))
-			copy(learnedIP, ep.IPAddr)
-			newEndpoint.IPAddr = learnedIP
+			if datapathManager.Config.EnableIPLearning {
+				// NOTE copy ip addr cached in oldEP to newEndpoint can get learning ip address
+				newEndpoint.IPAddr = utils.IPCopy(ep.IPAddr)
+			}
 
 			datapathManager.localEndpointDB.Remove(oldEndpoint.InterfaceUUID)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
 			if err != nil {
-				return fmt.Errorf("failed to remove old local endpoint %v from vds %v : bridge %v, error: %v", oldEndpoint.MacAddrStr, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to remove old local endpoint %v from vds %v, bridge %v, error: %v", oldEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 
 			if newEP, _ := datapathManager.localEndpointDB.Get(newEndpoint.InterfaceUUID); newEP != nil {
@@ -871,7 +879,14 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 			datapathManager.localEndpointDB.Set(newEndpoint.InterfaceUUID, newEndpoint)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
 			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", newEndpoint.MacAddrStr, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
+			}
+			// endpoint update may change ipaddr in cni(endpoint doesn't get ipaddr from interface external-ids first), so try to add local endpoint when update endpoint
+			if datapathManager.isEnableProxy() {
+				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
+				if err := natBr.AddLocalEndpoint(newEndpoint); err != nil {
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+				}
 			}
 
 			break
@@ -899,7 +914,14 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 			datapathManager.localEndpointDB.Remove(endpoint.InterfaceUUID)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
 			if err != nil {
-				return fmt.Errorf("failed to remove local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
+			}
+
+			if datapathManager.isEnableProxy() {
+				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
+				if err := natBr.RemoveLocalEndpoint(endpoint); err != nil {
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+				}
 			}
 
 			break
@@ -1086,6 +1108,24 @@ func (datapathManager *DpManager) cleanConntrackWorker() {
 
 func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
 	datapathManager.cleanConntrackChan <- *rule
+}
+
+func (datapathManager *DpManager) isEnableCNI() bool {
+	if datapathManager.Config == nil {
+		return false
+	}
+	return datapathManager.Config.EnableCNI
+}
+
+func (datapathManager *DpManager) isEnableProxy() bool {
+	if !datapathManager.isEnableCNI() {
+		return false
+	}
+	if datapathManager.Config.CNIConfig == nil {
+		return false
+	}
+
+	return datapathManager.Config.CNIConfig.EnableProxy
 }
 
 func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {

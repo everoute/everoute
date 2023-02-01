@@ -17,6 +17,9 @@ limitations under the License.
 package monitor
 
 import (
+	"fmt"
+	"net"
+
 	ovsdb "github.com/contiv/libovsdb"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
@@ -53,4 +56,61 @@ func (fn ovsUpdateHandlerFunc) Stolen([]interface{}) {
 }
 
 func (fn ovsUpdateHandlerFunc) Echo([]interface{}) {
+}
+
+func listVlanTrunks(trunk interface{}) []float64 {
+	var trunkList []float64
+	switch t := trunk.(type) {
+	case float64:
+		return []float64{t}
+	case ovsdb.OvsSet:
+		trunkSet := trunk.(ovsdb.OvsSet).GoSet
+		for item := range trunkSet {
+			trunkList = append(trunkList, listVlanTrunks(trunkSet[item])...)
+		}
+	}
+
+	return trunkList
+}
+
+func getIPv4Addr(externalIDs map[interface{}]interface{}) net.IP {
+	if ip, ok := externalIDs[LocalEndpointIPv4]; ok {
+		return net.ParseIP(ip.(string)).To4()
+	}
+
+	return nil
+}
+
+func getDriverNameFromInterface(row ovsdb.Row) string {
+	if status, ok := row.Fields[InterfaceStatus].(ovsdb.OvsMap); ok {
+		if driver, ok := status.GoMap[InterfaceDriver]; ok {
+			return driver.(string)
+		}
+	}
+
+	return ""
+}
+
+func getMacStrFromInterface(row ovsdb.Row) (string, error) {
+	driver := getDriverNameFromInterface(row)
+	if driver == "" {
+		return "", fmt.Errorf("get interface driver failed, interface row: %+v", row)
+	}
+
+	var macStr string
+	if driver == VMNicDriver || driver == PodNicDriver {
+		if externalIds, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
+			if mac, ok := externalIds.GoMap[LocalEndpointIdentity]; ok {
+				macStr = mac.(string)
+			}
+		}
+	} else {
+		macStr = row.Fields["mac_in_use"].(string)
+	}
+
+	if _, err := net.ParseMAC(macStr); err != nil {
+		return "", err
+	}
+
+	return macStr, nil
 }

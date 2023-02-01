@@ -63,3 +63,12 @@ func ParseIPBlock(ipBlock *networkingv1.IPBlock) ([]*net.IPNet, error) {
 
 	return netutil.DiffFromCIDRs(cidrIPNet, exceptIPNets)
 }
+
+func IPCopy(src net.IP) net.IP {
+	if src == nil {
+		return nil
+	}
+	dst := make(net.IP, len(src))
+	copy(dst, src)
+	return dst
+}

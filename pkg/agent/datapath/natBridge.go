@@ -89,6 +89,8 @@ type NatBridge struct {
 	outputTable               *ofctrl.Table
 
 	svcIndexCache *cache.SvcIndex // service flow and group database
+	// l3FlowMap the key is interface uuid, the value is l3ForwardTable flow
+	l3FlowMap map[string]*ofctrl.Flow
 }
 
 func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
@@ -96,6 +98,7 @@ func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 	natBr.name = fmt.Sprintf("%s-nat", brName)
 	natBr.datapathManager = datapathManager
 	natBr.svcIndexCache = cache.NewSvcIndex()
+	natBr.l3FlowMap = make(map[string]*ofctrl.Flow)
 
 	return natBr
 }
@@ -107,10 +110,7 @@ func (n *NatBridge) ResetSvcIndexCache() {
 func (n *NatBridge) BridgeInit() {}
 
 func (n *NatBridge) BridgeInitCNI() {
-	if !n.datapathManager.Config.EnableCNI || n.datapathManager.Config.CNIConfig == nil {
-		return
-	}
-	if !n.datapathManager.Config.CNIConfig.EnableProxy {
+	if !n.datapathManager.isEnableProxy() {
 		return
 	}
 	sw := n.OfSwitch
@@ -160,10 +160,102 @@ func (n *NatBridge) BridgeInitCNI() {
 func (n *NatBridge) BridgeReset() {}
 
 func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+	if endpoint == nil {
+		return nil
+	}
+	if n.l3FlowMap[endpoint.InterfaceUUID] != nil {
+		log.Infof("The endpoint %+v related flow has been installed, skip add again", endpoint)
+		return nil
+	}
+	// skip ovs patch port
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
+		return nil
+	}
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
+		return nil
+	}
+	// skip cni gateway
+	if n.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
+		return nil
+	}
+	// skip cni bridge default interface
+	if endpoint.InterfaceName == n.datapathManager.Info.BridgeName {
+		return nil
+	}
+
+	macAddr, err := net.ParseMAC(endpoint.MacAddrStr)
+	if err != nil {
+		log.Errorf("The endpoint %+v has invalid mac addr, err: %s", endpoint, err)
+		return err
+	}
+
+	if endpoint.IPAddr == nil {
+		log.Infof("the endpoint %+v IPAddr is empty, skip add flow to l3 forward of nat bridge", endpoint)
+		return nil
+	}
+
+	if endpoint.IPAddr.To4() == nil {
+		log.Errorf("Failed to add local endpoint flow to l3 forward of nat bridge: the endpoint %+v IPAddr is not valid ipv4", endpoint)
+		return fmt.Errorf("the endpoint %+v IPAddr is not valid ipv4", endpoint)
+	}
+
+	flow, err := n.l3ForwardTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &endpoint.IPAddr,
+	})
+	if err != nil {
+		log.Errorf("Failed to new a flow in l3Forward table %d for endpoint %+v, err: %s", NatBrL3ForwardTable, endpoint, err)
+		return err
+	}
+
+	if err := flow.SetMacDa(macAddr); err != nil {
+		log.Errorf("Failed to add setMacDa action to flow %+v, endpoint %+v, err: %s", flow, endpoint, err)
+		return err
+	}
+
+	if err := flow.Resubmit(nil, &NatBrOutputTable); err != nil {
+		log.Errorf("Failed to add resubmit action to flow  %+v, endpoint: %+v, err: %s", flow, endpoint, err)
+		return err
+	}
+
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow %+v, endpoint: %+v, err: %s", flow, endpoint, err)
+		return err
+	}
+	n.l3FlowMap[endpoint.InterfaceUUID] = flow
+	log.Infof("Nat bridge success add flow %+v for local endpoint interfaceUUID %s", flow, endpoint.InterfaceUUID)
 	return nil
 }
 
 func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	if endpoint == nil {
+		return nil
+	}
+	// skip ovs patch port
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
+		return nil
+	}
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
+		return nil
+	}
+	// skip cni gateway
+	if n.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
+		return nil
+	}
+	// skip cni bridge default interface
+	if endpoint.InterfaceName == n.datapathManager.Info.BridgeName {
+		return nil
+	}
+
+	if flow, ok := n.l3FlowMap[endpoint.InterfaceUUID]; ok && flow != nil {
+		if err := flow.Delete(); err != nil {
+			log.Errorf("Delete endpoint correspond l3 forward flow failed, endpoint: %+v, err: %s", endpoint, err)
+			return err
+		}
+	}
+	delete(n.l3FlowMap, endpoint.InterfaceUUID)
+	log.Infof("Nat bridge success delete l3 forward flow for local endpoint interfaceUUID %s", endpoint.InterfaceUUID)
 	return nil
 }
 
@@ -767,7 +859,7 @@ func (n *NatBridge) initInputTable() error {
 		return err
 	}
 	if err = dropFlow.Next(n.OfSwitch.DropAction()); err != nil {
-		log.Errorf("failed to install a default drop flow in Input table %d: %s", NatBrInputTable, err)
+		log.Errorf("Failed to install a default drop flow in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 	return nil

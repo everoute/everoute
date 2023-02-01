@@ -30,22 +30,17 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	bridgeName := rand.String(10)
 	ep1PortName := rand.String(10)
-	ep1MacAddrStr := "00:11:11:11:11:11"
-	ep1InterfaceExternalIds := map[string]string{"attached-mac": ep1MacAddrStr}
 	ep1Iface := Iface{
-		IfaceName:  ep1PortName,
-		IfaceType:  "internal",
-		OfPort:     uint32(11),
-		VlanID:     uint16(1),
-		externalID: ep1InterfaceExternalIds,
+		IfaceName: ep1PortName,
+		IfaceType: "internal",
+		OfPort:    uint32(11),
+		VlanID:    uint16(1),
 	}
 	ep1 := Ep{
-		MacAddrStr: ep1MacAddrStr,
-		VlanID:     uint16(1),
+		VlanID: uint16(1),
 	}
 	newep1 := Ep{
-		MacAddrStr: ep1MacAddrStr,
-		Trunk:      "0,1",
+		Trunk: "0,1",
 	}
 
 	t.Logf("create new bridge %s", bridgeName)
@@ -56,12 +51,10 @@ func TestOvsDbEventHandler(t *testing.T) {
 	ep1OfPort, _ := getOfpPortNo(ovsClient, ep1PortName)
 
 	t.Run("Add local endpoint ep1", func(t *testing.T) {
-		Eventually(func() string {
-			localEndpointLock.Lock()
-			macStr := localEndpointMap[ep1OfPort].MacAddrStr
-			localEndpointLock.Unlock()
-			return macStr
-		}, timeout, interval).Should(Equal(ep1.MacAddrStr))
+		Eventually(func() error {
+			_, err := getPort(k8sClient, bridgeName, ep1PortName)
+			return err
+		}, timeout, interval).Should(Succeed())
 	})
 
 	Expect(updatePortToTrunk(ovsClient, ep1PortName, []int{0, 1}, ep1Iface.VlanID)).Should(Succeed())
@@ -120,7 +113,8 @@ func TestOvsDbEventHandler(t *testing.T) {
 	vethPortName, vethPortPeerName := rand.String(10), rand.String(10)
 	vethIfaceName := vethPortName
 	vethMacAddrStr := "00:11:11:11:11:22"
-	vethInterfaceExternalIds := map[string]string{"attached-mac": vethMacAddrStr}
+	vethIPStr := "10.12.12.1"
+	vethInterfaceExternalIds := map[string]string{"attached-mac": vethMacAddrStr, "attached-ipv4": vethIPStr}
 	vethIface := Iface{
 		IfaceName:  vethPortName,
 		OfPort:     uint32(15),
@@ -136,6 +130,31 @@ func TestOvsDbEventHandler(t *testing.T) {
 			_, err := getPort(k8sClient, bridgeName, vethPortName)
 			return err
 		}, timeout, interval).Should(Succeed())
+
+		Eventually(func() string {
+			vethport, err := getOfpPortNo(ovsClient, vethPortName)
+			if err != nil {
+				return ""
+			}
+			localEndpointLock.Lock()
+			macStr := localEndpointMap[vethport].MacAddrStr
+			localEndpointLock.Unlock()
+			return macStr
+		}, timeout, interval).Should(Equal(vethMacAddrStr))
+
+		Eventually(func() string {
+			vethport, err := getOfpPortNo(ovsClient, vethPortName)
+			if err != nil {
+				return ""
+			}
+			localEndpointLock.Lock()
+			ip := localEndpointMap[vethport].IPAddr
+			localEndpointLock.Unlock()
+			if ip == nil {
+				return ""
+			}
+			return ip.String()
+		}, timeout, interval).Should(Equal(vethIPStr))
 	})
 
 	t.Run("monitor update veth interface test", func(t *testing.T) {
