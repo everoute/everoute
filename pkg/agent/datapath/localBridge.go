@@ -318,14 +318,15 @@ func (l *LocalBridge) BridgeInit() {
 }
 
 func (l *LocalBridge) BridgeInitCNI() {
-	if l.datapathManager.AgentInfo.EnableCNI {
-		sw := l.OfSwitch
-		l.cniConntrackCommitTable, _ = sw.NewTable(CNI_CT_COMMIT_TABLE)
-		l.cniConntrackRedirectTable, _ = sw.NewTable(CNI_CT_REDIRECT_TABLE)
+	if !l.datapathManager.AgentInfo.EnableCNI {
+		return
+	}
+	sw := l.OfSwitch
+	l.cniConntrackCommitTable, _ = sw.NewTable(CNI_CT_COMMIT_TABLE)
+	l.cniConntrackRedirectTable, _ = sw.NewTable(CNI_CT_REDIRECT_TABLE)
 
-		if err := l.initCniRelatedFlow(sw); err != nil {
-			log.Fatalf("Failed to init cni related flows, error: %v", err)
-		}
+	if err := l.initCniRelatedFlow(sw); err != nil {
+		log.Fatalf("Failed to init cni related flows, error: %v", err)
 	}
 }
 
