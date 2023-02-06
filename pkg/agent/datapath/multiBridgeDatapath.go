@@ -748,7 +748,12 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 		}
 		// udpate new policy rule flow to datapath flow cache
 		datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = flowEntry
+
+		// update new flowID to policy entry map
+		datapathManager.FlowIDToRules[flowEntry.FlowID] = erPolicyRuleEntry
 	}
+	// TODO: clear except table if we support helpers
+	netlink.ConntrackTableFlush(netlink.ConntrackTable)
 
 	return nil
 }
