@@ -227,6 +227,7 @@ type DpManagerCNIConfig struct {
 }
 
 type Endpoint struct {
+	InterfaceUUID        string
 	InterfaceName        string // interface name that endpoint attached to
 	IPAddr               net.IP
 	IPAddrMutex          sync.RWMutex
@@ -794,7 +795,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
-			if ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceName); ep != nil {
+			if ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceUUID); ep != nil {
 				log.Errorf("Already added local endpoint: %v", ep)
 				return nil
 			}
@@ -803,7 +804,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 			// ovsdb interface table.
 			// if it's failed to add endpoint flow, replayVDSFlow routine would rebuild local endpoint flow according to
 			// current localEndpointDB
-			datapathManager.localEndpointDB.Set(endpoint.InterfaceName, endpoint)
+			datapathManager.localEndpointDB.Set(endpoint.InterfaceUUID, endpoint)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
@@ -826,7 +827,7 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
 		if ovsbrname == newEndpoint.BridgeName {
-			oldEP, _ := datapathManager.localEndpointDB.Get(oldEndpoint.InterfaceName)
+			oldEP, _ := datapathManager.localEndpointDB.Get(oldEndpoint.InterfaceUUID)
 			if oldEP == nil {
 				return fmt.Errorf("old local endpoint: %v not found", oldEP)
 			}
@@ -836,16 +837,16 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 			copy(learnedIP, ep.IPAddr)
 			newEndpoint.IPAddr = learnedIP
 
-			datapathManager.localEndpointDB.Remove(oldEndpoint.InterfaceName)
+			datapathManager.localEndpointDB.Remove(oldEndpoint.InterfaceUUID)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
 			if err != nil {
 				return fmt.Errorf("failed to remove old local endpoint %v from vds %v : bridge %v, error: %v", oldEndpoint.MacAddrStr, vdsID, ovsbrname, err)
 			}
 
-			if newEP, _ := datapathManager.localEndpointDB.Get(newEndpoint.InterfaceName); newEP != nil {
+			if newEP, _ := datapathManager.localEndpointDB.Get(newEndpoint.InterfaceUUID); newEP != nil {
 				return fmt.Errorf("new local endpoint: %v already exits", newEP)
 			}
-			datapathManager.localEndpointDB.Set(newEndpoint.InterfaceName, newEndpoint)
+			datapathManager.localEndpointDB.Set(newEndpoint.InterfaceUUID, newEndpoint)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %v to vds %v : bridge %v, error: %v", newEndpoint.MacAddrStr, vdsID, ovsbrname, err)
@@ -864,7 +865,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
-	ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceName)
+	ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceUUID)
 	if ep == nil {
 		return fmt.Errorf("Endpoint with interface name: %v, ofport: %v wasnot found", endpoint.InterfaceName, endpoint.PortNo)
 	}
@@ -873,7 +874,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
 		if ovsbrname == cachedEP.BridgeName {
 			// Same as addLocalEndpoint routine, keep datapath endpointDB is consistent with ovsdb
-			datapathManager.localEndpointDB.Remove(endpoint.InterfaceName)
+			datapathManager.localEndpointDB.Remove(endpoint.InterfaceUUID)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to remove local endpoint %v to vds %v : bridge %v, error: %v", endpoint.MacAddrStr, vdsID, ovsbrname, err)
