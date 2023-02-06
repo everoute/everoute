@@ -304,6 +304,9 @@ func (c *ClsBridge) RemoveSFCRule() error {
 }
 
 func (c *ClsBridge) BridgeInitCNI() {
+	if !c.datapathManager.Config.EnableCNI {
+		return
+	}
 	hairpinFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
