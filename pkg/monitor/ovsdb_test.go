@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/klog"
 )
 
 // nolint: funlen
@@ -44,7 +45,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 	}
 	newep1 := Ep{
 		MacAddrStr: ep1MacAddrStr,
-		Trunk:      "1,2",
+		Trunk:      "0,1",
 	}
 
 	t.Logf("create new bridge %s", bridgeName)
@@ -52,34 +53,55 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	// Add local endpoint, set attached interface externalIDs
 	Expect(createPort(ovsClient, bridgeName, ep1PortName, &ep1Iface)).Should(Succeed())
+	ep1OfPort, _ := getOfpPortNo(ovsClient, ep1PortName)
 
 	t.Run("Add local endpoint ep1", func(t *testing.T) {
 		Eventually(func() string {
 			localEndpointLock.Lock()
-			endpointMac := localEndpointMap[ep1Iface.OfPort].MacAddrStr
+			macStr := localEndpointMap[ep1OfPort].MacAddrStr
 			localEndpointLock.Unlock()
-			return endpointMac
-		}, timeout, interval).Should(Equal(ep1MacAddrStr))
+			return macStr
+		}, timeout, interval).Should(Equal(ep1.MacAddrStr))
 	})
 
-	Expect(updatePortToTrunk(ovsClient, ep1PortName, []int{1, 2}, uint16(1))).Should(Succeed())
+	Expect(updatePortToTrunk(ovsClient, ep1PortName, []int{0, 1}, ep1Iface.VlanID)).Should(Succeed())
 	t.Run("Update local endpoint ep1, access port to trunk port", func(t *testing.T) {
 		Eventually(func() string {
 			localEndpointLock.Lock()
-			trunks := localEndpointMap[ep1Iface.OfPort].Trunk
+			trunks := localEndpointMap[ep1OfPort].Trunk
 			localEndpointLock.Unlock()
 			return trunks
 		}, timeout, interval).Should(Equal(newep1.Trunk))
 	})
 
-	Expect(updatePortToAccess(ovsClient, ep1PortName, []int{1, 2}, uint16(1))).Should(Succeed())
+	Expect(updatePortTrunk(ovsClient, ep1PortName, []int{1, 2})).Should(Succeed())
+	t.Run("Update local endpoint ep1 trunk list", func(t *testing.T) {
+		Eventually(func() string {
+			localEndpointLock.Lock()
+			trunks := localEndpointMap[ep1OfPort].Trunk
+			localEndpointLock.Unlock()
+			return trunks
+		}, timeout, interval).Should(Equal("0,1,2"))
+	})
+
+	Expect(updatePortToAccess(ovsClient, ep1PortName, []int{0, 1, 2}, ep1Iface.VlanID)).Should(Succeed())
 	t.Run("Update local endpoint ep1, trunk port to access port", func(t *testing.T) {
 		Eventually(func() uint16 {
 			localEndpointLock.Lock()
-			vlan := localEndpointMap[ep1Iface.OfPort].VlanID
+			vlan := localEndpointMap[ep1OfPort].VlanID
 			localEndpointLock.Unlock()
 			return vlan
 		}, timeout, interval).Should(Equal(ep1.VlanID))
+	})
+
+	Expect(updatePortVlanTag(ovsClient, ep1PortName, ep1Iface.VlanID, uint16(2))).Should(Succeed())
+	t.Run("Update local endpoint ep1 trunk list", func(t *testing.T) {
+		Eventually(func() uint16 {
+			localEndpointLock.Lock()
+			vlanID := localEndpointMap[ep1OfPort].VlanID
+			localEndpointLock.Unlock()
+			return vlanID
+		}, timeout, interval).Should(Equal(uint16(2)))
 	})
 
 	// Delete local endpoint
@@ -97,10 +119,17 @@ func TestOvsDbEventHandler(t *testing.T) {
 	// Add vethpair type interface, convert to endpoint, update interface MacAddr
 	vethPortName, vethPortPeerName := rand.String(10), rand.String(10)
 	vethIfaceName := vethPortName
+	vethMacAddrStr := "00:11:11:11:11:22"
+	vethInterfaceExternalIds := map[string]string{"attached-mac": vethMacAddrStr}
+	vethIface := Iface{
+		IfaceName:  vethPortName,
+		OfPort:     uint32(15),
+		externalID: vethInterfaceExternalIds,
+	}
 
 	t.Logf("create vethpair port %s", vethPortName)
 	Expect(createVethPair(vethPortName, vethPortPeerName)).Should(Succeed())
-	Expect(createPort(ovsClient, bridgeName, vethPortName, nil)).Should(Succeed())
+	Expect(createPort(ovsClient, bridgeName, vethPortName, &vethIface)).Should(Succeed())
 
 	t.Run("monitor should create new veth port", func(t *testing.T) {
 		Eventually(func() error {
@@ -117,6 +146,7 @@ func TestOvsDbEventHandler(t *testing.T) {
 			}
 			localEndpointLock.Lock()
 			defer localEndpointLock.Unlock()
+			klog.Infof("endpoint map  %v", localEndpointMap)
 			return localEndpointMap[uint32(iface.Ofport)].MacAddrStr == iface.Mac
 		}, timeout, interval).Should(Equal(true))
 	})

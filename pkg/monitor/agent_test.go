@@ -49,8 +49,9 @@ func TestAgentMonitor(t *testing.T) {
 	})
 
 	t.Logf("create new port %s", portName)
+	vethIface := Iface{}
 	Expect(createVethPair(portName, portPeerName)).Should(Succeed())
-	Expect(createPort(ovsClient, brName, portName, nil)).Should(Succeed())
+	Expect(createPort(ovsClient, brName, portName, &vethIface)).Should(Succeed())
 
 	t.Run("monitor should create new port", func(t *testing.T) {
 		Eventually(func() error {
@@ -60,7 +61,7 @@ func TestAgentMonitor(t *testing.T) {
 	})
 
 	t.Logf("create new fake port %s", fakeportName)
-	Expect(createPort(ovsClient, brName, fakeportName, nil)).Should(Succeed())
+	Expect(createPort(ovsClient, brName, fakeportName, &vethIface)).Should(Succeed())
 
 	t.Run("monitor should create new port", func(t *testing.T) {
 		Eventually(func() error {

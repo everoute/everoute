@@ -35,6 +35,8 @@ import (
 const (
 	ovsctlScriptPath           = "/usr/share/openvswitch/scripts/ovs-ctl"
 	ovsVswitchdRestartInterval = 1
+	ifaceUUID                  = "10000000-0000-0000-0000-000000000000"
+	iface2UUID                 = "20000000-0000-0000-0000-000000000000"
 )
 
 const (
@@ -55,6 +57,7 @@ var (
 
 	ep1 = &Endpoint{
 		InterfaceName: "ep1",
+		InterfaceUUID: ifaceUUID,
 		PortNo:        uint32(11),
 		MacAddrStr:    "00:00:aa:aa:aa:aa",
 		BridgeName:    "ovsbr0",
@@ -62,6 +65,7 @@ var (
 	}
 	newep1 = &Endpoint{
 		InterfaceName: "ep1",
+		InterfaceUUID: ifaceUUID,
 		PortNo:        uint32(12),
 		MacAddrStr:    "00:00:aa:aa:aa:aa",
 		BridgeName:    "ovsbr0",
@@ -69,6 +73,7 @@ var (
 	}
 	ep2 = &Endpoint{
 		InterfaceName: "ep2",
+		InterfaceUUID: iface2UUID,
 		PortNo:        uint32(22),
 		MacAddrStr:    "00:00:aa:aa:aa:bb",
 		BridgeName:    "ovsbr0",
@@ -76,6 +81,7 @@ var (
 	}
 	newep2 = &Endpoint{
 		InterfaceName: "ep2",
+		InterfaceUUID: iface2UUID,
 		PortNo:        uint32(22),
 		MacAddrStr:    "00:00:aa:aa:aa:bb",
 		BridgeName:    "ovsbr0",
@@ -151,14 +157,14 @@ func testLocalEndpoint(t *testing.T) {
 		if err := datapathManager.AddLocalEndpoint(ep1); err != nil {
 			t.Errorf("Failed to add local endpoint %v, error: %v", ep1, err)
 		}
-		if ep, _ := datapathManager.localEndpointDB.Get(ep1.InterfaceName); ep == nil {
+		if ep, _ := datapathManager.localEndpointDB.Get(ep1.InterfaceUUID); ep == nil {
 			t.Errorf("Failed to add local endpoint, endpoint %v not found", ep1)
 		}
 
 		if err := datapathManager.UpdateLocalEndpoint(newep1, ep1); err != nil {
 			t.Errorf("Failed to udpate local endpoint: from %v to %v, error: %v", ep1, newep1, err)
 		}
-		ep, _ := datapathManager.localEndpointDB.Get(ep1.InterfaceName)
+		ep, _ := datapathManager.localEndpointDB.Get(ep1.InterfaceUUID)
 		if ep == nil {
 			t.Errorf("Failed to update local endpoint, null endpoint %v", ep1)
 		}
@@ -169,7 +175,7 @@ func testLocalEndpoint(t *testing.T) {
 		if err := datapathManager.RemoveLocalEndpoint(newep1); err != nil {
 			t.Errorf("Failed to remove local endpoint %v, error: %v", newep1, err)
 		}
-		if ep, _ := datapathManager.localEndpointDB.Get(newep1.InterfaceName); ep != nil {
+		if ep, _ := datapathManager.localEndpointDB.Get(newep1.InterfaceUUID); ep != nil {
 			t.Errorf("Failed to remove local endpoint, endpoint %v in cache", newep1)
 		}
 	})

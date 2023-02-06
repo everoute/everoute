@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ type Iface struct {
 	IfaceType  string
 	OfPort     uint32
 	VlanID     uint16
-	Trunk      string
+	Trunk      []int
 	externalID map[string]string
 }
 
@@ -155,6 +156,20 @@ func updateInterface(client *ovsdb.OvsdbClient, ifaceName string, externalIDs ma
 	return err
 }
 
+func updateInterfaceOfPort(client *ovsdb.OvsdbClient, ifaceName string, ofport uint32) error {
+	portOperation := ovsdb.Operation{
+		Op:    "update",
+		Table: "Interface",
+		Row: map[string]interface{}{
+			"ofport": ofport,
+		},
+		Where: []interface{}{[]interface{}{"name", "==", ifaceName}},
+	}
+
+	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
+	return err
+}
+
 func addOfPortIPAddress(brName string, ofPort uint32, ipAddr net.IP, ofPortIPAddressMonitorChan chan map[string]net.IP) error {
 	ofPortInfo := map[string]net.IP{fmt.Sprintf("%s-%d", brName, ofPort): ipAddr}
 	ofPortIPAddressMonitorChan <- ofPortInfo
@@ -219,15 +234,18 @@ func deleteBridge(client *ovsdb.OvsdbClient, brName string) error {
 // createPort also create an interface with the same name
 func createPort(client *ovsdb.OvsdbClient, brName, portName string, iface *Iface) error {
 	ifaceRow := make(map[string]interface{})
-	if iface == nil {
-		ifaceRow["name"] = portName
-	} else {
+	ifaceRow["name"] = portName
+	if iface.IfaceName != "" {
 		ifaceRow["name"] = iface.IfaceName
+	}
+	if iface.IfaceType != "" {
 		ifaceRow["type"] = iface.IfaceType
+	}
+	if iface.OfPort != 0 {
 		ifaceRow["ofport"] = iface.OfPort
-		if iface.externalID != nil {
-			ifaceRow["external_ids"], _ = ovsdb.NewOvsMap(iface.externalID)
-		}
+	}
+	if iface.externalID != nil {
+		ifaceRow["external_ids"], _ = ovsdb.NewOvsMap(iface.externalID)
 	}
 
 	ifaceOperation := ovsdb.Operation{
@@ -246,8 +264,11 @@ func createPort(client *ovsdb.OvsdbClient, brName, portName string, iface *Iface
 			"interfaces": ovsdb.UUID{GoUuid: "ifacedummy"},
 		},
 	}
-	if iface != nil {
+	if len(iface.Trunk) == 0 {
 		portOperation.Row["tag"] = iface.VlanID
+	} else {
+		trunkSet, _ := ovsdb.NewOvsSet(iface.Trunk)
+		portOperation.Row["trunk"] = trunkSet
 	}
 
 	mutateOperation := ovsdb.Operation{
@@ -259,6 +280,37 @@ func createPort(client *ovsdb.OvsdbClient, brName, portName string, iface *Iface
 
 	_, err := ovsdbTransact(client, "Open_vSwitch", ifaceOperation, portOperation, mutateOperation)
 	return err
+}
+
+func getOfpPortNo(client *ovsdb.OvsdbClient, intfName string) (uint32, error) {
+	retryNo := 0
+	condition := ovsdb.NewCondition("name", "==", intfName)
+	selectOp := ovsdb.Operation{
+		Op:    "select",
+		Table: "Interface",
+		Where: []interface{}{condition},
+	}
+
+	for {
+		row, err := client.Transact("Open_vSwitch", selectOp)
+
+		if err == nil && len(row) > 0 && len(row[0].Rows) > 0 {
+			value := row[0].Rows[0]["ofport"]
+			if reflect.TypeOf(value).Kind() == reflect.Float64 {
+				//retry few more time. Due to asynchronous call between
+				//port creation and populating ovsdb entry for the interface
+				//may not be populated instantly.
+				var ofpPort uint32 = uint32(reflect.ValueOf(value).Float())
+				return ofpPort, nil
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+
+		if retryNo == 5 {
+			return 0, fmt.Errorf("ofPort not found")
+		}
+		retryNo++
+	}
 }
 
 func updatePortToTrunk(client *ovsdb.OvsdbClient, portName string, trunk []int, tag uint16) error {
@@ -296,6 +348,41 @@ func updatePortToAccess(client *ovsdb.OvsdbClient, portName string, trunk []int,
 		Op:        "mutate",
 		Table:     "Port",
 		Mutations: []interface{}{[]interface{}{"tag", "insert", tag}},
+		Where:     []interface{}{[]interface{}{"name", "==", portName}},
+	})
+
+	_, err := ovsdbTransact(client, "Open_vSwitch", portOperations...)
+	return err
+}
+
+func updatePortTrunk(client *ovsdb.OvsdbClient, portName string, trunk []int) error {
+	var portOperations []ovsdb.Operation
+
+	mutateSet, _ := ovsdb.NewOvsSet(trunk)
+	portOperations = append(portOperations, ovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Port",
+		Mutations: []interface{}{[]interface{}{"trunks", "insert", mutateSet}},
+		Where:     []interface{}{[]interface{}{"name", "==", portName}},
+	})
+
+	_, err := ovsdbTransact(client, "Open_vSwitch", portOperations...)
+	return err
+}
+
+func updatePortVlanTag(client *ovsdb.OvsdbClient, portName string, oldTag, newTag uint16) error {
+	var portOperations []ovsdb.Operation
+	portOperations = append(portOperations, ovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Port",
+		Mutations: []interface{}{[]interface{}{"tag", "delete", oldTag}},
+		Where:     []interface{}{[]interface{}{"name", "==", portName}},
+	})
+
+	portOperations = append(portOperations, ovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Port",
+		Mutations: []interface{}{[]interface{}{"tag", "insert", newTag}},
 		Where:     []interface{}{[]interface{}{"name", "==", portName}},
 	})
 
