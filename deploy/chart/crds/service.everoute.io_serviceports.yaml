@@ -19,6 +19,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.svcRef
+      name: service
+      type: string
     - jsonPath: .spec.backends
       name: Backends
       type: string

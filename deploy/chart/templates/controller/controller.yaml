@@ -39,6 +39,7 @@ spec:
             - --enable-leader-election=true
             - --port=9443
             - --enable-cni=true
+            - --enable-proxy=true
             - -v=0
           readinessProbe:
             httpGet:

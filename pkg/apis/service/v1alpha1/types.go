@@ -21,11 +21,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	LabelRefEndpoints = "endpoints.service.everoute.io"
+)
+
 // +genclient
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=sp
+// +kubebuilder:printcolumn:name="service",type="string",JSONPath=".spec.svcRef"
 // +kubebuilder:printcolumn:name="Backends",type="string",JSONPath=".spec.backends"
 
 // ServicePort collect info from service endpoints
@@ -59,4 +64,49 @@ type ServicePortList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ServicePort `json:"items"`
+}
+
+func (s *ServicePort) Equal(s1 *ServicePort) bool {
+	if s == nil && s1 == nil {
+		return true
+	}
+	if s == nil || s1 == nil {
+		return false
+	}
+
+	if s.ObjectMeta.Name != s1.ObjectMeta.Name {
+		return false
+	}
+	if s.ObjectMeta.Namespace != s1.ObjectMeta.Namespace {
+		return false
+	}
+
+	if s.Spec.SvcRef != s1.Spec.SvcRef {
+		return false
+	}
+
+	if len(s.Spec.Backends) != len(s1.Spec.Backends) {
+		return false
+	}
+	if !isBackendsContains(s.Spec.Backends, s1.Spec.Backends) || !isBackendsContains(s1.Spec.Backends, s.Spec.Backends) {
+		return false
+	}
+
+	return true
+}
+
+func isBackendsContains(b []Backend, subB []Backend) bool {
+	for i := range subB {
+		exist := false
+		for j := range b {
+			if subB[i] == b[j] {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			return false
+		}
+	}
+	return true
 }
