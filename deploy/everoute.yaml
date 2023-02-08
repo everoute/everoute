@@ -1872,6 +1872,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.svcRef
+      name: service
+      type: string
     - jsonPath: .spec.backends
       name: Backends
       type: string
@@ -2047,6 +2050,7 @@ rules:
   - secrets
   - pods
   - nodes
+  - endpoints
   verbs:
   - patch
   - create
@@ -2120,7 +2124,17 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - service.everoute.io
+  resources:
+  - serviceports
+  verbs:
   - create
+  - update
+  - delete
+  - get
+  - list
+  - watch
 ---
 # Source: everoute/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2375,6 +2389,7 @@ spec:
             - --enable-leader-election=true
             - --port=9443
             - --enable-cni=true
+            - --enable-proxy=true
             - -v=0
           readinessProbe:
             httpGet:

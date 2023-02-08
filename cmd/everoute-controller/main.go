@@ -65,6 +65,7 @@ func main() {
 	var leaderElectionNamespace string
 	var towerPluginOptions towerplugin.Options
 	var enableCNI bool
+	var enableProxy bool
 
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
@@ -74,6 +75,7 @@ func main() {
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
 	flag.IntVar(&serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
 	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI related controller.")
+	flag.BoolVar(&enableProxy, "enable-proxy", false, "Enable CNI service proxy")
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
@@ -144,6 +146,16 @@ func main() {
 			klog.Fatalf("unable to create networkPolicy controller: %s", err.Error())
 		}
 		klog.Info("start networkPolicy controller")
+
+		if enableProxy {
+			if err = (&k8s.EndpointsReconcile{
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+			}).SetupWithManager(mgr); err != nil {
+				klog.Fatalf("unable to create endpoints controller: %s", err.Error())
+			}
+			klog.Info("start endpoints controller")
+		}
 	}
 
 	// register validate handle

@@ -14,6 +14,7 @@ rules:
   - secrets
   - pods
   - nodes
+  - endpoints
   verbs:
   - patch
   - create
@@ -87,4 +88,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - service.everoute.io
+  resources:
+  - serviceports
+  verbs:
   - create
+  - update
+  - delete
+  - get
+  - list
+  - watch
