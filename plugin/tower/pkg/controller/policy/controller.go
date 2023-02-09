@@ -1114,7 +1114,7 @@ func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPo
 
 	for _, policyApply := range policyApplies {
 		switch policyApply.Type {
-		case schema.SecurityPolicyTypeSelector:
+		case "", schema.SecurityPolicyTypeSelector:
 			endpointSelector, err := c.parseSelectors(policyApply.Selector)
 			if err != nil {
 				return nil, err
@@ -1131,6 +1131,8 @@ func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPo
 				return nil, err
 			}
 			applyToPeers = append(applyToPeers, peers...)
+		default:
+			return nil, fmt.Errorf("unknown policy peer type %s", policyApply.Type)
 		}
 	}
 
