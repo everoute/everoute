@@ -379,6 +379,34 @@ var _ = Describe("PolicyController", func() {
 					)
 				})
 			})
+
+			When("create SecurityPolicy with empty apply type", func() {
+				var policy *schema.SecurityPolicy
+				var ingress, egress *schema.NetworkPolicyRule
+
+				BeforeEach(func() {
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
+					policy.ApplyTo[0].Type = ""
+					ingress = NewNetworkPolicyRule("tcp", "20-80", nil, labelB, labelC)
+					egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelC)
+					policy.Ingress = append(policy.Ingress, *ingress)
+					policy.Egress = append(policy.Egress, *egress)
+
+					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
+					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+					By("wait for v1alpha1.SecurityPolicy created")
+					assertPoliciesNum(ctx, 1)
+				})
+				It("should generate expect policies", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						NewSecurityPolicyRuleIngress("tcp", "20-80", nil, labelB, labelC),
+						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
+						NewSecurityPolicyApplyPeer("", labelA, labelB),
+					)
+				})
+			})
 		})
 
 		When("create SecurityPolicy with enforce mode", func() {
