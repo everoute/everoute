@@ -41,7 +41,7 @@ spec:
             - --enable-cni=true
             - --enable-proxy=true
             - -v=0
-          readinessProbe:
+          livenessProbe:
             httpGet:
               scheme: HTTPS
               port: 9443
