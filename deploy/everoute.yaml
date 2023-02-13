@@ -2251,13 +2251,13 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-          readinessProbe:
+          livenessProbe:
             exec:
               command: ["/usr/share/openvswitch/scripts/ovs-ctl", "status"]
             initialDelaySeconds: 5
             periodSeconds: 10
             successThreshold: 1
-            failureThreshold: 3
+            failureThreshold: 5
         - name: everoute-agent
           image: everoute/release:latest
           imagePullPolicy: IfNotPresent
@@ -2272,7 +2272,7 @@ spec:
                   fieldPath: spec.nodeName
           securityContext:
             privileged: true
-          readinessProbe:
+          livenessProbe:
             httpGet:
               host: 127.0.0.1
               port: 30002
@@ -2280,7 +2280,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             successThreshold: 1
-            failureThreshold: 3
+            failureThreshold: 5
           volumeMounts:
             - name: everoute-run
               mountPath: /var/run/everoute/
@@ -2391,7 +2391,7 @@ spec:
             - --enable-cni=true
             - --enable-proxy=true
             - -v=0
-          readinessProbe:
+          livenessProbe:
             httpGet:
               scheme: HTTPS
               port: 9443
