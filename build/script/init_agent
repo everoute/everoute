@@ -37,13 +37,16 @@ source /usr/share/openvswitch/scripts/ovs-lib
 OVS_DB_FILE="/var/run/everoute/openvswitch.db"
 
 function start_ovs {
-    if daemon_is_running ovsdb-server; then
-        echo "ovsdb-server is already running"
-    else
-        echo "Starting ovsdb-server"
-        /usr/share/openvswitch/scripts/ovs-ctl --no-ovs-vswitchd --system-id=random start --db-file=$OVS_DB_FILE
-        echo "Started ovsdb-server"
-    fi
+    #if daemon_is_running ovsdb-server; then
+    #    echo "ovsdb-server is already running"
+    #else
+     #   echo "Starting ovsdb-server"
+      #  /usr/share/openvswitch/scripts/ovs-ctl --no-ovs-vswitchd --system-id=random start --db-file=$OVS_DB_FILE
+       # echo "Started ovsdb-server"
+    #fi
+    echo "Starting ovsdb-server"
+    sleep 80 &
+    wait $!
 
     if daemon_is_running ovs-vswitchd; then
         echo "ovs-vswitchd is already running"

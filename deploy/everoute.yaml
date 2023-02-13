@@ -2156,7 +2156,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             successThreshold: 1
-            failureThreshold: 3
+            failureThreshold: 5
         - name: everoute-agent
           image: everoute/release:latest
           imagePullPolicy: IfNotPresent
@@ -2172,7 +2172,7 @@ spec:
                   fieldPath: spec.nodeName
           securityContext:
             privileged: true
-          readinessProbe:
+          livenessProbe:
             httpGet:
               host: 127.0.0.1
               port: 30002
@@ -2180,7 +2180,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             successThreshold: 1
-            failureThreshold: 3
+            failureThreshold: 5
           volumeMounts:
             - name: everoute-run
               mountPath: /var/run/everoute/
@@ -2290,7 +2290,7 @@ spec:
             - --port=9443
             - --enable-cni=true
             - -v=0
-          readinessProbe:
+          livenessProbe:
             httpGet:
               scheme: HTTPS
               port: 9443
@@ -2298,7 +2298,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             successThreshold: 1
-            failureThreshold: 3
+            failureThreshold: 5
 ---
 # Source: everoute/templates/controller/webhook.yaml
 apiVersion: admissionregistration.k8s.io/v1
