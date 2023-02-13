@@ -229,8 +229,22 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		TcpFlags:     &zeroFlag,
 		TcpFlagsMask: &tcpSynMask,
 	})
-	if err := ctCommitFilterFlow.Next(sw.DropAction()); err != nil {
-		return fmt.Errorf("failed to install ct commit flow, error: %v", err)
+	if err := ctCommitFilterFlow.Next(p.ctDropTable); err != nil {
+		return fmt.Errorf("failed to install ct tcp est state flow, error: %v", err)
+	}
+
+	// drop pkt with CT_LABEL[127]=1, even if EST state
+	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype:   PROTOCOL_IP,
+		CTLabel:     &[16]byte{0x8},
+		CTLabelMask: &[16]byte{0x8},
+	})
+	if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if err := ctDropFilterFlow.Next(p.ctDropTable); err != nil {
+		return fmt.Errorf("failed to install ct drop resubmit flow, error: %v", err)
 	}
 
 	// commit normal ip packet into ct
@@ -578,6 +592,9 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			}
 		case "deny":
 			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+				return nil, err
+			}
+			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, openflow13.NewNXRange(127, 127)); err != nil {
 				return nil, err
 			}
 		default:
