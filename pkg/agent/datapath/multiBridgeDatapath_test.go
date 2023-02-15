@@ -77,7 +77,7 @@ var (
 		PortNo:        uint32(22),
 		MacAddrStr:    "00:00:aa:aa:aa:bb",
 		BridgeName:    "ovsbr0",
-		Trunk:         "0,1,2",
+		Trunk:         "0,1,2,3",
 	}
 	newep2 = &Endpoint{
 		InterfaceName: "ep2",
@@ -86,6 +86,13 @@ var (
 		MacAddrStr:    "00:00:aa:aa:aa:bb",
 		BridgeName:    "ovsbr0",
 		VlanID:        uint16(1),
+	}
+	ep3 = &Endpoint{
+		InterfaceName: "ep3",
+		PortNo:        uint32(33),
+		MacAddrStr:    "00:00:aa:aa:aa:cc",
+		BridgeName:    "ovsbr0",
+		Trunk:         "1,2,3",
 	}
 
 	rule1 = &EveroutePolicyRule{
@@ -105,14 +112,21 @@ var (
 
 	rule1Flow = `table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
-	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=load:0xb->NXM_NX_PKT_MARK[0..15],push_vlan:0x8100,set_field:4097->vlan_vid,resubmit(,10),resubmit(,15)"
+	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
-	ep2VlanInputFlow               = "table=0, priority=200,in_port=22 actions=load:0x16->NXM_NX_PKT_MARK[0..15],load:0x1->NXM_NX_REG3[0..1],resubmit(,10),resubmit(,15)"
+	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
+	ep2VlanInputFlow1              = "table=0, priority=197,in_port=22 actions=load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
+	ep2VlanFilterFlow1             = "table=1, priority=200,in_port=22,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
+	ep2VlanFilterFlow2             = "table=1, priority=200,in_port=22,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
+	vlanFilterDefaultFlow          = "table=1, priority=10 actions=drop"
 	ep2LocalToLocalFlow            = "table=5, priority=200,dl_src=00:00:aa:aa:aa:bb actions=load:0x16->NXM_OF_IN_PORT[],NORMAL"
-	newep2VlanInputFlow            = "table=0, priority=200,in_port=22 actions=load:0x16->NXM_NX_PKT_MARK[0..15],push_vlan:0x8100,set_field:4097->vlan_vid,resubmit(,10),resubmit(,15)"
+	newep2VlanInputFlow            = "table=0, priority=200,in_port=22 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	newep2LocalToLocalFlow         = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:bb actions=load:0x16->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 	fromLocalLearningFlow          = "table=10, priority=100 actions=learn(table=5,idle_timeout=300,hard_timeout=300,priority=203,NXM_OF_VLAN_TCI[0..11],NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],load:0->NXM_OF_VLAN_TCI[0..12],output:NXM_OF_IN_PORT[])"
-	fromLocalTrunkPortLearningFlow = "table=10, priority=100,reg3=0x1/0x3 actions=learn(table=5,idle_timeout=300,hard_timeout=300,priority=203,NXM_OF_VLAN_TCI[0..11],NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],output:NXM_OF_IN_PORT[])"
+	fromLocalTrunkPortLearningFlow = "table=10, priority=103,reg3=0x1/0x3 actions=learn(table=5,idle_timeout=300,hard_timeout=300,priority=203,NXM_OF_VLAN_TCI[0..11],NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],output:NXM_OF_IN_PORT[])"
+	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
+	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
+	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
 )
 
 func TestMain(m *testing.M) {
@@ -139,7 +153,7 @@ func TestDpManager(t *testing.T) {
 
 	t.Run("validate local endpoint learning flow", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{fromLocalLearningFlow, fromLocalTrunkPortLearningFlow})
+			return flowValidator([]string{fromLocalLearningFlow, fromLocalTrunkPortLearningFlow, vlanFilterDefaultFlow})
 		}, timeout, interval).Should(Succeed())
 	})
 
@@ -181,11 +195,11 @@ func testLocalEndpoint(t *testing.T) {
 	})
 
 	if err := datapathManager.AddLocalEndpoint(ep2); err != nil {
-		t.Errorf("Failed to add local endpoint %v, error: %v", ep1, err)
+		t.Errorf("Failed to add local endpoint %v, error: %v", ep2, err)
 	}
 	t.Run("validate local endpoint forwarding flow add", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{ep2LocalToLocalFlow, ep2VlanInputFlow})
+			return flowValidator([]string{ep2LocalToLocalFlow, ep2VlanInputFlow, ep2VlanInputFlow1, ep2VlanFilterFlow1, ep2VlanFilterFlow2})
 		}, timeout, interval).Should(Succeed())
 	})
 
@@ -195,6 +209,22 @@ func testLocalEndpoint(t *testing.T) {
 	t.Run("validate local endpoint forwarding flow update", func(t *testing.T) {
 		Eventually(func() error {
 			return flowValidator([]string{newep2LocalToLocalFlow, newep2VlanInputFlow})
+		}, timeout, interval).Should(Succeed())
+	})
+
+	if err := datapathManager.RemoveLocalEndpoint(newep2); err != nil {
+		t.Errorf("Failed to remove local endpoint %v, error: %v", newep2, err)
+	}
+	if ep, _ := datapathManager.localEndpointDB.Get(newep2.InterfaceName); ep != nil {
+		t.Errorf("Failed to remove local endpoint, endpoint %v in cache", newep2)
+	}
+
+	if err := datapathManager.AddLocalEndpoint(ep3); err != nil {
+		t.Errorf("Failed to add local endpoint %v, error: %v", ep3, err)
+	}
+	t.Run("validate local endpoint forwarding flow add", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator([]string{ep3VlanInputFlow1, ep3VlanFilterFlow1, ep3VlanFilterFlow2})
 		}, timeout, interval).Should(Succeed())
 	})
 }
@@ -283,7 +313,7 @@ func testFlowReplay(t *testing.T) {
 
 	t.Run("validate local endpoint flow replay", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{newep2LocalToLocalFlow, newep2VlanInputFlow})
+			return flowValidator([]string{ep1LocalToLocalFlow, ep1VlanInputFlow})
 		}, timeout, interval).Should(Succeed())
 	})
 

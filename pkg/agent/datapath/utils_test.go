@@ -140,3 +140,40 @@ func TestUintToByteBigEndian(t *testing.T) {
 
 	}
 }
+
+func TestGetVlanTrunkMask(t *testing.T) {
+	idMaskMap := map[uint16]uint16{
+		// 0x0: 0xfff,
+		// 0x03e8: 0xfff8,
+		// 0x03f0: 0xfff0,
+		// 0x0400: 0xfe00,
+		// 0x0600: 0xff00,
+		// 0x0700: 0xff80,
+		// 0x0780: 0xffc0,
+		// 0x07c0: 0xfff0,
+		0:    4095,
+		1000: 65528,
+		1008: 65520,
+		1024: 65024,
+		1536: 65280,
+		1792: 65408,
+		1920: 65472,
+		1984: 65520,
+	}
+	var trunks []uint16 = make([]uint16, 1001)
+	for i := 0; i <= 1000; i++ {
+		if i == 0 {
+			trunks[i] = uint16(0)
+			continue
+		}
+		trunks[i] = uint16(999 + i)
+	}
+
+	t.Run("trunks to trunk mask list", func(t *testing.T) {
+		actualIDMaskMap := getVlanTrunkMask(trunks)
+		if !reflect.DeepEqual(idMaskMap, actualIDMaskMap) {
+			t.Errorf("the expect value is %v, actual value is %v", idMaskMap, actualIDMaskMap)
+		}
+	})
+
+}
