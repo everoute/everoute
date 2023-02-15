@@ -35,6 +35,7 @@ import (
 //nolint
 const (
 	VLAN_INPUT_TABLE                   = 0
+	VLAN_FILTER_TABLE                  = 1
 	L2_FORWARDING_TABLE                = 5
 	L2_LEARNING_TABLE                  = 10
 	FROM_LOCAL_REDIRECT_TABLE          = 15
@@ -47,10 +48,16 @@ const (
 	CNI_CONNTRACK_ZONE                 = 65510
 )
 
+var (
+	vlanIDAndFlagMask uint16 = 0x1fff
+	VlanFlagMask      uint16 = 0x1000
+)
+
 type LocalBridge struct {
 	BaseBridge
 
 	vlanInputTable                 *ofctrl.Table // Table 0
+	vlanFilterTable                *ofctrl.Table // Table 1
 	localEndpointL2ForwardingTable *ofctrl.Table // Table 5
 	localEndpointL2LearningTable   *ofctrl.Table // table 10
 	fromLocalRedirectTable         *ofctrl.Table // Table 15
@@ -60,7 +67,8 @@ type LocalBridge struct {
 	cniConntrackRedirectTable      *ofctrl.Table // Table 105
 
 	// Table 0
-	fromLocalEndpointFlow map[uint32]*ofctrl.Flow // map local endpoint interface ofport to its fromLocalEndpointFlow
+	fromLocalEndpointFlow   map[uint32][]*ofctrl.Flow // map local endpoint interface ofport to its fromLocalEndpointFlow
+	fromLocalVlanFilterFlow map[uint32][]*ofctrl.Flow
 	// Table 5
 	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
 	learnedIPAddressMapMutex sync.RWMutex
@@ -76,7 +84,8 @@ func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 	localBridge := new(LocalBridge)
 	localBridge.name = brName
 	localBridge.datapathManager = datapathManager
-	localBridge.fromLocalEndpointFlow = make(map[uint32]*ofctrl.Flow)
+	localBridge.fromLocalEndpointFlow = make(map[uint32][]*ofctrl.Flow)
+	localBridge.fromLocalVlanFilterFlow = make(map[uint32][]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.learnedIPAddressMap = make(map[string]IPAddressReference)
 
@@ -244,6 +253,7 @@ func (l *LocalBridge) BridgeInit() {
 	sw := l.OfSwitch
 
 	l.vlanInputTable = sw.DefaultTable()
+	l.vlanFilterTable, _ = sw.NewTable(VLAN_FILTER_TABLE)
 	l.localEndpointL2ForwardingTable, _ = sw.NewTable(L2_FORWARDING_TABLE)
 	l.localEndpointL2LearningTable, _ = sw.NewTable(L2_LEARNING_TABLE)
 	l.fromLocalRedirectTable, _ = sw.NewTable(FROM_LOCAL_REDIRECT_TABLE)
@@ -252,6 +262,9 @@ func (l *LocalBridge) BridgeInit() {
 
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
+	}
+	if err := l.initVlanFilterTable(sw); err != nil {
+		log.Fatalf("Failed to init local bridge vlanFilter table, error: %v", err)
 	}
 	if err := l.initL2ForwardingTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge l2 forwarding table, error: %v", err)
@@ -601,6 +614,18 @@ func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
+// for vlan trunk port vlan id filter
+func (l *LocalBridge) initVlanFilterTable(sw *ofctrl.OFSwitch) error {
+	vlanFilterTableDefaultFlow, _ := l.vlanFilterTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := vlanFilterTableDefaultFlow.Next(sw.DropAction()); err != nil {
+		return fmt.Errorf("failed to install vlan filter table default flow, error: %v", err)
+	}
+
+	return nil
+}
+
 func (l *LocalBridge) initL2ForwardingTable(sw *ofctrl.OFSwitch) error {
 	// l2 forwarding table
 	localToLocalBUMDefaultFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
@@ -635,7 +660,7 @@ func (l *LocalBridge) initFromLocalL2LearningTable() error {
 	}
 
 	trunkPortL2LearningFlow, _ := l.localEndpointL2LearningTable.NewFlow(ofctrl.FlowMatch{
-		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+		Priority: NORMAL_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg3,
@@ -732,84 +757,23 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 
-	// Table 0, from local endpoint
-	var vlanIDMask uint16 = 0x1fff
-	vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: endpoint.PortNo,
-	})
-	if endpoint.VlanID != 0 {
-		if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
-			return err
-		}
-	}
+	// trunk port
 	if endpoint.Trunk != "" {
-		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_reg3", uint64(1),
-			openflow13.NewNXRange(0, 1)); err != nil {
-			return err
-		}
-	}
-	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-		openflow13.NewNXRange(0, 15)); err != nil {
-		return err
-	}
-	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
-		return err
-	}
-	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
-		return err
-	}
-	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return err
-	}
-	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
-	l.fromLocalEndpointFlow[endpoint.PortNo] = vlanInputTableFromLocalFlow
-
-	// Table 1, from local to local bum redirect flow
-	if endpoint.Trunk == "" {
-		endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
-		localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
-			Priority:   MID_MATCH_FLOW_PRIORITY,
-			MacSa:      &endpointMac,
-			VlanId:     endpoint.VlanID,
-			VlanIdMask: &vlanIDMask,
-		})
-		if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 12)); err != nil {
-			return err
-		}
-		if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
-			return err
-		}
-		if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
-			return err
-		}
-		log.Infof("add local to local flow: %v", localToLocalBUMFlow)
-		l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
-	} else {
-		endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
-		localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
-			Priority: MID_MATCH_FLOW_PRIORITY,
-			MacSa:    &endpointMac,
-		})
-		if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
-			return err
-		}
-		if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
-			return err
-		}
-		log.Infof("add local to local flow: %v", localToLocalBUMFlow)
-		l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
+		return l.addTrunkPortEndpoint(endpoint)
 	}
 
-	return nil
+	// access port
+	return l.addAccessPortEndpoint(endpoint)
 }
 
 func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	// remove table 0 from local endpoing flow
 	if localEndpointFlow, ok := l.fromLocalEndpointFlow[endpoint.PortNo]; ok {
 		log.Infof("remove from local endpoint flow: %v", localEndpointFlow)
-		if err := localEndpointFlow.Delete(); err != nil {
-			return err
+		for i := 0; i < len(localEndpointFlow); i++ {
+			if err := localEndpointFlow[i].Delete(); err != nil {
+				return err
+			}
 		}
 		delete(l.fromLocalEndpointFlow, endpoint.PortNo)
 	}
@@ -820,6 +784,16 @@ func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 		return err
 	}
 	delete(l.localToLocalBUMFlow, endpoint.PortNo)
+
+	if fromLocalVlanFilterFlow, ok := l.fromLocalVlanFilterFlow[endpoint.PortNo]; ok {
+		log.Infof("remove from local vlan trunk filter flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
+		for i := 0; i < len(fromLocalVlanFilterFlow); i++ {
+			if err := l.fromLocalVlanFilterFlow[endpoint.PortNo][i].Delete(); err != nil {
+				return err
+			}
+		}
+		delete(l.fromLocalVlanFilterFlow, endpoint.PortNo)
+	}
 
 	return nil
 }
@@ -845,5 +819,171 @@ func (l *LocalBridge) AddSFCRule() error {
 }
 
 func (l *LocalBridge) RemoveSFCRule() error {
+	return nil
+}
+
+func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
+	// table 0: from local vlan input
+	vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		InputPort: endpoint.PortNo,
+	})
+	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+		openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if endpoint.VlanID != 0 {
+		if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
+			return err
+		}
+	}
+	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
+		return err
+	}
+	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
+		return err
+	}
+
+	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
+	l.fromLocalEndpointFlow[endpoint.PortNo] = []*ofctrl.Flow{vlanInputTableFromLocalFlow}
+
+	// Table 5, from local to local bum redirect flow
+	endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
+	localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
+		Priority:   MID_MATCH_FLOW_PRIORITY,
+		MacSa:      &endpointMac,
+		VlanId:     endpoint.VlanID,
+		VlanIdMask: &vlanIDAndFlagMask,
+	})
+	if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 12)); err != nil {
+		return err
+	}
+	if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
+		return err
+	}
+	log.Infof("add local to local flow: %v", localToLocalBUMFlow)
+	l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
+
+	return nil
+}
+
+//nolint:funlen
+func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
+	trunks := toTrunkVlanIDs(endpoint.Trunk)
+	if trunks[0] == 0 {
+		// Table 0, from local endpoint
+		// default vlan or without vlan tag packet: 0x0/0x0fff, ofnet can't install flow with vlanID/vlanMask(0x0000/0x0fff)
+		// use 2 priority flow implement it
+		vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+			Priority:  MID_MATCH_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
+			InputPort: endpoint.PortNo,
+		})
+		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+			openflow13.NewNXRange(0, 15)); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+			return err
+		}
+		l.fromLocalEndpointFlow[endpoint.PortNo] = append(l.fromLocalEndpointFlow[endpoint.PortNo], vlanInputTableFromLocalFlow)
+
+		// Table 0
+		// packet with the vlan tag attached: 0x1000/0x1000
+		vlanInputTableFromLocalFlow1, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+			Priority:   MID_MATCH_FLOW_PRIORITY,
+			InputPort:  endpoint.PortNo,
+			VlanId:     VlanFlagMask,
+			VlanIdMask: &VlanFlagMask,
+		})
+		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+			openflow13.NewNXRange(0, 15)); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_reg3", uint64(1),
+			openflow13.NewNXRange(0, 1)); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow1.Resubmit(nil, &l.vlanFilterTable.TableId); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow1.Next(ofctrl.NewEmptyElem()); err != nil {
+			return err
+		}
+		l.fromLocalEndpointFlow[endpoint.PortNo] = append(l.fromLocalEndpointFlow[endpoint.PortNo], vlanInputTableFromLocalFlow1)
+
+		trunks = trunks[1:]
+	} else {
+		// Table 0 , all packet from port
+		vlanInputTableFromLocalFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+			Priority:  MID_MATCH_FLOW_PRIORITY,
+			InputPort: endpoint.PortNo,
+		})
+		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+			openflow13.NewNXRange(0, 15)); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_reg3", uint64(1),
+			openflow13.NewNXRange(0, 1)); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.vlanFilterTable.TableId); err != nil {
+			return err
+		}
+		if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+			return err
+		}
+		l.fromLocalEndpointFlow[endpoint.PortNo] = append(l.fromLocalEndpointFlow[endpoint.PortNo], vlanInputTableFromLocalFlow)
+	}
+
+	// Table 5, from local to local
+	endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
+	localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY,
+		MacSa:    &endpointMac,
+	})
+	if err := localToLocalBUMFlow.LoadField("nxm_of_in_port", uint64(endpoint.PortNo), openflow13.NewNXRange(0, 15)); err != nil {
+		return err
+	}
+	if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
+		return err
+	}
+	log.Infof("add local to local flow: %v", localToLocalBUMFlow)
+	l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
+
+	// Table 1 : vlan filter flow
+	// vlan trunk port vlan id filter flow, ignore default vlan && vlan 0, it use access processing logic
+	for vlanID, vlanMask := range getVlanTrunkMask(trunks) {
+		vidMask := vlanMask
+		fromLocalVlanFilterFlow, _ := l.vlanFilterTable.NewFlow(ofctrl.FlowMatch{
+			Priority:   MID_MATCH_FLOW_PRIORITY,
+			InputPort:  endpoint.PortNo,
+			VlanId:     vlanID,
+			VlanIdMask: &vidMask,
+		})
+		if err := fromLocalVlanFilterFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
+			return err
+		}
+		if err := fromLocalVlanFilterFlow.Resubmit(nil, &l.fromLocalRedirectTable.TableId); err != nil {
+			return err
+		}
+		if err := fromLocalVlanFilterFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+			return err
+		}
+		l.fromLocalVlanFilterFlow[endpoint.PortNo] = append(l.fromLocalVlanFilterFlow[endpoint.PortNo], fromLocalVlanFilterFlow)
+		log.Infof("add trunk port vlan filter flow: %v", fromLocalVlanFilterFlow)
+	}
+
 	return nil
 }

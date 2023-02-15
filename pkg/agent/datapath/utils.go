@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -223,4 +224,103 @@ func uintToByteBigEndian(src interface{}) []byte {
 	}
 
 	return res
+}
+
+// trunk string looks like "1,2,3,10,11,12,13,1000,1001,1002,1003"
+func getVlanTrunkMask(trunk []uint16) map[uint16]uint16 {
+	var vlanID2MaskMap = make(map[uint16]uint16)
+	idRange := toVlanRange(trunk)
+	for b, e := range idRange {
+		idToMask := vlanRangeToMask(b, e)
+		for id, mask := range idToMask {
+			vlanID2MaskMap[id] = mask
+		}
+	}
+
+	return vlanID2MaskMap
+}
+
+func vlanRangeToMask(begin, end uint16) map[uint16]uint16 {
+	var vlanID2MaskMap = make(map[uint16]uint16)
+
+	if begin == 0 && end == 0 {
+		vlanID2MaskMap[0] = 4095
+		return vlanID2MaskMap
+	}
+
+	var pos int
+	for begin <= end && begin != 0 {
+		var temp = begin
+		pos = 16
+		for {
+			if temp%2 == 1 {
+				break
+			}
+			temp >>= 1
+			pos--
+		}
+		for i := pos; i <= 16; i++ {
+			if end >= begin+(1<<(16-i))-1 {
+				vlanID2MaskMap[begin] = posToMask(i)
+				begin += 1 << (16 - i)
+				break
+			}
+		}
+	}
+
+	return vlanID2MaskMap
+}
+
+func toVlanRange(ids []uint16) map[uint16]uint16 {
+	var idRange = make(map[uint16]uint16)
+	var idBitMap [4096]bool
+	for _, id := range ids {
+		idBitMap[id] = true
+	}
+
+	begin := -1
+	end := -1
+	for index, bit := range idBitMap {
+		if index == 0 && bit {
+			idRange[uint16(index)] = uint16(index)
+			continue
+		}
+
+		if bit && begin == -1 {
+			begin = index
+		}
+		if bit && begin != -1 && index == len(idBitMap)-1 {
+			end = index
+		}
+		if !bit && begin != -1 {
+			end = index - 1
+		}
+		if begin != -1 && end != -1 {
+			idRange[uint16(begin)] = uint16(end)
+			begin = -1
+			end = -1
+		}
+	}
+
+	return idRange
+}
+
+func posToMask(pos int) uint16 {
+	var ret uint16 = 0xffff
+	for i := 16; i > pos; i-- {
+		ret <<= 1
+	}
+
+	return ret
+}
+
+func toTrunkVlanIDs(trunks string) []uint16 {
+	var idList []uint16
+	for _, id := range strings.Split(trunks, ",") {
+		if vid, err := strconv.ParseUint(id, 10, 16); err == nil {
+			idList = append(idList, uint16(vid))
+		}
+	}
+
+	return idList
 }
