@@ -98,7 +98,6 @@ func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
 
 func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 	var groupName = req.Name
-	var requeue bool
 
 	patch := r.groupCache.NextPatch(groupName)
 	if patch == nil {
@@ -122,10 +121,10 @@ func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 	r.groupCache.ApplyPatch(patch)
 
 	if r.groupCache.PatchLen(groupName) != 0 {
-		requeue = true
+		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
 	}
 
-	return ctrl.Result{Requeue: requeue}, nil
+	return ctrl.Result{}, nil
 }
 
 // GetCompleteRuleLister return cache.CompleteRule lister, used for debug or testing
@@ -256,7 +255,7 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	newRuleList, err := r.calculateExpectedPolicyRules(policy)
 	if isGroupNotFound(err) {
 		// wait until groupmembers created
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
 	}
 	if err != nil {
 		klog.Errorf("failed fetch new policy %s rules: %s", policy.Name, err)
