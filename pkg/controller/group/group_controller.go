@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -431,7 +432,7 @@ func (r *GroupReconciler) processEndpointGroupCreate(ctx context.Context, group 
 	}
 
 	// Requeue for create groupmembers and patches for this group.
-	return ctrl.Result{Requeue: true}, nil
+	return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
 }
 
 func (r *GroupReconciler) processEndpointGroupDelete(ctx context.Context, group *groupv1alpha1.EndpointGroup) (ctrl.Result, error) {
