@@ -42,7 +42,7 @@ import (
 
 const (
 	LocalEndpointIdentity = "attached-mac"
-	AgentInfoSyncInterval = 5
+	AgentInfoSyncInterval = 60
 )
 
 // AgentMonitor monitor agent state, update agentinfo to apiserver.
@@ -111,7 +111,42 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]
 		}
 	}
 
-	monitor.syncQueue.Add(monitor.Name())
+	// only notify sync agentinfo on new address
+	if monitor.shouldSyncOnLearnIPLocked() {
+		monitor.syncQueue.Add(monitor.Name())
+	}
+}
+
+func (monitor *AgentMonitor) shouldSyncOnLearnIPLocked() bool {
+	agentInfo := &agentv1alpha1.AgentInfo{}
+
+	err := monitor.k8sClient.Get(context.Background(), k8stypes.NamespacedName{Name: monitor.Name()}, agentInfo)
+	if err != nil {
+		// error only happens on the agentinfo not found, quickly sync
+		return true
+	}
+
+	// stats agentinfo contains ipmap count in the monitor.ipCache
+	var agentInfoContainsIPMapCount int
+
+	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, iface := range port.Interfaces {
+				cacheIPMap, ok := monitor.ipCache[fmt.Sprintf("%s-%d", bridge.Name, iface.Ofport)]
+				if !ok {
+					continue
+				}
+				for ip := range cacheIPMap {
+					if _, ok = iface.IPMap[ip]; !ok {
+						return true
+					}
+				}
+				agentInfoContainsIPMapCount++
+			}
+		}
+	}
+
+	return agentInfoContainsIPMapCount != len(monitor.ipCache)
 }
 
 func (monitor *AgentMonitor) periodicallySyncAgentInfo(cycle int, stopChan <-chan struct{}) {
