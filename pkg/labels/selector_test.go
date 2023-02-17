@@ -439,3 +439,40 @@ func TestSelectorMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectNothing(t *testing.T) {
+	matchNothing := labels.Selector{MatchNothing: true}
+
+	tests := []struct {
+		labelSet labels.Set
+	}{
+		{
+			labelSet: nil,
+		},
+		{
+			labelSet: map[string]sets.String{"": nil},
+		},
+		{
+			labelSet: map[string]sets.String{"": sets.NewString()},
+		},
+		{
+			labelSet: map[string]sets.String{"": sets.NewString("")},
+		},
+		{
+			labelSet: map[string]sets.String{"foo": sets.NewString("bar")},
+		},
+		{
+			labelSet: map[string]sets.String{"foo": sets.NewString("bar", "baz")},
+		},
+		{
+			labelSet: map[string]sets.String{"foo": sets.NewString("bar"), "foz": sets.NewString("baz")},
+		},
+	}
+
+	for index, tt := range tests {
+		t.Run(fmt.Sprintf("test%d", index), func(t *testing.T) {
+			RegisterTestingT(t)
+			Expect(matchNothing.Matches(tt.labelSet)).Should(BeFalse())
+		})
+	}
+}

@@ -972,10 +972,12 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 		}
 		// generate intra group policy
 		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), policyMode, &securityPolicy.ApplyTo[item])
-		if err != nil || policy == nil {
+		if err != nil {
 			return nil, err
 		}
-		policyList = append(policyList, *policy)
+		if policy != nil {
+			policyList = append(policyList, *policy)
+		}
 	}
 
 	return policyList, nil
@@ -1250,6 +1252,10 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 }
 
 func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*labels.Selector, error) {
+	if len(selectors) == 0 {
+		return &labels.Selector{MatchNothing: true}, nil
+	}
+
 	var matchLabels = make(map[string]string)
 	var extendMatchLabels = make(map[string][]string)
 

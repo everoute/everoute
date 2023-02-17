@@ -253,6 +253,10 @@ spec:
                       is "In", and the values array contains only "value". The requirements
                       are ANDed.
                     type: object
+                  matchNothing:
+                    description: MatchNothing does not match any labels when set to
+                      true
+                    type: boolean
                 type: object
               namespace:
                 description: "This is a namespace for select endpoints in. \n If Namespace
@@ -1013,6 +1017,10 @@ spec:
                             "key", the operator is "In", and the values array contains
                             only "value". The requirements are ANDed.
                           type: object
+                        matchNothing:
+                          description: MatchNothing does not match any labels when
+                            set to true
+                          type: boolean
                       type: object
                   type: object
                 type: array
@@ -1124,6 +1132,10 @@ spec:
                                   is "key", the operator is "In", and the values array
                                   contains only "value". The requirements are ANDed.
                                 type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
                             type: object
                           ipBlock:
                             description: IPBlock defines policy on a particular IPBlock.
@@ -1335,6 +1347,10 @@ spec:
                                   is "key", the operator is "In", and the values array
                                   contains only "value". The requirements are ANDed.
                                 type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
                             type: object
                           ipBlock:
                             description: IPBlock defines policy on a particular IPBlock.
@@ -1513,6 +1529,10 @@ spec:
                                   is "key", the operator is "In", and the values array
                                   contains only "value". The requirements are ANDed.
                                 type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
                             type: object
                           ipBlock:
                             description: IPBlock defines policy on a particular IPBlock.
@@ -1724,6 +1744,10 @@ spec:
                                   is "key", the operator is "In", and the values array
                                   contains only "value". The requirements are ANDed.
                                 type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
                             type: object
                           ipBlock:
                             description: IPBlock defines policy on a particular IPBlock.
