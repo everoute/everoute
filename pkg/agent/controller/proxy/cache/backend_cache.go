@@ -18,6 +18,10 @@ type Backend struct {
 	ServicePortRefs sets.String
 }
 
+func GenBackendKey(ip string, port int32, protocol corev1.Protocol) string {
+	return ip + "-" + strconv.Itoa(int(port)) + "-" + string(protocol)
+}
+
 func GenServicePortRef(svcNs, svcName, portName string) string {
 	return svcNs + "/" + svcName + "/" + portName
 }

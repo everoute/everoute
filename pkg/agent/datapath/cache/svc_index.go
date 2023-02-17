@@ -47,6 +47,17 @@ func (s *SvcIndex) DeleteSvcOvsInfo(svcID string) {
 	delete(s.svcMap, svcID)
 }
 
+func (s *SvcIndex) GetSvcOvsInfoAndInitIfEmpty(svcID string) *SvcOvsInfo {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.svcMap[svcID] == nil {
+		s.svcMap[svcID] = NewSvcOvsInfo(svcID)
+	}
+
+	return s.svcMap[svcID]
+}
+
 func (s *SvcIndex) GetDnatFlow(backend string) *ofctrl.Flow {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
