@@ -1248,6 +1248,11 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 }
 
 func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*labels.Selector, error) {
+	// no such semantics in tower, return error
+	if len(selectors) == 0 {
+		return nil, fmt.Errorf("at least one selector should be provide")
+	}
+
 	var matchLabels = make(map[string]string)
 	var extendMatchLabels = make(map[string][]string)
 
