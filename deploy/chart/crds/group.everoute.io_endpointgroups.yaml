@@ -122,6 +122,10 @@ spec:
                       is "In", and the values array contains only "value". The requirements
                       are ANDed.
                     type: object
+                  matchNothing:
+                    description: MatchNothing does not match any labels when set to
+                      true
+                    type: boolean
                 type: object
               namespace:
                 description: "This is a namespace for select endpoints in. \n If Namespace

@@ -35,6 +35,9 @@ type Selector struct {
 	// e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
 	// +optional
 	ExtendMatchLabels map[string][]string `json:"extendMatchLabels,omitempty"`
+
+	// MatchNothing does not match any labels when set to true
+	MatchNothing bool `json:"matchNothing,omitempty"`
 }
 
 // FromLabelSelector covert metav1.LabelSelector to Selector
@@ -78,7 +81,7 @@ func (in *Selector) IsValid() (bool, string) {
 // Matches returns true if the labelSet match the selector.
 // We suppose the selector and labelSet are valid, otherwise the result is undefined.
 func (in *Selector) Matches(labelSet Set) bool {
-	if in == nil {
+	if in == nil || in.MatchNothing {
 		return false
 	}
 
