@@ -33,6 +33,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
@@ -404,6 +405,37 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleIngress("tcp", "20-80", nil, labelB, labelC),
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
+					)
+				})
+			})
+			When("create SecurityPolicy with Selector but empty labels", func() {
+				var policy *schema.SecurityPolicy
+				var ingress, egress *schema.NetworkPolicyRule
+
+				BeforeEach(func() {
+					policy = NewSecurityPolicy(everouteCluster, false, nil)
+					ingress = NewNetworkPolicyRule("tcp", "20-80", nil, labelB, labelC)
+					egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelC)
+					policy.ApplyTo = []schema.SecurityPolicyApply{{Type: schema.SecurityPolicyTypeSelector, Communicable: true}}
+					policy.Ingress = append(policy.Ingress, *ingress)
+					policy.Egress = append(policy.Egress, *egress)
+
+					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
+					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+				})
+
+				It("should generate expect policies", func() {
+					assertPoliciesNum(ctx, 2)
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						NewSecurityPolicyRuleIngress("tcp", "20-80", nil, labelB, labelC),
+						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
+						v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
+					)
+
+					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
+						&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
+						v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
 					)
 				})
 			})
@@ -908,7 +940,7 @@ var _ = Describe("PolicyController", func() {
 	})
 
 	Context("SecurityGroup", func() {
-		var normalGroup, emptyGroup *schema.SecurityGroup
+		var normalGroup, emptyGroup, emptyLabelsGroup *schema.SecurityGroup
 		var vm *schema.VM
 		var vnicA, vnicB *schema.VMNic
 
@@ -923,13 +955,16 @@ var _ = Describe("PolicyController", func() {
 			})
 			normalGroup.VMs = append(normalGroup.VMs, schema.ObjectReference{ID: vm.ID})
 			emptyGroup = NewSecurityGroup(everouteCluster)
+			emptyLabelsGroup = NewSecurityGroup(everouteCluster)
+			emptyLabelsGroup.LabelGroups = []schema.LabelGroup{{}}
 
 			By(fmt.Sprintf("create vm %+v with vnic %+v and %+v", vm, vnicA, vnicB))
 			server.TrackerFactory().VM().CreateOrUpdate(vm)
 
-			By(fmt.Sprintf("create security group %+v %+v", normalGroup, emptyGroup))
+			By(fmt.Sprintf("create security group %+v %+v %+v", normalGroup, emptyGroup, emptyLabelsGroup))
 			server.TrackerFactory().SecurityGroup().CreateOrUpdate(normalGroup)
 			server.TrackerFactory().SecurityGroup().CreateOrUpdate(emptyGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(emptyLabelsGroup)
 		})
 
 		When("create SecurityPolicy with empty security group", func() {
@@ -1033,6 +1068,36 @@ var _ = Describe("PolicyController", func() {
 				It("should remove the security policy", func() {
 					assertPoliciesNum(ctx, 0)
 				})
+			})
+		})
+
+		When("create SecurityPolicy with empty security group and empty labels", func() {
+			var policy *schema.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = NewSecurityPolicy(everouteCluster, true, emptyGroup)
+				policy.ApplyTo = append(policy.ApplyTo, schema.SecurityPolicyApply{
+					Type:          schema.SecurityPolicyTypeSecurityGroup,
+					Communicable:  true,
+					SecurityGroup: &schema.ObjectReference{ID: emptyLabelsGroup.ID},
+				})
+				By(fmt.Sprintf("create security policy %+v", policy))
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should generate expect policies", func() {
+				assertPoliciesNum(ctx, 2)
+				assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					nil,
+					nil,
+					v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
+				)
+
+				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
+					&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
+					v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
+				)
 			})
 		})
 	})
