@@ -819,6 +819,5 @@ func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
 
 	act3 := ofctrl.NewResubmitAction(nil, &NatBrSessionAffinityLearnTable)
 	bucket.AddAction(act3)
-
 	return bucket, nil
 }
