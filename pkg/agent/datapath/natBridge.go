@@ -233,6 +233,97 @@ func (n *NatBridge) DelLBIP(svcID, ip string) error {
 	return nil
 }
 
+func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string) error {
+	if port == nil {
+		return nil
+	}
+
+	portName := port.Name
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
+
+	var err error
+	gp := svcOvsCache.GetGroup(portName)
+	if gp == nil {
+		gp, err = n.createEmptyGroup()
+		if err != nil {
+			log.Errorf("Failed to create empty group for service %s portname %s, err: %s", svcID, portName, err)
+			return err
+		}
+		svcOvsCache.SetGroup(portName, gp)
+	}
+	gpID := gp.GroupID
+
+	var lbFlows []cache.LBFlowEntry
+	for i := range ips {
+		ipDa := net.ParseIP(ips[i])
+		if ipDa == nil {
+			log.Errorf("Invalid lb ip %s for service %s", ips[i], svcID)
+			return fmt.Errorf("Invalid lb ip: %s", ips[i])
+		}
+		lbFlow, err := n.addLBFlow(&ipDa, port.Protocol, port.Port, gpID)
+		if err != nil {
+			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ips[i], portName, err)
+			return err
+		}
+		lbFlows = append(lbFlows, cache.LBFlowEntry{LBIP: ips[i], PortName: portName, Flow: lbFlow})
+	}
+	svcOvsCache.SetLBMap(lbFlows)
+
+	log.Infof("Success add lb flow for port %s, lb ips: %v, service: %s", portName, ips, svcID)
+	return nil
+}
+
+func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []string) error {
+	if port == nil {
+		return nil
+	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The service %s has no lb flow related port %+v, skip updateLBPort", svcID, *port)
+		return nil
+	}
+
+	oldLBFlowEntrys := svcOvsCache.GetLBFlowsByPortName(port.Name)
+	for i := range oldLBFlowEntrys {
+		if err := oldLBFlowEntrys[i].Flow.Delete(); err != nil {
+			log.Errorf("Failed to delete lb flow %+v for service %s port %s, err: %s", oldLBFlowEntrys[i].Flow, svcID, port.Name, err)
+			return err
+		}
+		svcOvsCache.DelLBFlow(oldLBFlowEntrys[i].LBIP, port.Name)
+	}
+
+	gp := svcOvsCache.GetGroup(port.Name)
+	if gp == nil {
+		log.Errorf("Can't find the service %s port %+v correspond group, create empty group for this portname", svcID, *port)
+		var err error
+		if gp, err = n.createEmptyGroup(); err != nil {
+			log.Errorf("Failed to create empty group for service %s port %+v, err: %s", svcID, *port, err)
+			return err
+		}
+		svcOvsCache.SetGroup(port.Name, gp)
+	}
+	gpID := gp.GroupID
+
+	newLBFlows := make([]cache.LBFlowEntry, len(ips))
+	for i := range ips {
+		ip := ips[i]
+		ipDa := net.ParseIP(ip)
+		if ipDa == nil {
+			log.Errorf("Invalid lb ip %s for service %s port %+v", ip, svcID, *port)
+			return fmt.Errorf("invalid lb ip %s for service %s port %+v", ip, svcID, *port)
+		}
+		lbFlow, err := n.addLBFlow(&ipDa, port.Protocol, port.Port, gpID)
+		if err != nil {
+			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, port.Name, err)
+			return err
+		}
+		newLBFlows = append(newLBFlows, cache.LBFlowEntry{LBIP: ip, PortName: port.Name, Flow: lbFlow})
+	}
+	svcOvsCache.SetLBMap(newLBFlows)
+	log.Infof("Success update service %s lb flow for port %+v and ips %v", svcID, *port, ips)
+	return nil
+}
+
 func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	var err error
@@ -802,7 +893,6 @@ func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
 		log.Errorf("Invalid backend ip %s", ip)
 		return nil, fmt.Errorf("invalid backend ip: %s", ip)
 	}
-
 	act1, err := ofctrl.NewNXLoadAction(BackendIPReg, ipv4ToUint64(ipByte), BackendIPRange)
 	if err != nil {
 		log.Errorf("Failed to new a NXLoadAction for backend ip %s, err: %s", ip, err)

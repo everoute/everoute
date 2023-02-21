@@ -202,6 +202,7 @@ func (r *Reconcile) processServiceUpdate(ctx context.Context, new *proxycache.Ba
 		return fmt.Errorf("missing service old or new info")
 	}
 
+	// cluster ips
 	addIPs, delIPs := old.DiffClusterIPs(new)
 	for _, ip := range addIPs {
 		if err := r.addClusterIP(ip, old); err != nil {
@@ -215,14 +216,19 @@ func (r *Reconcile) processServiceUpdate(ctx context.Context, new *proxycache.Ba
 			return err
 		}
 	}
-
 	old.ClusterIPs = new.ClusterIPs
 	if err := r.baseSvcCache.Update(old); err != nil {
 		klog.Errorf("Failed to update service %s clusterIPs to baseSvcCache, err: %s", old.SvcID, err)
 		return err
 	}
+	klog.Infof("Success process service %s clusterips update", new.SvcID)
 
-	// todo ProcessPortChange
+	if err := r.processUpdatePortOfService(new, old); err != nil {
+		klog.Errorf("Failed to process service %+v ports update, err: %s", *new, err)
+		return err
+	}
+	klog.Infof("Success process service %s ports update", new.SvcID)
+
 	// todo ProcessSessionAffinityChange
 	return nil
 }
@@ -248,6 +254,19 @@ func (r *Reconcile) deleteService(ctx context.Context, svcNamespacedName types.N
 		}
 	}
 
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range old.Ports {
+		port := old.Ports[i]
+		if port == nil {
+			continue
+		}
+		for j := range dpNatBrs {
+			if err := dpNatBrs[j].DelLBGroup(old.SvcID, port.Name); err != nil {
+				klog.Errorf("Failed to delete lb flow and group for service %s port %+v, err: %s", old.SvcID, *port, err)
+				return err
+			}
+		}
+	}
 	// todo process sessionAffinity
 
 	if err := r.baseSvcCache.Delete(old); err != nil {
@@ -290,6 +309,61 @@ func (r *Reconcile) delClusterIP(ip string, svcBase *proxycache.BaseSvc) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+	if new == nil || old == nil {
+		klog.Errorf("Missing service old or new info, old is %+v, new is %+v", old, new)
+		return fmt.Errorf("missing service old or new info")
+	}
+
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	addPorts, updPorts, delPorts := old.DiffPorts(new)
+
+	for i := range addPorts {
+		port := addPorts[i]
+		if port == nil {
+			continue
+		}
+		for j := range dpNatBrs {
+			if err := dpNatBrs[j].AddLBPort(old.SvcID, port, old.ClusterIPs); err != nil {
+				klog.Errorf("Failed to add port %+v for service %+v, err: %s", *port, *old, err)
+				return err
+			}
+		}
+	}
+	for i := range delPorts {
+		port := addPorts[i]
+		if port == nil {
+			continue
+		}
+		for j := range dpNatBrs {
+			if err := dpNatBrs[j].DelLBGroup(old.SvcID, port.Name); err != nil {
+				klog.Errorf("Failed to delete lb flow and group for service %s port %+v, err: %s", old.SvcID, *port, err)
+				return err
+			}
+		}
+	}
+	for i := range updPorts {
+		port := updPorts[i]
+		if port == nil {
+			continue
+		}
+		for j := range dpNatBrs {
+			if err := dpNatBrs[j].UpdateLBPort(old.SvcID, port, old.ClusterIPs); err != nil {
+				klog.Errorf("Failed to update lb flow for service %s port %+v, err: %s", old.SvcID, *port, err)
+				return err
+			}
+		}
+	}
+
+	old.Ports = new.Ports
+	if err := r.baseSvcCache.Update(old); err != nil {
+		klog.Errorf("Failed to update baseSvc cache for service %+v, err: %s", old, err)
+		return err
+	}
+
 	return nil
 }
 

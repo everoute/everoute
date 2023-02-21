@@ -73,10 +73,15 @@ func (s *SvcOvsInfo) DelLBFlow(lbIP, portName string) {
 
 	flowMap := s.lbMap[lbIP]
 	if flowMap == nil {
+		delete(s.lbMap, lbIP)
 		return
 	}
-
 	delete(flowMap, portName)
+
+	if len(flowMap) == 0 {
+		delete(s.lbMap, lbIP)
+	}
+	return
 }
 
 func (s *SvcOvsInfo) GetLBFlowsByIP(lbIP string) []LBFlowEntry {
@@ -95,22 +100,22 @@ func (s *SvcOvsInfo) GetLBFlowsByIP(lbIP string) []LBFlowEntry {
 	return res
 }
 
-func (s *SvcOvsInfo) GetLBFlowsByPortName(portName string) []*ofctrl.Flow {
+func (s *SvcOvsInfo) GetLBFlowsByPortName(portName string) []LBFlowEntry {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	flows := make([]*ofctrl.Flow, 0)
-	for _, v := range s.lbMap {
+	var res []LBFlowEntry
+	for ip, v := range s.lbMap {
 		if v == nil {
 			continue
 		}
 		for p, f := range v {
 			if p == portName {
-				flows = append(flows, f)
+				res = append(res, LBFlowEntry{LBIP: ip, PortName: p, Flow: f})
 			}
 		}
 	}
-	return flows
+	return res
 }
 
 func (s *SvcOvsInfo) SetLBMap(lbFlows []LBFlowEntry) {
@@ -138,7 +143,9 @@ func (s *SvcOvsInfo) DeleteLBFlowsByPortName(portName string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	for _, v := range s.lbMap {
+	ips := make([]string, 0)
+	for ip, v := range s.lbMap {
+		ips = append(ips, ip)
 		if v == nil {
 			continue
 		}
@@ -146,6 +153,12 @@ func (s *SvcOvsInfo) DeleteLBFlowsByPortName(portName string) {
 			if p == portName {
 				delete(v, portName)
 			}
+		}
+	}
+
+	for _, ip := range ips {
+		if s.lbMap[ip] == nil || len(s.lbMap) == 0 {
+			delete(s.lbMap, ip)
 		}
 	}
 }
