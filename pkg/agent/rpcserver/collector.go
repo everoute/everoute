@@ -73,6 +73,7 @@ func (c *Collector) Policy(ctx context.Context, req *v1alpha1.PolicyRequest) (*v
 			Dir:    uint32(p.Dir),
 			Action: p.Action,
 			Mode:   p.Mode,
+			FlowID: p.FlowID,
 		}
 		for _, item := range p.Item {
 			policy.Items = append(policy.Items, &v1alpha1.PolicyItem{
