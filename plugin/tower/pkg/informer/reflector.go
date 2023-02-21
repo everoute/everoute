@@ -389,7 +389,9 @@ func (t *gqlType) TypeName() string {
 
 // ListName return name plural with lower cases of the type.
 func (t *gqlType) ListName() string {
-	return pluralize.NewClient().Plural(t.TypeName())
+	p := pluralize.NewClient()
+	p.AddPluralRule("vds", "vdses")
+	return p.Plural(t.TypeName())
 }
 
 // QueryFields return the type fields as gql query fields.
