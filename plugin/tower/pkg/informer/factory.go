@@ -60,6 +60,8 @@ type SharedInformerFactory interface {
 	SecurityGroup() cache.SharedIndexInformer
 	// Service return informer for &schema.Service{}
 	Service() cache.SharedIndexInformer
+	// VDS return informer for &schema.VDS{}
+	VDS() cache.SharedIndexInformer
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
@@ -144,6 +146,11 @@ func (f *sharedInformerFactory) IsolationPolicy() cache.SharedIndexInformer {
 // SystemEndpoints implements SharedInformerFactory.SystemEndpoints
 func (f *sharedInformerFactory) SystemEndpoints() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.SystemEndpoints{})
+}
+
+// VDS implements SharedInformerFactory.VDS
+func (f *sharedInformerFactory) VDS() cache.SharedIndexInformer {
+	return f.InformerFor(&schema.VDS{})
 }
 
 // InformerFor implements SharedInformerFactory.InformerFor
