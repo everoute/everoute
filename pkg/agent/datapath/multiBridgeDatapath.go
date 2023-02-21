@@ -281,6 +281,7 @@ type PolicyInfo struct {
 	Dir    uint8
 	Action string
 	Mode   string
+	FlowID uint64
 	Item   []PolicyItem
 }
 type PolicyItem struct {
@@ -399,6 +400,7 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 				Dir:    item.Direction,
 				Action: item.EveroutePolicyRule.Action,
 				Mode:   item.Mode,
+				FlowID: id,
 			}
 			for _, p := range item.PolicyRuleReference.List() {
 				policyInfo.Item = append(policyInfo.Item, PolicyItem{
