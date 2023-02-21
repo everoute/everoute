@@ -138,10 +138,19 @@ type Host struct {
 type Nic struct {
 	ObjectMeta
 
-	Physical   bool   `json:"physical"`
-	Name       string `json:"name,omitempty"`
-	MacAddress string `json:"mac_address,omitempty"`
-	IPAddress  string `json:"ip_address,omitempty"`
+	Type       *NetworkType    `json:"type,omitempty"`
+	VDS        ObjectReference `json:"vds,omitempty"`
+	Physical   bool            `json:"physical"`
+	Name       string          `json:"name,omitempty"`
+	MacAddress string          `json:"mac_address,omitempty"`
+	IPAddress  string          `json:"ip_address,omitempty"`
+}
+
+type VDS struct {
+	ObjectMeta
+
+	Cluster ObjectReference `json:"cluster"`
+	Vlans   []Vlan          `json:"vlans,omitempty"`
 }
 
 type ELFCluster struct {
