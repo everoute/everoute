@@ -33,20 +33,6 @@ func (s *SvcIndex) GetSvcOvsInfo(svcID string) *SvcOvsInfo {
 	return s.svcMap[svcID]
 }
 
-func (s *SvcIndex) SetSvcOvsInfo(svcID string, svcOvs *SvcOvsInfo) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.svcMap[svcID] = svcOvs
-}
-
-func (s *SvcIndex) DeleteSvcOvsInfo(svcID string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	delete(s.svcMap, svcID)
-}
-
 func (s *SvcIndex) GetSvcOvsInfoAndInitIfEmpty(svcID string) *SvcOvsInfo {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -56,6 +42,13 @@ func (s *SvcIndex) GetSvcOvsInfoAndInitIfEmpty(svcID string) *SvcOvsInfo {
 	}
 
 	return s.svcMap[svcID]
+}
+
+func (s *SvcIndex) DeleteSvcOvsInfo(svcID string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	delete(s.svcMap, svcID)
 }
 
 func (s *SvcIndex) GetDnatFlow(backend string) *ofctrl.Flow {

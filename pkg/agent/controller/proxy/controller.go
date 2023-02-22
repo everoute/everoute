@@ -147,10 +147,11 @@ func (r *Reconcile) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Reconcile) updateService(ctx context.Context, newService *corev1.Service) error {
-	if newService == nil {
-		return nil
-	}
 	new := proxycache.ServiceToBaseSvc(newService)
+	if new == nil {
+		klog.Errorf("Failed to transfer service %+v to baseSvc cache", newService)
+		return fmt.Errorf("failed to transfer service %+v to baseSvc cache", newService)
+	}
 
 	baseSvcID := proxycache.GenSvcID(newService.Namespace, newService.Name)
 	oldObj, oldExists, err := r.baseSvcCache.GetByKey(baseSvcID)
@@ -186,10 +187,8 @@ func (r *Reconcile) processServiceAdd(ctx context.Context, new *proxycache.BaseS
 		}
 	}
 
-	// todo process sessionAffinity
-
 	if err := r.baseSvcCache.Add(new); err != nil {
-		klog.Errorf("Failed to add to baseSvcCache")
+		klog.Errorf("Failed to add %+v to baseSvcCache", new)
 		return err
 	}
 
@@ -223,52 +222,44 @@ func (r *Reconcile) processServiceUpdate(ctx context.Context, new *proxycache.Ba
 	}
 	klog.Infof("Success process service %s clusterips update", new.SvcID)
 
+	// ports
 	if err := r.processUpdatePortOfService(new, old); err != nil {
 		klog.Errorf("Failed to process service %+v ports update, err: %s", *new, err)
 		return err
 	}
 	klog.Infof("Success process service %s ports update", new.SvcID)
 
-	// todo ProcessSessionAffinityChange
+	// session affinity
+	if err := r.processUpdateSessionAffinityOfService(new, old); err != nil {
+		klog.Errorf("Failed to process service %+v session affinity config update, err: %s", *new, err)
+		return err
+	}
+	klog.Infof("Success process service %s session affinity config update", new.SvcID)
+
 	return nil
 }
 
 func (r *Reconcile) deleteService(ctx context.Context, svcNamespacedName types.NamespacedName) error {
 	baseSvcID := proxycache.GenSvcID(svcNamespacedName.Namespace, svcNamespacedName.Name)
+
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range dpNatBrs {
+		if err := dpNatBrs[i].DelService(baseSvcID); err != nil {
+			klog.Errorf("failed to delete service %s in dp, err: %s", svcNamespacedName, err)
+			return err
+		}
+	}
+
 	oldObj, exists, err := r.baseSvcCache.GetByKey(baseSvcID)
 	if err != nil {
 		klog.Errorf("Failed to get baseSvcCache for service: %v, err: %s", svcNamespacedName, err)
 		return err
 	}
-
 	if !exists || oldObj == nil {
 		klog.Infof("The service %v has been delete in baseSvcCache", svcNamespacedName)
 		return nil
 	}
-
 	old := oldObj.(*proxycache.BaseSvc)
-	for _, ip := range old.ClusterIPs {
-		if err := r.delClusterIP(ip, old); err != nil {
-			klog.Errorf("Delete service %s failed: %s", old.SvcID, err)
-			return err
-		}
-	}
-
-	dpNatBrs := r.DpMgr.GetNatBridges()
-	for i := range old.Ports {
-		port := old.Ports[i]
-		if port == nil {
-			continue
-		}
-		for j := range dpNatBrs {
-			if err := dpNatBrs[j].DelLBGroup(old.SvcID, port.Name); err != nil {
-				klog.Errorf("Failed to delete lb flow and group for service %s port %+v, err: %s", old.SvcID, *port, err)
-				return err
-			}
-		}
-	}
-	// todo process sessionAffinity
-
 	if err := r.baseSvcCache.Delete(old); err != nil {
 		klog.Errorf("Failed to delete service %s from baseSvcCache, err: %s", old.SvcID, err)
 		return err
@@ -289,7 +280,7 @@ func (r *Reconcile) addClusterIP(ip string, baseSvc *proxycache.BaseSvc) error {
 				ports = append(ports, baseSvc.Ports[pname])
 			}
 		}
-		if err := dpNatBr.AddLBIP(baseSvc.SvcID, ip, ports); err != nil {
+		if err := dpNatBr.AddLBIP(baseSvc.SvcID, ip, ports, baseSvc.SessionAffinityTimeout); err != nil {
 			klog.Errorf("Failed to add service clusterIP related flow, clusterIP: %s, err: %s", ip, err)
 			return err
 		}
@@ -327,7 +318,7 @@ func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *pro
 			continue
 		}
 		for j := range dpNatBrs {
-			if err := dpNatBrs[j].AddLBPort(old.SvcID, port, old.ClusterIPs); err != nil {
+			if err := dpNatBrs[j].AddLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout); err != nil {
 				klog.Errorf("Failed to add port %+v for service %+v, err: %s", *port, *old, err)
 				return err
 			}
@@ -339,7 +330,7 @@ func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *pro
 			continue
 		}
 		for j := range dpNatBrs {
-			if err := dpNatBrs[j].DelLBGroup(old.SvcID, port.Name); err != nil {
+			if err := dpNatBrs[j].DelLBPort(old.SvcID, port.Name); err != nil {
 				klog.Errorf("Failed to delete lb flow and group for service %s port %+v, err: %s", old.SvcID, *port, err)
 				return err
 			}
@@ -351,7 +342,7 @@ func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *pro
 			continue
 		}
 		for j := range dpNatBrs {
-			if err := dpNatBrs[j].UpdateLBPort(old.SvcID, port, old.ClusterIPs); err != nil {
+			if err := dpNatBrs[j].UpdateLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout); err != nil {
 				klog.Errorf("Failed to update lb flow for service %s port %+v, err: %s", old.SvcID, *port, err)
 				return err
 			}
@@ -364,6 +355,55 @@ func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *pro
 		return err
 	}
 
+	return nil
+}
+
+func (r *Reconcile) processUpdateSessionAffinityOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+	if new == nil || old == nil {
+		klog.Errorf("Missing service old or new info, old is %+v, new is %+v", old, new)
+		return fmt.Errorf("missing service old or new info")
+	}
+
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	if old.ChangeAffinityMode(new) {
+		if new.SessionAffinity == corev1.ServiceAffinityNone {
+			for i := range dpNatBrs {
+				if err := dpNatBrs[i].DelSessionAffinity(new.SvcID); err != nil {
+					klog.Errorf("Failed to update service %s session affinity config to 'None', err: %s", new.SvcID, err)
+					return err
+				}
+			}
+		} else {
+			if new.SessionAffinityTimeout <= 0 {
+				klog.Errorf("Invalid SessionAffinityTimeout %d", new.SessionAffinityTimeout)
+			} else {
+				timeout := new.SessionAffinityTimeout
+				for i := range dpNatBrs {
+					if err := dpNatBrs[i].AddSessionAffinity(new.SvcID, new.ClusterIPs, new.ListPorts(), timeout); err != nil {
+						klog.Errorf("Failed to update service %s session affinity config to 'ClientIP' with session affinitytiemout %d, err: %s", new.SvcID, timeout, err)
+						return err
+					}
+				}
+			}
+		}
+	} else {
+		if new.SessionAffinity == corev1.ServiceAffinityClientIP && old.ChangeAffinityTimeout(new) {
+			timeout := new.SessionAffinityTimeout
+			for i := range dpNatBrs {
+				if err := dpNatBrs[i].UpdateSessionAffinityTimeout(new.SvcID, new.ClusterIPs, new.ListPorts(), timeout); err != nil {
+					klog.Errorf("Failed to update service %s session affinity config to 'ClientIP' with session affinitytiemout %d, err: %s", new.SvcID, timeout, err)
+					return err
+				}
+			}
+		}
+	}
+
+	old.SessionAffinity = new.SessionAffinity
+	old.SessionAffinityTimeout = new.SessionAffinityTimeout
+	if err := r.baseSvcCache.Update(old); err != nil {
+		klog.Errorf("Failed to update %+v to baseSvc cache, err: %s", *old, err)
+		return err
+	}
 	return nil
 }
 
@@ -584,7 +624,7 @@ func (r *Reconcile) deleteServicePort(ctx context.Context, namespacedName types.
 
 	wg.Wait()
 
-	if err1 == nil || err2 == nil {
+	if err1 != nil || err2 != nil {
 		return fmt.Errorf("deleteServicePortForGroup err is %s, deleteServicePortForBackend err is %s", err1, err2)
 	}
 

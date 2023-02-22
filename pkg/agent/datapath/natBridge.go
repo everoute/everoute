@@ -68,8 +68,6 @@ var (
 	ProtocolLength          uint16 = 8
 	PortLength              uint16 = 16
 	ChooseBackendFlagLength uint16 = 1
-
-	LearnActionTimeout uint16 = 300
 )
 
 const (
@@ -166,26 +164,21 @@ func (n *NatBridge) GetSvcIndexCache() *cache.SvcIndex {
 	return n.svcIndexCache
 }
 
-func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port) error {
+func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port, sessionAffinityTimeout int32) error {
 	ipDa := net.ParseIP(ip)
 	if ipDa == nil {
 		log.Errorf("Invalid lb ip %s for service %s", ip, svcID)
 		return fmt.Errorf("invalid lb ip: %s", ip)
 	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 
-	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
-		n.svcIndexCache.SetSvcOvsInfo(svcID, cache.NewSvcOvsInfo(svcID))
-	}
-	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
-
-	var lbFlows []cache.LBFlowEntry
 	for i := range ports {
 		if ports[i] == nil {
 			continue
 		}
 		portName := ports[i].Name
 		if svcOvsCache.GetLBFlow(ip, portName) != nil {
-			log.Infof("The lb flow has been installed for service: %s, lbip: %s, portname: %s, skip", svcID, ip, portName)
+			log.Infof("The lb flow has been installed for service: %s, lbip: %s, portname: %s, skip create it", svcID, ip, portName)
 			continue
 		}
 		if svcOvsCache.GetGroup(portName) == nil {
@@ -202,10 +195,30 @@ func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port) error {
 			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, portName, err)
 			return err
 		}
-		lbFlows = append(lbFlows, cache.LBFlowEntry{LBIP: ip, PortName: portName, Flow: lbFlow})
+		svcOvsCache.SetLBFlow(ip, portName, lbFlow)
 	}
-	svcOvsCache.SetLBMap(lbFlows)
-	// todo process sessionAffinity
+
+	if sessionAffinityTimeout <= 0 {
+		log.Infof("Dp success AddLBIP for service %s ip %s", svcID, ip)
+		return nil
+	}
+	for i := range ports {
+		if ports[i] == nil {
+			continue
+		}
+		portName := ports[i].Name
+		if svcOvsCache.GetSessionAffinityFlow(ip, portName) != nil {
+			log.Infof("The session affinity flow has been installed for service %s, lb ip %s, port %s, skip create it", svcID, ip, portName)
+			continue
+		}
+		sessionFlow, err := n.addSessionAffinityFlow(ipDa, ports[i].Protocol, ports[i].Port, sessionAffinityTimeout)
+		if err != nil {
+			log.Errorf("Failed to add a session affinity flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, portName, err)
+			return err
+		}
+		svcOvsCache.SetSessionAffinityFlow(ip, portName, sessionFlow)
+	}
+	log.Infof("Dp success AddLBIP for service %s ip %s", svcID, ip)
 	return nil
 }
 
@@ -223,17 +236,75 @@ func (n *NatBridge) DelLBIP(svcID, ip string) error {
 
 	lbFlows := svcOvsCache.GetLBFlowsByIP(ip)
 	for i := range lbFlows {
-		if err := lbFlows[i].Flow.Delete(); err != nil {
-			log.Errorf("Delete lb flow failed for lb ip: %s, svcID: %s, flow: %+v, err: %s", ip, svcID, lbFlows[i], err)
+		curEntry := lbFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Delete lb flow failed for lb ip: %s, port: %s, svcID: %s, flow: %+v, err: %s", ip, curEntry.PortName, curEntry.Flow, err)
 			return err
 		}
-		svcOvsCache.DelLBFlow(ip, lbFlows[i].PortName)
+		svcOvsCache.SetLBFlow(ip, curEntry.PortName, nil)
 	}
-	// todo process sessionAffinity
+
+	sessionAffinityFlows := svcOvsCache.GetSessionAffinityFlowsByIP(ip)
+	for i := range sessionAffinityFlows {
+		curEntry := sessionAffinityFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Delete session affinity flow failed for lb ip: %s, port: %s, svcID: %s, flow: %+v, err: %s", ip, curEntry.PortName, curEntry.Flow, err)
+			return err
+		}
+		svcOvsCache.SetSessionAffinityFlow(ip, curEntry.PortName, nil)
+	}
+
+	log.Infof("Dp success DelLBIP for service %s ip %s", svcID, ip)
 	return nil
 }
 
-func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string) error {
+func (n *NatBridge) DelService(svcID string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The service %s related ovs flow and group has been deleted, skip delete the service", svcID)
+		return nil
+	}
+
+	lbFlows := svcOvsCache.GetAllLBFlows()
+	for i := range lbFlows {
+		curEntry := lbFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Failed to delete lb flow for service %s ip %s port %s, err: %s", svcID, curEntry.LBIP, curEntry.PortName, err)
+			return err
+		}
+		svcOvsCache.SetLBFlow(curEntry.LBIP, curEntry.PortName, nil)
+	}
+
+	groups := svcOvsCache.GetAllGroups()
+	for i := range groups {
+		curEntry := groups[i]
+		if curEntry.Group == nil {
+			continue
+		}
+		curEntry.Group.Delete()
+	}
+	svcOvsCache.DeleteAllGroup()
+
+	if err := n.DelSessionAffinity(svcID); err != nil {
+		log.Errorf("Failed to delete session affinity flows for service %s, err: %s", svcID, err)
+		return err
+	}
+
+	n.svcIndexCache.DeleteSvcOvsInfo(svcID)
+	log.Infof("Dp success delete service %s", svcID)
+	return nil
+}
+
+func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32) error {
 	if port == nil {
 		return nil
 	}
@@ -253,74 +324,96 @@ func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string)
 	}
 	gpID := gp.GroupID
 
-	var lbFlows []cache.LBFlowEntry
 	for i := range ips {
 		ipDa := net.ParseIP(ips[i])
 		if ipDa == nil {
 			log.Errorf("Invalid lb ip %s for service %s", ips[i], svcID)
 			return fmt.Errorf("Invalid lb ip: %s", ips[i])
 		}
+		if svcOvsCache.GetLBFlow(ips[i], portName) != nil {
+			log.Infof("The lb flow for service %s ip %s port %s has been installed, skip create it", svcID, ips[i], portName)
+			continue
+		}
 		lbFlow, err := n.addLBFlow(&ipDa, port.Protocol, port.Port, gpID)
 		if err != nil {
 			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ips[i], portName, err)
 			return err
 		}
-		lbFlows = append(lbFlows, cache.LBFlowEntry{LBIP: ips[i], PortName: portName, Flow: lbFlow})
+		svcOvsCache.SetLBFlow(ips[i], portName, lbFlow)
 	}
-	svcOvsCache.SetLBMap(lbFlows)
 
-	log.Infof("Success add lb flow for port %s, lb ips: %v, service: %s", portName, ips, svcID)
+	if sessionAffinityTimeout <= 0 {
+		log.Infof("Dp success AddLBPort for service %s port %s", svcID, portName)
+		return nil
+	}
+	for i := range ips {
+		ipDa := net.ParseIP(ips[i])
+		if ipDa == nil {
+			log.Errorf("Invalid lb ip %s for service %s", ips[i], svcID)
+			return fmt.Errorf("Invalid lb ip: %s", ips[i])
+		}
+		if svcOvsCache.GetSessionAffinityFlow(ips[i], portName) != nil {
+			log.Infof("The session affinity flow for service %s ip %s port %s has been installed, skip create it", svcID, ips[i], portName)
+			continue
+		}
+		sessionFlow, err := n.addSessionAffinityFlow(ipDa, port.Protocol, port.Port, sessionAffinityTimeout)
+		if err != nil {
+			log.Errorf("Failed to add session affinity flow for service %s ip %s, port %s, err: %s", svcID, ips[i], portName, err)
+			return err
+		}
+		svcOvsCache.SetSessionAffinityFlow(ips[i], portName, sessionFlow)
+	}
+
+	log.Infof("Dp success AddLBPort for service %s port %s", svcID, portName)
 	return nil
 }
 
-func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []string) error {
+func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32) error {
 	if port == nil {
 		return nil
 	}
-	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
-	if svcOvsCache == nil {
-		log.Infof("The service %s has no lb flow related port %+v, skip updateLBPort", svcID, *port)
-		return nil
-	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 
+	// delete old flows
 	oldLBFlowEntrys := svcOvsCache.GetLBFlowsByPortName(port.Name)
 	for i := range oldLBFlowEntrys {
 		if err := oldLBFlowEntrys[i].Flow.Delete(); err != nil {
-			log.Errorf("Failed to delete lb flow %+v for service %s port %s, err: %s", oldLBFlowEntrys[i].Flow, svcID, port.Name, err)
+			log.Errorf("Failed to delete old lb flow %+v for service %s port %s, err: %s", oldLBFlowEntrys[i].Flow, svcID, port.Name, err)
 			return err
 		}
-		svcOvsCache.DelLBFlow(oldLBFlowEntrys[i].LBIP, port.Name)
+		svcOvsCache.SetLBFlow(oldLBFlowEntrys[i].LBIP, port.Name, nil)
+	}
+	if err := n.delSessionAffinityFlowsByPortName(svcID, port.Name); err != nil {
+		log.Errorf("Failed to delete old session affinity flow for service %s port %s, err: %s", svcID, port.Name, err)
+		return err
 	}
 
-	gp := svcOvsCache.GetGroup(port.Name)
-	if gp == nil {
-		log.Errorf("Can't find the service %s port %+v correspond group, create empty group for this portname", svcID, *port)
-		var err error
-		if gp, err = n.createEmptyGroup(); err != nil {
-			log.Errorf("Failed to create empty group for service %s port %+v, err: %s", svcID, *port, err)
-			return err
-		}
-		svcOvsCache.SetGroup(port.Name, gp)
+	// add new flows
+	if err := n.AddLBPort(svcID, port, ips, sessionAffinityTimeout); err != nil {
+		log.Errorf("Failed to add new flow for service %s update port %+v, err: %s", svcID, *port, err)
+		return err
 	}
-	gpID := gp.GroupID
+	log.Infof("Dp success UpdateLBPort for service %s port %s", svcID, port.Name)
+	return nil
+}
 
-	newLBFlows := make([]cache.LBFlowEntry, len(ips))
-	for i := range ips {
-		ip := ips[i]
-		ipDa := net.ParseIP(ip)
-		if ipDa == nil {
-			log.Errorf("Invalid lb ip %s for service %s port %+v", ip, svcID, *port)
-			return fmt.Errorf("invalid lb ip %s for service %s port %+v", ip, svcID, *port)
-		}
-		lbFlow, err := n.addLBFlow(&ipDa, port.Protocol, port.Port, gpID)
-		if err != nil {
-			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, port.Name, err)
-			return err
-		}
-		newLBFlows = append(newLBFlows, cache.LBFlowEntry{LBIP: ip, PortName: port.Name, Flow: lbFlow})
+func (n *NatBridge) DelLBPort(svcID, portName string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The Service %s has no related ovs flow and group for port %s", svcID, portName)
+		return nil
 	}
-	svcOvsCache.SetLBMap(newLBFlows)
-	log.Infof("Success update service %s lb flow for port %+v and ips %v", svcID, *port, ips)
+	if err := n.DelLBGroup(svcID, portName); err != nil {
+		log.Errorf("Failed to delete service port related flow and group for service %s port %s, err: %s", svcID, portName, err)
+		return err
+	}
+
+	if err := n.delSessionAffinityFlowsByPortName(svcID, portName); err != nil {
+		log.Errorf("Failed to delete session affinity flow for service %s port %s, err: %s", svcID, portName, err)
+		return err
+	}
+
+	log.Infof("Dp success DelLBPort for service %s port %s", svcID, portName)
 	return nil
 }
 
@@ -381,7 +474,7 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	}
 	if svcOvsCache.GetGroup(portName) != nil {
 		svcOvsCache.GetGroup(portName).Delete()
-		svcOvsCache.DeleteGroup(portName)
+		svcOvsCache.SetGroup(portName, nil)
 	}
 	// when a group is deleted, the flow referenced it will be deleted automatically
 	svcOvsCache.DeleteLBFlowsByPortName(portName)
@@ -468,6 +561,79 @@ func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32)
 	return nil
 }
 
+func (n *NatBridge) DelSessionAffinity(svcID string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The service %s has no session affinity flow, skip delete session affinity", svcID)
+		return nil
+	}
+	sessionFlows := svcOvsCache.GetAllSessionAffinityFlows()
+	for i := range sessionFlows {
+		curEntry := sessionFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Failed to delete session affinity flow for service %s ip %s port %s, err: %s", svcID, curEntry.LBIP, curEntry.PortName, err)
+			return err
+		}
+		svcOvsCache.SetSessionAffinityFlow(curEntry.LBIP, curEntry.PortName, nil)
+	}
+
+	log.Infof("Dp success DelSessionAffinity for service %s", svcID)
+	return nil
+}
+
+func (n *NatBridge) AddSessionAffinity(svcID string, ips []string, ports []*proxycache.Port, sessionAffinityTimeout int32) error {
+	if sessionAffinityTimeout <= 0 {
+		log.Errorf("Invalid sessionAffinityTimeout %d", sessionAffinityTimeout)
+		return fmt.Errorf("invalid sessionAffinityTimeout %d", sessionAffinityTimeout)
+	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
+	for i := range ips {
+		ip := ips[i]
+		ipByte := net.ParseIP(ip)
+		if ipByte == nil {
+			log.Errorf("Invalid dnat ip %s", ip)
+			return fmt.Errorf("invalid dnat ip: %s", ip)
+		}
+		for j := range ports {
+			port := ports[j]
+			if port == nil {
+				continue
+			}
+			flow, err := n.addSessionAffinityFlow(ipByte, port.Protocol, port.Port, sessionAffinityTimeout)
+			if err != nil {
+				log.Errorf("Failed to add session affinity flow for service %s ip %s port %s, err: %s", svcID, ip, port.Name, err)
+				return err
+			}
+			svcOvsCache.SetSessionAffinityFlow(ip, port.Name, flow)
+		}
+	}
+	log.Infof("Dp seccess AddSessionAffinity for service %s, sessionAffinityTimeout %d", svcID, sessionAffinityTimeout)
+	return nil
+}
+
+func (n *NatBridge) UpdateSessionAffinityTimeout(svcID string, ips []string, ports []*proxycache.Port, sessionAffinityTimeout int32) error {
+	if err := n.DelSessionAffinity(svcID); err != nil {
+		log.Errorf("Failed to delete old session affinity flows for update service %s SessionAffinityTimeout to %d, err: %s", svcID, sessionAffinityTimeout, err)
+		return err
+	}
+
+	if sessionAffinityTimeout <= 0 {
+		log.Infof("Dp success UpdateSessionAffinityTimeout for service %s, updated sessionAffinityTimeout %d", svcID, sessionAffinityTimeout)
+		return nil
+	}
+
+	if err := n.AddSessionAffinity(svcID, ips, ports, sessionAffinityTimeout); err != nil {
+		log.Errorf("Failed to add new session affinity flows for update service %s SessionAffinityTimeout to %d, err: %s", svcID, sessionAffinityTimeout, err)
+		return err
+	}
+
+	log.Infof("Dp success UpdateSessionAffinityTimeout for service %s, updated sessionAffinityTimeout %d", svcID, sessionAffinityTimeout)
+	return nil
+}
+
 func (n *NatBridge) addLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32, gpID uint32) (*ofctrl.Flow, error) {
 	newFlow, err := n.newLBFlow(ipDa, protocol, port)
 	if err != nil {
@@ -541,6 +707,27 @@ func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
 		return nil, err
 	}
 	return newGp, nil
+}
+
+func (n *NatBridge) delSessionAffinityFlowsByPortName(svcID, portName string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		return nil
+	}
+	sessionFlows := svcOvsCache.GetSessionAffinityFlowsByPortName(portName)
+	for i := range sessionFlows {
+		curEntry := sessionFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Failed to delete session affinity flow for service %s port %s, err: %s", svcID, portName, err)
+			return err
+		}
+		svcOvsCache.SetSessionAffinityFlow(curEntry.LBIP, portName, nil)
+	}
+
+	return nil
 }
 
 func (n *NatBridge) initInputTable() error {
@@ -738,7 +925,7 @@ func (n *NatBridge) initServiceLBTable() error {
 	return nil
 }
 
-func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8) (*ofctrl.LearnAction, error) {
+func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, learnActionTimeout int32) (*ofctrl.LearnAction, error) {
 	ethTypeField := ofctrl.LearnField{Name: "nxm_of_eth_type", Start: 0}
 	ipSrcField := ofctrl.LearnField{Name: "nxm_of_ip_src", Start: 0}
 	ipDstField := ofctrl.LearnField{Name: "nxm_of_ip_dst", Start: 0}
@@ -755,7 +942,7 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8) (*of
 	if err != nil {
 		return nil, err
 	}
-	learnAct := ofctrl.NewLearnAction(NatBrSessionAffinityTable, MID_MATCH_FLOW_PRIORITY, 0, LearnActionTimeout, 0, 0, cookieID)
+	learnAct := ofctrl.NewLearnAction(NatBrSessionAffinityTable, MID_MATCH_FLOW_PRIORITY, 0, uint16(learnActionTimeout), 0, 0, cookieID)
 	learnAct.SetDeleteLearned()
 
 	if err := learnAct.AddLearnedMatch(&ethTypeField, EtherTypeLength, nil, uintToByteBigEndian(uint16(PROTOCOL_IP))); err != nil {
@@ -801,47 +988,83 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8) (*of
 	return learnAct, nil
 }
 
-func (n *NatBridge) initLearnFlowOfSessionAffinityLearnTable(ipProto uint8) error {
-	flow, err := n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
-		IpProto:   ipProto,
-	})
-	if err != nil {
-		log.Errorf("Failed to new flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
-		return err
-	}
-	learnAct, err := n.buildLearnActOfSessionAffinityLearnTable(ipProto)
-	if err != nil {
-		log.Errorf("Failed to build a learn action: %s", err)
-		return err
-	}
-	if err = flow.Learn(learnAct); err != nil {
-		log.Errorf("Failed to add learn action to flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
-		return err
-	}
-	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
-		return err
-	}
-	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
-		return err
+func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, protocol corev1.Protocol, dstPort int32, sessionAffinityTimeout int32) (*ofctrl.Flow, error) {
+	var flow *ofctrl.Flow
+	var ipProto uint8
+	var err error
+	switch protocol {
+	case corev1.ProtocolTCP:
+		ipProto = PROTOCOL_TCP
+		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        ipProto,
+			IpDa:           &dstIP,
+			IpDaMask:       &IPMaskMatchFullBit,
+			TcpDstPort:     uint16(dstPort),
+			TcpDstPortMask: PortMaskMatchFullBit,
+		})
+		if err != nil {
+			log.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+			return nil, err
+		}
+	case corev1.ProtocolUDP:
+		ipProto = PROTOCOL_UDP
+		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        ipProto,
+			IpDa:           &dstIP,
+			IpDaMask:       &IPMaskMatchFullBit,
+			UdpDstPort:     uint16(dstPort),
+			UdpDstPortMask: PortMaskMatchFullBit,
+		})
+		if err != nil {
+			log.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+			return nil, err
+		}
+	default:
+		log.Errorf("Unsupport service protocol %s", protocol)
+		return nil, fmt.Errorf("unsupport service protocol %s", protocol)
 	}
 
-	return nil
+	learnAct, err := n.buildLearnActOfSessionAffinityLearnTable(ipProto, sessionAffinityTimeout)
+	if err != nil {
+		log.Errorf("Failed to build a learn action: %s", err)
+		return nil, err
+	}
+	if err = flow.Learn(learnAct); err != nil {
+		log.Errorf("Failed to add learn action to session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+		return nil, err
+	}
+	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
+		log.Errorf("Failed to add a resubmit action to session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+		return nil, err
+	}
+	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install session affinity flow %+v for ip %s protocol %s port %d: %s", flow, dstIP, protocol, dstPort, err)
+		return nil, err
+	}
+
+	return flow, nil
 }
 
 func (n *NatBridge) initSessionAffinityLearnTable() error {
-	if err := n.initLearnFlowOfSessionAffinityLearnTable(PROTOCOL_TCP); err != nil {
-		log.Errorf("Failed to init tcp learn flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+	defaultFlow, err := n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err != nil {
+		log.Errorf("Failed to new default flow SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
 		return err
 	}
-	if err := n.initLearnFlowOfSessionAffinityLearnTable(PROTOCOL_UDP); err != nil {
-		log.Errorf("Failed to init udp learn flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+	if err := defaultFlow.Resubmit(nil, &NatBrDnatTable); err != nil {
+		log.Errorf("Failed to add a resubmit action to default flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
 		return err
 	}
-
+	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+		return err
+	}
 	return nil
 }
 
