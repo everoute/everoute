@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	utilnet "k8s.io/utils/net"
 )
 
@@ -46,6 +47,8 @@ type TrafficPolicyType string
 const (
 	TrafficPolicyCluster TrafficPolicyType = "Cluster"
 	TrafficPOlicyLocal   TrafficPolicyType = "Local"
+
+	DefaultSessionAffinityTimeout int32 = 10800
 )
 
 func NewBaseSvcCache() cache.Indexer {
@@ -72,8 +75,17 @@ func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
 		Ports:                 make(map[string]*Port),
 	}
 
-	if svc.Spec.SessionAffinityConfig != nil && svc.Spec.SessionAffinityConfig.ClientIP != nil && svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds != nil {
-		baseSvc.SessionAffinityTimeout = *svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds
+	if baseSvc.SessionAffinity == corev1.ServiceAffinityClientIP {
+		if svc.Spec.SessionAffinityConfig != nil && svc.Spec.SessionAffinityConfig.ClientIP != nil && svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds != nil {
+			timeout := *svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds
+			if timeout <= 0 {
+				klog.Errorf("Invalid service SessionAffinityTimeout %d for service %s", timeout, baseSvc.SvcID)
+				return nil
+			}
+			baseSvc.SessionAffinityTimeout = timeout
+		} else {
+			baseSvc.SessionAffinityTimeout = DefaultSessionAffinityTimeout
+		}
 	}
 
 	for i := range svc.Spec.Ports {
@@ -92,6 +104,37 @@ func GetClusterIPs(spec corev1.ServiceSpec) []string {
 	// only support ipv4
 	if utilnet.IsIPv4(net.ParseIP(spec.ClusterIP)) {
 		res = append(res, spec.ClusterIP)
+	}
+	return res
+}
+
+func (b *BaseSvc) DeepCopy() *BaseSvc {
+	res := &BaseSvc{
+		SvcID:                  b.SvcID,
+		SvcType:                b.SvcType,
+		ClusterIPs:             make([]string, 0),
+		Ports:                  make(map[string]*Port),
+		ExternalTrafficPolicy:  b.ExternalTrafficPolicy,
+		InternalTrafficPolicy:  b.InternalTrafficPolicy,
+		SessionAffinity:        b.SessionAffinity,
+		SessionAffinityTimeout: b.SessionAffinityTimeout,
+	}
+	res.ClusterIPs = append(res.ClusterIPs, b.ClusterIPs...)
+
+	for pName := range b.Ports {
+		curP := *b.Ports[pName]
+		res.Ports[pName] = &curP
+	}
+
+	return res
+}
+
+func (b *BaseSvc) ListPorts() []*Port {
+	var res []*Port
+	for k := range b.Ports {
+		if b.Ports[k] != nil {
+			res = append(res, b.Ports[k])
+		}
 	}
 	return res
 }
@@ -143,6 +186,10 @@ func (p *Port) validUpdate(new *Port) bool {
 
 func servicePortToPort(svcPort *corev1.ServicePort) *Port {
 	if svcPort == nil {
+		return nil
+	}
+	if svcPort.Protocol != corev1.ProtocolTCP && svcPort.Protocol != corev1.ProtocolUDP {
+		klog.Infof("Unsupport service port protocol %s, skip", string(svcPort.Protocol))
 		return nil
 	}
 	return &Port{
