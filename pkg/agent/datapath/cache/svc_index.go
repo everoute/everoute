@@ -33,11 +33,15 @@ func (s *SvcIndex) GetSvcOvsInfo(svcID string) *SvcOvsInfo {
 	return s.svcMap[svcID]
 }
 
-func (s *SvcIndex) SetSvcOvsInfo(svcID string, svcOvs *SvcOvsInfo) {
+func (s *SvcIndex) GetSvcOvsInfoAndInitIfEmpty(svcID string) *SvcOvsInfo {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.svcMap[svcID] = svcOvs
+	if s.svcMap[svcID] == nil {
+		s.svcMap[svcID] = NewSvcOvsInfo(svcID)
+	}
+
+	return s.svcMap[svcID]
 }
 
 func (s *SvcIndex) DeleteSvcOvsInfo(svcID string) {
