@@ -50,11 +50,6 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		UseExistingCluster: &useExistingCluster,
-	}
-
-	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-		UseExistingCluster: &useExistingCluster,
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Paths:           []string{filepath.Join("..", "..", "..", "..", "deploy", "chart", "crds")},
 			CleanUpAfterUse: true,
@@ -160,6 +155,10 @@ func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 		return false
 	}
 
+	if b1.SvcType != b2.SvcType {
+		return false
+	}
+
 	if add, del := b1.DiffClusterIPs(b2); len(add) != 0 || len(del) != 0 {
 		return false
 	}
@@ -173,4 +172,42 @@ func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 	}
 
 	return true
+}
+
+type testSvcOvsInfo struct {
+	// key is portname, value is groupid
+	groupMap map[string]uint32
+	// the first key is ip, the second key is portname, the value is flowid
+	lbMap map[string]map[string]uint64
+	// the first key is ip, the second key is portname, the value is flowid
+	sessionAffinityMap map[string]map[string]uint64
+}
+
+func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
+	res := &testSvcOvsInfo{
+		groupMap:           make(map[string]uint32),
+		lbMap:              make(map[string]map[string]uint64),
+		sessionAffinityMap: make(map[string]map[string]uint64),
+	}
+	gps := dpInfo.GetAllGroups()
+	for i := range gps {
+		res.groupMap[gps[i].PortName] = gps[i].Group.GroupID
+	}
+	lbFlows := dpInfo.GetAllLBFlows()
+	for i := range lbFlows {
+		cur := lbFlows[i]
+		if res.lbMap[cur.LBIP] == nil {
+			res.lbMap[cur.LBIP] = make(map[string]uint64)
+		}
+		res.lbMap[cur.LBIP][cur.PortName] = cur.Flow.FlowID
+	}
+	sessionFlows := dpInfo.GetAllSessionAffinityFlows()
+	for i := range sessionFlows {
+		cur := sessionFlows[i]
+		if res.sessionAffinityMap[cur.LBIP] == nil {
+			res.sessionAffinityMap[cur.LBIP] = make(map[string]uint64)
+		}
+		res.sessionAffinityMap[cur.LBIP][cur.PortName] = cur.Flow.FlowID
+	}
+	return res
 }

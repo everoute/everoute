@@ -7,10 +7,15 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 )
 
-type LBFlowEntry struct {
+type SvcFlowEntry struct {
 	LBIP     string
 	PortName string
 	Flow     *ofctrl.Flow
+}
+
+type SvcGroupEntry struct {
+	PortName string
+	Group    *ofctrl.Group
 }
 
 type SvcOvsInfo struct {
@@ -21,8 +26,8 @@ type SvcOvsInfo struct {
 	groupMap map[string]*ofctrl.Group
 	// lbMap the first key is lbIP, the second key is portName, value is flow in NatBrServiceLBTable
 	lbMap map[string]map[string]*ofctrl.Flow
-	// sessionAffinityMap key is lbIP, value is flow list in NatBrSessionAffinityLearnTable
-	sessionAffinityMap map[string][]*ofctrl.Flow
+	// sessionAffinityMap the first key is lbIP, the second key is portName, value is flow in NatBrSessionAffinityLearnTable
+	sessionAffinityMap map[string]map[string]*ofctrl.Flow
 }
 
 func NewSvcOvsInfo(svcID string) *SvcOvsInfo {
@@ -30,7 +35,7 @@ func NewSvcOvsInfo(svcID string) *SvcOvsInfo {
 		svcID:              svcID,
 		groupMap:           make(map[string]*ofctrl.Group),
 		lbMap:              make(map[string]map[string]*ofctrl.Flow),
-		sessionAffinityMap: make(map[string][]*ofctrl.Flow),
+		sessionAffinityMap: make(map[string]map[string]*ofctrl.Flow),
 	}
 }
 
@@ -41,20 +46,37 @@ func (s *SvcOvsInfo) GetGroup(portName string) *ofctrl.Group {
 	return s.groupMap[portName]
 }
 
+func (s *SvcOvsInfo) GetAllGroups() []SvcGroupEntry {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var res []SvcGroupEntry
+	for p := range s.groupMap {
+		if s.groupMap[p] != nil {
+			res = append(res, SvcGroupEntry{PortName: p, Group: s.groupMap[p]})
+		}
+	}
+	return res
+}
+
 func (s *SvcOvsInfo) SetGroup(portName string, group *ofctrl.Group) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	if group == nil {
+		delete(s.groupMap, portName)
+		return
+	}
 
 	s.groupMap[portName] = group
 	log.Debugf("Set the port name %s corresponding group id to %d", portName, group.GroupID)
 }
 
-func (s *SvcOvsInfo) DeleteGroup(portName string) {
+func (s *SvcOvsInfo) DeleteAllGroup() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	delete(s.groupMap, portName)
-	log.Debugf("Delete the group id of port name %s", portName)
+	s.groupMap = make(map[string]*ofctrl.Group)
 }
 
 func (s *SvcOvsInfo) GetLBFlow(lbIP, portName string) *ofctrl.Flow {
@@ -67,71 +89,72 @@ func (s *SvcOvsInfo) GetLBFlow(lbIP, portName string) *ofctrl.Flow {
 	return flowMap[portName]
 }
 
-func (s *SvcOvsInfo) DelLBFlow(lbIP, portName string) {
+func (s *SvcOvsInfo) GetLBFlowsByIP(lbIP string) []SvcFlowEntry {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	flowMap := s.lbMap[lbIP]
-	if flowMap == nil {
-		return
-	}
-
-	delete(flowMap, portName)
-}
-
-func (s *SvcOvsInfo) GetLBFlowsByIP(lbIP string) []LBFlowEntry {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
-	var res []LBFlowEntry
+	var res []SvcFlowEntry
 	flowMap := s.lbMap[lbIP]
 	if flowMap == nil {
 		return res
 	}
 
 	for portName, flow := range flowMap {
-		res = append(res, LBFlowEntry{LBIP: lbIP, PortName: portName, Flow: flow})
+		if flow != nil {
+			res = append(res, SvcFlowEntry{LBIP: lbIP, PortName: portName, Flow: flow})
+		}
 	}
 	return res
 }
 
-func (s *SvcOvsInfo) GetLBFlowsByPortName(portName string) []*ofctrl.Flow {
+func (s *SvcOvsInfo) GetLBFlowsByPortName(portName string) []SvcFlowEntry {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	flows := make([]*ofctrl.Flow, 0)
-	for _, v := range s.lbMap {
+	var res []SvcFlowEntry
+	for ip, v := range s.lbMap {
 		if v == nil {
 			continue
 		}
 		for p, f := range v {
-			if p == portName {
-				flows = append(flows, f)
+			if p == portName && f != nil {
+				res = append(res, SvcFlowEntry{LBIP: ip, PortName: p, Flow: f})
 			}
 		}
 	}
-	return flows
+	return res
 }
 
-func (s *SvcOvsInfo) SetLBMap(lbFlows []LBFlowEntry) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+func (s *SvcOvsInfo) GetAllLBFlows() []SvcFlowEntry {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
-	for i := range lbFlows {
-		portFlowMap := s.lbMap[lbFlows[i].LBIP]
-		if portFlowMap == nil {
-			portFlowMap = make(map[string]*ofctrl.Flow)
+	var res []SvcFlowEntry
+	for ip := range s.lbMap {
+		for p, f := range s.lbMap[ip] {
+			if f != nil {
+				res = append(res, SvcFlowEntry{LBIP: ip, PortName: p, Flow: f})
+			}
 		}
-		portFlowMap[lbFlows[i].PortName] = lbFlows[i].Flow
-		s.lbMap[lbFlows[i].LBIP] = portFlowMap
 	}
+	return res
 }
 
-func (s *SvcOvsInfo) DeleteLBFlowsByIP(lbIP string) {
+func (s *SvcOvsInfo) SetLBFlow(lbIP, portName string, flow *ofctrl.Flow) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	delete(s.lbMap, lbIP)
+	if flow == nil {
+		if s.lbMap[lbIP] != nil {
+			delete(s.lbMap[lbIP], portName)
+		}
+		return
+	}
+
+	if s.lbMap[lbIP] == nil {
+		s.lbMap[lbIP] = make(map[string]*ofctrl.Flow)
+	}
+	s.lbMap[lbIP][portName] = flow
 }
 
 func (s *SvcOvsInfo) DeleteLBFlowsByPortName(portName string) {
@@ -150,16 +173,79 @@ func (s *SvcOvsInfo) DeleteLBFlowsByPortName(portName string) {
 	}
 }
 
-func (s *SvcOvsInfo) GetSessionAffinityFlows(lbIP string) []*ofctrl.Flow {
+func (s *SvcOvsInfo) GetSessionAffinityFlowsByIP(lbIP string) []SvcFlowEntry {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	return s.sessionAffinityMap[lbIP]
+	var res []SvcFlowEntry
+	if s.sessionAffinityMap[lbIP] == nil {
+		return res
+	}
+
+	for p, f := range s.sessionAffinityMap[lbIP] {
+		if f != nil {
+			res = append(res, SvcFlowEntry{LBIP: lbIP, PortName: p, Flow: f})
+		}
+	}
+
+	return res
 }
 
-func (s *SvcOvsInfo) DeleteSessionAffinityFlows(lbIP string) {
+func (s *SvcOvsInfo) GetSessionAffinityFlowsByPortName(portName string) []SvcFlowEntry {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	delete(s.sessionAffinityMap, lbIP)
+	var res []SvcFlowEntry
+	for ip, v := range s.sessionAffinityMap {
+		for p, f := range v {
+			if p != portName || f == nil {
+				continue
+			}
+			res = append(res, SvcFlowEntry{LBIP: ip, PortName: portName, Flow: f})
+		}
+	}
+	return res
+}
+
+func (s *SvcOvsInfo) GetAllSessionAffinityFlows() []SvcFlowEntry {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var res []SvcFlowEntry
+	for ip, v := range s.sessionAffinityMap {
+		for p, f := range v {
+			if f != nil {
+				res = append(res, SvcFlowEntry{LBIP: ip, PortName: p, Flow: f})
+			}
+		}
+	}
+	return res
+}
+
+func (s *SvcOvsInfo) GetSessionAffinityFlow(lbIP, portName string) *ofctrl.Flow {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if s.sessionAffinityMap[lbIP] == nil {
+		return nil
+	}
+
+	return s.sessionAffinityMap[lbIP][portName]
+}
+
+func (s *SvcOvsInfo) SetSessionAffinityFlow(lbIP, portName string, flow *ofctrl.Flow) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if flow == nil {
+		if s.sessionAffinityMap[lbIP] != nil {
+			delete(s.sessionAffinityMap[lbIP], portName)
+		}
+		return
+	}
+
+	if s.sessionAffinityMap[lbIP] == nil {
+		s.sessionAffinityMap[lbIP] = make(map[string]*ofctrl.Flow)
+	}
+	s.sessionAffinityMap[lbIP][portName] = flow
 }
