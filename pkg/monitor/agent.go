@@ -103,6 +103,9 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]
 	defer monitor.ipCacheLock.Unlock()
 
 	for bridgePort, ip := range localEndpointInfo {
+		if !ip.IsGlobalUnicast() {
+			continue
+		}
 		if _, ok := monitor.ipCache[bridgePort]; !ok {
 			monitor.ipCache[bridgePort] = make(map[types.IPAddress]metav1.Time)
 		}
