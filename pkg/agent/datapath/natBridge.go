@@ -106,7 +106,7 @@ func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 func (n *NatBridge) BridgeInit() {}
 
 func (n *NatBridge) BridgeInitCNI() {
-	if !n.datapathManager.isEnableProxy() {
+	if !n.datapathManager.IsEnableProxy() {
 		return
 	}
 	sw := n.OfSwitch
@@ -1002,7 +1002,7 @@ func (n *NatBridge) initServiceLBTable() error {
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg0,
-				Data:  uint32(NoNeedChoose),
+				Data:  uint32(NoNeedChoose) << uint32(ChooseBackendFlagStart),
 				Range: ChooseBackendFlagRange,
 			},
 		},

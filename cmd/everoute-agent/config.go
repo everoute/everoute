@@ -169,31 +169,34 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	for bridge := range datapathManager.OvsdbDriverMap {
 		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
 		agentInfo.GatewayName = agentInfo.BridgeName + "-gw"
-		agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
-		agentInfo.LocalGwOfPort, err = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.LocalGwName)
-		if err != nil {
-			klog.Fatalf("fetch local gateway ofport error, err: %s", err)
+		if !opts.IsEnableProxy() {
+			agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
+			agentInfo.LocalGwOfPort, err = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.LocalGwName)
+			if err != nil {
+				klog.Fatalf("fetch local gateway ofport error, err: %s", err)
+			}
 		}
-
 		break // only one VDS in CNI scene
 	}
 
-	// get gateway ip and mac
-	localGwIP, err := utils.GetIfaceIP(agentInfo.LocalGwName)
-	if err != nil {
-		klog.Fatalf("Failed to get local gateway ip address, error:%s", err)
+	if !opts.IsEnableProxy() {
+		// get gateway ip and mac
+		localGwIP, err := utils.GetIfaceIP(agentInfo.LocalGwName)
+		if err != nil {
+			klog.Fatalf("Failed to get local gateway ip address, error:%s", err)
+		}
+		localGwMac, err := utils.GetIfaceMAC(agentInfo.LocalGwName)
+		if err != nil {
+			klog.Fatalf("Failed to get local gateway mac address, error:%s", err)
+		}
+		agentInfo.LocalGwIP = localGwIP
+		agentInfo.LocalGwMac = localGwMac
 	}
-	localGwMac, err := utils.GetIfaceMAC(agentInfo.LocalGwName)
-	if err != nil {
-		klog.Fatalf("Failed to get local gateway mac address, error:%s", err)
-	}
+
 	GwMac, err := utils.GetIfaceMAC(agentInfo.GatewayName)
 	if err != nil {
 		klog.Fatalf("Failed to get gateway mac address, error:%s", err)
 	}
-
-	agentInfo.LocalGwIP = localGwIP
-	agentInfo.LocalGwMac = localGwMac
 	agentInfo.GatewayIP = ip.NextIP(agentInfo.PodCIDR[0].IP)
 	agentInfo.GatewayMac = GwMac
 }
