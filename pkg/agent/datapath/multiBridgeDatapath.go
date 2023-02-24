@@ -816,7 +816,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 			if err != nil {
 				return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
-			if datapathManager.isEnableProxy() {
+			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.AddLocalEndpoint(endpoint); err != nil {
 					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
@@ -864,7 +864,7 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 				return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 			// endpoint update may change ipaddr in cni(endpoint doesn't get ipaddr from interface external-ids first), so try to add local endpoint when update endpoint
-			if datapathManager.isEnableProxy() {
+			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.AddLocalEndpoint(newEndpoint); err != nil {
 					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
@@ -899,7 +899,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 				return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 
-			if datapathManager.isEnableProxy() {
+			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.RemoveLocalEndpoint(endpoint); err != nil {
 					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
@@ -1092,15 +1092,15 @@ func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
 	datapathManager.cleanConntrackChan <- *rule
 }
 
-func (datapathManager *DpManager) isEnableCNI() bool {
+func (datapathManager *DpManager) IsEnableCNI() bool {
 	if datapathManager.Config == nil {
 		return false
 	}
 	return datapathManager.Config.EnableCNI
 }
 
-func (datapathManager *DpManager) isEnableProxy() bool {
-	if !datapathManager.isEnableCNI() {
+func (datapathManager *DpManager) IsEnableProxy() bool {
+	if !datapathManager.IsEnableCNI() {
 		return false
 	}
 	if datapathManager.Config.CNIConfig == nil {

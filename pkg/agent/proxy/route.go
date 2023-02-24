@@ -246,6 +246,10 @@ func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev
 		}
 	}
 
+	if r.DatapathManager.IsEnableProxy() {
+		return
+	}
+
 	// check and add ACCEPT for traffic from gw-local
 	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
 		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)

@@ -46,11 +46,14 @@ const (
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 	P_NONE                             = 0xffff
 	CNI_CONNTRACK_ZONE                 = 65510
+
+	SvcPktMark = 0x20000000
 )
 
 var (
 	vlanIDAndFlagMask uint16 = 0x1fff
 	VlanFlagMask      uint16 = 0x1000
+	SvcPktMarkMask    uint32 = 0x20000000
 )
 
 type LocalBridge struct {
@@ -294,6 +297,13 @@ func (l *LocalBridge) BridgeInitCNI() {
 	l.cniConntrackCommitTable, _ = sw.NewTable(CNI_CT_COMMIT_TABLE)
 	l.cniConntrackRedirectTable, _ = sw.NewTable(CNI_CT_REDIRECT_TABLE)
 
+	if l.datapathManager.IsEnableProxy() {
+		if err := l.initCniProxyRelatedFlow(sw); err != nil {
+			log.Fatalf("Failed to init cni proxy related flows, err: %v", err)
+		}
+		return
+	}
+
 	if err := l.initCniRelatedFlow(sw); err != nil {
 		log.Fatalf("Failed to init cni related flows, error: %v", err)
 	}
@@ -396,13 +406,12 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
 	}
 
-	pktMarkMask := uint32(0x20000000)
 	outToLocalGwBypassLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
-		PktMark:     0x20000000,
-		PktMarkMask: &pktMarkMask,
+		PktMark:     SvcPktMark,
+		PktMarkMask: &SvcPktMarkMask,
 	})
 	if err := outToLocalGwBypassLocal.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
 		return fmt.Errorf("failed to install outToLocalGwBypassLocal flow, error: %v", err)
@@ -461,13 +470,12 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 }
 
 func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
-	pktMarkMask := uint32(0x20000000)
 	localGwToPolicy, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   l.datapathManager.Info.LocalGwOfPort,
-		PktMark:     0x20000000,
-		PktMarkMask: &pktMarkMask,
+		PktMark:     SvcPktMark,
+		PktMarkMask: &SvcPktMarkMask,
 	})
 	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
@@ -512,6 +520,128 @@ func (l *LocalBridge) initCniRelatedFlow(sw *ofctrl.OFSwitch) error {
 		return err
 	}
 
+	return nil
+}
+
+func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
+	toNatOutput, err := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix])
+	if err != nil {
+		log.Errorf("Failed to make localToNat outputPort: %s", err)
+		return err
+	}
+
+	localToNatFlow, err := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &l.datapathManager.Info.ClusterCIDR.IP,
+		IpDaMask:  (*net.IP)(&l.datapathManager.Info.ClusterCIDR.Mask),
+	})
+	if err != nil {
+		log.Errorf("Failed to new a flow in table %d, err: %s", FROM_LOCAL_REDIRECT_TABLE, err)
+		return err
+	}
+	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", 0x1, openflow13.NewNXRange(29, 29))
+	if err != nil {
+		log.Errorf("Failed to add a load pkt mark action to flow, err: %s", err)
+		return err
+	}
+	err = localToNatFlow.Next(toNatOutput)
+	if err != nil {
+		log.Errorf("Failed to install local to nat flow %+v: %s", localToNatFlow, err)
+		return err
+	}
+
+	policyToNatFlow, err := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
+	})
+	if err != nil {
+		log.Errorf("Failed to new a flow in table %d: %s", VLAN_INPUT_TABLE, err)
+		return err
+	}
+	err = policyToNatFlow.Next(toNatOutput)
+	if err != nil {
+		log.Errorf("Failed to install policy to nat flow %+v: %s", policyToNatFlow, err)
+		return err
+	}
+	return nil
+}
+
+func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
+	natToPolicyFlow, err := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
+		Ethertype:   PROTOCOL_IP,
+		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix],
+		PktMark:     SvcPktMark,
+		PktMarkMask: &SvcPktMarkMask,
+	})
+	if err != nil {
+		log.Errorf("Failed to new from natbridge to policy bridge flow: %s", err)
+		return err
+	}
+	toPolicyOutput, err := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
+	if err != nil {
+		log.Errorf("Failed to make natToPolicy outputPort: %s", err)
+		return err
+	}
+	if err := natToPolicyFlow.Next(toPolicyOutput); err != nil {
+		log.Errorf("Failed to install nat to policy flow %+v: %s", natToPolicyFlow, err)
+		return err
+	}
+
+	natToLocalFlow, err := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix],
+	})
+	if err != nil {
+		log.Errorf("Failed to new from natbridge to local flow: %s", err)
+		return err
+	}
+	l2Forward := uint8(L2_FORWARDING_TABLE)
+	if err := natToLocalFlow.Resubmit(nil, &l2Forward); err != nil {
+		log.Errorf("Failed to add a resubmit action to flow %+v: %s", natToLocalFlow, err)
+		return err
+	}
+	err = natToLocalFlow.Next(ofctrl.NewEmptyElem())
+	if err != nil {
+		log.Errorf("Failed to install nat to policy flow %+v: %s", natToLocalFlow, err)
+		return err
+	}
+	return nil
+}
+
+func (l *LocalBridge) initFromPolicyMarkedFlow(sw *ofctrl.OFSwitch) error {
+	fromPolicyFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
+		Ethertype:   PROTOCOL_IP,
+		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
+		PktMark:     SvcPktMark,
+		PktMarkMask: &SvcPktMarkMask,
+	})
+	l2Forward := uint8(L2_FORWARDING_TABLE)
+	if err := fromPolicyFlow.Resubmit(nil, &l2Forward); err != nil {
+		log.Errorf("Failed to add a resubmit action to flow %+v: %s", fromPolicyFlow, err)
+		return err
+	}
+	if err := fromPolicyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow %+v: %s", fromPolicyFlow, err)
+		return err
+	}
+	return nil
+}
+
+func (l *LocalBridge) initCniProxyRelatedFlow(sw *ofctrl.OFSwitch) error {
+	if err := l.initToNatBridgeFlow(sw); err != nil {
+		return err
+	}
+	if err := l.initFromNatBridgeFlow(sw); err != nil {
+		return err
+	}
+	if err := l.initFromPolicyMarkedFlow(sw); err != nil {
+		return err
+	}
 	return nil
 }
 
