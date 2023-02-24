@@ -33,3 +33,4 @@ jobs:
             "*generated*.go"
             "*.pb.go"
             "pkg/client/*"
+            "*_test.go"
