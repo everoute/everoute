@@ -123,24 +123,46 @@ if [ "${ENABLE_PROXY}" == "true" ];then
         -- set interface ${LOCAL_TO_NAT_PATCH} type=patch options:peer=${NAT_TO_LOCAL_PATCH} \
         -- add-port ${NAT_BRIDGE} ${NAT_TO_LOCAL_PATCH} \
         -- set interface ${NAT_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_NAT_PATCH}
+    
+    ip link show ${NAT_BRIDGE} || error_handle
+else
+    # add port gw-local
+    ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
+    ip link set ${GW_LOCAL_IFACE} up
+    ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE}
+
+    # add policy route
+    ip rule add preference ${LOCAL_IP_RULE_PREF} lookup local
+    ip rule add preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
+    ip rule delete preference 0
+    ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
+
+    echo 0 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter
+    echo 2 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce
+
+    ip link show ${GW_LOCAL_IFACE} || error_handle
+    ## check ip address exist
+    echo "check ip address exist"
+    ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} && error_handle
+    ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} || [[ $? -ne 2 ]] && error_handle
+
+    ## check policy rule
+    echo "check policy rule"
+    [[ `ip rule list preference ${LOCAL_IP_RULE_PREF} lookup local | wc -l` -eq 0 ]] && error_handle
+    [[ `ip rule list preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} | wc -l` -eq 0 ]] && error_handle
+    [[ `ip rule list preference 0 | wc -l` -ne 0 ]] && error_handle
+    ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && error_handle
+    ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && error_handle
+
+    ## check sysctl
+    echo "check sysctl"
+    [[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && error_handle
+    [[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && error_handle
 fi
-
-# add port gw-local
-ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
-ip link set ${GW_LOCAL_IFACE} up
-ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE}
-
-# add policy route
-ip rule add preference ${LOCAL_IP_RULE_PREF} lookup local
-ip rule add preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
-ip rule delete preference 0
-ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE}
 
 # set sysctl
 echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
-echo 0 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter
-echo 2 > /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce
 echo 0 > /proc/sys/net/ipv4/ip_early_demux
 
 # check configuration
@@ -151,24 +173,11 @@ ip link show ${POLICY_BRIDGE} || error_handle
 ip link show ${CLS_BRIDGE} || error_handle
 ip link show ${UPLINK_BRIDGE} || error_handle
 ip link show ${GW_IFACE} || error_handle
-ip link show ${GW_LOCAL_IFACE} || error_handle
-## check ip address exist
-echo "check ip address exist"
-ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} && error_handle
-ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE} || [[ $? -ne 2 ]] && error_handle
-## check policy rule
-echo "check policy rule"
-[[ `ip rule list preference ${LOCAL_IP_RULE_PREF} lookup local | wc -l` -eq 0 ]] && error_handle
-[[ `ip rule list preference ${EVEROUTE_IP_RULE_PREF} iif ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} | wc -l` -eq 0 ]] && error_handle
-[[ `ip rule list preference 0 | wc -l` -ne 0 ]] && error_handle
-ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} && error_handle
-ip route add default via ${LOCAL_GW_IP} dev ${GW_LOCAL_IFACE} table ${EVEROUTE_ROUTE_TABLE} || [[ $? -ne 2 ]] && error_handle
+
 ## check sysctl
 echo "check sysctl"
 [[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && error_handle
 [[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && error_handle
-[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/rp_filter` -ne 0 ]] && error_handle
-[[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && error_handle
 [[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && error_handle
 
 echo "finish init"
