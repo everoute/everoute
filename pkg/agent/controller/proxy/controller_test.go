@@ -15,7 +15,7 @@ import (
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
-var _ = Describe("proxy controller", func() {
+var _ = Describe("service controller", func() {
 	ctx := context.Background()
 	var (
 		svcName         = "svc1"
