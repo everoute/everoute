@@ -26,6 +26,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
@@ -351,4 +352,25 @@ func toTrunkVlanIDs(trunks string) []uint16 {
 	}
 
 	return idList
+}
+
+func ipv4ToUint32(ip net.IP) uint32 {
+	ipv4 := ip.To4()
+	return binary.BigEndian.Uint32(ipv4)
+}
+
+func ipv4ToUint64(ip net.IP) uint64 {
+	ipUint32 := ipv4ToUint32(ip)
+	return uint64(ipUint32)
+}
+
+func k8sProtocolToOvsProtocol(p corev1.Protocol) (uint8, error) {
+	switch p {
+	case corev1.ProtocolTCP:
+		return PROTOCOL_TCP, nil
+	case corev1.ProtocolUDP:
+		return PROTOCOL_UDP, nil
+	default:
+		return 0, fmt.Errorf("invalid protocol %s, only support TCP and UDP", p)
+	}
 }
