@@ -368,6 +368,9 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			go func(vdsID, bridgeKeyword string) {
 				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
+					if !datapathManager.BridgeChainMap[vdsID][bridgeKeyword].IsSwitchConnected() {
+						log.Errorf("----Unconnected bridge %s", bridgeKeyword)
+					}
 					if err := datapathManager.replayVDSFlow(vdsID, vdsName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
@@ -685,6 +688,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 	defer datapathManager.flowReplayMutex.Unlock()
 
 	if !datapathManager.IsBridgesConnected() {
+		log.Infof("----call waitconnected")
 		// 1 second retry interval is too long
 		datapathManager.WaitForBridgeConnected()
 	}
@@ -772,7 +776,8 @@ func (datapathManager *DpManager) WaitForBridgeConnected() {
 			return
 		}
 	}
-
+	log.Error("------zjreal----")
+	time.Sleep(4 * time.Hour)
 	log.Fatalf("bridge chain Failed to connect")
 }
 
@@ -782,6 +787,7 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	for _, bridgeChain := range datapathManager.BridgeChainMap {
 		for bridgeKey := range bridgeChain {
 			if !bridgeChain[bridgeKey].IsSwitchConnected() {
+				log.Errorf("-----Unconnected bridge %s", bridgeKey)
 				return dpStatus
 			}
 		}
