@@ -22,6 +22,10 @@ func GenServicePortRef(svcNs, svcName, portName string) string {
 	return svcNs + "/" + svcName + "/" + portName
 }
 
+func GenBackendKey(ip string, port int32, protocol corev1.Protocol) string {
+	return ip + "-" + strconv.Itoa(int(port)) + "-" + string(protocol)
+}
+
 func NewBackendCache() cache.Indexer {
 	return cache.NewIndexer(
 		backendCacheKeyFunc,
@@ -29,6 +33,17 @@ func NewBackendCache() cache.Indexer {
 			ServicePortIndex: servicePortRefIndexFunc,
 		},
 	)
+}
+
+func (b *Backend) DeepCopy() *Backend {
+	res := &Backend{
+		IP:       b.IP,
+		Protocol: b.Protocol,
+		Port:     b.Port,
+		Node:     b.Node,
+	}
+	res.ServicePortRefs = sets.NewString(b.ServicePortRefs.List()...)
+	return res
 }
 
 func backendCacheKeyFunc(obj interface{}) (string, error) {

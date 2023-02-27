@@ -28,6 +28,7 @@ import (
 
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
+	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
@@ -55,10 +56,12 @@ var (
 	NeedChoose             uint8               = 0
 	NoNeedChoose           uint8               = 1
 
-	BackendIPReg     string              = "nxm_nx_reg1"
-	BackendIPRange   *openflow13.NXRange = openflow13.NewNXRange(0, 31)
-	BackendPortReg   string              = "nxm_nx_reg2"
-	BackendPortRange *openflow13.NXRange = openflow13.NewNXRange(0, 15)
+	BackendIPReg         string              = "nxm_nx_reg1"
+	BackendIPRegNumber   int                 = 1
+	BackendIPRange       *openflow13.NXRange = openflow13.NewNXRange(0, 31)
+	BackendPortReg       string              = "nxm_nx_reg2"
+	BackendPortRegNumber int                 = 2
+	BackendPortRange     *openflow13.NXRange = openflow13.NewNXRange(0, 15)
 
 	EtherTypeLength         uint16 = 16
 	IPv4Lenth               uint16 = 32
@@ -487,6 +490,59 @@ func (n *NatBridge) UpdateSessionAffinityTimeout(svcID string, ips []string, por
 	return nil
 }
 
+func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
+	var err error
+	creatGpFlag := false
+	gp := svcOvsCache.GetGroup(portName)
+	if gp == nil {
+		creatGpFlag = true
+		gp, err = n.newEmptyGroup()
+		if err != nil {
+			log.Errorf("Failed to new a empty group, err: %s", err)
+			return err
+		}
+	}
+
+	buckets := make([]*ofctrl.Bucket, 0, len(backends))
+	for i := range backends {
+		b, err := newBucketForLBGroup(backends[i].IP, backends[i].Port)
+		if err != nil {
+			log.Errorf("Failed to new a bucket for service %s with backend %+v, err: %s", svcID, backends[i], err)
+			return nil
+		}
+		buckets = append(buckets, b)
+	}
+	gp.ResetBuckets(buckets)
+
+	if creatGpFlag {
+		if err := gp.Install(); err != nil {
+			log.Errorf("Failed to install group %+v for service: %s, err: %s", gp, svcID, err)
+			return err
+		}
+		svcOvsCache.SetGroup(portName, gp)
+	}
+
+	log.Infof("Dp success to update LB group for service %s port %s, backends: %+v", svcID, portName, backends)
+	return nil
+}
+
+func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
+		return nil
+	}
+	gp := svcOvsCache.GetGroup(portName)
+	if gp == nil {
+		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
+		return nil
+	}
+	gp.ResetBuckets(make([]*ofctrl.Bucket, 0))
+	log.Infof("Dp success clear LB group buckets for service %s port %s", svcID, portName)
+	return nil
+}
+
 func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
@@ -500,6 +556,86 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	// when a group is deleted, the flow referenced it will be deleted automatically
 	svcOvsCache.DeleteLBFlowsByPortName(portName)
 	log.Infof("Success delete service %s ovs group related port %s", svcID, portName)
+	return nil
+}
+
+func (n *NatBridge) AddDNATFlow(ip string, protocol corev1.Protocol, port int32) error {
+	ipByte := net.ParseIP(ip)
+	if ipByte == nil {
+		log.Errorf("Invalid dnat ip %s", ip)
+		return fmt.Errorf("invalid dnat ip: %s", ip)
+	}
+	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
+	if f := n.svcIndexCache.GetDnatFlow(dnatKey); f != nil {
+		log.Infof("The dnat flow has been exists, skip it. ip: %s, protocol: %s, port: %d, flow: %+v", ip, protocol, port, f)
+		return nil
+	}
+
+	ipProtocol, err := k8sProtocolToOvsProtocol(protocol)
+	if err != nil {
+		log.Errorf("Transfer protocol failed: %s", err)
+		return err
+	}
+	regs := []*ofctrl.NXRegister{
+		{
+			RegID: BackendIPRegNumber,
+			Data:  ipv4ToUint32(ipByte),
+			Range: BackendIPRange,
+		}, {
+			RegID: BackendPortRegNumber,
+			Data:  uint32(port),
+			Range: BackendPortRange,
+		},
+	}
+	flow, err := n.dnatTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpProto:   uint8(ipProtocol),
+		Regs:      regs,
+	})
+	if err != nil {
+		log.Errorf("Failed to new a dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
+		return err
+	}
+
+	natAct, _ := ofctrl.NewDNatAction(ofctrl.NewIPRange(ipByte), ofctrl.NewPortRange(uint16(port))).ToOfAction()
+	ctAct, err := ofctrl.NewConntrackActionWithZoneField(true, false, &NatBrL3ForwardTable, CTZoneReg, CTZoneRange, natAct)
+	if err != nil {
+		log.Errorf("Failed to new a conntrack action for ip %s, protocol %s, port %d, err: %s", ip, protocol, port, err)
+		return err
+	}
+	err = flow.SetConntrack(ctAct)
+	if err != nil {
+		log.Errorf("Faile to SetConntrack for flow: %+v, err: %s", flow, err)
+		return err
+	}
+
+	n.svcIndexCache.SetDnatFlow(dnatKey, flow)
+	log.Infof("Success add a dnat flow %+v for ip %s protocol: %s port: %d", flow, ip, protocol, port)
+	return nil
+}
+
+func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32) error {
+	ipByte := net.ParseIP(ip)
+	if ipByte == nil {
+		log.Errorf("Invalid dnat ip %s", ip)
+		return fmt.Errorf("invalid dnat ip: %s", ip)
+	}
+
+	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
+	flow := n.svcIndexCache.GetDnatFlow(dnatKey)
+	if flow == nil {
+		log.Infof("The dnat flow has been deleted, skip it. ip: %s, protocol: %s, port: %d", ip, protocol, port)
+		return nil
+	}
+
+	if err := flow.Delete(); err != nil {
+		log.Errorf("Delete dnat flow %+v for %s failed, err: %s", flow, dnatKey, err)
+		return err
+	}
+
+	n.svcIndexCache.DeleteDnatFlow(dnatKey)
+	log.Infof("Success delete dnat flow for %s", dnatKey)
 	return nil
 }
 
@@ -666,7 +802,7 @@ func (n *NatBridge) initCTZoneTable() error {
 		log.Errorf("Failed to new a flow in CTZone table %d: %s", NatBrCTZoneTable, err)
 		return err
 	}
-	ctAct, err := ofctrl.NewConntrackActionWitchZoneField(false, false, &NatBrCTStateTable, CTZoneReg, CTZoneRange)
+	ctAct, err := ofctrl.NewConntrackActionWithZoneField(false, false, &NatBrCTStateTable, CTZoneReg, CTZoneRange)
 	if err != nil {
 		log.Errorf("Failed to new a ct action: %s", err)
 		return err
@@ -693,7 +829,7 @@ func (n *NatBridge) initCTStateTable() error {
 		return err
 	}
 	natAct, _ := ofctrl.NewNatAction().ToOfAction()
-	ctAct, err := ofctrl.NewConntrackActionWitchZoneField(true, false, &NatBrL3ForwardTable, CTZoneReg, CTZoneRange, natAct)
+	ctAct, err := ofctrl.NewConntrackActionWithZoneField(true, false, &NatBrL3ForwardTable, CTZoneReg, CTZoneRange, natAct)
 	if err != nil {
 		log.Errorf("Failed to new a ct action with nat: %s", err)
 		return err
@@ -976,4 +1112,30 @@ func (n *NatBridge) initOutputTable() error {
 	}
 
 	return nil
+}
+
+func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
+	bucket := ofctrl.NewBucket(SelectGroupWeight)
+	ipByte := net.ParseIP(ip)
+	if ipByte == nil {
+		log.Errorf("Invalid backend ip %s", ip)
+		return nil, fmt.Errorf("invalid backend ip: %s", ip)
+	}
+	act1, err := ofctrl.NewNXLoadAction(BackendIPReg, ipv4ToUint64(ipByte), BackendIPRange)
+	if err != nil {
+		log.Errorf("Failed to new a NXLoadAction for backend ip %s, err: %s", ip, err)
+		return nil, err
+	}
+	bucket.AddAction(act1)
+
+	act2, err := ofctrl.NewNXLoadAction(BackendPortReg, uint64(port), BackendPortRange)
+	if err != nil {
+		log.Errorf("Failed to new a NXLoadAction for backend port %d, err: %s", port, err)
+		return nil, err
+	}
+	bucket.AddAction(act2)
+
+	act3 := ofctrl.NewResubmitAction(nil, &NatBrSessionAffinityLearnTable)
+	bucket.AddAction(act3)
+	return bucket, nil
 }
