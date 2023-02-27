@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"net"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -190,10 +191,18 @@ func genSvcPortFromEndpoints(svcEp corev1.Endpoints) map[string]*svc.ServicePort
 
 	for _, subset := range svcEp.Subsets {
 		for _, p := range subset.Ports {
+			if p.Protocol != corev1.ProtocolTCP && p.Protocol != corev1.ProtocolUDP {
+				klog.Errorf("Unsupport protocol for service endpoints subset port %+v, skip", p)
+				continue
+			}
 			if _, ok := svcPortsMap[p.Name]; !ok {
 				svcPortsMap[p.Name] = newSvcPort(epNamespacedName, p.Name)
 			}
 			for _, a := range subset.Addresses {
+				if net.ParseIP(a.IP).To4() == nil {
+					klog.Errorf("Invalid ipv4 for service endpoints address %+v, skip", a)
+					continue
+				}
 				backend := svc.Backend{
 					IP:       a.IP,
 					Port:     p.Port,

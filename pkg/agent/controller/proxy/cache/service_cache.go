@@ -6,7 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
-	utilnet "k8s.io/utils/net"
 )
 
 // BaseSvc store a service base info
@@ -90,7 +89,7 @@ func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
 func GetClusterIPs(spec corev1.ServiceSpec) []string {
 	res := make([]string, 0)
 	// only support ipv4
-	if utilnet.IsIPv4(net.ParseIP(spec.ClusterIP)) {
+	if net.ParseIP(spec.ClusterIP).To4() != nil {
 		res = append(res, spec.ClusterIP)
 	}
 	return res

@@ -167,6 +167,73 @@ var _ = Describe("endpoints controller", func() {
 				return svcPorts.Items[0].Equal(expectSvcPort)
 			}, time.Minute, interval).Should(BeTrue())
 		})
+
+		It("update endpoints with invalid ipv4", func() {
+			newEndpoints := corev1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epNamespacedName.Name,
+					Namespace: epNamespacedName.Namespace,
+				},
+				Subsets: []corev1.EndpointSubset{
+					{
+						Addresses: []corev1.EndpointAddress{
+							{
+								IP:       ip2,
+								NodeName: &node2,
+							},
+						},
+						Ports: []corev1.EndpointPort{
+							{
+								Port:     80,
+								Protocol: corev1.ProtocolTCP,
+							},
+						},
+					}, {
+						Addresses: []corev1.EndpointAddress{
+							{
+								IP:       "2345::e12",
+								NodeName: &node1,
+							},
+							{
+								IP:       ip3,
+								NodeName: &node1,
+							},
+						},
+						Ports: []corev1.EndpointPort{
+							{
+								Port:     34,
+								Protocol: corev1.ProtocolTCP,
+							},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Update(ctx, &newEndpoints)).Should(Succeed())
+
+			expectSvcPort := newSvcPort(epNamespacedName, "")
+			expectSvcPort.Spec.Backends = []svc.Backend{
+				{
+					IP:       ip2,
+					Protocol: corev1.ProtocolTCP,
+					Port:     80,
+					Node:     node2,
+				}, {
+					IP:       ip3,
+					Protocol: corev1.ProtocolTCP,
+					Port:     34,
+					Node:     node1,
+				},
+			}
+
+			svcPorts := svc.ServicePortList{}
+			Eventually(func() bool {
+				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				if len(svcPorts.Items) != 1 {
+					return false
+				}
+				return svcPorts.Items[0].Equal(expectSvcPort)
+			}, time.Minute, interval).Should(BeTrue())
+		})
 	})
 
 	Context("endpoints with multi ports", func() {
