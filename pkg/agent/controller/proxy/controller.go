@@ -3,11 +3,13 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -74,9 +76,28 @@ func (r *Reconcile) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
 // ReconcileSvcPort receive servicePort from work queue
 func (r *Reconcile) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Receive ServicePort %+v reconcile", req.NamespacedName)
+	ctx := context.Background()
+	svcPort := everoutesvc.ServicePort{}
+	err := r.Client.Get(ctx, req.NamespacedName, &svcPort)
+	if client.IgnoreNotFound(err) != nil {
+		klog.Errorf("Failed to get ServicePort %+v, err: %s", req.NamespacedName, err)
+		return ctrl.Result{}, err
+	}
 
-	// todo
+	if apierrors.IsNotFound(err) {
+		if err := r.deleteServicePort(ctx, req.NamespacedName); err != nil {
+			klog.Errorf("Failed to delete ServicePort %+v, err: %s", req.NamespacedName, err)
+			return ctrl.Result{}, err
+		}
+		klog.Infof("Success delete ServicePort %+v", req.NamespacedName)
+		return ctrl.Result{}, nil
+	}
 
+	if err := r.updateServicePort(ctx, &svcPort); err != nil {
+		klog.Errorf("Failed to add or update servicePort %+v, err: %s", svcPort, err)
+		return ctrl.Result{}, err
+	}
+	klog.Infof("Success add or update ServicePort %+v", req.NamespacedName)
 	return ctrl.Result{}, nil
 }
 
@@ -382,4 +403,288 @@ func (r *Reconcile) processUpdateSessionAffinityOfService(new *proxycache.BaseSv
 		return err
 	}
 	return nil
+}
+
+func (r *Reconcile) updateServicePort(ctx context.Context, servicePort *everoutesvc.ServicePort) error {
+	if servicePort == nil {
+		return nil
+	}
+
+	// The r.svcPortCache update first to prevent data loss.
+	// If r.svcPortCache update in last, consider this case: r.backendCache update success and r.svcPortCache update failed,
+	// the ServicePort resource has been deleted before servicePort controller reconcile, then, r.backendCache don't know the
+	// deleted servicePort's related service and portname and it can't update itself.
+	svcPortKey := proxycache.GenSvcPortKey(servicePort.GetNamespace(), servicePort.GetName())
+	old, exists, err := r.svcPortCache.GetByKey(svcPortKey)
+	if err != nil {
+		klog.Errorf("Failed to get svcPortCache for servicePort: %s, err: %s", svcPortKey, err)
+	}
+	// There is one-to-one correspondence between servicePort and service/portName, so don't need update cache when it exists
+	if !exists || old == nil {
+		portCache := proxycache.GenSvcPortFromServicePort(servicePort)
+		if portCache != nil {
+			if err := r.svcPortCache.Add(portCache); err != nil {
+				klog.Errorf("Failed to add svcPortcache for svcPort %+v, err: %s", *portCache, err)
+				return err
+			}
+		}
+	}
+
+	var err1, err2 error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func(servicePort *everoutesvc.ServicePort) {
+		defer wg.Done()
+		if err1 = r.updateServicePortForGroup(servicePort); err1 != nil {
+			klog.Errorf("Failed to update or create servicePort %+v for update related ovsgroup, err: %s", servicePort, err1)
+		}
+	}(servicePort)
+
+	go func(servicePort *everoutesvc.ServicePort) {
+		defer wg.Done()
+		if err2 = r.updateServicePortForBackend(servicePort); err2 != nil {
+			klog.Errorf("Failed to update or create servicePort %+v for update related backend, err: %s", servicePort, err2)
+		}
+	}(servicePort)
+
+	wg.Wait()
+
+	if err1 == nil && err2 == nil {
+		return nil
+	}
+
+	return fmt.Errorf("updateServicePortForGroup err is %s, updateServicePortForBackend err is %s", err1, err2)
+}
+
+func (r *Reconcile) updateServicePortForGroup(servicePort *everoutesvc.ServicePort) error {
+	if servicePort == nil {
+		return nil
+	}
+
+	svcID := proxycache.GenSvcID(servicePort.GetNamespace(), servicePort.Spec.SvcRef)
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range dpNatBrs {
+		dpNatBr := dpNatBrs[i]
+		if err := dpNatBr.UpdateLBGroup(svcID, servicePort.Spec.PortName, servicePort.Spec.Backends); err != nil {
+			klog.Errorf("Failed to update lb group for servicePort %+v of service: %s, err: %s", servicePort, svcID, err)
+			return err
+		}
+	}
+
+	klog.Infof("Success update ServicePort %+v for group", *servicePort)
+	return nil
+}
+
+func (r *Reconcile) updateServicePortForBackend(servicePort *everoutesvc.ServicePort) error {
+	if servicePort == nil {
+		return nil
+	}
+	if err := r.deleteBackendSvcPortRef(servicePort); err != nil {
+		klog.Errorf("Failed to delete backend svcPortRef from backend cache for svc %+v, err: %s", *servicePort, err)
+		return err
+	}
+	if err := r.addBackendSvcPortRef(servicePort); err != nil {
+		klog.Errorf("Failed to add backend svcPortRef to backend cache for svc %+v, err: %s", *servicePort, err)
+		return err
+	}
+	klog.Infof("Success update ServicePort %+v for backend", *servicePort)
+	return nil
+}
+
+func (r *Reconcile) deleteBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
+	if servicePort == nil {
+		return nil
+	}
+
+	svcPortRef := proxycache.GenServicePortRef(servicePort.Namespace, servicePort.Spec.SvcRef, servicePort.Spec.PortName)
+	oldBackends, err := r.backendCache.ByIndex(proxycache.ServicePortIndex, svcPortRef)
+	if err != nil {
+		klog.Errorf("Failed get ServicePort %+v related old backends, err: %s", *servicePort, err)
+		return err
+	}
+
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range oldBackends {
+		if oldBackends[i] == nil {
+			continue
+		}
+		old := oldBackends[i].(*proxycache.Backend).DeepCopy()
+		portDelete := true
+		for j := range servicePort.Spec.Backends {
+			cur := servicePort.Spec.Backends[j]
+			if old.Port == cur.Port && old.IP == cur.IP && old.Protocol == cur.Protocol {
+				portDelete = false
+				break
+			}
+		}
+		if portDelete {
+			old.ServicePortRefs.Delete(svcPortRef)
+			if old.ServicePortRefs.Len() == 0 {
+				for k := range dpNatBrs {
+					if err := dpNatBrs[k].DelDnatFlow(old.IP, old.Protocol, old.Port); err != nil {
+						klog.Errorf("Failed to delete dnat flow for backend %+v, service port %s, err: %s", old, svcPortRef, err)
+						return err
+					}
+				}
+				if err := r.backendCache.Delete(old); err != nil {
+					klog.Errorf("Failed to delete backend %+v from backend cache for svc port %s, err: %s", old, svcPortRef, err)
+					return err
+				}
+			} else {
+				if err := r.backendCache.Update(old); err != nil {
+					klog.Errorf("Failed to update backend svcPortRef %+v from backend cache for svc port %s, err: %s", old, svcPortRef, err)
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Reconcile) addBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
+	if servicePort == nil {
+		return nil
+	}
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	svcPortRef := proxycache.GenServicePortRef(servicePort.Namespace, servicePort.Spec.SvcRef, servicePort.Spec.PortName)
+	for i := range servicePort.Spec.Backends {
+		cur := servicePort.Spec.Backends[i]
+		key := proxycache.GenBackendKey(cur.IP, cur.Port, cur.Protocol)
+		oldObj, exists, err := r.backendCache.GetByKey(key)
+		if err != nil {
+			klog.Errorf("Failed to get related backend %s from backend cache, err: %s", key, err)
+			return err
+		}
+		if !exists || oldObj == nil {
+			new := servicePortBackendToCacheBackend(cur)
+			new.ServicePortRefs = sets.NewString(svcPortRef)
+			for i := range dpNatBrs {
+				if err := dpNatBrs[i].AddDNATFlow(new.IP, new.Protocol, new.Port); err != nil {
+					klog.Errorf("Failed to add a dnat flow for backend %+v, service port %s, err: %s", cur, svcPortRef, err)
+					return err
+				}
+			}
+			if err := r.backendCache.Add(&new); err != nil {
+				klog.Errorf("Failed to add a new backend %+v to backend cache, err: %s", new, err)
+				return err
+			}
+		} else {
+			old := oldObj.(*proxycache.Backend).DeepCopy()
+			old.ServicePortRefs.Insert(svcPortRef)
+			if err := r.backendCache.Update(old); err != nil {
+				klog.Errorf("Failed to update backend %+v to backend cache, err: %s", old, err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *Reconcile) deleteServicePort(ctx context.Context, namespacedName types.NamespacedName) error {
+	oldObj, exists, err := r.svcPortCache.GetByKey(proxycache.GenSvcPortKey(namespacedName.Namespace, namespacedName.Name))
+	if err != nil {
+		klog.Errorf("Failed to get SvcPort cache for ServicePort %+v, err: %s", namespacedName, err)
+		return err
+	}
+	if !exists || oldObj == nil {
+		klog.Infof("Can't find SvcPort cache for delete ServicePort %+v, skip it", namespacedName)
+		return nil
+	}
+	old := oldObj.(*proxycache.SvcPort)
+
+	var err1, err2 error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func(svcPort *proxycache.SvcPort) {
+		defer wg.Done()
+		if err1 = r.deleteServicePortForGroup(svcPort); err1 != nil {
+			klog.Errorf("Failed to delete servicePort %+v for delete related ovsgroup, err: %s", svcPort, err1)
+		}
+	}(old)
+
+	go func(svcPort *proxycache.SvcPort) {
+		defer wg.Done()
+		if err2 = r.deleteServicePortForBackend(svcPort); err2 != nil {
+			klog.Errorf("Failed to delete servicePort %+v for delete related backend, err: %s", svcPort, err2)
+		}
+	}(old)
+
+	wg.Wait()
+
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("deleteServicePortForGroup err is %s, deleteServicePortForBackend err is %s", err1, err2)
+	}
+
+	if err := r.svcPortCache.Delete(old); err != nil {
+		klog.Errorf("Delete svcPortCache %+v failed, err: %s", old, err)
+		return err
+	}
+	return nil
+}
+
+func (r *Reconcile) deleteServicePortForGroup(svcPort *proxycache.SvcPort) error {
+	if svcPort == nil {
+		return nil
+	}
+	svcID := proxycache.GenSvcID(svcPort.Namespace, svcPort.SvcName)
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range dpNatBrs {
+		dpNatBr := dpNatBrs[i]
+		if err := dpNatBr.ResetLBGroup(svcID, svcPort.PortName); err != nil {
+			klog.Errorf("Failed to reset service %s group for port %s, err: %s", svcID, svcPort.PortName, err)
+			return err
+		}
+	}
+	klog.Infof("Success delete ServicePort %+v for group", *svcPort)
+	return nil
+}
+
+func (r *Reconcile) deleteServicePortForBackend(svcPort *proxycache.SvcPort) error {
+	if svcPort == nil {
+		return nil
+	}
+	svcPortRef := proxycache.GenServicePortRef(svcPort.Namespace, svcPort.SvcName, svcPort.PortName)
+	backends, err := r.backendCache.ByIndex(proxycache.ServicePortIndex, svcPortRef)
+	if err != nil {
+		klog.Errorf("Failed to get SvcPort %+v related backends, err: %s", *svcPort, err)
+		return err
+	}
+
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range backends {
+		if backends[i] == nil {
+			continue
+		}
+		b := backends[i].(*proxycache.Backend).DeepCopy()
+		b.ServicePortRefs.Delete(svcPortRef)
+		if b.ServicePortRefs.Len() == 0 {
+			for j := range dpNatBrs {
+				if err := dpNatBrs[j].DelDnatFlow(b.IP, b.Protocol, b.Port); err != nil {
+					klog.Errorf("Failed to delete dnat flow for backend %+v, svc port: %s, err: %s", b, svcPortRef, err)
+					return err
+				}
+			}
+			if err := r.backendCache.Delete(b); err != nil {
+				klog.Errorf("Failed to delete backend %+v from backend cache, err: %s", b, err)
+				return err
+			}
+		} else {
+			if err := r.backendCache.Update(b); err != nil {
+				klog.Errorf("Failed to update backend %+v from backend cache, err: %s", b, err)
+				return err
+			}
+		}
+	}
+	klog.Infof("Success delete ServicePort %+v for backend", *svcPort)
+	return nil
+}
+
+func servicePortBackendToCacheBackend(svcBackend everoutesvc.Backend) proxycache.Backend {
+	return proxycache.Backend{
+		IP:       svcBackend.IP,
+		Protocol: svcBackend.Protocol,
+		Port:     svcBackend.Port,
+		Node:     svcBackend.Node,
+	}
 }
