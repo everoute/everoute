@@ -252,3 +252,14 @@ func uintToByteBigEndian(src interface{}) []byte {
 
 	return res
 }
+
+func ipv4ToUint32(ip net.IP) uint32 {
+	ipByte := []byte(ip)
+	ipv4 := ipByte[12:16]
+	return binary.BigEndian.Uint32(ipv4)
+}
+
+func ipv4ToUint64(ip net.IP) uint64 {
+	ipUint32 := ipv4ToUint32(ip)
+	return uint64(ipUint32)
+}

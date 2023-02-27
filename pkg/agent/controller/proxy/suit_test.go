@@ -211,3 +211,18 @@ func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
 	}
 	return res
 }
+
+func equalBackend(b1 *cache.Backend, b2 *cache.Backend) bool {
+	if b1 == nil && b2 == nil {
+		return true
+	}
+	if b1 == nil || b2 == nil {
+		return false
+	}
+
+	if b1.IP != b2.IP || b1.Port != b2.Port || b1.Protocol != b2.Protocol {
+		return false
+	}
+
+	return b1.ServicePortRefs.Equal(b2.ServicePortRefs)
+}
