@@ -14,6 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
@@ -34,6 +35,7 @@ var (
 	testEnv            *envtest.Environment
 	proxyController    Reconcile
 	svcIndex           *dpcache.SvcIndex
+	syncChan           chan event.GenericEvent
 )
 
 func TestProxyController(t *testing.T) {
@@ -83,10 +85,12 @@ var _ = BeforeSuite(func() {
 	svcIndex = natbrs[0].GetSvcIndexCache()
 	Expect(svcIndex).ShouldNot(BeNil())
 
+	syncChan = make(chan event.GenericEvent)
 	proxyController = Reconcile{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-		DpMgr:  dpMgr,
+		Client:   k8sManager.GetClient(),
+		Scheme:   k8sManager.GetScheme(),
+		DpMgr:    dpMgr,
+		SyncChan: syncChan,
 	}
 	err = proxyController.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())

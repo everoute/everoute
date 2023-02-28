@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -20,10 +21,15 @@ import (
 var _ = Describe("proxy controller", func() {
 	ctx := context.Background()
 	var (
-		svcName         = "svc1"
-		svcNs           = "default"
-		svcID           = proxycache.GenSvcID(svcNs, svcName)
+		svcNs    = "default"
+		svcName  = "svc1"
+		svcName2 = "svc2"
+		svcID    = proxycache.GenSvcID(svcNs, svcName)
+		svcID2   = proxycache.GenSvcID(svcNs, svcName2)
+
 		ip1             = "10.0.0.12"
+		ip2             = "10.3.4.5"
+		ip3             = "123.1.1.1"
 		affinityTimeout = int32(100)
 		ipFamilyPolicy  = corev1.IPFamilyPolicySingleStack
 	)
@@ -51,6 +57,7 @@ var _ = Describe("proxy controller", func() {
 			Protocol: corev1.ProtocolTCP,
 			Port:     80,
 		}
+		portName3 = port3.Name
 	)
 
 	var (
@@ -972,4 +979,114 @@ var _ = Describe("proxy controller", func() {
 		})
 	})
 
+	Context("test replay flows", func() {
+		baseSvc1 := proxycache.BaseSvc{
+			SvcID:      svcID,
+			ClusterIPs: []string{ip1},
+			Ports: map[string]*proxycache.Port{
+				portName1: &port1,
+				portName3: &port3,
+			},
+			SessionAffinity:        corev1.ServiceAffinityClientIP,
+			SessionAffinityTimeout: affinityTimeout,
+		}
+		baseSvc2 := proxycache.BaseSvc{
+			SvcID:      svcID2,
+			ClusterIPs: []string{ip2, ip3},
+			Ports: map[string]*proxycache.Port{
+				portName2: &port2,
+			},
+			SessionAffinity: corev1.ServiceAffinityNone,
+		}
+
+		svcPort1 := proxycache.SvcPort{
+			Name:      svcPortName1,
+			Namespace: svcNs,
+			SvcName:   svcName,
+			PortName:  portName1,
+		}
+		svcPort2 := proxycache.SvcPort{
+			Name:      svcPortName2,
+			Namespace: svcNs,
+			SvcName:   svcName2,
+			PortName:  portName2,
+		}
+		svcPort3 := proxycache.SvcPort{
+			Name:      "svcport-test",
+			Namespace: svcNs,
+			SvcName:   svcName2,
+			PortName:  "test",
+		}
+
+		svc1Port1Ref := proxycache.GenServicePortRef(svcNs, svcName, portName1)
+		svc1Port3Ref := proxycache.GenServicePortRef(svcNs, svcName, portName3)
+		svc2Port2Ref := proxycache.GenServicePortRef(svcNs, svcName2, portName2)
+		cacheBk1 := servicePortBackendToCacheBackend(backend1)
+		cacheBk1.ServicePortRefs = sets.NewString(svc1Port1Ref, svc2Port2Ref)
+		cacheBk2 := servicePortBackendToCacheBackend(backend2)
+		cacheBk2.ServicePortRefs = sets.NewString(svc1Port3Ref)
+
+		BeforeEach(func() {
+			_ = proxyController.baseSvcCache.Add(&baseSvc1)
+			_ = proxyController.baseSvcCache.Add(&baseSvc2)
+			_ = proxyController.svcPortCache.Add(&svcPort1)
+			_ = proxyController.svcPortCache.Add(&svcPort2)
+			_ = proxyController.svcPortCache.Add(&svcPort3)
+			_ = proxyController.backendCache.Add(&cacheBk1)
+			_ = proxyController.backendCache.Add(&cacheBk2)
+
+			Expect(svcIndex.GetSvcOvsInfo(svcID)).To(BeNil())
+			Expect(svcIndex.GetSvcOvsInfo(svcID2)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+		})
+
+		AfterEach(func() {
+			Expect(proxyController.deleteService(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName})).Should(Succeed())
+			Expect(proxyController.deleteService(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName2})).Should(Succeed())
+			Expect(proxyController.deleteServicePort(ctx, types.NamespacedName{Namespace: svcNs, Name: svcPort1.Name})).Should(Succeed())
+			Expect(proxyController.deleteServicePort(ctx, types.NamespacedName{Namespace: svcNs, Name: svcPort2.Name})).Should(Succeed())
+			Expect(proxyController.deleteServicePort(ctx, types.NamespacedName{Namespace: svcNs, Name: svcPort3.Name})).Should(Succeed())
+			eveSvc1Port3 := everoutesvc.ServicePort{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "unimportant",
+					Namespace: svcNs,
+				},
+				Spec: everoutesvc.ServicePortSpec{
+					SvcRef:   svcName,
+					PortName: portName3,
+				},
+			}
+			Expect(proxyController.deleteBackendSvcPortRef(&eveSvc1Port3)).Should(Succeed())
+
+			Expect(svcIndex.GetSvcOvsInfo(svcID)).To(BeNil())
+			Expect(svcIndex.GetSvcOvsInfo(svcID2)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+		})
+
+		It("test replay flows", func() {
+			syncChan <- NewReplayEvent()
+			time.Sleep(10 * time.Second)
+			ovsInfo1 := svcIndex.GetSvcOvsInfo(svcID)
+			Expect(ovsInfo1).ToNot(BeNil())
+			Expect(ovsInfo1.GetGroup(portName1)).ToNot(BeNil())
+			Expect(ovsInfo1.GetGroup(portName3)).ToNot(BeNil())
+			Expect(ovsInfo1.GetLBFlow(ip1, portName1)).ToNot(BeNil())
+			Expect(ovsInfo1.GetLBFlow(ip1, portName3)).ToNot(BeNil())
+			Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName1)).ToNot(BeNil())
+			Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName3)).ToNot(BeNil())
+
+			ovsInfo2 := svcIndex.GetSvcOvsInfo(svcID2)
+			Expect(ovsInfo2).ToNot(BeNil())
+			Expect(ovsInfo2.GetGroup(portName2)).ToNot(BeNil())
+			Expect(ovsInfo2.GetLBFlow(ip2, portName2)).ToNot(BeNil())
+			Expect(ovsInfo2.GetLBFlow(ip3, portName2)).ToNot(BeNil())
+			Expect(ovsInfo2.GetSessionAffinityFlow(ip2, portName2)).To(BeNil())
+			Expect(ovsInfo2.GetSessionAffinityFlow(ip3, portName3)).To(BeNil())
+
+			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
+		})
+	})
 })

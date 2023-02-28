@@ -103,6 +103,10 @@ func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 	return natBr
 }
 
+func (n *NatBridge) ResetSvcIndexCache() {
+	n.svcIndexCache = cache.NewSvcIndex()
+}
+
 func (n *NatBridge) BridgeInit() {}
 
 func (n *NatBridge) BridgeInitCNI() {
@@ -110,6 +114,9 @@ func (n *NatBridge) BridgeInitCNI() {
 		return
 	}
 	sw := n.OfSwitch
+
+	_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
+
 	n.inputTable = sw.DefaultTable()
 	n.inPortTable, _ = sw.NewTable(NatBrInPortTable)
 	n.ctZoneTable, _ = sw.NewTable(NatBrCTZoneTable)
