@@ -688,16 +688,6 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	// replay basic connectivity flow
-	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-	if err != nil {
-		return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
-	}
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
-	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].getOfSwitch().CookieAllocator = cookieAllocator
-	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInit()
-	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
-
 	// replay local endpoint flow
 	if bridgeKeyword == LOCAL_BRIDGE_KEYWORD {
 		if err := datapathManager.ReplayVDSLocalEndpointFlow(vdsID); err != nil {
