@@ -54,3 +54,18 @@ func (fn ovsUpdateHandlerFunc) Stolen([]interface{}) {
 
 func (fn ovsUpdateHandlerFunc) Echo([]interface{}) {
 }
+
+func listVlanTrunks(trunk interface{}) []float64 {
+	var trunkList []float64
+	switch t := trunk.(type) {
+	case float64:
+		return []float64{t}
+	case ovsdb.OvsSet:
+		trunkSet := trunk.(ovsdb.OvsSet).GoSet
+		for item := range trunkSet {
+			trunkList = append(trunkList, listVlanTrunks(trunkSet[item])...)
+		}
+	}
+
+	return trunkList
+}
