@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	ovsdb "github.com/contiv/libovsdb"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
@@ -31,8 +32,11 @@ import (
 )
 
 const (
+	OvsDBBridgeTable    = "Bridge"
 	OvsDBPortTable      = "Port"
 	OvsDBInterfaceTable = "Interface"
+
+	OvsdbUpdatesChanSize = 100
 )
 
 type ovsdbEventHandler interface {
@@ -78,7 +82,9 @@ type OVSDBMonitor struct {
 
 	ovsdbEventHandler ovsdbEventHandler
 	// map interface uuid
-	endpointMap map[string]*datapath.Endpoint
+	endpointMap      map[string]*datapath.Endpoint
+	bridgeMap        map[string]sets.String
+	ovsdbUpdatesChan chan ovsdb.TableUpdates
 
 	// syncQueue used to notify ovsdb update
 	syncQueue workqueue.RateLimitingInterface
@@ -92,11 +98,13 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 	}
 
 	monitor := &OVSDBMonitor{
-		ovsClient:   ovsClient,
-		cacheLock:   sync.RWMutex{},
-		endpointMap: make(map[string]*datapath.Endpoint),
-		ovsdbCache:  make(map[string]map[string]ovsdb.Row),
-		syncQueue:   workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		ovsClient:        ovsClient,
+		cacheLock:        sync.RWMutex{},
+		endpointMap:      make(map[string]*datapath.Endpoint),
+		ovsdbCache:       make(map[string]map[string]ovsdb.Row),
+		syncQueue:        workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		bridgeMap:        make(map[string]sets.String),
+		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
 	}
 
 	return monitor, nil
@@ -133,6 +141,7 @@ func (monitor *OVSDBMonitor) Run(stopChan <-chan struct{}) {
 	if err != nil {
 		klog.Fatalf("unable start ovsdb monitor: %s", err)
 	}
+	go monitor.handleOvsEvents(stopChan)
 
 	<-stopChan
 }
@@ -185,22 +194,10 @@ func (monitor *OVSDBMonitor) filterPortVlanModeUpdate(rowupdate ovsdb.RowUpdate,
 		}
 	}
 	if rowupdate.New.Fields["trunks"] != nil {
-		newTrunks, ok := rowupdate.New.Fields["trunks"].(ovsdb.OvsSet)
-		if ok {
-			trunkSet := newTrunks.GoSet
-			for _, item := range trunkSet {
-				newTrunk = append(newTrunk, item.(float64))
-			}
-		}
+		newTrunk = listVlanTrunks(rowupdate.New.Fields["trunks"])
 	}
 	if rowupdate.Old.Fields["trunks"] != nil {
-		oldTrunks, ok := rowupdate.Old.Fields["trunks"].(ovsdb.OvsSet)
-		if ok {
-			trunkSet := oldTrunks.GoSet
-			for _, item := range trunkSet {
-				oldTrunk = append(oldTrunk, item.(float64))
-			}
-		}
+		oldTrunk = listVlanTrunks(rowupdate.Old.Fields["trunks"])
 	}
 
 	// access to trunk
@@ -273,21 +270,8 @@ func (monitor *OVSDBMonitor) filterPortVlanTrunkUpdate(rowupdate ovsdb.RowUpdate
 		return nil, nil
 	}
 
-	newTrunks, ok := rowupdate.New.Fields["trunks"].(ovsdb.OvsSet)
-	if ok {
-		trunkSet := newTrunks.GoSet
-		for _, item := range trunkSet {
-			newTrunk = append(newTrunk, item.(float64))
-		}
-	}
-
-	oldTrunks, ok := rowupdate.Old.Fields["trunks"].(ovsdb.OvsSet)
-	if ok {
-		trunkSet := oldTrunks.GoSet
-		for _, item := range trunkSet {
-			oldTrunk = append(oldTrunk, item.(float64))
-		}
-	}
+	newTrunk = listVlanTrunks(rowupdate.New.Fields["trunks"])
+	oldTrunk = listVlanTrunks(rowupdate.Old.Fields["trunks"])
 
 	if reflect.DeepEqual(newTrunk, oldTrunk) {
 		return nil, nil
@@ -306,6 +290,49 @@ func (monitor *OVSDBMonitor) filterPortVlanTrunkUpdate(rowupdate ovsdb.RowUpdate
 	return newEndpoint, oldEndpoint
 }
 
+func (monitor *OVSDBMonitor) processOvsBridgeAdd(row ovsdb.RowUpdate) {
+	bridgeName := row.New.Fields["name"].(string)
+	ports := listUUID(row.New.Fields["ports"])
+	portUUIDs := sets.NewString()
+	for _, port := range ports {
+		portUUIDs.Insert(port.GoUuid)
+	}
+	monitor.bridgeMap[bridgeName] = portUUIDs
+}
+
+func (monitor *OVSDBMonitor) processOvsBridgeDelete(row ovsdb.RowUpdate) {
+	bridgeName := row.Old.Fields["name"].(string)
+	delete(monitor.bridgeMap, bridgeName)
+}
+
+func (monitor *OVSDBMonitor) processOvsBridgeUpdate(row ovsdb.RowUpdate) {
+	bridgeName := row.New.Fields["name"].(string)
+	oldPorts := listUUID(row.Old.Fields["ports"])
+	newPorts := listUUID(row.New.Fields["ports"])
+	oldPortUUIDs := sets.NewString()
+	newPortUUIDs := sets.NewString()
+	for _, port := range oldPorts {
+		oldPortUUIDs.Insert(port.GoUuid)
+	}
+	for _, port := range newPorts {
+		newPortUUIDs.Insert(port.GoUuid)
+	}
+	if oldPortUUIDs.Equal(newPortUUIDs) {
+		return
+	}
+
+	// added ports
+	addedPorts := newPortUUIDs.Difference(oldPortUUIDs)
+	for _, portUUID := range addedPorts.List() {
+		monitor.bridgeMap[bridgeName].Insert(portUUID)
+	}
+	// deleted ports
+	deletedPorts := oldPortUUIDs.Difference(newPortUUIDs)
+	for _, portUUID := range deletedPorts.List() {
+		monitor.bridgeMap[bridgeName].Delete(portUUID)
+	}
+}
+
 func (monitor *OVSDBMonitor) processOvsPortAdd(uuid string, rowupdate ovsdb.RowUpdate) {
 	newIfaces := listUUID(rowupdate.New.Fields["interfaces"])
 	if len(newIfaces) != 1 {
@@ -321,13 +348,7 @@ func (monitor *OVSDBMonitor) processOvsPortAdd(uuid string, rowupdate ovsdb.RowU
 	var newTrunk []float64
 	var newTag float64
 	if rowupdate.New.Fields["trunks"] != nil {
-		newTrunks, ok := rowupdate.New.Fields["trunks"].(ovsdb.OvsSet)
-		if ok {
-			trunkSet := newTrunks.GoSet
-			for _, item := range trunkSet {
-				newTrunk = append(newTrunk, item.(float64))
-			}
-		}
+		newTrunk = listVlanTrunks(rowupdate.New.Fields["trunks"])
 	}
 	if rowupdate.New.Fields["tag"] != nil {
 		newID, ok := rowupdate.New.Fields["tag"].(float64)
@@ -563,13 +584,10 @@ func (monitor *OVSDBMonitor) processOvsInterfaceDelete(uuid string, rowupdate ov
 
 func (monitor *OVSDBMonitor) getPortBridgeName(portUUID string) string {
 	var bridgeName string
-	for _, bridge := range monitor.ovsdbCache["Bridge"] {
-		portUUIDs := listUUID(bridge.Fields["ports"])
-		for _, uuid := range portUUIDs {
-			if uuid.GoUuid == portUUID {
-				bridgeName = bridge.Fields["name"].(string)
-				return bridgeName
-			}
+	for brName, portUUIDs := range monitor.bridgeMap {
+		if portUUIDs.Has(portUUID) {
+			bridgeName = brName
+			break
 		}
 	}
 
@@ -583,8 +601,6 @@ func (monitor *OVSDBMonitor) isEndpointReady(endpoint *datapath.Endpoint) bool {
 
 func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 	monitor.cacheLock.Lock()
-	defer monitor.cacheLock.Unlock()
-
 	for table, tableUpdate := range updates.Updates {
 		if _, ok := monitor.ovsdbCache[table]; !ok {
 			monitor.ovsdbCache[table] = make(map[string]ovsdb.Row)
@@ -598,10 +614,40 @@ func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 			}
 		}
 	}
+	monitor.cacheLock.Unlock()
 
+	monitor.syncQueue.Add("ovsdb-event")
+	monitor.ovsdbUpdatesChan <- updates
+}
+
+func (monitor *OVSDBMonitor) handleOvsEvents(stopChan <-chan struct{}) {
+	for {
+		select {
+		case updates := <-monitor.ovsdbUpdatesChan:
+			monitor.ovsdbEventFilter(updates)
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+func (monitor *OVSDBMonitor) ovsdbEventFilter(updates ovsdb.TableUpdates) {
+	bridgeUpdate, ok := updates.Updates[OvsDBBridgeTable]
+	empty := ovsdb.Row{}
+	if ok {
+		for _, row := range bridgeUpdate.Rows {
+			switch {
+			case !reflect.DeepEqual(row.New, empty) && reflect.DeepEqual(row.Old, empty):
+				monitor.processOvsBridgeAdd(row)
+			case !reflect.DeepEqual(row.New, empty) && !reflect.DeepEqual(row.Old, empty):
+				monitor.processOvsBridgeUpdate(row)
+			case reflect.DeepEqual(row.New, empty) && !reflect.DeepEqual(row.Old, empty):
+				monitor.processOvsBridgeDelete(row)
+			}
+		}
+	}
 	for table, tableUpdate := range updates.Updates {
 		for uuid, row := range tableUpdate.Rows {
-			empty := ovsdb.Row{}
 			switch {
 			case !reflect.DeepEqual(row.New, empty) && reflect.DeepEqual(row.Old, empty):
 				if table == OvsDBInterfaceTable {
@@ -627,6 +673,4 @@ func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 			}
 		}
 	}
-
-	monitor.syncQueue.Add("ovsdb-event")
 }
