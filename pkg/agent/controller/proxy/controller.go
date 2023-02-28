@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -30,6 +31,9 @@ type Reconcile struct {
 	Scheme *runtime.Scheme
 	DpMgr  *datapath.DpManager
 
+	SyncChan chan event.GenericEvent
+	syncLock sync.RWMutex
+
 	baseSvcCache cache.Indexer
 	svcPortCache cache.Indexer
 	backendCache cache.Indexer
@@ -37,6 +41,9 @@ type Reconcile struct {
 
 // ReconcileService receive Service from work queue
 func (r *Reconcile) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
+	r.syncLock.RLock()
+	defer r.syncLock.RUnlock()
+
 	klog.Infof("Receive Service %+v reconcile", req.NamespacedName)
 	var svc corev1.Service
 	ctx := context.Background()
@@ -75,6 +82,9 @@ func (r *Reconcile) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
 
 // ReconcileSvcPort receive servicePort from work queue
 func (r *Reconcile) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) {
+	r.syncLock.RLock()
+	defer r.syncLock.RUnlock()
+
 	klog.Infof("Receive ServicePort %+v reconcile", req.NamespacedName)
 	ctx := context.Background()
 	svcPort := everoutesvc.ServicePort{}
@@ -99,6 +109,29 @@ func (r *Reconcile) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) 
 	}
 	klog.Infof("Success add or update ServicePort %+v", req.NamespacedName)
 	return ctrl.Result{}, nil
+}
+
+// ReconcileSync receive proxySuncEvent from work queue
+func (r *Reconcile) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
+	r.syncLock.Lock()
+	defer r.syncLock.Unlock()
+
+	klog.Infof("Receive proxy sync event: %+v", req)
+	syncType := proxySyncType(req.Namespace)
+	var err error
+	switch syncType {
+	case ReplayType:
+		err = r.replay()
+	default:
+		klog.Errorf("Invalid proxy sync event: %+v, skip", req)
+		return ctrl.Result{}, nil
+	}
+	if err != nil {
+		klog.Errorf("Failed to sync proxy dp flows and groups for sync event %+v, err: %s", req, err)
+	} else {
+		klog.Infof("Success to sync proxy dp flows and groups for sync event %+v", req)
+	}
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager add service controller and servicePort controller to mgr
@@ -138,6 +171,17 @@ func (r *Reconcile) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err := svcPortController.Watch(&source.Kind{Type: &everoutesvc.ServicePort{}}, &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+
+	syncController, err := controller.New("proxy sync controller", mgr, controller.Options{
+		Reconciler: reconcile.Func(r.ReconcileSync),
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -680,11 +724,91 @@ func (r *Reconcile) deleteServicePortForBackend(svcPort *proxycache.SvcPort) err
 	return nil
 }
 
+func (r *Reconcile) replay() error {
+	dpNatBrs := r.DpMgr.GetNatBridges()
+
+	// replay groups
+	svcPortObjList := r.svcPortCache.List()
+	for i := range svcPortObjList {
+		if svcPortObjList[i] == nil {
+			continue
+		}
+		svcPort := svcPortObjList[i].(*proxycache.SvcPort)
+		svcPortRef := proxycache.GenServicePortRef(svcPort.Namespace, svcPort.SvcName, svcPort.PortName)
+		bkObjList, err := r.backendCache.ByIndex(proxycache.ServicePortIndex, svcPortRef)
+		if err != nil {
+			klog.Errorf("Failed to list backend for svcPortRef %s, err: %s", svcPortRef, err)
+			return err
+		}
+		var svcBackends []everoutesvc.Backend
+		for j := range bkObjList {
+			if bkObjList[j] == nil {
+				continue
+			}
+			bk := bkObjList[j].(*proxycache.Backend)
+			svcBackends = append(svcBackends, cacheBackendToServicePortBackend(*bk))
+		}
+		if len(svcBackends) == 0 {
+			continue
+		}
+		svcID := proxycache.GenSvcID(svcPort.Namespace, svcPort.SvcName)
+		for i := range dpNatBrs {
+			dpNatBr := dpNatBrs[i]
+			if err := dpNatBr.UpdateLBGroup(svcID, svcPort.PortName, svcBackends); err != nil {
+				klog.Errorf("Failed to replay lb group for servicePort %s, err: %s", svcPortRef, err)
+				return err
+			}
+		}
+	}
+
+	// replay service lb flows
+	svcObjList := r.baseSvcCache.List()
+	for i := range svcObjList {
+		if svcObjList[i] == nil {
+			continue
+		}
+		svc := svcObjList[i].(*proxycache.BaseSvc)
+		for _, ip := range svc.ClusterIPs {
+			if err := r.addClusterIP(ip, svc); err != nil {
+				klog.Errorf("Failed to add cluster ip %s for service %s, err: %s", ip, svc.SvcID, err)
+				return err
+			}
+		}
+	}
+
+	// replay dnat flows
+	bkObjList := r.backendCache.List()
+	for i := range bkObjList {
+		if bkObjList[i] == nil {
+			continue
+		}
+		bk := bkObjList[i].(*proxycache.Backend)
+		for i := range dpNatBrs {
+			if err := dpNatBrs[i].AddDNATFlow(bk.IP, bk.Protocol, bk.Port); err != nil {
+				klog.Errorf("Failed to add a dnat flow for backend %+v, err: %s", bk, err)
+				return err
+			}
+		}
+	}
+
+	klog.Infof("Success replay proxy flows and groups")
+	return nil
+}
+
 func servicePortBackendToCacheBackend(svcBackend everoutesvc.Backend) proxycache.Backend {
 	return proxycache.Backend{
 		IP:       svcBackend.IP,
 		Protocol: svcBackend.Protocol,
 		Port:     svcBackend.Port,
 		Node:     svcBackend.Node,
+	}
+}
+
+func cacheBackendToServicePortBackend(cacheBackend proxycache.Backend) everoutesvc.Backend {
+	return everoutesvc.Backend{
+		IP:       cacheBackend.IP,
+		Protocol: cacheBackend.Protocol,
+		Port:     cacheBackend.Port,
+		Node:     cacheBackend.Node,
 	}
 }

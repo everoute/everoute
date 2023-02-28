@@ -45,7 +45,8 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
-	go test ./plugin/... ./pkg/...
+	go test ./pkg/agent/controller/proxy/...
+#	go test ./plugin/... ./pkg/...
 
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)

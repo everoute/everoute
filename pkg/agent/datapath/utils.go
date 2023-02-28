@@ -47,7 +47,7 @@ const (
 		CLS_TO_UPLINK_PATCH="${CLS_BRIDGE}-cls-to-uplink"
 		UPLINK_TO_CLS_PATCH="${UPLINK_BRIDGE}-uplink-to-cls"
 
-		echo "add bridge chain and uplink port"
+		echo "add  and uplink port"
 		ovs-vsctl add-br ${DEFAULT_BRIDGE}
 		ovs-vsctl add-br ${POLICY_BRIDGE}
 		ovs-vsctl add-br ${CLS_BRIDGE}

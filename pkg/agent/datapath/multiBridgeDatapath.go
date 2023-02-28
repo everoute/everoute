@@ -200,6 +200,8 @@ type DpManager struct {
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan ArpInfo
+
+	proxyReplayFunc func()
 }
 
 type DpManagerInfo struct {
@@ -319,6 +321,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
+	datapathManager.proxyReplayFunc = func() {}
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -375,6 +378,13 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			}(vdsID, bridgeKeyword)
 		}
 	}
+
+	// replay proxy flow
+	datapathManager.proxyReplayFunc()
+}
+
+func (datapathManager *DpManager) SetProxySyncFunc(f func()) {
+	datapathManager.proxyReplayFunc = f
 }
 
 func (datapathManager *DpManager) GetChainBridge() []string {
@@ -711,6 +721,12 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 		if err := datapathManager.ReplayVDSMicroSegmentFlow(vdsID); err != nil {
 			return fmt.Errorf("failed to replay microsegment flow while vswitchd restart, error: %v", err)
 		}
+	}
+
+	// replay proxy flow
+	if bridgeKeyword == NAT_BRIDGE_KEYWORD {
+		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*NatBridge).ResetSvcIndexCache()
+		datapathManager.proxyReplayFunc()
 	}
 
 	// reset port no flood

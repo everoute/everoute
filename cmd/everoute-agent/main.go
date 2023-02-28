@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
@@ -126,12 +127,19 @@ func main() {
 
 	k8sClient := mgr.GetClient()
 
+	proxySyncChan := make(chan event.GenericEvent)
 	if opts.IsEnableCNI() {
+		if opts.IsEnableProxy() {
+			proxyReplayFunc := func() {
+				proxySyncChan <- ctrlProxy.NewReplayEvent()
+			}
+			datapathManager.SetProxySyncFunc(proxyReplayFunc)
+		}
 		setAgentConf(datapathManager, mgr.GetAPIReader())
 		datapathManager.InitializeCNI()
 	}
 
-	if err = startManager(mgr, datapathManager, stopChan); err != nil {
+	if err = startManager(mgr, datapathManager, stopChan, proxySyncChan); err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
@@ -144,7 +152,7 @@ func main() {
 	<-stopChan
 }
 
-func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
+func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) error {
 	var err error
 	// Policy controller: watch policy related resource and update
 	if err = (&policy.Reconciler{
@@ -169,9 +177,10 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 
 	if opts.IsEnableProxy() {
 		if err = (&ctrlProxy.Reconcile{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			DpMgr:  datapathManager,
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			DpMgr:    datapathManager,
+			SyncChan: proxySyncChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create proxy controller: %s", err.Error())
 			return err
