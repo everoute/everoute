@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
@@ -60,6 +61,7 @@ func main() {
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
 	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
+	proxySyncChan := make(chan event.GenericEvent)
 
 	// complete options
 	err := opts.complete()
@@ -77,7 +79,7 @@ func main() {
 	if opts.IsEnableCNI() {
 		// in cni senary, cni initialization must precede ovsdb monitor initialization
 		mgr = initK8sCtrlManager(stopChan)
-		initCNI(datapathManager, mgr)
+		initCNI(datapathManager, mgr, proxySyncChan)
 		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
 	} else {
 		// in vi
@@ -85,7 +87,7 @@ func main() {
 		mgr = initK8sCtrlManager(stopChan)
 	}
 
-	if err = startManager(mgr, datapathManager, stopChan); err != nil {
+	if err = startManager(mgr, datapathManager, stopChan, proxySyncChan); err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
@@ -99,7 +101,13 @@ func main() {
 	<-stopChan
 }
 
-func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager) {
+func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent) {
+	if opts.IsEnableProxy() {
+		proxyReplayFunc := func() {
+			proxySyncChan <- ctrlProxy.NewReplayEvent()
+		}
+		datapathManager.SetProxySyncFunc(proxyReplayFunc)
+	}
 	setAgentConf(datapathManager, mgr.GetAPIReader())
 	datapathManager.InitializeCNI()
 }
@@ -157,7 +165,7 @@ func initOvsdbMonitor(datapathManager *datapath.DpManager, stopChan <-chan struc
 	return ovsdbMonitor
 }
 
-func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
+func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) error {
 	var err error
 	// Policy controller: watch policy related resource and update
 	if err = (&policy.Reconciler{
@@ -182,9 +190,10 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 
 	if opts.IsEnableProxy() {
 		if err = (&ctrlProxy.Reconcile{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			DpMgr:  datapathManager,
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			DpMgr:    datapathManager,
+			SyncChan: proxySyncChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create proxy controller: %s", err.Error())
 			return err
