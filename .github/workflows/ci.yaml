@@ -31,7 +31,8 @@ jobs:
     if: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v2
-      - uses: golangci/golangci-lint-action@v2
+
+      - uses: golangci/golangci-lint-action@v3
         with:
           version: v1.48.0
           only-new-issues: true
