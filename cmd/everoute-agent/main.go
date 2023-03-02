@@ -61,6 +61,7 @@ func main() {
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
 	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
+	proxySyncChan := make(chan event.GenericEvent)
 
 	// complete options
 	err := opts.complete()
@@ -73,6 +74,69 @@ func main() {
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
 	datapathManager.InitializeDatapath(stopChan)
 
+	var mgr manager.Manager
+	var ovsdbMonitor *monitor.OVSDBMonitor
+	if opts.IsEnableCNI() {
+		// in cni senary, cni initialization must precede ovsdb monitor initialization
+		mgr = initK8sCtrlManager(stopChan)
+		initCNI(datapathManager, mgr, proxySyncChan)
+		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
+	} else {
+		// in vi
+		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
+		mgr = initK8sCtrlManager(stopChan)
+	}
+
+	if err = startManager(mgr, datapathManager, stopChan, proxySyncChan); err != nil {
+		klog.Fatalf("error %v when start controller manager.", err)
+	}
+
+	k8sClient := mgr.GetClient()
+	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
+	go agentmonitor.Run(stopChan)
+
+	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, opts.IsEnableCNI())
+	go rpcServer.Run(stopChan)
+
+	<-stopChan
+}
+
+func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent) {
+	if opts.IsEnableProxy() {
+		proxyReplayFunc := func() {
+			proxySyncChan <- ctrlProxy.NewReplayEvent()
+		}
+		datapathManager.SetProxySyncFunc(proxyReplayFunc)
+	}
+	setAgentConf(datapathManager, mgr.GetAPIReader())
+	datapathManager.InitializeCNI()
+}
+
+func initK8sCtrlManager(stopChan <-chan struct{}) manager.Manager {
+	var mgr manager.Manager
+	var err error
+	config := ctrl.GetConfigOrDie()
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
+
+	// loop initialize manager until success or stop
+	err = wait.PollImmediateUntil(time.Second, func() (bool, error) {
+		mgr, err = ctrl.NewManager(config, ctrl.Options{
+			Scheme:             clientsetscheme.Scheme,
+			MetricsBindAddress: opts.metricsAddr,
+			Port:               9443,
+		})
+		if err != nil {
+			klog.Errorf("unable to create manager: %s", err.Error())
+		}
+		return err == nil, nil
+	}, stopChan)
+	if err != nil {
+		klog.Fatalf("unable to create manager: %s", err.Error())
+	}
+	return mgr
+}
+
+func initOvsdbMonitor(datapathManager *datapath.DpManager, stopChan <-chan struct{}) *monitor.OVSDBMonitor {
 	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
@@ -98,58 +162,7 @@ func main() {
 		},
 	})
 	go ovsdbMonitor.Run(stopChan)
-
-	if err := datapath.ExcuteCommand("sudo %s", "conntrack -F"); err != nil {
-		klog.Error("Clean conntrack failed, err:", err)
-	} else {
-		klog.Info("Clean conntrack success.")
-	}
-
-	var mgr manager.Manager
-	config := ctrl.GetConfigOrDie()
-	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
-
-	// loop initialize manager until success or stop
-	err = wait.PollImmediateUntil(time.Second, func() (bool, error) {
-		mgr, err = ctrl.NewManager(config, ctrl.Options{
-			Scheme:             clientsetscheme.Scheme,
-			MetricsBindAddress: opts.metricsAddr,
-			Port:               9443,
-		})
-		if err != nil {
-			klog.Errorf("unable to create manager: %s", err.Error())
-		}
-		return err == nil, nil
-	}, stopChan)
-	if err != nil {
-		klog.Fatalf("unable to create manager: %s", err.Error())
-	}
-
-	k8sClient := mgr.GetClient()
-
-	proxySyncChan := make(chan event.GenericEvent)
-	if opts.IsEnableCNI() {
-		if opts.IsEnableProxy() {
-			proxyReplayFunc := func() {
-				proxySyncChan <- ctrlProxy.NewReplayEvent()
-			}
-			datapathManager.SetProxySyncFunc(proxyReplayFunc)
-		}
-		setAgentConf(datapathManager, mgr.GetAPIReader())
-		datapathManager.InitializeCNI()
-	}
-
-	if err = startManager(mgr, datapathManager, stopChan, proxySyncChan); err != nil {
-		klog.Fatalf("error %v when start controller manager.", err)
-	}
-
-	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
-	go agentmonitor.Run(stopChan)
-
-	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, opts.IsEnableCNI())
-	go rpcServer.Run(stopChan)
-
-	<-stopChan
+	return ovsdbMonitor
 }
 
 func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) error {

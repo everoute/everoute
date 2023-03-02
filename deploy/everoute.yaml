@@ -2411,6 +2411,7 @@ spec:
         app: everoute
         component: everoute-controller
     spec:
+      hostNetwork: true
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:

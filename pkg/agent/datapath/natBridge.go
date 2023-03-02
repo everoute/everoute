@@ -110,9 +110,10 @@ func (n *NatBridge) ResetSvcIndexCache() {
 func (n *NatBridge) BridgeInit() {}
 
 func (n *NatBridge) BridgeInitCNI() {
-	if !n.datapathManager.isEnableProxy() {
+	if !n.datapathManager.IsEnableProxy() {
 		return
 	}
+	log.Info("Start init nat bridge flows related cni")
 	sw := n.OfSwitch
 
 	_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
@@ -155,6 +156,7 @@ func (n *NatBridge) BridgeInitCNI() {
 	if err := n.initOutputTable(); err != nil {
 		log.Fatalf("Init Output table %d of nat bridge failed: %s", NatBrOutputTable, err)
 	}
+	log.Info("Success init nat bridge flows related cni")
 }
 
 func (n *NatBridge) BridgeReset() {}
@@ -938,6 +940,7 @@ func (n *NatBridge) initCTStateTable() error {
 	}
 
 	// the first packet of pod->svc, should choose backend ip
+	log.Errorf("clustercidr: %+v", *n.datapathManager.Info.ClusterCIDR)
 	svcIP := n.datapathManager.Info.ClusterCIDR.IP
 	svcMask := (net.IP)(n.datapathManager.Info.ClusterCIDR.Mask)
 	svcFlow, err := n.ctStateTable.NewFlow(ofctrl.FlowMatch{
@@ -1003,12 +1006,13 @@ func (n *NatBridge) initSessionAffinityTable() error {
 }
 
 func (n *NatBridge) initServiceLBTable() error {
+	log.Info("-----start add flow")
 	flow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
 		Priority: HIGH_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg0,
-				Data:  uint32(NoNeedChoose),
+				Data:  uint32(NoNeedChoose) << uint32(ChooseBackendFlagStart),
 				Range: ChooseBackendFlagRange,
 			},
 		},
@@ -1025,6 +1029,7 @@ func (n *NatBridge) initServiceLBTable() error {
 		log.Errorf("Failed to install flow in ServiceLB table %d: %s", NatBrServiceLBTable, err)
 		return err
 	}
+	log.Infof("Success add flow: %+v", flow)
 	return nil
 }
 

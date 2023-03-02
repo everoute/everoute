@@ -144,6 +144,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		klog.Fatalf("get pod info error, err:%s", err)
 	}
 
+	klog.Info("----g-----")
 	loopExit := false
 	for _, pod := range pods.Items {
 		if loopExit {
@@ -154,6 +155,12 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 				for _, commond := range container.Command {
 					if strings.HasPrefix(commond, "--service-cluster-ip-range=") {
 						cidr, _ := cnitypes.ParseCIDR(strings.TrimPrefix(commond, "--service-cluster-ip-range="))
+						g := strings.TrimPrefix(commond, "--service-cluster-ip-range=")
+						klog.Infof("----g: %+v", g)
+						klog.Infof("-----cidr: %+v", *cidr)
+						if cidr == nil {
+							klog.Fatalf("get service cluster ip range failed")
+						}
 						cidrNet := cnitypes.IPNet(*cidr)
 						agentInfo.ClusterCIDR = &cidrNet
 						loopExit = true

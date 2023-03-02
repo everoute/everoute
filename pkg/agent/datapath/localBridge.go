@@ -556,7 +556,7 @@ func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 	pktMarkMask := uint32(0x20000000)
 	natToPolicyFlow, err := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix],
 		PktMark:     0x20000000,
@@ -590,11 +590,36 @@ func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
+func (l *LocalBridge) initFromPolicyMarkedFlow(sw *ofctrl.OFSwitch) error {
+	pktMarkMask := uint32(0x20000000)
+	fromPolicyFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
+		Ethertype:   PROTOCOL_IP,
+		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
+		PktMark:     0x20000000,
+		PktMarkMask: &pktMarkMask,
+	})
+	l2Forward := uint8(L2_FORWARDING_TABLE)
+	if err := fromPolicyFlow.Resubmit(nil, &l2Forward); err != nil {
+		log.Errorf("Failed to add a resubmit action to flow %+v: %s", fromPolicyFlow, err)
+		return err
+	}
+	if err := fromPolicyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow %+v: %s", fromPolicyFlow, err)
+		return err
+	}
+	return nil
+}
+
 func (l *LocalBridge) initCniProxyRelatedFlow(sw *ofctrl.OFSwitch) error {
 	if err := l.initToNatBridgeFlow(sw); err != nil {
 		return err
 	}
 	if err := l.initFromNatBridgeFlow(sw); err != nil {
+		return err
+	}
+
+	if err := l.initFromPolicyMarkedFlow(sw); err != nil {
 		return err
 	}
 	return nil

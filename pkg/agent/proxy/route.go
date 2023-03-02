@@ -246,35 +246,37 @@ func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev
 		}
 	}
 
-	// check and add ACCEPT for traffic from gw-local
-	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
-		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-	}
-	if !exist {
-		if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
-			klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+	if !r.DatapathManager.IsEnableProxy() {
+		// check and add ACCEPT for traffic from gw-local
+		if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
+			klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
 		}
-	}
-
-	// check and add CT zone for gw-local
-	if exist, err = ipt.Exists("raw", "PREROUTING", "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
-		klog.Errorf("Check %s in raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-	}
-	if !exist {
-		if err = ipt.Insert("raw", "PREROUTING", 1, "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
-			klog.Errorf("Append %s into raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+		if !exist {
+			if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
+				klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+			}
 		}
-	}
 
-	// allow ct invalid from gw-local
-	if exist, err = ipt.Exists("filter", "FORWARD", "-i", r.DatapathManager.Info.LocalGwName,
-		"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
-		klog.Errorf("Check filter FORWARD error, err: %s", err)
-	}
-	if !exist {
-		if err = ipt.Insert("filter", "FORWARD", 1, "-i", r.DatapathManager.Info.LocalGwName,
+		// check and add CT zone for gw-local
+		if exist, err = ipt.Exists("raw", "PREROUTING", "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
+			klog.Errorf("Check %s in raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+		}
+		if !exist {
+			if err = ipt.Insert("raw", "PREROUTING", 1, "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
+				klog.Errorf("Append %s into raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+			}
+		}
+
+		// allow ct invalid from gw-local
+		if exist, err = ipt.Exists("filter", "FORWARD", "-i", r.DatapathManager.Info.LocalGwName,
 			"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
-			klog.Errorf("Append filter FORWARD error, err: %s", err)
+			klog.Errorf("Check filter FORWARD error, err: %s", err)
+		}
+		if !exist {
+			if err = ipt.Insert("filter", "FORWARD", 1, "-i", r.DatapathManager.Info.LocalGwName,
+				"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
+				klog.Errorf("Append filter FORWARD error, err: %s", err)
+			}
 		}
 	}
 }
