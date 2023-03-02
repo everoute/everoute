@@ -18,7 +18,7 @@ require (
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
-	github.com/google/go-cmp v0.5.5
+	github.com/google/go-cmp v0.5.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2
@@ -32,9 +32,9 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.1.0
 	golang.org/x/sys v0.5.0
-	google.golang.org/grpc v1.38.0
-	google.golang.org/protobuf v1.26.0
-	gopkg.in/yaml.v2 v2.4.0
+	google.golang.org/grpc v1.51.0
+	google.golang.org/protobuf v1.28.1
+	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.22.2
 	k8s.io/apimachinery v0.22.2
 	k8s.io/apiserver v0.20.6
@@ -63,7 +63,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.3 // indirect
 	github.com/go-openapi/jsonreference v0.19.3 // indirect
 	github.com/go-openapi/swag v0.19.5 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/gogo/protobuf v1.3.3-0.20221024144010-f67b8970b736 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
@@ -90,6 +90,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/safchain/ethtool v0.0.0-20210803160452-9aa261dae9b1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/ti-mo/netfilter v0.3.1 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/net v0.7.0 // indirect
@@ -101,10 +102,11 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.0.1 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
-	google.golang.org/genproto v0.0.0-20201110150050-8816d57aaa9a // indirect
+	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiextensions-apiserver v0.18.2 // indirect
 	k8s.io/component-base v0.20.6 // indirect
 	k8s.io/klog/v2 v2.4.0 // indirect

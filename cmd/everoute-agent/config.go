@@ -25,7 +25,7 @@ import (
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
