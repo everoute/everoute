@@ -14,14 +14,14 @@ on:
 
 jobs:
   pr-check:
-    runs-on: [ubuntu-20.04]
+    runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
       - name: run everoute unit test
         run: |
-          sudo make docker-test
-          sudo make docker-race-test
-          sudo make docker-cover-test
+          make docker-test
+          make docker-race-test
+          make docker-cover-test
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
