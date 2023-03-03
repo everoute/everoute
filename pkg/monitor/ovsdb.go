@@ -457,27 +457,21 @@ func (monitor *OVSDBMonitor) processVlanUpdate(rowupdate ovsdb.RowUpdate, ifaceU
 	newEndpoint, oldEndpoint := monitor.filterPortVlanModeUpdate(rowupdate, ifaceUUID)
 	if newEndpoint != nil && oldEndpoint != nil {
 		klog.Infof("port vlan mode update %v : %v", oldEndpoint, newEndpoint)
-		monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
-		delete(monitor.endpointMap, ifaceUUID)
-		monitor.endpointMap[ifaceUUID] = newEndpoint
+		monitor.updateEndpoint(newEndpoint, oldEndpoint, ifaceUUID)
 		return
 	}
 
 	newEndpoint, oldEndpoint = monitor.filterPortVlanTagUpdate(rowupdate, ifaceUUID)
 	if newEndpoint != nil && oldEndpoint != nil {
 		klog.Infof("port vlan tag update %v : %v", oldEndpoint, newEndpoint)
-		monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
-		delete(monitor.endpointMap, ifaceUUID)
-		monitor.endpointMap[ifaceUUID] = newEndpoint
+		monitor.updateEndpoint(newEndpoint, oldEndpoint, ifaceUUID)
 		return
 	}
 
 	newEndpoint, oldEndpoint = monitor.filterPortVlanTrunkUpdate(rowupdate, ifaceUUID)
 	if newEndpoint != nil && oldEndpoint != nil {
 		klog.Infof("port Trunk update %v : %v", oldEndpoint, newEndpoint)
-		monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
-		delete(monitor.endpointMap, ifaceUUID)
-		monitor.endpointMap[ifaceUUID] = newEndpoint
+		monitor.updateEndpoint(newEndpoint, oldEndpoint, ifaceUUID)
 	}
 }
 
@@ -534,19 +528,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 		newEndpoint.PortNo = newOfPort
 	}
 
-	if monitor.isEndpointReady(oldEndpoint) && monitor.isEndpointReady(newEndpoint) {
-		monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
-		delete(monitor.endpointMap, uuid)
-		monitor.endpointMap[uuid] = newEndpoint
-	}
-	if monitor.isEndpointReady(newEndpoint) && !monitor.isEndpointReady(oldEndpoint) {
-		monitor.ovsdbEventHandler.AddLocalEndpoint(newEndpoint)
-		monitor.endpointMap[uuid] = newEndpoint
-	}
-	if !monitor.isEndpointReady(newEndpoint) && monitor.isEndpointReady(oldEndpoint) {
-		monitor.ovsdbEventHandler.DeleteLocalEndpoint(oldEndpoint)
-		delete(monitor.endpointMap, uuid)
-	}
+	monitor.updateEndpoint(newEndpoint, oldEndpoint, uuid)
 }
 
 func (monitor *OVSDBMonitor) processOvsPortDelete(uuid string, rowupdate ovsdb.RowUpdate) {
@@ -592,6 +574,23 @@ func (monitor *OVSDBMonitor) getPortBridgeName(portUUID string) string {
 	}
 
 	return bridgeName
+}
+
+func (monitor *OVSDBMonitor) updateEndpoint(newEndpoint, oldEndpoint *datapath.Endpoint, ifaceUUID string) {
+	if monitor.isEndpointReady(oldEndpoint) && monitor.isEndpointReady(newEndpoint) {
+		monitor.ovsdbEventHandler.UpdateLocalEndpoint(newEndpoint, oldEndpoint)
+		delete(monitor.endpointMap, ifaceUUID)
+		monitor.endpointMap[ifaceUUID] = newEndpoint
+	}
+	if monitor.isEndpointReady(newEndpoint) && !monitor.isEndpointReady(oldEndpoint) {
+		monitor.ovsdbEventHandler.AddLocalEndpoint(newEndpoint)
+		delete(monitor.endpointMap, ifaceUUID)
+		monitor.endpointMap[ifaceUUID] = newEndpoint
+	}
+	if !monitor.isEndpointReady(newEndpoint) && monitor.isEndpointReady(oldEndpoint) {
+		monitor.ovsdbEventHandler.DeleteLocalEndpoint(oldEndpoint)
+		delete(monitor.endpointMap, ifaceUUID)
+	}
 }
 
 func (monitor *OVSDBMonitor) isEndpointReady(endpoint *datapath.Endpoint) bool {
