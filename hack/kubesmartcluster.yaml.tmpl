@@ -1,0 +1,199 @@
+apiVersion: kubesmart.smtx.io/v1alpha1
+kind: KubeSmartCluster
+metadata:
+  annotations:
+    sks-display-name: {{k8s-e2e-cluster-name}}
+  name: {{k8s-e2e-cluster-name}}
+  namespace: default
+spec:
+  cloudProvider:
+    cloudtower:
+      cloudtowerServer:
+        secretRef:
+          name: cloudtower-server
+          namespace: default
+        spec:
+          authMode: LOCAL
+          password: ""
+          server: ""
+          username: ""
+      elfCluster: ef8a4866-4764-4cc5-a213-699e7aecad10
+      vmTemplate: clgt2zgy4k480095895mqmjsw
+      zbsVip: ""
+    name: cloudtower
+  clusterConfiguration:
+    customImageRegistry: 192.168.65.155/sks
+    kubernetes:
+      controlPlane:
+        clusterConfiguration:
+          apiServer:
+            extraArgs:
+              admission-control-config-file: /etc/kubernetes/admission.yaml
+              audit-log-maxage: "30"
+              audit-log-maxbackup: "10"
+              audit-log-maxsize: "100"
+              audit-log-path: /var/log/apiserver/audit.log
+              audit-policy-file: /etc/kubernetes/auditpolicy.yaml
+              enable-admission-plugins: AlwaysPullImages,EventRateLimit
+              profiling: "false"
+              request-timeout: 300s
+              tls-cipher-suites: TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,TLS_RSA_WITH_3DES_EDE_CBC_SHA,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_RSA_WITH_AES_256_GCM_SHA384
+            extraVolumes:
+            - hostPath: /var/log/apiserver
+              mountPath: /var/log/apiserver
+              name: apiserver-log
+              pathType: DirectoryOrCreate
+            - hostPath: /etc/kubernetes/admission.yaml
+              mountPath: /etc/kubernetes/admission.yaml
+              name: admission-config
+              pathType: FileOrCreate
+              readOnly: true
+            - hostPath: /etc/kubernetes/auditpolicy.yaml
+              mountPath: /etc/kubernetes/auditpolicy.yaml
+              name: audit-policy
+              pathType: FileOrCreate
+              readOnly: true
+          controllerManager:
+            extraArgs:
+              profiling: "false"
+              terminated-pod-gc-threshold: "10"
+          dns: {}
+          etcd: {}
+          networking: {}
+          scheduler:
+            extraArgs:
+              profiling: "false"
+        files:
+        - content: |
+            apiVersion: apiserver.config.k8s.io/v1
+            kind: AdmissionConfiguration
+            plugins:
+              - name: EventRateLimit
+                configuration:
+                  apiVersion: eventratelimit.admission.k8s.io/v1alpha1
+                  kind: Configuration
+                  limits:
+                    - type: Server
+                      burst: 20000
+                      qps: 5000
+          owner: root:root
+          path: /etc/kubernetes/admission.yaml
+        - content: |
+            apiVersion: audit.k8s.io/v1
+            kind: Policy
+            rules:
+              - level: None
+                userGroups:
+                - system:nodes
+              - level: None
+                users:
+                - system:kube-scheduler
+                - system:volume-scheduler
+                - system:kube-controller-manager
+              - level: None
+                nonResourceURLs:
+                - /healthz*
+                - /version
+                - /swagger*
+              - level: Metadata
+                resources:
+                - resources: ["secrets", "configmaps", "tokenreviews"]
+              - level: Metadata
+                omitStages:
+                  - RequestReceived
+                resources:
+                - resources: ["pods", "deployments"]
+          owner: root:root
+          path: /etc/kubernetes/auditpolicy.yaml
+        initConfiguration:
+          localAPIEndpoint: {}
+          nodeRegistration:
+            kubeletExtraArgs:
+              event-qps: "0"
+              protect-kernel-defaults: "true"
+              tls-cipher-suites: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256
+        joinConfiguration:
+          discovery: {}
+          nodeRegistration:
+            kubeletExtraArgs:
+              event-qps: "0"
+              protect-kernel-defaults: "true"
+              tls-cipher-suites: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256
+      workers:
+        joinConfiguration:
+          discovery: {}
+          nodeRegistration:
+            kubeletExtraArgs:
+              event-qps: "0"
+              protect-kernel-defaults: "true"
+              tls-cipher-suites: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256
+    operation:
+      createClusterTimeout: 0s
+      rollbackClusterTimeout: 0s
+      updateClusterTimeout: 0s
+      upgradeClusterTimeout: 0s
+    proxy: {}
+    security:
+      sshPassword: "smartx"
+    skipTLSVerify: true
+  components:
+    externaldns:
+      externaldns:
+        disabled: true
+    ingress:
+      contour:
+        disabled: true
+    loadbalancer:
+      metallb:
+        disabled: true
+    logging:
+      elasticcurator: {}
+      elasticsearch: {}
+      fluentbit: {}
+      kibana: {}
+      loggingoperator: {}
+    monitoring:
+      kubeprometheus: {}
+  controlPlaneEndpoint:
+    host: {{k8s-e2e-cluster-vip}}
+    port: 6443
+  network:
+    managementNetworkInterface: ens4
+    pods:
+      cidrBlocks:
+      - 172.16.0.0/16
+    services:
+      cidrBlocks:
+      - 10.96.0.0/22
+  storage:
+    csi:
+      elf:
+        name: smtx-elf-csi
+  topology:
+    controlPlane:
+      name: controlplane
+      nodeConfig:
+        cloneMode: FastClone
+        cpuCores: 4
+        memoryMB: 8192
+        network:
+          devices:
+          - networkType: IPV4_DHCP
+            tag: default
+            vlan: clg9ooxpx00wn0958aq97kssi
+      nodeDrainTimeout: 5m0s
+      replicas: 1
+    workers:
+    - name: workergroup1
+      nodeConfig:
+        cloneMode: FastClone
+        cpuCores: 4
+        memoryMB: 6144
+        network:
+          devices:
+          - networkType: IPV4_DHCP
+            tag: default
+            vlan: clg9ooxpx00wn0958aq97kssi
+      nodeDrainTimeout: 5m0s
+      replicas: 9
+  version: v1.22.16
