@@ -17,6 +17,15 @@ jobs:
     runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
+
+      - name: build test image
+        uses: docker/build-push-action@v4
+        with:
+          file: build/images/unit-test/Dockerfile
+          tags: everoute/unit-test
+          context: ./build/images/unit-test/
+          load: true
+
       - name: run everoute unit test
         run: |
           make docker-test
@@ -54,49 +63,121 @@ jobs:
 
       - name: run everoute e2e test
         run: sudo make docker-e2e-test
-
-  run-k8s-e2e:
-    runs-on: [self-hosted, k8s]
+  
+  build-k8s-e2e-image:
+    runs-on: [self-hosted, build]
     steps:
       - uses: actions/checkout@v2
 
-      - name: clean old eveorute
-        run: sudo skaffold run -d=registry.smtx.io/everoute -f skaffold-clean.yaml
-
-      - name: wait clean process ready
-        run: kubectl wait po -n kube-system --for=condition=Ready=True -l app=everoute -l component=everoute-clean --timeout=3m
-
-      - name: restart system service pods
-        run: |
-          kubectl get pods -n kube-system | awk '{print $1}' | grep "^coredns\|^metrics" | xargs kubectl delete pods -n kube-system
-
-      - name: stop clean pods
-        if: always()
-        run: kubectl delete -f hack/clean.yaml
-
-      - name: build everoute and deploy
-        run: sudo skaffold run -d=registry.smtx.io/everoute
-
-      - name: wait everoute ready
-        run: bash hack/check_ready.sh
-
-      - uses: actions/checkout@v2
+      - name: Login registry.smtx.io
+        uses: docker/login-action@v2
         with:
-          repository: "kubernetes/kubernetes"
-          ref: "v1.21.5"
-          path: "./kubernetes"
+          registry: registry.smtx.io
+          username: ${{ secrets.HARBOR_PUSH_USERNAME }}
+          password: ${{ secrets.HARBOR_PUSH_TOKEN }}
 
-      - name: apply e2e patch
-        run: cd kubernetes && git apply ../hack/0001-test-e2e-add-sleep-before-cannot-conntect-test.patch ../hack/0001-test-e2e-reduce-test-log.patch
+      - name: build everoute image
+        uses: docker/build-push-action@v4
+        with:
+          file: build/images/release/Dockerfile
+          tags: registry.smtx.io/everoute/everoute_release:${{ github.sha }}
+          context: .
+          push: true
 
-      - name: build e2e
-        run: cd kubernetes && make all WHAT=test/e2e/e2e.test && make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
+  run-k8s-e2e:
+    needs: [build-k8s-e2e-image]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - feature: Proxy
+            focus: NetworkPolicy|ClusterIP|clusterIP
+          - focus: NetworkPolicy
+    runs-on: [self-hosted, pod]
+    steps:
+      - uses: actions/checkout@v2
 
-      - name: remove remained ns in last test
-        run: kubectl get ns | grep "policy\|netpol"  | awk '{print $1}' | xargs kubectl delete ns || echo "finish"
+      - name: config PATH
+        run: |
+          mkdir -p /runner/_work/bin/
+          echo "/runner/_work/bin/" >> $GITHUB_PATH
+
+      - name: install helm
+        run: cp /home/runner/tool/helm /runner/_work/bin/
+
+      - name: install k8se2e binary
+        run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin /runner/_work/everoute/everoute/k8se2e
+
+      - name: specific proxy related param
+        if: ${{ matrix.feature == 'Proxy'}}
+        run: sed -i s#enableProxy:\ false#enableProxy:\ true#g deploy/chart/values.yaml
+      
+      - name: generate everoute cni deploy yaml
+        run: |
+          sed -i s#everoute/release#registry.smtx.io/everoute/everoute_release#g deploy/chart/values.yaml
+          sed -i s#latest#${{ github.sha }}#g deploy/chart/values.yaml
+          cat deploy/chart/values.yaml
+          make yaml
+
+      - name: copy sks managerment cluster kubeconfig
+        run: echo "${{ secrets.SKS_MGT_KUBECONFIG }}" > sksconfig
+
+      - name: test kubectl connect to sks
+        run: kubectl get crd --kubeconfig sksconfig | grep smart
+
+      - name: allocate cluster vip
+        run: |
+          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=sdn1')
+          success=$(echo $out | grep "fullSuccess" |wc -l)
+          if [ $success != 1 ]; then exit 1; fi
+          ipright=${out#*\"ips\":[\"}
+          ip=${ipright%\"],\"ipNets\"*}
+          echo "VIP=$ip" >> $GITHUB_ENV
+      
+      - name: gen k8s cluster name
+        run: echo "CLUSTER_NAME=k8s-e2e-$RANDOM" >> $GITHUB_ENV
+
+      - name: create k8s cluster...
+        run: |
+          echo "new k8s cluster name is ${{ env.CLUSTER_NAME }}"
+          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/kubesmartcluster.yaml.tmpl
+          echo "k8s cluster vip is ${{ env.VIP }}"
+          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/kubesmartcluster.yaml.tmpl
+          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig sksconfig
+          kubectl --kubeconfig sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
+
+      - name: get new k8s cluster kubeconfig and test connection
+        run: |
+          kubectl --kubeconfig sksconfig get secret ${{ env.CLUSTER_NAME }}-kubeconfig -o template --template={{.data.value}} > rawkubeconfig
+          mkdir -p $HOME/.kube
+          base64 --decode rawkubeconfig > $HOME/.kube/config
+          kubectl version
+
+      - name: delete control plane node taint 
+        run: |
+          kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule --all --overwrite=true
+          kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule- --all
+
+      - name: deploy everoute cni
+        run: kubectl apply -f deploy/everoute.yaml
+
+      - name: wait k8s cluster ready
+        run: |
+          kubectl --kubeconfig sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
+          kubectl wait --for=condition=Ready nodes --all --timeout=5m
+          kubectl get nodes -owide
 
       - name: run test cases
-        run: bash hack/run-k8s-e2e.sh
+        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+
+      - name: delete test k8s cluster
+        id: delenv
+        if: ${{ always() }}
+        run: kubectl --kubeconfig sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+
+      - name: recycle vip
+        if: ${{ always() && steps.delenv.conclusion == 'success' }}
+        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
   
   run-tower-e2e:
     runs-on: [self-hosted, tower]
