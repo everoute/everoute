@@ -2,6 +2,9 @@ package k8s
 
 import (
 	"context"
+	// #nosec
+	"crypto/md5"
+	"encoding/hex"
 	"net"
 
 	corev1 "k8s.io/api/core/v1"
@@ -9,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -168,10 +170,16 @@ func compareServicePorts(new, old map[string]*svc.ServicePort) (add, update, del
 	return
 }
 
+func genSvcPortName(svcName, portName string) string {
+	// #nosec
+	sum := md5.Sum([]byte(svcName + "/" + portName))
+	return hex.EncodeToString(sum[:])
+}
+
 func newSvcPort(epNamespacedName types.NamespacedName, portName string) *svc.ServicePort {
 	return &svc.ServicePort{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      string(uuid.NewUUID()),
+			Name:      genSvcPortName(epNamespacedName.Name, portName),
 			Namespace: epNamespacedName.Namespace,
 			Labels: map[string]string{
 				svc.LabelRefEndpoints: epNamespacedName.Name,
