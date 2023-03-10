@@ -195,7 +195,6 @@ type DpManager struct {
 	Info                      *DpManagerInfo
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
-	flowReplayChan            chan struct{}
 	flowReplayMutex           sync.RWMutex
 	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
@@ -316,7 +315,6 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.Info = new(DpManagerInfo)
-	datapathManager.flowReplayChan = make(chan struct{})
 	datapathManager.flowReplayMutex = sync.RWMutex{}
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
