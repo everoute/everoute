@@ -1990,7 +1990,7 @@ data:
     enableCNI: true
     CNIConf:
       localGwIP: 100.64.254.254
-      enableProxy: true
+      enableProxy: false
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -2429,7 +2429,7 @@ spec:
             - --enable-leader-election=true
             - --port=9443
             - --enable-cni=true
-            - --enable-proxy=true
+            - --enable-proxy=false
             - -v=0
           livenessProbe:
             httpGet:

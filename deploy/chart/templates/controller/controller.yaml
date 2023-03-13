@@ -40,7 +40,7 @@ spec:
             - --enable-leader-election=true
             - --port=9443
             - --enable-cni=true
-            - --enable-proxy=true
+            - --enable-proxy={{ .Values.CNIConf.enableProxy }}
             - -v=0
           livenessProbe:
             httpGet:

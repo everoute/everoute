@@ -10,4 +10,4 @@ bridgeName: cnibr0
 enableCNI: true
 CNIConf:
   localGwIP: 100.64.254.254
-  enableProxy: true
+  enableProxy: false
