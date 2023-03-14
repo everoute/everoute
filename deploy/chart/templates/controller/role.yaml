@@ -96,6 +96,7 @@ rules:
   - create
   - update
   - delete
+  - deletecollection
   - get
   - list
   - watch
