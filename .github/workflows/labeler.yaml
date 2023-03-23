@@ -11,7 +11,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Pull Request size labeler
-        uses: wu-cl/pr-size-labeler@main
+        uses: everoute/pr-size-labeler@main
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           xs_label: 'size/xs'
