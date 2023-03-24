@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/contiv/ofnet/ofctrl"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -12,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
+	dpcache "github.com/everoute/everoute/pkg/agent/datapath/cache"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
@@ -556,9 +558,14 @@ var _ = Describe("proxy controller", func() {
 				return equalBackend(backCache.(*proxycache.Backend), &expBackend)
 			}, Timeout, Interval).Should(BeTrue())
 
-			ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
-			Expect(ovsInfo).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName1)).ToNot(BeNil())
+			var ovsInfo *dpcache.SvcOvsInfo
+			Eventually(func() *ofctrl.Group {
+				ovsInfo = svcIndex.GetSvcOvsInfo(svcID)
+				if ovsInfo == nil {
+					return nil
+				}
+				return ovsInfo.GetGroup(portName1)
+			}, Timeout, Interval).ShouldNot(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
 			oldOvsInfo = genTestSvcOvsInfo(ovsInfo)
 			oldDnatMap = make(map[string]uint64)
@@ -631,9 +638,13 @@ var _ = Describe("proxy controller", func() {
 				return equalBackend(backCache.(*proxycache.Backend), &expBackend)
 			}, Timeout, Interval).Should(BeTrue())
 
-			ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
-			Expect(ovsInfo).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName2)).ToNot(BeNil())
+			Eventually(func() *ofctrl.Group {
+				ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
+				if ovsInfo == nil {
+					return nil
+				}
+				return ovsInfo.GetGroup(portName2)
+			}, Timeout, Interval).ShouldNot(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
 		})
