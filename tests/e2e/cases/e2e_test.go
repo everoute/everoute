@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -62,24 +61,11 @@ var _ = BeforeSuite(func() {
 	// reset resource before start e2e
 	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())
 
-	timeoutSec := fmt.Sprintf("%d", int(e2eEnv.Timeout().Seconds()*2))
-	for _, agent := range e2eEnv.NodeManager().ListAgent() {
-		resp, err := agent.Sysctl("net/netfilter/nf_conntrack_tcp_timeout_close=" + timeoutSec)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(strings.TrimSpace(resp)).To(Equal("net.netfilter.nf_conntrack_tcp_timeout_close = " + timeoutSec))
-	}
-
 	serviceRestarter = e2eEnv.NodeManager().ServiceRestarter(15, 20)
 	serviceRestarter.RunAsync()
 })
 
 var _ = AfterSuite(func() {
-	// reset tcp close timeout
-	for _, agent := range e2eEnv.NodeManager().ListAgent() {
-		resp, err := agent.Sysctl("net/netfilter/nf_conntrack_tcp_timeout_close=10")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(strings.TrimSpace(resp)).To(Equal("net.netfilter.nf_conntrack_tcp_timeout_close = 10"))
-	}
 	klog.Infof("complete all e2e test cases use %s", time.Since(startTime))
 	klog.Infof("run e2e-reset.sh to clean test environment")
 })
