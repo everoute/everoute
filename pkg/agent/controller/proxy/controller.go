@@ -25,8 +25,38 @@ import (
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
-// Reconcile watch Service related resource and implement Service
-type Reconcile struct {
+type Cache struct {
+	baseSvcCache cache.Indexer
+	svcPortCache cache.Indexer
+	backendCache cache.Indexer
+}
+
+func (c *Cache) GetCacheBySvcID(svcID string) (*proxycache.BaseSvc, []proxycache.Backend, []string) {
+	var svc *proxycache.BaseSvc
+	svcObj, _, _ := c.baseSvcCache.GetByKey(svcID)
+	if svcObj != nil {
+		svc = svcObj.(*proxycache.BaseSvc).DeepCopy()
+	}
+
+	var svcPortRscNames []string
+	var backends []proxycache.Backend
+	for portName := range svc.Ports {
+		svcPortObjs, _ := c.svcPortCache.ByIndex(proxycache.PortNameIndex, svc.SvcID+"/"+portName)
+		for i := range svcPortObjs {
+			svcPortRscNames = append(svcPortRscNames, svcPortObjs[i].(*proxycache.SvcPort).Name)
+		}
+
+		backendObjs, _ := c.backendCache.ByIndex(proxycache.ServicePortIndex, svc.SvcID+"/"+portName)
+		for i := range backendObjs {
+			backends = append(backends, *backendObjs[i].(*proxycache.Backend).DeepCopy())
+		}
+	}
+
+	return svc, backends, svcPortRscNames
+}
+
+// Reconciler watch Service related resource and implement Service
+type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	DpMgr  *datapath.DpManager
@@ -34,13 +64,15 @@ type Reconcile struct {
 	SyncChan chan event.GenericEvent
 	syncLock sync.RWMutex
 
-	baseSvcCache cache.Indexer
-	svcPortCache cache.Indexer
-	backendCache cache.Indexer
+	Cache
+}
+
+func (r *Reconciler) GetCache() *Cache {
+	return &r.Cache
 }
 
 // ReconcileService receive Service from work queue
-func (r *Reconcile) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.RLock()
 	defer r.syncLock.RUnlock()
 
@@ -81,7 +113,7 @@ func (r *Reconcile) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // ReconcileSvcPort receive servicePort from work queue
-func (r *Reconcile) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.RLock()
 	defer r.syncLock.RUnlock()
 
@@ -112,7 +144,7 @@ func (r *Reconcile) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) 
 }
 
 // ReconcileSync receive proxySuncEvent from work queue
-func (r *Reconcile) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.Lock()
 	defer r.syncLock.Unlock()
 
@@ -135,7 +167,7 @@ func (r *Reconcile) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // SetupWithManager add service controller and servicePort controller to mgr
-func (r *Reconcile) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -188,7 +220,7 @@ func (r *Reconcile) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func (r *Reconcile) updateService(ctx context.Context, newService *corev1.Service) error {
+func (r *Reconciler) updateService(ctx context.Context, newService *corev1.Service) error {
 	new := proxycache.ServiceToBaseSvc(newService)
 	if new == nil {
 		klog.Errorf("Failed to transfer service %+v to baseSvc cache", newService)
@@ -218,7 +250,7 @@ func (r *Reconcile) updateService(ctx context.Context, newService *corev1.Servic
 	return nil
 }
 
-func (r *Reconcile) processServiceAdd(ctx context.Context, new *proxycache.BaseSvc) error {
+func (r *Reconciler) processServiceAdd(ctx context.Context, new *proxycache.BaseSvc) error {
 	if new == nil {
 		return nil
 	}
@@ -237,7 +269,7 @@ func (r *Reconcile) processServiceAdd(ctx context.Context, new *proxycache.BaseS
 	return nil
 }
 
-func (r *Reconcile) processServiceUpdate(ctx context.Context, new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+func (r *Reconciler) processServiceUpdate(ctx context.Context, new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
 	if new == nil || old == nil {
 		klog.Errorf("Missing service old or new info, old is %+v, new is %+v", old, new)
 		return fmt.Errorf("missing service old or new info")
@@ -281,7 +313,7 @@ func (r *Reconcile) processServiceUpdate(ctx context.Context, new *proxycache.Ba
 	return nil
 }
 
-func (r *Reconcile) deleteService(ctx context.Context, svcNamespacedName types.NamespacedName) error {
+func (r *Reconciler) deleteService(ctx context.Context, svcNamespacedName types.NamespacedName) error {
 	baseSvcID := proxycache.GenSvcID(svcNamespacedName.Namespace, svcNamespacedName.Name)
 
 	dpNatBrs := r.DpMgr.GetNatBridges()
@@ -309,7 +341,7 @@ func (r *Reconcile) deleteService(ctx context.Context, svcNamespacedName types.N
 	return nil
 }
 
-func (r *Reconcile) addClusterIP(ip string, baseSvc *proxycache.BaseSvc) error {
+func (r *Reconciler) addClusterIP(ip string, baseSvc *proxycache.BaseSvc) error {
 	if baseSvc == nil {
 		return fmt.Errorf("missing service base info for add cluster IP: %s", ip)
 	}
@@ -330,7 +362,7 @@ func (r *Reconcile) addClusterIP(ip string, baseSvc *proxycache.BaseSvc) error {
 	return nil
 }
 
-func (r *Reconcile) delClusterIP(ip string, svcBase *proxycache.BaseSvc) error {
+func (r *Reconciler) delClusterIP(ip string, svcBase *proxycache.BaseSvc) error {
 	if svcBase == nil {
 		return fmt.Errorf("missing service base info for delete cluster IP: %s", ip)
 	}
@@ -345,7 +377,7 @@ func (r *Reconcile) delClusterIP(ip string, svcBase *proxycache.BaseSvc) error {
 	return nil
 }
 
-func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+func (r *Reconciler) processUpdatePortOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
 	if new == nil || old == nil {
 		klog.Errorf("Missing service old or new info, old is %+v, new is %+v", old, new)
 		return fmt.Errorf("missing service old or new info")
@@ -400,7 +432,7 @@ func (r *Reconcile) processUpdatePortOfService(new *proxycache.BaseSvc, old *pro
 	return nil
 }
 
-func (r *Reconcile) processUpdateSessionAffinityOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+func (r *Reconciler) processUpdateSessionAffinityOfService(new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
 	if new == nil || old == nil {
 		klog.Errorf("Missing service old or new info, old is %+v, new is %+v", old, new)
 		return fmt.Errorf("missing service old or new info")
@@ -449,7 +481,7 @@ func (r *Reconcile) processUpdateSessionAffinityOfService(new *proxycache.BaseSv
 	return nil
 }
 
-func (r *Reconcile) updateServicePort(ctx context.Context, servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) updateServicePort(ctx context.Context, servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
 	}
@@ -500,7 +532,7 @@ func (r *Reconcile) updateServicePort(ctx context.Context, servicePort *everoute
 	return fmt.Errorf("update servicePort for group err is %s, update servicePort for backend err is %s", err1, err2)
 }
 
-func (r *Reconcile) updateServicePortForGroup(servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) updateServicePortForGroup(servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
 	}
@@ -519,7 +551,7 @@ func (r *Reconcile) updateServicePortForGroup(servicePort *everoutesvc.ServicePo
 	return nil
 }
 
-func (r *Reconcile) updateServicePortForBackend(servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) updateServicePortForBackend(servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
 	}
@@ -535,7 +567,7 @@ func (r *Reconcile) updateServicePortForBackend(servicePort *everoutesvc.Service
 	return nil
 }
 
-func (r *Reconcile) deleteBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) deleteBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
 	}
@@ -585,7 +617,7 @@ func (r *Reconcile) deleteBackendSvcPortRef(servicePort *everoutesvc.ServicePort
 	return nil
 }
 
-func (r *Reconcile) addBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) addBackendSvcPortRef(servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
 	}
@@ -625,7 +657,7 @@ func (r *Reconcile) addBackendSvcPortRef(servicePort *everoutesvc.ServicePort) e
 	return nil
 }
 
-func (r *Reconcile) deleteServicePort(ctx context.Context, namespacedName types.NamespacedName) error {
+func (r *Reconciler) deleteServicePort(ctx context.Context, namespacedName types.NamespacedName) error {
 	oldObj, exists, err := r.svcPortCache.GetByKey(proxycache.GenSvcPortKey(namespacedName.Namespace, namespacedName.Name))
 	if err != nil {
 		klog.Errorf("Failed to get SvcPort cache for ServicePort %+v, err: %s", namespacedName, err)
@@ -667,7 +699,7 @@ func (r *Reconcile) deleteServicePort(ctx context.Context, namespacedName types.
 	return nil
 }
 
-func (r *Reconcile) deleteServicePortForGroup(svcPort *proxycache.SvcPort) error {
+func (r *Reconciler) deleteServicePortForGroup(svcPort *proxycache.SvcPort) error {
 	if svcPort == nil {
 		return nil
 	}
@@ -684,7 +716,7 @@ func (r *Reconcile) deleteServicePortForGroup(svcPort *proxycache.SvcPort) error
 	return nil
 }
 
-func (r *Reconcile) deleteServicePortForBackend(svcPort *proxycache.SvcPort) error {
+func (r *Reconciler) deleteServicePortForBackend(svcPort *proxycache.SvcPort) error {
 	if svcPort == nil {
 		return nil
 	}
@@ -724,7 +756,7 @@ func (r *Reconcile) deleteServicePortForBackend(svcPort *proxycache.SvcPort) err
 	return nil
 }
 
-func (r *Reconcile) replay() error {
+func (r *Reconciler) replay() error {
 	dpNatBrs := r.DpMgr.GetNatBridges()
 
 	// replay groups

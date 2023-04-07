@@ -27,8 +27,7 @@ type Rule struct {
 	CTFlows []tuple `json:"CTFlows,omitempty"`
 }
 
-func ConnectRule(show bool) error {
-	showCTflows = show
+func ConnectClient() error {
 	rpc, err := grpc.Dial(constants.RPCSocketAddr,
 		grpc.WithInsecure(),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, e error) {
@@ -40,9 +39,17 @@ func ConnectRule(show bool) error {
 		return err
 	}
 	ruleconn = v1alpha1.NewGetterClient(rpc)
+	return nil
+}
+
+func ConnectRule(show bool) error {
+	showCTflows = show
+	if err := ConnectClient(); err != nil {
+		return err
+	}
 	ct, err := conntrack.Dial(nil)
 	if err != nil {
-		return nil
+		return err
 	}
 	cnt = map[uint64][]tuple{}
 	flows, err := ct.Dump()
@@ -83,6 +90,10 @@ func GetRulesByFlow(flowIDs []int64) ([]*Rule, error) {
 	}
 	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
 	return rules, nil
+}
+
+func GetSvcInfoBySvcID(svcID string) (*v1alpha1.SvcInfo, error) {
+	return ruleconn.GetSvcInfoBySvcID(context.Background(), &v1alpha1.SvcID{ID: svcID})
 }
 
 type tuple struct {

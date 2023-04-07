@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -33,16 +34,19 @@ type Server struct {
 	k8sClient client.Client
 	dpManager *datapath.DpManager
 
+	proxyCache *ctrlProxy.Cache
+
 	enableCNI bool
 
 	stopChan <-chan struct{}
 }
 
-func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool) *Server {
+func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache) *Server {
 	s := &Server{
-		dpManager: datapathManager,
-		k8sClient: k8sClient,
-		enableCNI: enableCNI,
+		dpManager:  datapathManager,
+		k8sClient:  k8sClient,
+		proxyCache: proxyCache,
+		enableCNI:  enableCNI,
 	}
 
 	return s
@@ -85,7 +89,7 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	klog.Infoln("Enable collector rpc server")
 
 	// register cli server
-	getterServer := NewGetterServer(s.dpManager)
+	getterServer := NewGetterServer(s.dpManager, s.proxyCache)
 	v1alpha1.RegisterGetterServer(rpcServer, getterServer)
 	klog.Infoln("Enable cli tools rpc server")
 

@@ -19,6 +19,7 @@ type Backend struct {
 }
 
 func GenServicePortRef(svcNs, svcName, portName string) string {
+	// portName is service port name in service spec
 	return svcNs + "/" + svcName + "/" + portName
 }
 

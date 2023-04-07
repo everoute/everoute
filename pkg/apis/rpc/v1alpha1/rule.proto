@@ -50,8 +50,69 @@ message FlowIDs{
   repeated uint64 FlowIDs = 1;
 }
 
+message SvcID {
+  string ID = 1;
+}
+
+message SvcPort {
+  string Name = 1;
+  int32 Port = 2;
+  string Protocol = 3;
+}
+
+message Backend {
+  string IP = 1;
+  string Protocol = 2;
+  int32 Port = 3;
+  string Node = 4;
+}
+
+message SvcCache {
+  string SvcID = 1;
+  string SvcType = 2;
+  repeated string ClusterIP = 3;
+  repeated SvcPort Ports = 4;
+  string SessionAffinity = 5;
+  int32 SessionAffinityTimeout = 6;
+  string InternalTrafficPolicy = 7;
+  repeated Backend Backends = 8;
+  repeated string SvcPortResourceNames = 9;
+}
+
+message SvcFlowEntry {
+  string IP = 1;
+  string PortName = 2;
+  uint64 FlowID = 3;
+  string Info = 4;
+}
+
+message SvcDnatFlowEntry {
+  Backend Backend = 1;
+  uint64 FlowID = 2;
+  string Info = 3;
+}
+
+message SvcFlow {
+  repeated SvcFlowEntry LBFlows = 1;
+  repeated SvcFlowEntry SessionAffinityFlows = 2;
+  repeated SvcDnatFlowEntry DnatFlows = 3;
+}
+
+message SvcGroup {
+  string PortName = 1;
+  uint32 GroupID = 2;
+  string Info = 3;
+}
+
+message SvcInfo {
+  SvcCache SvcCache = 1;
+  SvcFlow SvcFlow = 2;
+  repeated SvcGroup SvcGroup = 3;
+}
+
 service Getter {
   rpc GetAllRules(google.protobuf.Empty) returns (RuleEntries){}
   rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
   rpc GetRulesByFlow(FlowIDs) returns (RuleEntries){}
+  rpc GetSvcInfoBySvcID(SvcID) returns (SvcInfo) {}
 }

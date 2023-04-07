@@ -17,9 +17,15 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
+const (
+	FlowType  = "flow"
+	GroupType = "group"
+)
+
 var (
 	bridgeNameSuffix = []string{"", "-policy", "-cls", "-uplink"}
 	allBridge        []string
+	vdsNames         []string
 )
 
 func ConnectFlow() error {
@@ -38,6 +44,7 @@ func ConnectFlow() error {
 	if err != nil {
 		return err
 	}
+	vdsNames = append([]string{}, vdsName.Bridge...)
 	allBridge = vdsName2BridgeName(vdsName.Bridge...)
 	return nil
 }
@@ -89,6 +96,46 @@ func GetFlows(dp bool, names ...string) (map[string][]string, error) {
 		laste = nil
 	}
 	return ans, laste
+}
+
+func GetOvsPipeline(brNameSuffix string, pType string, args ...string) ([]string, error) {
+	var brs []string
+	for i := range vdsNames {
+		brs = append(brs, vdsNames[i]+brNameSuffix)
+	}
+	if len(brs) == 0 {
+		return nil, fmt.Errorf("no bridges has suffix %s", brNameSuffix)
+	}
+
+	var rootCmd string
+	switch pType {
+	case FlowType:
+		rootCmd = "ovs-ofctl dump-flows"
+	case GroupType:
+		rootCmd = "ovs-ofctl dump-groups"
+	default:
+		return nil, fmt.Errorf("invalid param pType %s, only support %s and %s", pType, FlowType, GroupType)
+	}
+
+	var filter string
+	if len(args) == 1 {
+		filter = args[0]
+	} else if len(args) != 0 {
+		return nil, fmt.Errorf("param error")
+	}
+
+	var res []string
+	for i := range brs {
+		cmd := fmt.Sprintf("%s %s %s", rootCmd, brs[i], filter)
+		b, err := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
+		if err != nil {
+			return nil, err
+		}
+		ans := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+		res = append(res, ans...)
+	}
+
+	return res, nil
 }
 
 // vdsName means localBridgeName

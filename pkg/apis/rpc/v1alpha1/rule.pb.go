@@ -491,6 +491,621 @@ func (x *FlowIDs) GetFlowIDs() []uint64 {
 	return nil
 }
 
+type SvcID struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+}
+
+func (x *SvcID) Reset() {
+	*x = SvcID{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcID) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcID) ProtoMessage() {}
+
+func (x *SvcID) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcID.ProtoReflect.Descriptor instead.
+func (*SvcID) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SvcID) GetID() string {
+	if x != nil {
+		return x.ID
+	}
+	return ""
+}
+
+type SvcPort struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name     string `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
+	Port     int32  `protobuf:"varint,2,opt,name=Port,proto3" json:"Port,omitempty"`
+	Protocol string `protobuf:"bytes,3,opt,name=Protocol,proto3" json:"Protocol,omitempty"`
+}
+
+func (x *SvcPort) Reset() {
+	*x = SvcPort{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcPort) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcPort) ProtoMessage() {}
+
+func (x *SvcPort) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcPort.ProtoReflect.Descriptor instead.
+func (*SvcPort) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SvcPort) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SvcPort) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *SvcPort) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+type Backend struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	IP       string `protobuf:"bytes,1,opt,name=IP,proto3" json:"IP,omitempty"`
+	Protocol string `protobuf:"bytes,2,opt,name=Protocol,proto3" json:"Protocol,omitempty"`
+	Port     int32  `protobuf:"varint,3,opt,name=Port,proto3" json:"Port,omitempty"`
+	Node     string `protobuf:"bytes,4,opt,name=Node,proto3" json:"Node,omitempty"`
+}
+
+func (x *Backend) Reset() {
+	*x = Backend{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Backend) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Backend) ProtoMessage() {}
+
+func (x *Backend) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Backend.ProtoReflect.Descriptor instead.
+func (*Backend) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Backend) GetIP() string {
+	if x != nil {
+		return x.IP
+	}
+	return ""
+}
+
+func (x *Backend) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *Backend) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *Backend) GetNode() string {
+	if x != nil {
+		return x.Node
+	}
+	return ""
+}
+
+type SvcCache struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SvcID                  string     `protobuf:"bytes,1,opt,name=SvcID,proto3" json:"SvcID,omitempty"`
+	SvcType                string     `protobuf:"bytes,2,opt,name=SvcType,proto3" json:"SvcType,omitempty"`
+	ClusterIP              []string   `protobuf:"bytes,3,rep,name=ClusterIP,proto3" json:"ClusterIP,omitempty"`
+	Ports                  []*SvcPort `protobuf:"bytes,4,rep,name=Ports,proto3" json:"Ports,omitempty"`
+	SessionAffinity        string     `protobuf:"bytes,5,opt,name=SessionAffinity,proto3" json:"SessionAffinity,omitempty"`
+	SessionAffinityTimeout int32      `protobuf:"varint,6,opt,name=SessionAffinityTimeout,proto3" json:"SessionAffinityTimeout,omitempty"`
+	InternalTrafficPolicy  string     `protobuf:"bytes,7,opt,name=InternalTrafficPolicy,proto3" json:"InternalTrafficPolicy,omitempty"`
+	Backends               []*Backend `protobuf:"bytes,8,rep,name=Backends,proto3" json:"Backends,omitempty"`
+	SvcPortResourceNames   []string   `protobuf:"bytes,9,rep,name=SvcPortResourceNames,proto3" json:"SvcPortResourceNames,omitempty"`
+}
+
+func (x *SvcCache) Reset() {
+	*x = SvcCache{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcCache) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcCache) ProtoMessage() {}
+
+func (x *SvcCache) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcCache.ProtoReflect.Descriptor instead.
+func (*SvcCache) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SvcCache) GetSvcID() string {
+	if x != nil {
+		return x.SvcID
+	}
+	return ""
+}
+
+func (x *SvcCache) GetSvcType() string {
+	if x != nil {
+		return x.SvcType
+	}
+	return ""
+}
+
+func (x *SvcCache) GetClusterIP() []string {
+	if x != nil {
+		return x.ClusterIP
+	}
+	return nil
+}
+
+func (x *SvcCache) GetPorts() []*SvcPort {
+	if x != nil {
+		return x.Ports
+	}
+	return nil
+}
+
+func (x *SvcCache) GetSessionAffinity() string {
+	if x != nil {
+		return x.SessionAffinity
+	}
+	return ""
+}
+
+func (x *SvcCache) GetSessionAffinityTimeout() int32 {
+	if x != nil {
+		return x.SessionAffinityTimeout
+	}
+	return 0
+}
+
+func (x *SvcCache) GetInternalTrafficPolicy() string {
+	if x != nil {
+		return x.InternalTrafficPolicy
+	}
+	return ""
+}
+
+func (x *SvcCache) GetBackends() []*Backend {
+	if x != nil {
+		return x.Backends
+	}
+	return nil
+}
+
+func (x *SvcCache) GetSvcPortResourceNames() []string {
+	if x != nil {
+		return x.SvcPortResourceNames
+	}
+	return nil
+}
+
+type SvcFlowEntry struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	IP       string `protobuf:"bytes,1,opt,name=IP,proto3" json:"IP,omitempty"`
+	PortName string `protobuf:"bytes,2,opt,name=PortName,proto3" json:"PortName,omitempty"`
+	FlowID   uint64 `protobuf:"varint,3,opt,name=FlowID,proto3" json:"FlowID,omitempty"`
+	Info     string `protobuf:"bytes,4,opt,name=Info,proto3" json:"Info,omitempty"`
+}
+
+func (x *SvcFlowEntry) Reset() {
+	*x = SvcFlowEntry{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcFlowEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcFlowEntry) ProtoMessage() {}
+
+func (x *SvcFlowEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcFlowEntry.ProtoReflect.Descriptor instead.
+func (*SvcFlowEntry) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SvcFlowEntry) GetIP() string {
+	if x != nil {
+		return x.IP
+	}
+	return ""
+}
+
+func (x *SvcFlowEntry) GetPortName() string {
+	if x != nil {
+		return x.PortName
+	}
+	return ""
+}
+
+func (x *SvcFlowEntry) GetFlowID() uint64 {
+	if x != nil {
+		return x.FlowID
+	}
+	return 0
+}
+
+func (x *SvcFlowEntry) GetInfo() string {
+	if x != nil {
+		return x.Info
+	}
+	return ""
+}
+
+type SvcDnatFlowEntry struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Backend *Backend `protobuf:"bytes,1,opt,name=Backend,proto3" json:"Backend,omitempty"`
+	FlowID  uint64   `protobuf:"varint,2,opt,name=FlowID,proto3" json:"FlowID,omitempty"`
+	Info    string   `protobuf:"bytes,3,opt,name=Info,proto3" json:"Info,omitempty"`
+}
+
+func (x *SvcDnatFlowEntry) Reset() {
+	*x = SvcDnatFlowEntry{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcDnatFlowEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcDnatFlowEntry) ProtoMessage() {}
+
+func (x *SvcDnatFlowEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcDnatFlowEntry.ProtoReflect.Descriptor instead.
+func (*SvcDnatFlowEntry) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SvcDnatFlowEntry) GetBackend() *Backend {
+	if x != nil {
+		return x.Backend
+	}
+	return nil
+}
+
+func (x *SvcDnatFlowEntry) GetFlowID() uint64 {
+	if x != nil {
+		return x.FlowID
+	}
+	return 0
+}
+
+func (x *SvcDnatFlowEntry) GetInfo() string {
+	if x != nil {
+		return x.Info
+	}
+	return ""
+}
+
+type SvcFlow struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	LBFlows              []*SvcFlowEntry     `protobuf:"bytes,1,rep,name=LBFlows,proto3" json:"LBFlows,omitempty"`
+	SessionAffinityFlows []*SvcFlowEntry     `protobuf:"bytes,2,rep,name=SessionAffinityFlows,proto3" json:"SessionAffinityFlows,omitempty"`
+	DnatFlows            []*SvcDnatFlowEntry `protobuf:"bytes,3,rep,name=DnatFlows,proto3" json:"DnatFlows,omitempty"`
+}
+
+func (x *SvcFlow) Reset() {
+	*x = SvcFlow{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcFlow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcFlow) ProtoMessage() {}
+
+func (x *SvcFlow) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcFlow.ProtoReflect.Descriptor instead.
+func (*SvcFlow) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SvcFlow) GetLBFlows() []*SvcFlowEntry {
+	if x != nil {
+		return x.LBFlows
+	}
+	return nil
+}
+
+func (x *SvcFlow) GetSessionAffinityFlows() []*SvcFlowEntry {
+	if x != nil {
+		return x.SessionAffinityFlows
+	}
+	return nil
+}
+
+func (x *SvcFlow) GetDnatFlows() []*SvcDnatFlowEntry {
+	if x != nil {
+		return x.DnatFlows
+	}
+	return nil
+}
+
+type SvcGroup struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PortName string `protobuf:"bytes,1,opt,name=PortName,proto3" json:"PortName,omitempty"`
+	GroupID  uint32 `protobuf:"varint,2,opt,name=GroupID,proto3" json:"GroupID,omitempty"`
+	Info     string `protobuf:"bytes,3,opt,name=Info,proto3" json:"Info,omitempty"`
+}
+
+func (x *SvcGroup) Reset() {
+	*x = SvcGroup{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcGroup) ProtoMessage() {}
+
+func (x *SvcGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcGroup.ProtoReflect.Descriptor instead.
+func (*SvcGroup) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *SvcGroup) GetPortName() string {
+	if x != nil {
+		return x.PortName
+	}
+	return ""
+}
+
+func (x *SvcGroup) GetGroupID() uint32 {
+	if x != nil {
+		return x.GroupID
+	}
+	return 0
+}
+
+func (x *SvcGroup) GetInfo() string {
+	if x != nil {
+		return x.Info
+	}
+	return ""
+}
+
+type SvcInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SvcCache *SvcCache   `protobuf:"bytes,1,opt,name=SvcCache,proto3" json:"SvcCache,omitempty"`
+	SvcFlow  *SvcFlow    `protobuf:"bytes,2,opt,name=SvcFlow,proto3" json:"SvcFlow,omitempty"`
+	SvcGroup []*SvcGroup `protobuf:"bytes,3,rep,name=SvcGroup,proto3" json:"SvcGroup,omitempty"`
+}
+
+func (x *SvcInfo) Reset() {
+	*x = SvcInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SvcInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SvcInfo) ProtoMessage() {}
+
+func (x *SvcInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SvcInfo.ProtoReflect.Descriptor instead.
+func (*SvcInfo) Descriptor() ([]byte, []int) {
+	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SvcInfo) GetSvcCache() *SvcCache {
+	if x != nil {
+		return x.SvcCache
+	}
+	return nil
+}
+
+func (x *SvcInfo) GetSvcFlow() *SvcFlow {
+	if x != nil {
+		return x.SvcFlow
+	}
+	return nil
+}
+
+func (x *SvcInfo) GetSvcGroup() []*SvcGroup {
+	if x != nil {
+		return x.SvcGroup
+	}
+	return nil
+}
+
 var File_pkg_apis_rpc_v1alpha1_rule_proto protoreflect.FileDescriptor
 
 var file_pkg_apis_rpc_v1alpha1_rule_proto_rawDesc = []byte{
@@ -570,7 +1185,98 @@ var file_pkg_apis_rpc_v1alpha1_rule_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07, 0x52, 0x75, 0x6c, 0x65, 0x49, 0x44, 0x73, 0x22,
 	0x23, 0x0a, 0x07, 0x46, 0x6c, 0x6f, 0x77, 0x49, 0x44, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x46, 0x6c,
 	0x6f, 0x77, 0x49, 0x44, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x04, 0x52, 0x07, 0x46, 0x6c, 0x6f,
-	0x77, 0x49, 0x44, 0x73, 0x32, 0xc1, 0x02, 0x0a, 0x06, 0x47, 0x65, 0x74, 0x74, 0x65, 0x72, 0x12,
+	0x77, 0x49, 0x44, 0x73, 0x22, 0x17, 0x0a, 0x05, 0x53, 0x76, 0x63, 0x49, 0x44, 0x12, 0x0e, 0x0a,
+	0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x49, 0x44, 0x22, 0x4d, 0x0a,
+	0x07, 0x53, 0x76, 0x63, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x4e, 0x61, 0x6d, 0x65,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04,
+	0x50, 0x6f, 0x72, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x04, 0x50, 0x6f, 0x72, 0x74,
+	0x12, 0x1a, 0x0a, 0x08, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x08, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x22, 0x5d, 0x0a, 0x07,
+	0x42, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x50, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x02, 0x49, 0x50, 0x12, 0x1a, 0x0a, 0x08, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x63, 0x6f, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x63, 0x6f, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x50, 0x6f, 0x72, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x04, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x4e, 0x6f, 0x64, 0x65, 0x18,
+	0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e, 0x6f, 0x64, 0x65, 0x22, 0xae, 0x03, 0x0a, 0x08,
+	0x53, 0x76, 0x63, 0x43, 0x61, 0x63, 0x68, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x53, 0x76, 0x63, 0x49,
+	0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x53, 0x76, 0x63, 0x49, 0x44, 0x12, 0x18,
+	0x0a, 0x07, 0x53, 0x76, 0x63, 0x54, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x53, 0x76, 0x63, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x43, 0x6c, 0x75, 0x73,
+	0x74, 0x65, 0x72, 0x49, 0x50, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x09, 0x43, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x49, 0x50, 0x12, 0x40, 0x0a, 0x05, 0x50, 0x6f, 0x72, 0x74, 0x73, 0x18,
+	0x04, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65,
+	0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63,
+	0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x53, 0x76, 0x63, 0x50, 0x6f, 0x72,
+	0x74, 0x52, 0x05, 0x50, 0x6f, 0x72, 0x74, 0x73, 0x12, 0x28, 0x0a, 0x0f, 0x53, 0x65, 0x73, 0x73,
+	0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66, 0x69, 0x6e, 0x69, 0x74, 0x79, 0x18, 0x05, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0f, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66, 0x69, 0x6e, 0x69,
+	0x74, 0x79, 0x12, 0x36, 0x0a, 0x16, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66,
+	0x69, 0x6e, 0x69, 0x74, 0x79, 0x54, 0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x18, 0x06, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x16, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66, 0x69, 0x6e,
+	0x69, 0x74, 0x79, 0x54, 0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x12, 0x34, 0x0a, 0x15, 0x49, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x54, 0x72, 0x61, 0x66, 0x66, 0x69, 0x63, 0x50, 0x6f, 0x6c,
+	0x69, 0x63, 0x79, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x15, 0x49, 0x6e, 0x74, 0x65, 0x72,
+	0x6e, 0x61, 0x6c, 0x54, 0x72, 0x61, 0x66, 0x66, 0x69, 0x63, 0x50, 0x6f, 0x6c, 0x69, 0x63, 0x79,
+	0x12, 0x46, 0x0a, 0x08, 0x42, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x73, 0x18, 0x08, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f,
+	0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31,
+	0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x42, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x52, 0x08,
+	0x42, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x73, 0x12, 0x32, 0x0a, 0x14, 0x53, 0x76, 0x63, 0x50,
+	0x6f, 0x72, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x73,
+	0x18, 0x09, 0x20, 0x03, 0x28, 0x09, 0x52, 0x14, 0x53, 0x76, 0x63, 0x50, 0x6f, 0x72, 0x74, 0x52,
+	0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x73, 0x22, 0x66, 0x0a, 0x0c,
+	0x53, 0x76, 0x63, 0x46, 0x6c, 0x6f, 0x77, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x0e, 0x0a, 0x02,
+	0x49, 0x50, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x49, 0x50, 0x12, 0x1a, 0x0a, 0x08,
+	0x50, 0x6f, 0x72, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08,
+	0x50, 0x6f, 0x72, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x46, 0x6c, 0x6f, 0x77,
+	0x49, 0x44, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x06, 0x46, 0x6c, 0x6f, 0x77, 0x49, 0x44,
+	0x12, 0x12, 0x0a, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
+	0x49, 0x6e, 0x66, 0x6f, 0x22, 0x84, 0x01, 0x0a, 0x10, 0x53, 0x76, 0x63, 0x44, 0x6e, 0x61, 0x74,
+	0x46, 0x6c, 0x6f, 0x77, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x44, 0x0a, 0x07, 0x42, 0x61, 0x63,
+	0x6b, 0x65, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x65, 0x76, 0x65,
+	0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69,
+	0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x42,
+	0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x52, 0x07, 0x42, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x12,
+	0x16, 0x0a, 0x06, 0x46, 0x6c, 0x6f, 0x77, 0x49, 0x44, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52,
+	0x06, 0x46, 0x6c, 0x6f, 0x77, 0x49, 0x44, 0x12, 0x12, 0x0a, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x8c, 0x02, 0x0a, 0x07,
+	0x53, 0x76, 0x63, 0x46, 0x6c, 0x6f, 0x77, 0x12, 0x49, 0x0a, 0x07, 0x4c, 0x42, 0x46, 0x6c, 0x6f,
+	0x77, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x2f, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f,
+	0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e,
+	0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x53, 0x76, 0x63,
+	0x46, 0x6c, 0x6f, 0x77, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x07, 0x4c, 0x42, 0x46, 0x6c, 0x6f,
+	0x77, 0x73, 0x12, 0x63, 0x0a, 0x14, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66,
+	0x69, 0x6e, 0x69, 0x74, 0x79, 0x46, 0x6c, 0x6f, 0x77, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x2f, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70,
+	0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c,
+	0x70, 0x68, 0x61, 0x31, 0x2e, 0x53, 0x76, 0x63, 0x46, 0x6c, 0x6f, 0x77, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x52, 0x14, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x41, 0x66, 0x66, 0x69, 0x6e, 0x69,
+	0x74, 0x79, 0x46, 0x6c, 0x6f, 0x77, 0x73, 0x12, 0x51, 0x0a, 0x09, 0x44, 0x6e, 0x61, 0x74, 0x46,
+	0x6c, 0x6f, 0x77, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x33, 0x2e, 0x65, 0x76, 0x65,
+	0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69,
+	0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x53,
+	0x76, 0x63, 0x44, 0x6e, 0x61, 0x74, 0x46, 0x6c, 0x6f, 0x77, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52,
+	0x09, 0x44, 0x6e, 0x61, 0x74, 0x46, 0x6c, 0x6f, 0x77, 0x73, 0x22, 0x54, 0x0a, 0x08, 0x53, 0x76,
+	0x63, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x1a, 0x0a, 0x08, 0x50, 0x6f, 0x72, 0x74, 0x4e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x50, 0x6f, 0x72, 0x74, 0x4e, 0x61,
+	0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x44, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x0d, 0x52, 0x07, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x44, 0x12, 0x12, 0x0a, 0x04,
+	0x49, 0x6e, 0x66, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f,
+	0x22, 0xe1, 0x01, 0x0a, 0x07, 0x53, 0x76, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x47, 0x0a, 0x08,
+	0x53, 0x76, 0x63, 0x43, 0x61, 0x63, 0x68, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2b,
+	0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67,
+	0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68,
+	0x61, 0x31, 0x2e, 0x53, 0x76, 0x63, 0x43, 0x61, 0x63, 0x68, 0x65, 0x52, 0x08, 0x53, 0x76, 0x63,
+	0x43, 0x61, 0x63, 0x68, 0x65, 0x12, 0x44, 0x0a, 0x07, 0x53, 0x76, 0x63, 0x46, 0x6c, 0x6f, 0x77,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74,
+	0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70,
+	0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x53, 0x76, 0x63, 0x46, 0x6c,
+	0x6f, 0x77, 0x52, 0x07, 0x53, 0x76, 0x63, 0x46, 0x6c, 0x6f, 0x77, 0x12, 0x47, 0x0a, 0x08, 0x53,
+	0x76, 0x63, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x2b, 0x2e,
+	0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e,
+	0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61,
+	0x31, 0x2e, 0x53, 0x76, 0x63, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x08, 0x53, 0x76, 0x63, 0x47,
+	0x72, 0x6f, 0x75, 0x70, 0x32, 0xae, 0x03, 0x0a, 0x06, 0x47, 0x65, 0x74, 0x74, 0x65, 0x72, 0x12,
 	0x57, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x41, 0x6c, 0x6c, 0x52, 0x75, 0x6c, 0x65, 0x73, 0x12, 0x16,
 	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
 	0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x2e, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74,
@@ -590,9 +1296,16 @@ var file_pkg_apis_rpc_v1alpha1_rule_proto_rawDesc = []byte{
 	0x6c, 0x6f, 0x77, 0x49, 0x44, 0x73, 0x1a, 0x2e, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74,
 	0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70,
 	0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x52, 0x75, 0x6c, 0x65, 0x45,
-	0x6e, 0x74, 0x72, 0x69, 0x65, 0x73, 0x22, 0x00, 0x42, 0x17, 0x5a, 0x15, 0x70, 0x6b, 0x67, 0x2f,
-	0x61, 0x70, 0x69, 0x73, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61,
-	0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6e, 0x74, 0x72, 0x69, 0x65, 0x73, 0x22, 0x00, 0x12, 0x6b, 0x0a, 0x11, 0x47, 0x65, 0x74, 0x53,
+	0x76, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x79, 0x53, 0x76, 0x63, 0x49, 0x44, 0x12, 0x28, 0x2e,
+	0x65, 0x76, 0x65, 0x72, 0x6f, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e,
+	0x61, 0x70, 0x69, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61,
+	0x31, 0x2e, 0x53, 0x76, 0x63, 0x49, 0x44, 0x1a, 0x2a, 0x2e, 0x65, 0x76, 0x65, 0x72, 0x6f, 0x75,
+	0x74, 0x65, 0x5f, 0x69, 0x6f, 0x2e, 0x70, 0x6b, 0x67, 0x2e, 0x61, 0x70, 0x69, 0x73, 0x2e, 0x72,
+	0x70, 0x63, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x53, 0x76, 0x63, 0x49,
+	0x6e, 0x66, 0x6f, 0x22, 0x00, 0x42, 0x17, 0x5a, 0x15, 0x70, 0x6b, 0x67, 0x2f, 0x61, 0x70, 0x69,
+	0x73, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -607,7 +1320,7 @@ func file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescGZIP() []byte {
 	return file_pkg_apis_rpc_v1alpha1_rule_proto_rawDescData
 }
 
-var file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_pkg_apis_rpc_v1alpha1_rule_proto_goTypes = []interface{}{
 	(*PolicyRule)(nil),          // 0: everoute_io.pkg.apis.rpc.v1alpha1.PolicyRule
 	(*FlowEntry)(nil),           // 1: everoute_io.pkg.apis.rpc.v1alpha1.FlowEntry
@@ -616,26 +1329,46 @@ var file_pkg_apis_rpc_v1alpha1_rule_proto_goTypes = []interface{}{
 	(*RuleEntries)(nil),         // 4: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
 	(*RuleIDs)(nil),             // 5: everoute_io.pkg.apis.rpc.v1alpha1.RuleIDs
 	(*FlowIDs)(nil),             // 6: everoute_io.pkg.apis.rpc.v1alpha1.FlowIDs
-	nil,                         // 7: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry
-	(*emptypb.Empty)(nil),       // 8: google.protobuf.Empty
+	(*SvcID)(nil),               // 7: everoute_io.pkg.apis.rpc.v1alpha1.SvcID
+	(*SvcPort)(nil),             // 8: everoute_io.pkg.apis.rpc.v1alpha1.SvcPort
+	(*Backend)(nil),             // 9: everoute_io.pkg.apis.rpc.v1alpha1.Backend
+	(*SvcCache)(nil),            // 10: everoute_io.pkg.apis.rpc.v1alpha1.SvcCache
+	(*SvcFlowEntry)(nil),        // 11: everoute_io.pkg.apis.rpc.v1alpha1.SvcFlowEntry
+	(*SvcDnatFlowEntry)(nil),    // 12: everoute_io.pkg.apis.rpc.v1alpha1.SvcDnatFlowEntry
+	(*SvcFlow)(nil),             // 13: everoute_io.pkg.apis.rpc.v1alpha1.SvcFlow
+	(*SvcGroup)(nil),            // 14: everoute_io.pkg.apis.rpc.v1alpha1.SvcGroup
+	(*SvcInfo)(nil),             // 15: everoute_io.pkg.apis.rpc.v1alpha1.SvcInfo
+	nil,                         // 16: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry
+	(*emptypb.Empty)(nil),       // 17: google.protobuf.Empty
 }
 var file_pkg_apis_rpc_v1alpha1_rule_proto_depIdxs = []int32{
-	0, // 0: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.EveroutePolicyRule:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.PolicyRule
-	7, // 1: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMap:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry
-	2, // 2: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.PolicyRuleReference:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.PolicyRuleReference
-	3, // 3: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries.RuleEntries:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry
-	1, // 4: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry.value:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.FlowEntry
-	8, // 5: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetAllRules:input_type -> google.protobuf.Empty
-	5, // 6: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByName:input_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleIDs
-	6, // 7: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByFlow:input_type -> everoute_io.pkg.apis.rpc.v1alpha1.FlowIDs
-	4, // 8: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetAllRules:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
-	4, // 9: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByName:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
-	4, // 10: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByFlow:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
-	8, // [8:11] is the sub-list for method output_type
-	5, // [5:8] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	0,  // 0: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.EveroutePolicyRule:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.PolicyRule
+	16, // 1: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMap:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry
+	2,  // 2: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.PolicyRuleReference:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.PolicyRuleReference
+	3,  // 3: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries.RuleEntries:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry
+	8,  // 4: everoute_io.pkg.apis.rpc.v1alpha1.SvcCache.Ports:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcPort
+	9,  // 5: everoute_io.pkg.apis.rpc.v1alpha1.SvcCache.Backends:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.Backend
+	9,  // 6: everoute_io.pkg.apis.rpc.v1alpha1.SvcDnatFlowEntry.Backend:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.Backend
+	11, // 7: everoute_io.pkg.apis.rpc.v1alpha1.SvcFlow.LBFlows:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcFlowEntry
+	11, // 8: everoute_io.pkg.apis.rpc.v1alpha1.SvcFlow.SessionAffinityFlows:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcFlowEntry
+	12, // 9: everoute_io.pkg.apis.rpc.v1alpha1.SvcFlow.DnatFlows:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcDnatFlowEntry
+	10, // 10: everoute_io.pkg.apis.rpc.v1alpha1.SvcInfo.SvcCache:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcCache
+	13, // 11: everoute_io.pkg.apis.rpc.v1alpha1.SvcInfo.SvcFlow:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcFlow
+	14, // 12: everoute_io.pkg.apis.rpc.v1alpha1.SvcInfo.SvcGroup:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.SvcGroup
+	1,  // 13: everoute_io.pkg.apis.rpc.v1alpha1.RuleEntry.RuleFlowMapEntry.value:type_name -> everoute_io.pkg.apis.rpc.v1alpha1.FlowEntry
+	17, // 14: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetAllRules:input_type -> google.protobuf.Empty
+	5,  // 15: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByName:input_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleIDs
+	6,  // 16: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByFlow:input_type -> everoute_io.pkg.apis.rpc.v1alpha1.FlowIDs
+	7,  // 17: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetSvcInfoBySvcID:input_type -> everoute_io.pkg.apis.rpc.v1alpha1.SvcID
+	4,  // 18: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetAllRules:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
+	4,  // 19: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByName:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
+	4,  // 20: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetRulesByFlow:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.RuleEntries
+	15, // 21: everoute_io.pkg.apis.rpc.v1alpha1.Getter.GetSvcInfoBySvcID:output_type -> everoute_io.pkg.apis.rpc.v1alpha1.SvcInfo
+	18, // [18:22] is the sub-list for method output_type
+	14, // [14:18] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_pkg_apis_rpc_v1alpha1_rule_proto_init() }
@@ -728,6 +1461,114 @@ func file_pkg_apis_rpc_v1alpha1_rule_proto_init() {
 				return nil
 			}
 		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcID); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcPort); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Backend); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcCache); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcFlowEntry); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcDnatFlowEntry); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcFlow); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcGroup); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pkg_apis_rpc_v1alpha1_rule_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SvcInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -735,7 +1576,7 @@ func file_pkg_apis_rpc_v1alpha1_rule_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_pkg_apis_rpc_v1alpha1_rule_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -764,6 +1605,7 @@ type GetterClient interface {
 	GetAllRules(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*RuleEntries, error)
 	GetRulesByName(ctx context.Context, in *RuleIDs, opts ...grpc.CallOption) (*RuleEntries, error)
 	GetRulesByFlow(ctx context.Context, in *FlowIDs, opts ...grpc.CallOption) (*RuleEntries, error)
+	GetSvcInfoBySvcID(ctx context.Context, in *SvcID, opts ...grpc.CallOption) (*SvcInfo, error)
 }
 
 type getterClient struct {
@@ -801,11 +1643,21 @@ func (c *getterClient) GetRulesByFlow(ctx context.Context, in *FlowIDs, opts ...
 	return out, nil
 }
 
+func (c *getterClient) GetSvcInfoBySvcID(ctx context.Context, in *SvcID, opts ...grpc.CallOption) (*SvcInfo, error) {
+	out := new(SvcInfo)
+	err := c.cc.Invoke(ctx, "/everoute_io.pkg.apis.rpc.v1alpha1.Getter/GetSvcInfoBySvcID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetterServer is the server API for Getter service.
 type GetterServer interface {
 	GetAllRules(context.Context, *emptypb.Empty) (*RuleEntries, error)
 	GetRulesByName(context.Context, *RuleIDs) (*RuleEntries, error)
 	GetRulesByFlow(context.Context, *FlowIDs) (*RuleEntries, error)
+	GetSvcInfoBySvcID(context.Context, *SvcID) (*SvcInfo, error)
 }
 
 // UnimplementedGetterServer can be embedded to have forward compatible implementations.
@@ -820,6 +1672,9 @@ func (*UnimplementedGetterServer) GetRulesByName(context.Context, *RuleIDs) (*Ru
 }
 func (*UnimplementedGetterServer) GetRulesByFlow(context.Context, *FlowIDs) (*RuleEntries, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRulesByFlow not implemented")
+}
+func (*UnimplementedGetterServer) GetSvcInfoBySvcID(context.Context, *SvcID) (*SvcInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSvcInfoBySvcID not implemented")
 }
 
 func RegisterGetterServer(s *grpc.Server, srv GetterServer) {
@@ -880,6 +1735,24 @@ func _Getter_GetRulesByFlow_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Getter_GetSvcInfoBySvcID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SvcID)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GetterServer).GetSvcInfoBySvcID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/everoute_io.pkg.apis.rpc.v1alpha1.Getter/GetSvcInfoBySvcID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GetterServer).GetSvcInfoBySvcID(ctx, req.(*SvcID))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Getter_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "everoute_io.pkg.apis.rpc.v1alpha1.Getter",
 	HandlerType: (*GetterServer)(nil),
@@ -895,6 +1768,10 @@ var _Getter_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRulesByFlow",
 			Handler:    _Getter_GetRulesByFlow_Handler,
+		},
+		{
+			MethodName: "GetSvcInfoBySvcID",
+			Handler:    _Getter_GetSvcInfoBySvcID_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
