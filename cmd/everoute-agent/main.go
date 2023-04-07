@@ -77,17 +77,18 @@ func main() {
 	var mgr manager.Manager
 	var ovsdbMonitor *monitor.OVSDBMonitor
 	if opts.IsEnableCNI() {
-		// in cni senary, cni initialization must precede ovsdb monitor initialization
+		// in the cni scenario, cni initialization must precede ovsdb monitor initialization
 		mgr = initK8sCtrlManager(stopChan)
 		initCNI(datapathManager, mgr, proxySyncChan)
 		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
 	} else {
-		// in vi
+		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
 		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
 		mgr = initK8sCtrlManager(stopChan)
 	}
 
-	if err = startManager(mgr, datapathManager, stopChan, proxySyncChan); err != nil {
+	proxyCache, err := startManager(mgr, datapathManager, stopChan, proxySyncChan)
+	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
@@ -95,7 +96,7 @@ func main() {
 	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
 	go agentmonitor.Run(stopChan)
 
-	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, opts.IsEnableCNI())
+	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, opts.IsEnableCNI(), proxyCache)
 	go rpcServer.Run(stopChan)
 
 	<-stopChan
@@ -165,7 +166,7 @@ func initOvsdbMonitor(datapathManager *datapath.DpManager, stopChan <-chan struc
 	return ovsdbMonitor
 }
 
-func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) error {
+func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
 	var err error
 	// Policy controller: watch policy related resource and update
 	if err = (&policy.Reconciler{
@@ -184,20 +185,23 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 			StopChan:        stopChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create node controller: %s", err.Error())
-			return err
+			return nil, err
 		}
 	}
 
+	var proxyCache *ctrlProxy.Cache
 	if opts.IsEnableProxy() {
-		if err = (&ctrlProxy.Reconcile{
+		proxyReconciler := &ctrlProxy.Reconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
 			DpMgr:    datapathManager,
 			SyncChan: proxySyncChan,
-		}).SetupWithManager(mgr); err != nil {
-			klog.Errorf("unable to create proxy controller: %s", err.Error())
-			return err
 		}
+		if err = proxyReconciler.SetupWithManager(mgr); err != nil {
+			klog.Errorf("unable to create proxy controller: %s", err.Error())
+			return nil, err
+		}
+		proxyCache = proxyReconciler.GetCache()
 	}
 
 	klog.Info("starting manager")
@@ -207,5 +211,5 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 		}
 	}()
 
-	return nil
+	return proxyCache, nil
 }

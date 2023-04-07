@@ -7,7 +7,7 @@ import (
 var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "get something",
-	Long:  `you shold use [get rule] or [get flow]`,
+	Long:  `you shold use [get rule], [get flow] or [get svc]`,
 }
 
 func init() {

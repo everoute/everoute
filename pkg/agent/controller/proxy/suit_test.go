@@ -33,7 +33,7 @@ var (
 	k8sClient          client.Client
 	useExistingCluster bool
 	testEnv            *envtest.Environment
-	proxyController    Reconcile
+	proxyController    Reconciler
 	svcIndex           *dpcache.SvcIndex
 	syncChan           chan event.GenericEvent
 )
@@ -86,7 +86,7 @@ var _ = BeforeSuite(func() {
 	Expect(svcIndex).ShouldNot(BeNil())
 
 	syncChan = make(chan event.GenericEvent)
-	proxyController = Reconcile{
+	proxyController = Reconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
 		DpMgr:    dpMgr,
