@@ -51,12 +51,19 @@ type NetworkPolicyRule {
 type NetworkPolicyRulePort {
     port: String
     protocol: NetworkPolicyRulePortProtocol!
+    alg_protocol: NetworkPolicyRulePortAlgProtocol
 }
 
 enum NetworkPolicyRulePortProtocol {
     ICMP
     TCP
     UDP
+    ALG
+}
+
+enum NetworkPolicyRulePortAlgProtocol {
+    FTP
+    TFTP
 }
 
 enum NetworkPolicyRuleType {

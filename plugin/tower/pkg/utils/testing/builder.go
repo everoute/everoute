@@ -135,6 +135,18 @@ func NewNetworkPolicyRule(protocol, port string, ipBlock *networkingv1.IPBlock, 
 	return &rule
 }
 
+func NewNetworkPolicyRulePort(protocol, algProtocol, port string) *schema.NetworkPolicyRulePort {
+	return &schema.NetworkPolicyRulePort{
+		Port:        &port,
+		Protocol:    schema.NetworkPolicyRulePortProtocol(protocol),
+		AlgProtocol: schema.NetworkPolicyRulePortAlgProtocol(algProtocol),
+	}
+}
+
+func NetworkPolicyRuleAddPorts(rule *schema.NetworkPolicyRule, ports ...schema.NetworkPolicyRulePort) {
+	rule.Ports = append(rule.Ports, ports...)
+}
+
 func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 

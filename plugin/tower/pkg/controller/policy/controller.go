@@ -1210,7 +1210,11 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 	var policyPorts = make([]v1alpha1.SecurityPolicyPort, 0, len(rule.Ports))
 
 	for _, port := range rule.Ports {
-		policyPorts = append(policyPorts, parseNetworkPolicyRulePort(port))
+		policyPort, err := parseNetworkPolicyRulePort(port)
+		if err != nil {
+			return nil, nil, err
+		}
+		policyPorts = append(policyPorts, *policyPort)
 	}
 
 	switch rule.Type {
@@ -1400,19 +1404,24 @@ func parseEnforcementMode(mode schema.PolicyMode) v1alpha1.PolicyMode {
 	}
 }
 
-func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) v1alpha1.SecurityPolicyPort {
+func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) (*v1alpha1.SecurityPolicyPort, error) {
 	switch port.Protocol {
 	case schema.NetworkPolicyRulePortProtocolIcmp:
-		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol)}
-	case schema.NetworkPolicyRulePortProtocolFTP:
-		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolTCP, PortRange: FTPPortRange}
-	case schema.NetworkPolicyRulePortProtocolTFTP:
-		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolUDP, PortRange: TFTPPortRange}
+		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol)}, nil
+	case schema.NetworkPolicyRulePortProtocolALG:
+		switch port.AlgProtocol {
+		case schema.NetworkPolicyRulePortAlgProtocolFTP:
+			return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolTCP, PortRange: FTPPortRange}, nil
+		case schema.NetworkPolicyRulePortAlgProtocolTFTP:
+			return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolUDP, PortRange: TFTPPortRange}, nil
+		default:
+			return nil, fmt.Errorf("only support FTP and TFTP for alg protocol, but the alg protocol is %s, port: %+v", port.AlgProtocol, port)
+		}
 	default:
 		portRange := ""
 		if port.Port != nil {
 			portRange = strings.ReplaceAll(*port.Port, " ", "")
 		}
-		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}
+		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}, nil
 	}
 }

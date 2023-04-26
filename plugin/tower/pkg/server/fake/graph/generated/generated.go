@@ -146,8 +146,9 @@ type ComplexityRoot struct {
 	}
 
 	NetworkPolicyRulePort struct {
-		Port     func(childComplexity int) int
-		Protocol func(childComplexity int) int
+		AlgProtocol func(childComplexity int) int
+		Port        func(childComplexity int) int
+		Protocol    func(childComplexity int) int
 	}
 
 	Nic struct {
@@ -671,6 +672,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.NetworkPolicyRule.Type(childComplexity), true
+
+	case "NetworkPolicyRulePort.alg_protocol":
+		if e.complexity.NetworkPolicyRulePort.AlgProtocol == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRulePort.AlgProtocol(childComplexity), true
 
 	case "NetworkPolicyRulePort.port":
 		if e.complexity.NetworkPolicyRulePort.Port == nil {
@@ -1501,12 +1509,19 @@ type NetworkPolicyRule {
 type NetworkPolicyRulePort {
     port: String
     protocol: NetworkPolicyRulePortProtocol!
+    alg_protocol: NetworkPolicyRulePortAlgProtocol
 }
 
 enum NetworkPolicyRulePortProtocol {
     ICMP
     TCP
     UDP
+    ALG
+}
+
+enum NetworkPolicyRulePortAlgProtocol {
+    FTP
+    TFTP
 }
 
 enum NetworkPolicyRuleType {
@@ -3483,6 +3498,38 @@ func (ec *executionContext) _NetworkPolicyRulePort_protocol(ctx context.Context,
 	res := resTmp.(schema.NetworkPolicyRulePortProtocol)
 	fc.Result = res
 	return ec.marshalNNetworkPolicyRulePortProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortProtocol(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRulePort_alg_protocol(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRulePort) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRulePort",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AlgProtocol, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.NetworkPolicyRulePortAlgProtocol)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRulePortAlgProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortAlgProtocol(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Nic_id(ctx context.Context, field graphql.CollectedField, obj *schema.Nic) (ret graphql.Marshaler) {
@@ -8118,6 +8165,8 @@ func (ec *executionContext) _NetworkPolicyRulePort(ctx context.Context, sel ast.
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "alg_protocol":
+			out.Values[i] = ec._NetworkPolicyRulePort_alg_protocol(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -10523,6 +10572,16 @@ func (ec *executionContext) marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋever
 	}
 	wg.Wait()
 	return ret
+}
+
+func (ec *executionContext) unmarshalONetworkPolicyRulePortAlgProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortAlgProtocol(ctx context.Context, v interface{}) (schema.NetworkPolicyRulePortAlgProtocol, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.NetworkPolicyRulePortAlgProtocol(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalONetworkPolicyRulePortAlgProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortAlgProtocol(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRulePortAlgProtocol) graphql.Marshaler {
+	return graphql.MarshalString(string(v))
 }
 
 func (ec *executionContext) marshalONic2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNicᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.Nic) graphql.Marshaler {
