@@ -86,6 +86,8 @@ const (
 	NetworkPolicyRulePortProtocolIcmp NetworkPolicyRulePortProtocol = "ICMP"
 	NetworkPolicyRulePortProtocolTCP  NetworkPolicyRulePortProtocol = "TCP"
 	NetworkPolicyRulePortProtocolUDP  NetworkPolicyRulePortProtocol = "UDP"
+	NetworkPolicyRulePortProtocolFTP  NetworkPolicyRulePortProtocol = "FTP"
+	NetworkPolicyRulePortProtocolTFTP NetworkPolicyRulePortProtocol = "TFTP"
 )
 
 type SecurityPolicyType string

@@ -32,6 +32,8 @@ const (
 	CT_DROP_TABLE               = 71
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
+
+	CTZoneForPolicy uint16 = 65520
 )
 
 type PolicyBridge struct {
@@ -96,6 +98,9 @@ func (p *PolicyBridge) BridgeInit() {
 	if err := p.initCTFlow(sw); err != nil {
 		log.Fatalf("Failed to init ct table, error: %v", err)
 	}
+	if err := p.initALGFlow(sw); err != nil {
+		log.Fatalf("Failed to init alg flow, error: %v", err)
+	}
 	if err := p.initDirectionSelectionTable(); err != nil {
 		log.Fatalf("Failed to init directionSelection table, error: %v", err)
 	}
@@ -129,7 +134,7 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 
 func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 	var ctStateTableID uint8 = CT_STATE_TABLE
-	var policyConntrackZone uint16 = 65520
+	var policyConntrackZone = CTZoneForPolicy
 	localBrName := strings.TrimSuffix(p.name, "-policy")
 	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
@@ -170,7 +175,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
-	var policyConntrackZone uint16 = 65520
+	var policyConntrackZone = CTZoneForPolicy
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -215,7 +220,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	zeroFlag := uint16(0)
 	tcpSynMask := uint16(0x2)
 	ctCommitFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
 		IpProto:   ofctrl.IP_PROTO_TCP,
 		CtStates:  ctTrkState,
@@ -235,7 +240,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 
 	// drop pkt with CT_LABEL[127]=1, even if EST state
 	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:    MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
 		CTLabel:     &[16]byte{0x8},
 		CTLabelMask: &[16]byte{0x8},
@@ -419,6 +424,57 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}
 
+	return nil
+}
+
+func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
+	// Table 1, ctState table, rel state flow
+	ctRelState := openflow13.NewCTStates()
+	ctRelState.UnsetInv()
+	ctRelState.SetRel()
+	ctRelState.SetTrk()
+	ctRelFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		CtStates: ctRelState,
+	})
+	if err := ctRelFlow.Next(p.ctCommitTable); err != nil {
+		return fmt.Errorf("failed to install ct rel state flow, err: %v", err)
+	}
+
+	ctTrkState := openflow13.NewCTStates()
+	ctTrkState.SetNew()
+	ctTrkState.SetTrk()
+	var policyConntrackZone = CTZoneForPolicy
+	var ctDropTable uint8 = CT_DROP_TABLE
+	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
+	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
+
+	// Table 70 commit ct with alg=ftp
+	ftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype:      PROTOCOL_IP,
+		IpProto:        PROTOCOL_TCP,
+		TcpDstPort:     FTPPort,
+		TcpDstPortMask: PortMaskMatchFullBit,
+		CtStates:       ctTrkState,
+	})
+	ftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	ftpAction.SetAlg(FTPPort)
+	_ = ftpFlow.SetConntrack(ftpAction)
+
+	// Table 70 commit ct with alg=tftp
+	tftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
+		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype:      PROTOCOL_IP,
+		IpProto:        PROTOCOL_UDP,
+		UdpDstPort:     TFTPPort,
+		UdpDstPortMask: PortMaskMatchFullBit,
+		CtStates:       ctTrkState,
+	})
+	tftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	tftpAction.SetAlg(TFTPPort)
+	_ = tftpFlow.SetConntrack(tftpAction)
 	return nil
 }
 
