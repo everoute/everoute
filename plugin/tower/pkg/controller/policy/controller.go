@@ -56,6 +56,9 @@ const (
 	ControllerPolicyName      = "tower.sp.internal-controller"
 	GlobalWhitelistPolicyName = "tower.sp.global-user.whitelist"
 
+	FTPPortRange  = "21"
+	TFTPPortRange = "69"
+
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
 	securityGroupIndex   = "securityGroupIndex"
@@ -1207,14 +1210,7 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 	var policyPorts = make([]v1alpha1.SecurityPolicyPort, 0, len(rule.Ports))
 
 	for _, port := range rule.Ports {
-		portRange := ""
-		if port.Port != nil {
-			portRange = strings.ReplaceAll(*port.Port, " ", "")
-		}
-		policyPorts = append(policyPorts, v1alpha1.SecurityPolicyPort{
-			Protocol:  v1alpha1.Protocol(port.Protocol),
-			PortRange: portRange,
-		})
+		policyPorts = append(policyPorts, parseNetworkPolicyRulePort(port))
 	}
 
 	switch rule.Type {
@@ -1401,5 +1397,22 @@ func parseEnforcementMode(mode schema.PolicyMode) v1alpha1.PolicyMode {
 	default:
 		// the default work mode is defined in the SecurityPolicy CRD
 		return ""
+	}
+}
+
+func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) v1alpha1.SecurityPolicyPort {
+	switch port.Protocol {
+	case schema.NetworkPolicyRulePortProtocolIcmp:
+		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol)}
+	case schema.NetworkPolicyRulePortProtocolFTP:
+		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolTCP, PortRange: FTPPortRange}
+	case schema.NetworkPolicyRulePortProtocolTFTP:
+		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.ProtocolUDP, PortRange: TFTPPortRange}
+	default:
+		portRange := ""
+		if port.Port != nil {
+			portRange = strings.ReplaceAll(*port.Port, " ", "")
+		}
+		return v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}
 	}
 }

@@ -175,6 +175,12 @@ echo 1 > /proc/sys/net/ipv4/conf/${UPLINK_BRIDGE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/ip_early_demux
 
+# load alg module
+modprobe nf_nat_ftp
+modprobe nf_conntrack_ftp
+modprobe nf_conntrack_tftp
+modprobe nf_nat_tftp
+
 # check configuration
 ## check ip link exist
 echo "check ip link exist"

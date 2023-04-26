@@ -90,6 +90,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+
 				})
 
 				When("update SecurityPolicy Selector", func() {
@@ -439,6 +440,33 @@ var _ = Describe("PolicyController", func() {
 					)
 				})
 			})
+
+			When("create SecurityPolicy with alg protocol", func() {
+				var policy *schema.SecurityPolicy
+				var ingress, egress *schema.NetworkPolicyRule
+
+				BeforeEach(func() {
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
+					ingress = NewNetworkPolicyRule("FTP", "20-80", nil, labelB, labelC)
+					egress = NewNetworkPolicyRule("TFTP", "", nil, labelA, labelC)
+					policy.Ingress = append(policy.Ingress, *ingress)
+					policy.Egress = append(policy.Egress, *egress)
+
+					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
+					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+					By("wait for v1alpha1.SecurityPolicy created")
+					assertPoliciesNum(ctx, 1)
+				})
+				It("should generate expect policies", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						NewSecurityPolicyRuleIngress("TCP", "21", nil, labelB, labelC),
+						NewSecurityPolicyRuleEgress("UDP", "69", nil, labelA, labelC),
+						NewSecurityPolicyApplyPeer("", labelA, labelB),
+					)
+				})
+			})
 		})
 
 		When("create SecurityPolicy with enforce mode", func() {
@@ -697,6 +725,37 @@ var _ = Describe("PolicyController", func() {
 				)
 			})
 		})
+
+		When("create IsolationPolicy with allow alg protocol", func() {
+			var policy *schema.IsolationPolicy
+			var egress_ftp *schema.NetworkPolicyRule
+
+			BeforeEach(func() {
+				policy = NewIsolationPolicy(everouteCluster, vm, schema.IsolationModePartial)
+				egress_ftp = NewNetworkPolicyRule("FTP", "56", nil, labelA, labelB)
+				policy.Egress = append(policy.Egress, *egress_ftp)
+
+				By(fmt.Sprintf("create IsolationPolicy %+v", policy))
+				server.TrackerFactory().IsolationPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should generate expect policies", func() {
+				assertPoliciesNum(ctx, 2)
+				assertHasPolicy(ctx, constants.Tier0, true, "", v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+					nil, nil,
+					NewSecurityPolicyApplyPeer(vnicA.GetID()),
+					NewSecurityPolicyApplyPeer(vnicB.GetID()),
+				)
+				assertHasPolicy(ctx, constants.Tier1, true, "", v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+					nil,
+					NewSecurityPolicyRuleEgress("TCP", "21", nil, labelA, labelB),
+					NewSecurityPolicyApplyPeer(vnicA.GetID()),
+					NewSecurityPolicyApplyPeer(vnicB.GetID()),
+				)
+			})
+		})
 	})
 
 	Context("Global Internal Whitelist Policy", func() {
@@ -889,6 +948,22 @@ var _ = Describe("PolicyController", func() {
 							},
 						},
 					)
+				})
+			})
+
+			When("update everouteCluster with alg egress", func() {
+				var ipBlock = &networkingv1.IPBlock{CIDR: NewRandomIP().String() + "/32"}
+				BeforeEach(func() {
+					cluster.GlobalWhitelist.Ingress = nil
+					cluster.GlobalWhitelist.Egress = nil
+					cluster.GlobalWhitelist.Egress = append(cluster.GlobalWhitelist.Egress, *NewNetworkPolicyRule("TCP", "27", ipBlock))
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+				It("should generate security policy with alg rule", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						nil, NewSecurityPolicyRuleEgress("TCP", "27", ipBlock))
 				})
 			})
 

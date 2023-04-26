@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
@@ -37,6 +38,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
+	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
 )
 
@@ -85,6 +87,13 @@ func main() {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
 		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
 		mgr = initK8sCtrlManager(stopChan)
+	}
+
+	// add health check handler
+	loadModuleHealthz := evehealthz.NewLoadModuleHealthz(constants.AlgNeedModules)
+	err = mgr.AddMetricsExtraHandler(constants.HealthCheckPath, healthz.CheckHandler{Checker: loadModuleHealthz.Check})
+	if err != nil {
+		klog.Fatalf("failed to add health check handler: %s", err)
 	}
 
 	proxyCache, err := startManager(mgr, datapathManager, stopChan, proxySyncChan)
