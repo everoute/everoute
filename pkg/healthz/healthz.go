@@ -17,8 +17,11 @@ limitations under the License.
 package healthz
 
 import (
+	"bufio"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -72,6 +75,49 @@ func (i *cacheSync) Check(_ *http.Request) error {
 
 	if synced := i.cacheSynced.Load(); synced == nil || !synced.(bool) {
 		return fmt.Errorf("cache not started yet")
+	}
+	return nil
+}
+
+type loadModule struct {
+	Modules []string
+}
+
+var _ healthz.HealthChecker = &loadModule{}
+
+func NewLoadModuleHealthz(modules []string) healthz.HealthChecker {
+	h := &loadModule{Modules: make([]string, 0, len(modules))}
+	h.Modules = append(h.Modules, modules...)
+	return h
+}
+
+func (l *loadModule) Name() string {
+	return "load-module"
+}
+
+func (l *loadModule) Check(_ *http.Request) error {
+	file, err := os.Open("/proc/modules")
+	if err != nil {
+		return fmt.Errorf("failed to open /proc/modules: %s", err)
+	}
+	defer file.Close()
+
+	moduleLoad := make(map[string]bool, 4)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		s := strings.Split(scanner.Text(), " ")
+		name := s[0]
+		for i := range l.Modules {
+			if name == l.Modules[i] {
+				moduleLoad[name] = true
+			}
+		}
+	}
+
+	for _, module := range l.Modules {
+		if !moduleLoad[module] {
+			return fmt.Errorf("os doesn't load module %s", module)
+		}
 	}
 	return nil
 }

@@ -56,6 +56,8 @@ const (
 	EverouteLibPath = "/var/lib/everoute"
 
 	AllEpWithNamedPort = "all-endpoints-with-named-port"
+
+	HealthCheckPath = "/healthz"
 )
 
 const (
@@ -63,4 +65,8 @@ const (
 	OVSReg3 = 3
 	OVSReg4 = 4
 	OVSReg6 = 6
+)
+
+var (
+	AlgNeedModules = []string{"nf_nat_ftp", "nf_conntrack_ftp", "nf_nat_tftp", "nf_conntrack_tftp"}
 )

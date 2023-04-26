@@ -145,7 +145,12 @@ const (
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
 
-const PortMaskMatchFullBit uint16 = 65535
+const (
+	PortMaskMatchFullBit uint16 = 65535
+
+	FTPPort  uint16 = 21
+	TFTPPort uint16 = 69
+)
 
 type Bridge interface {
 	BridgeInit()

@@ -250,6 +250,8 @@ const (
 	ProtocolUDP Protocol = "UDP"
 	// ProtocolICMP is the ICMP protocol.
 	ProtocolICMP Protocol = "ICMP"
+	// ProtocolIPIP is the IPIP protocol.
+	ProtocolIPIP Protocol = "IPIP"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
