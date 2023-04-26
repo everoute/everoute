@@ -447,8 +447,10 @@ var _ = Describe("PolicyController", func() {
 
 				BeforeEach(func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
-					ingress = NewNetworkPolicyRule("FTP", "20-80", nil, labelB, labelC)
-					egress = NewNetworkPolicyRule("TFTP", "", nil, labelA, labelC)
+					ingress = NewNetworkPolicyRule("", "", nil, labelB, labelC)
+					NetworkPolicyRuleAddPorts(ingress, *NewNetworkPolicyRulePort("ALG", "FTP", "20-80"))
+					egress = NewNetworkPolicyRule("", "", nil, labelA, labelC)
+					NetworkPolicyRuleAddPorts(egress, *NewNetworkPolicyRulePort("ALG", "TFTP", ""))
 					policy.Ingress = append(policy.Ingress, *ingress)
 					policy.Egress = append(policy.Egress, *egress)
 
@@ -732,7 +734,8 @@ var _ = Describe("PolicyController", func() {
 
 			BeforeEach(func() {
 				policy = NewIsolationPolicy(everouteCluster, vm, schema.IsolationModePartial)
-				egress_ftp = NewNetworkPolicyRule("FTP", "56", nil, labelA, labelB)
+				egress_ftp = NewNetworkPolicyRule("", "", nil, labelA, labelB)
+				NetworkPolicyRuleAddPorts(egress_ftp, *NewNetworkPolicyRulePort("ALG", "FTP", "56"))
 				policy.Egress = append(policy.Egress, *egress_ftp)
 
 				By(fmt.Sprintf("create IsolationPolicy %+v", policy))

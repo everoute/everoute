@@ -69,8 +69,9 @@ type NetworkPolicyRule struct {
 }
 
 type NetworkPolicyRulePort struct {
-	Port     *string                       `json:"port,omitempty"`
-	Protocol NetworkPolicyRulePortProtocol `json:"protocol"`
+	Port        *string                          `json:"port,omitempty"`
+	Protocol    NetworkPolicyRulePortProtocol    `json:"protocol"`
+	AlgProtocol NetworkPolicyRulePortAlgProtocol `json:"alg_protocol"`
 }
 
 type IsolationMode string
@@ -86,8 +87,14 @@ const (
 	NetworkPolicyRulePortProtocolIcmp NetworkPolicyRulePortProtocol = "ICMP"
 	NetworkPolicyRulePortProtocolTCP  NetworkPolicyRulePortProtocol = "TCP"
 	NetworkPolicyRulePortProtocolUDP  NetworkPolicyRulePortProtocol = "UDP"
-	NetworkPolicyRulePortProtocolFTP  NetworkPolicyRulePortProtocol = "FTP"
-	NetworkPolicyRulePortProtocolTFTP NetworkPolicyRulePortProtocol = "TFTP"
+	NetworkPolicyRulePortProtocolALG  NetworkPolicyRulePortProtocol = "ALG"
+)
+
+type NetworkPolicyRulePortAlgProtocol string
+
+const (
+	NetworkPolicyRulePortAlgProtocolFTP  NetworkPolicyRulePortAlgProtocol = "FTP"
+	NetworkPolicyRulePortAlgProtocolTFTP NetworkPolicyRulePortAlgProtocol = "TFTP"
 )
 
 type SecurityPolicyType string
