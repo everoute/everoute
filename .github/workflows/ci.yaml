@@ -62,13 +62,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Login registry.smtx.io
-        uses: docker/login-action@v2
-        with:
-          registry: registry.smtx.io
-          username: ${{ secrets.HARBOR_PUSH_USERNAME }}
-          password: ${{ secrets.HARBOR_PUSH_TOKEN }}
-
       - name: build everoute image
         uses: docker/build-push-action@v4
         with:
@@ -110,11 +103,8 @@ jobs:
           cat deploy/chart/values.yaml
           make yaml
 
-      - name: copy sks managerment cluster kubeconfig
-        run: echo "${{ secrets.SKS_MGT_KUBECONFIG }}" > sksconfig
-
       - name: test kubectl connect to sks
-        run: kubectl get crd --kubeconfig sksconfig | grep smart
+        run: kubectl get crd --kubeconfig /home/runner/sksconfig/sksconfig | grep smart
 
       - name: allocate cluster vip
         run: |
@@ -134,12 +124,12 @@ jobs:
           sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/kubesmartcluster.yaml.tmpl
           echo "k8s cluster vip is ${{ env.VIP }}"
           sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/kubesmartcluster.yaml.tmpl
-          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig sksconfig
-          kubectl --kubeconfig sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
+          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig /home/runner/sksconfig/sksconfig
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
 
       - name: get new k8s cluster kubeconfig and test connection
         run: |
-          kubectl --kubeconfig sksconfig get secret ${{ env.CLUSTER_NAME }}-kubeconfig -o template --template={{.data.value}} > rawkubeconfig
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig get secret ${{ env.CLUSTER_NAME }}-kubeconfig -o template --template={{.data.value}} > rawkubeconfig
           mkdir -p $HOME/.kube
           base64 --decode rawkubeconfig > $HOME/.kube/config
           kubectl version
@@ -154,7 +144,7 @@ jobs:
 
       - name: wait k8s cluster ready
         run: |
-          kubectl --kubeconfig sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
           kubectl wait --for=condition=Ready nodes --all --timeout=5m
           kubectl get nodes -owide
 
@@ -164,7 +154,7 @@ jobs:
       - name: delete test k8s cluster
         id: delenv
         if: ${{ always() }}
-        run: kubectl --kubeconfig sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
 
       - name: recycle vip
         if: ${{ always() && steps.delenv.conclusion == 'success' }}
