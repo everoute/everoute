@@ -240,7 +240,7 @@ func (n NamespacedName) String() string {
 }
 
 // Protocol defines network protocols supported for SecurityPolicy.
-// +kubebuilder:validation:Enum=TCP;UDP;ICMP
+// +kubebuilder:validation:Enum=TCP;UDP;ICMP;IPIP
 type Protocol string
 
 const (
