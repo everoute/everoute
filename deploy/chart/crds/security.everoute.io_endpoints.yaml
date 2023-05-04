@@ -80,6 +80,7 @@ spec:
                       - TCP
                       - UDP
                       - ICMP
+                      - IPIP
                       type: string
                   type: object
                 type: array
