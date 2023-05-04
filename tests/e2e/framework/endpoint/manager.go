@@ -19,7 +19,9 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -33,6 +35,19 @@ import (
 	"github.com/everoute/everoute/tests/e2e/framework/ipam"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 	"github.com/everoute/everoute/tests/e2e/framework/node"
+)
+
+const (
+	SetupIPIP = `
+		tunName=${1}
+		remoteIP=${2%/*}
+		localIP=${3%/*}
+		ip=${4}
+
+		ip tunnel add ${tunName} mode ipip remote ${remoteIP} local ${localIP}
+		ip a add $ip dev ${tunName}
+		ip link set ${tunName} up
+	`
 )
 
 type Manager struct {
@@ -113,7 +128,7 @@ func (m *Manager) ResetResource(ctx context.Context) error {
 	return m.CleanMany(ctx, epList...)
 }
 
-func (m *Manager) Reachable(ctx context.Context, src string, dst string, protocol string, port int) (bool, error) {
+func (m *Manager) Reachable(ctx context.Context, src string, dst string, protocol string, port int, exaArgs ...string) (bool, error) {
 	var cmd = `net-utils`
 	var args []string
 
@@ -122,14 +137,18 @@ func (m *Manager) Reachable(ctx context.Context, src string, dst string, protoco
 		return false, fmt.Errorf("unable get dest endpoint: %s", err)
 	}
 
-	ip, _, err := net.ParseCIDR(dstEp.Status.IPAddr)
+	dstIPCIDR := dstEp.Status.IPAddr
+	if protocol == "ICMP" && len(exaArgs) > 0 {
+		dstIPCIDR = exaArgs[0]
+	}
+	ip, _, err := net.ParseCIDR(dstIPCIDR)
 	if err != nil {
 		return false, fmt.Errorf("unexpect ipaddr %s of %s", dstEp.Status.IPAddr, dstEp.Name)
 	}
 
 	switch strings.ToUpper(protocol) {
 	case "TCP", "UDP":
-		args = []string{`connect`, `--protocol`, protocol, `--timeout`, "1s", `--server`, fmt.Sprintf("%s:%d", ip, port)}
+		args = []string{`connect`, `--protocol`, protocol, `--timeout`, "1s", `--server`, fmt.Sprintf("%s:%d", ip.String(), port)}
 	case "ICMP":
 		args = []string{`connect`, `--protocol`, protocol, `--timeout`, "1s", `--server`, ip.String()}
 	case "FTP":
@@ -170,6 +189,16 @@ func (m *Manager) ReachTruthTable(ctx context.Context, protocol string, port int
 	}, endpoints)
 
 	return tt, err
+}
+
+func (m *Manager) SetupIPIP(ctx context.Context, object, remoteTunIP, localTunIP, localIP string) error {
+	tunName := "tun" + strconv.Itoa(rand.Intn(100))
+	_, out, err := m.RunScript(ctx, object, []byte(SetupIPIP), tunName, remoteTunIP, localTunIP, localIP)
+	if err != nil {
+		klog.Errorf("%s setup ipip tunnel, out: %s, err: %s", object, out, err)
+	}
+
+	return err
 }
 
 func (m *Manager) concurrentVisit(visitor func(*model.Endpoint) error, endpoints []*model.Endpoint) error {
