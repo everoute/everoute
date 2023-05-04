@@ -37,6 +37,8 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/tests/e2e/framework"
+	"github.com/everoute/everoute/tests/e2e/framework/config"
+	"github.com/everoute/everoute/tests/e2e/framework/ipam"
 	"github.com/everoute/everoute/tests/e2e/framework/matcher"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 	"github.com/everoute/everoute/tests/e2e/framework/node"
@@ -866,6 +868,48 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 	})
+
+	Context("endpoint with ipip tunnel [Feature:IPIP]", func() {
+		var ipipEp1, ipipEp2 *model.Endpoint
+		var ep1InternalIP, ep2InternalIP string
+		var ipipSelector *labels.Selector
+		var tcpPort = 7878
+
+		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "tower" {
+				Skip("tower e2e has no ipip feature, skip it")
+			}
+			ipipEp1 = &model.Endpoint{Name: "ipip-1", TCPPort: tcpPort, Labels: map[string][]string{"component": {"ipip"}}}
+			ipipEp2 = &model.Endpoint{Name: "ipip-2", Labels: map[string][]string{"component": {"client"}}}
+			ipipSelector = newSelector(map[string][]string{"component": {"ipip"}})
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ipipEp1, ipipEp2)).Should(Succeed())
+
+			ipPool, _ := ipam.NewPool(&config.IPAMConfig{IPRange: "15.19.0.1/24"})
+			ep1InternalIP, _ = ipPool.Assign()
+			ep2InternalIP, _ = ipPool.Assign()
+			Expect(e2eEnv.EndpointManager().SetupIPIP(ctx, ipipEp1.Name, ipipEp2.Status.IPAddr, ipipEp1.Status.IPAddr, ep1InternalIP)).Should(Succeed())
+			Expect(e2eEnv.EndpointManager().SetupIPIP(ctx, ipipEp2.Name, ipipEp1.Status.IPAddr, ipipEp2.Status.IPAddr, ep2InternalIP)).Should(Succeed())
+
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "ICMP", true, ep1InternalIP)
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "TCP", true)
+		})
+
+		It("limit IPIP packets", func() {
+			policy := newPolicy("test-ipip", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ipipSelector)
+			addIngressRule(policy, "TCP", tcpPort)
+			Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "ICMP", false, ep1InternalIP)
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "TCP", true)
+		})
+
+		It("allow IPIP packets", func() {
+			policy := newPolicy("test-ipip", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ipipSelector)
+			addIngressRule(policy, "IPIP", 0)
+			Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "ICMP", true, ep1InternalIP)
+			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "TCP", false)
+		})
+	})
 })
 
 var _ = Describe("GlobalPolicy", func() {
@@ -1242,7 +1286,7 @@ func assertFlowMatches(securityModel *SecurityModel) {
 	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(matcher.ContainsRelativeFlow(expectFlows))
 }
 
-func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, protocol string, expectReach bool) {
+func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, protocol string, expectReach bool, extraArgs ...string) {
 	Eventually(func() error {
 		var errList []error
 
@@ -1255,7 +1299,7 @@ func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, 
 				if protocol == "UDP" {
 					port = dst.UDPPort
 				}
-				reach, err := e2eEnv.EndpointManager().Reachable(ctx, src.Name, dst.Name, protocol, port)
+				reach, err := e2eEnv.EndpointManager().Reachable(ctx, src.Name, dst.Name, protocol, port, extraArgs...)
 				Expect(err).Should(Succeed())
 
 				if reach == expectReach {

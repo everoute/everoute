@@ -1598,6 +1598,7 @@ enum NetworkPolicyRulePortProtocol {
     TCP
     UDP
     ALG
+    IPIP
 }
 
 enum NetworkPolicyRulePortAlgProtocol {

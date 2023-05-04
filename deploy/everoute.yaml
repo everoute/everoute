@@ -411,6 +411,7 @@ spec:
                         - TCP
                         - UDP
                         - ICMP
+                        - IPIP
                         type: string
                     type: object
                   type: array
@@ -514,6 +515,7 @@ spec:
                         - TCP
                         - UDP
                         - ICMP
+                        - IPIP
                         type: string
                     type: object
                   type: array
@@ -594,6 +596,7 @@ spec:
                         - TCP
                         - UDP
                         - ICMP
+                        - IPIP
                         type: string
                     type: object
                   type: array
@@ -649,6 +652,7 @@ spec:
                         - TCP
                         - UDP
                         - ICMP
+                        - IPIP
                         type: string
                     type: object
                   type: array
@@ -752,6 +756,7 @@ spec:
                       - TCP
                       - UDP
                       - ICMP
+                      - IPIP
                       type: string
                   type: object
                 type: array
@@ -1242,6 +1247,7 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            - IPIP
                             type: string
                           type:
                             default: number
@@ -1639,6 +1645,7 @@ spec:
                             - TCP
                             - UDP
                             - ICMP
+                            - IPIP
                             type: string
                           type:
                             default: number

@@ -1488,7 +1488,7 @@ func parseEnforcementMode(mode schema.PolicyMode) v1alpha1.PolicyMode {
 
 func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) (*v1alpha1.SecurityPolicyPort, error) {
 	switch port.Protocol {
-	case schema.NetworkPolicyRulePortProtocolIcmp:
+	case schema.NetworkPolicyRulePortProtocolIcmp, schema.NetworkPolicyRulePortProtocolIPIP:
 		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol)}, nil
 	case schema.NetworkPolicyRulePortProtocolALG:
 		switch port.AlgProtocol {

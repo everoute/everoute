@@ -89,6 +89,7 @@ const (
 	NetworkPolicyRulePortProtocolTCP  NetworkPolicyRulePortProtocol = "TCP"
 	NetworkPolicyRulePortProtocolUDP  NetworkPolicyRulePortProtocol = "UDP"
 	NetworkPolicyRulePortProtocolALG  NetworkPolicyRulePortProtocol = "ALG"
+	NetworkPolicyRulePortProtocolIPIP NetworkPolicyRulePortProtocol = "IPIP"
 )
 
 type NetworkPolicyRulePortAlgProtocol string
