@@ -38,6 +38,7 @@ const (
 		tcpPorts=${4:-}
 		udpPorts=${5:-}
 		vlanTag=${6:-[]}
+		proto=${7:-}
 
 		vethName="veth-${netns}"
 		portName=${vethName}
@@ -66,6 +67,11 @@ const (
 
 		if [[ ${udpPorts} != 0 ]]; then
 			execCommand="${execCommand} --udp-ports ${udpPorts}"
+		fi
+
+		if [[ ${proto} = "FTP" ]]; then
+			ip=${ipAddr%/*}
+			execCommand="${execCommand} --ftp-server ${ip}"
 		fi
 
 		eval ${execCommand}
@@ -125,8 +131,8 @@ const (
 	`
 )
 
-func runStartNewEndpoint(client *ssh.Client, netns, bridgeName string, ipAddr string, tcpPort, udpPort int, vlanTag int) error {
-	rc, out, err := runScriptRemote(client, startNewEndpoint, netns, bridgeName, ipAddr, strconv.Itoa(tcpPort), strconv.Itoa(udpPort), strconv.Itoa(vlanTag))
+func runStartNewEndpoint(client *ssh.Client, netns, bridgeName string, ipAddr string, tcpPort, udpPort int, vlanTag int, proto string) error {
+	rc, out, err := runScriptRemote(client, startNewEndpoint, netns, bridgeName, ipAddr, strconv.Itoa(tcpPort), strconv.Itoa(udpPort), strconv.Itoa(vlanTag), proto)
 	if err != nil {
 		return err
 	}

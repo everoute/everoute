@@ -425,6 +425,32 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 		})
 	})
+	Context("environment with endpoints provide public ftp service [Feature:FTP]", func() {
+		var ftpServer, client *model.Endpoint
+		var ftpSelector *labels.Selector
+		var tcpPort = 9090
+
+		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "tower" {
+				Skip("tower e2e has no alg feature, skip it")
+			}
+
+			ftpServer = &model.Endpoint{Name: "ftp-server", TCPPort: tcpPort, Proto: "FTP", Labels: map[string][]string{"component": {"ftpserver"}}}
+			ftpSelector = newSelector(map[string][]string{"component": {"ftpserver"}})
+			client = &model.Endpoint{Name: "client"}
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ftpServer, client)).Should(Succeed())
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "TCP", true)
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "FTP", true)
+		})
+		It("create security policy only allow ftp", func() {
+			policy := newPolicy("allow-ftp", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ftpSelector)
+			addIngressRule(policy, "TCP", 21)
+			Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "TCP", false)
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "FTP", true)
+		})
+	})
 
 	Context("endpoint isolation [Feature:ISOLATION]", func() {
 		var ep01, ep02, ep03, ep04 *model.Endpoint

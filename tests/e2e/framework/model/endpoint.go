@@ -40,6 +40,8 @@ type Endpoint struct {
 	TCPPort int
 	// Expose udp port. TODO: support udp-ports
 	UDPPort int
+	// protoco beyond tcp udp
+	Proto string
 
 	// Status of endpoint, should managed by the endpoint provider
 	Status *EndpointStatus

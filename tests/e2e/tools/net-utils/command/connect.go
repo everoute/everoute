@@ -17,13 +17,16 @@ limitations under the License.
 package command
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/go-ping/ping"
+	"github.com/secsy/goftp"
 	"github.com/spf13/cobra"
 )
 
@@ -60,6 +63,12 @@ func runConnect(server string, protocol string, packetNum, passScore int, timeou
 		receive, err = connectUDP(server, packetNum, timeout)
 	case "icmp":
 		receive, err = connectICMP(server, packetNum, timeout)
+	case "ftp":
+		err = connectFTP(server)
+		if err != nil {
+			return fmt.Errorf("connect to %s: %s", server, err)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupport protocol %s", protocol)
 	}
@@ -147,4 +156,28 @@ func connectRead(conn net.Conn, num int, timeout time.Duration) (int, error) {
 	}
 
 	return succeed, nil
+}
+
+func connectFTP(server string) error {
+	config := goftp.Config{
+		User:               FTPUser,
+		Password:           FTPPass,
+		ConnectionsPerHost: 10,
+		Timeout:            10 * time.Second,
+		Logger:             os.Stderr,
+	}
+
+	client, err := goftp.DialConfig(config, server)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	// download to a buffer instead of file
+	buf := new(bytes.Buffer)
+	err = client.Retrieve("test-ftp", buf)
+	if err != nil {
+		return err
+	}
+	return nil
 }
