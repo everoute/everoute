@@ -27,6 +27,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
@@ -241,7 +242,7 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 	defer session.Close()
 
 	command := fmt.Sprintf("ip netns exec %s %s %s", netns, cmd, strings.Join(arg, " "))
-
+	klog.Infof("---cmd : %#+v", command)
 	out, err := session.CombinedOutput(command)
 	if _, ok := err.(*ssh.ExitError); ok {
 		return err.(*ssh.ExitError).ExitStatus(), out, nil
@@ -350,7 +351,7 @@ func (m *provider) setupNewEndpoint(endpoint *model.Endpoint) error {
 		return err
 	}
 
-	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort, endpoint.VID)
+	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort, endpoint.VID, endpoint.Proto)
 }
 
 func (m *provider) destroyEndpoint(endpoint *model.Endpoint) error {

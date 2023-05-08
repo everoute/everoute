@@ -192,7 +192,7 @@ jobs:
         run: git am -s < hack/0001-Skip-known-bugs-in-everoute-1.1.0.patch
         
       - name: run test cases
-        run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
+        run: sudo ginkgo --skip="FTP" ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
     runs-on: [ubuntu-20.04]

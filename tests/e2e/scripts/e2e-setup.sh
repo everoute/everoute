@@ -79,6 +79,15 @@ $(
 )
 EOF
 
+echo "modprobe ftp moduels"
+modprobe nf_nat_ftp
+modprobe nf_conntrack_ftp
+
+echo "create dir /ftp and file test-ftp"
+mkdir -p /ftp
+touch /ftp/test-ftp
+echo "test-ftp" >> /ftp/test-ftp
+
 echo "========================================================="
 echo " "
 echo "Installation is complete for everoute e2e environment!"

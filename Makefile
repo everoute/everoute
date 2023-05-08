@@ -74,7 +74,7 @@ setup-e2e-env:
 	bash tests/e2e/scripts/e2e-setup.sh
 
 docker-e2e-test-entry: setup-e2e-env
-	go test ./tests/e2e/... -v
+	go test ./tests/e2e/cases/... -v
 
 docker-e2e-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)

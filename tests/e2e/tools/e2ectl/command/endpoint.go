@@ -46,7 +46,7 @@ func NewEndpointCommand(f *framework.Framework) *cobra.Command {
 }
 
 func newEpAddCommand(f *framework.Framework) *cobra.Command {
-	var labels, ipAddr string
+	var labels, ipAddr, proto string
 	var tcpPort, udpPort int
 
 	cmd := &cobra.Command{
@@ -65,6 +65,7 @@ func newEpAddCommand(f *framework.Framework) *cobra.Command {
 				ExpectSubnet: ipAddr,
 				TCPPort:      tcpPort,
 				UDPPort:      udpPort,
+				Proto:        proto,
 			})
 		},
 	}
@@ -73,6 +74,7 @@ func newEpAddCommand(f *framework.Framework) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&ipAddr, "ip", "", "endpoint ipaddress, example: 10.0.0.2")
 	cmd.PersistentFlags().IntVar(&tcpPort, "tcp-port", 0, "endpoint expose tcp port")
 	cmd.PersistentFlags().IntVar(&udpPort, "udp-port", 0, "endpoint expose udp port")
+	cmd.PersistentFlags().StringVar(&proto, "proto", "", "proto beyond tcp and udp, such as FTP")
 
 	return cmd
 }

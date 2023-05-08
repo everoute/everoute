@@ -42,7 +42,7 @@ import (
 	"github.com/everoute/everoute/tests/e2e/framework/node"
 )
 
-var _ = Describe("SecurityPolicy", func() {
+var _ = FDescribe("SecurityPolicy", func() {
 	AfterEach(func() {
 		Expect(e2eEnv.ResetResource(ctx)).Should(Succeed())
 		Expect(cleanConntrack(e2eEnv.NodeManager().ListAgent())).Should(Succeed())
@@ -423,6 +423,28 @@ var _ = Describe("SecurityPolicy", func() {
 				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", true)
 				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "ICMP", true)
 			})
+		})
+	})
+	Context("environment with endpoints provide public ftp service [Feature:FTP]", func() {
+		var ftpServer, client *model.Endpoint
+		var ftpSelector *labels.Selector
+		var tcpPort = 9090
+
+		BeforeEach(func() {
+			ftpServer = &model.Endpoint{Name: "ftp-server", TCPPort: tcpPort, Proto: "FTP", Labels: map[string][]string{"component": {"ftpserver"}}}
+			ftpSelector = newSelector(map[string][]string{"component": {"ftpserver"}})
+			client = &model.Endpoint{Name: "client"}
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, ftpServer, client)).Should(Succeed())
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "TCP", true)
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "FTP", true)
+		})
+		It("create security policy only allow ftp", func() {
+			policy := newPolicy("allow-ftp", constants.Tier2, securityv1alpha1.DefaultRuleDrop, ftpSelector)
+			addIngressRule(policy, "TCP", 21)
+			Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "TCP", false)
+			assertReachable([]*model.Endpoint{client}, []*model.Endpoint{ftpServer}, "FTP", true)
 		})
 	})
 

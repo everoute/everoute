@@ -24,21 +24,29 @@ import (
 	"sync"
 	"time"
 
+	filedriver "github.com/goftp/file-driver"
+	"github.com/goftp/server"
 	"github.com/j-keck/arping"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 )
 
+const (
+	FTPUser = "admin"
+	FTPPass = "123456"
+)
+
 func NewServerCommand() *cobra.Command {
 	var udpPorts, tcpPorts []int
 	var daemon, discover bool
+	var ftpServer string
 
 	cmd := &cobra.Command{
 		Use:   "server [options]",
 		Short: "Server start an udp/tcp server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return start(daemon, func() error {
-				runServer(udpPorts, tcpPorts, discover)
+				runServer(udpPorts, tcpPorts, discover, ftpServer)
 				return nil
 			})
 		},
@@ -48,6 +56,7 @@ func NewServerCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolVarP(&discover, "discover", "s", false, "send arp packets to help discover")
 	cmd.PersistentFlags().IntSliceVarP(&udpPorts, "udp-ports", "u", nil, "set listen udp ports")
 	cmd.PersistentFlags().IntSliceVarP(&tcpPorts, "tcp-ports", "t", nil, "set listen tcp ports")
+	cmd.PersistentFlags().StringVarP(&ftpServer, "ftp-server", "f", "", "set ftp listen ip")
 
 	return cmd
 }
@@ -61,7 +70,7 @@ func start(daemon bool, runable func() error) error {
 	return cmd.Start()
 }
 
-func runServer(udpPorts, tcpPorts []int, discover bool) {
+func runServer(udpPorts, tcpPorts []int, discover bool, ftpServer string) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(udpPorts) + len(tcpPorts))
 
@@ -75,6 +84,11 @@ func runServer(udpPorts, tcpPorts []int, discover bool) {
 
 	if discover {
 		go arpDiscover()
+	}
+
+	if ftpServer != "" {
+		wg.Add(1)
+		go serverFTP(ftpServer)
 	}
 
 	wg.Wait()
@@ -173,5 +187,37 @@ func handleTCP(conn net.Conn) {
 			klog.Errorf("unable write tcp to %s", conn.RemoteAddr())
 			break
 		}
+	}
+}
+
+func serverFTP(host string) {
+	klog.Infof("start ftp... host: %s", host)
+	root := "/ftp"
+	if root == "" {
+		klog.Fatalf("Please set a root to serve with -root")
+	}
+
+	factory := &filedriver.FileDriverFactory{
+		RootPath: root,
+		Perm:     server.NewSimplePerm("user", "group"),
+	}
+
+	opts := &server.ServerOpts{
+		Factory:  factory,
+		Port:     21,
+		Hostname: host,
+		Auth:     &server.SimpleAuth{Name: FTPUser, Password: FTPPass},
+	}
+
+	klog.Infof("Starting ftp server on %v:%v", opts.Hostname, opts.Port)
+	klog.Infof("Username %v, Password %v", FTPUser, FTPPass)
+	server := server.NewServer(opts)
+	err := server.ListenAndServe()
+	if err != nil {
+		klog.Fatalf("Error starting server:", err)
+	}
+	err = connectFTP(host)
+	if err != nil {
+		klog.Fatal("Error connect to server")
 	}
 }
