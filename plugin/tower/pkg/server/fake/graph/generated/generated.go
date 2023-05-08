@@ -142,6 +142,7 @@ type ComplexityRoot struct {
 		Ports         func(childComplexity int) int
 		SecurityGroup func(childComplexity int) int
 		Selector      func(childComplexity int) int
+		Services      func(childComplexity int) int
 		Type          func(childComplexity int) int
 	}
 
@@ -149,6 +150,11 @@ type ComplexityRoot struct {
 		AlgProtocol func(childComplexity int) int
 		Port        func(childComplexity int) int
 		Protocol    func(childComplexity int) int
+	}
+
+	NetworkPolicyRuleService struct {
+		ID      func(childComplexity int) int
+		Members func(childComplexity int) int
 	}
 
 	Nic struct {
@@ -164,15 +170,16 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		EverouteClusters  func(childComplexity int) int
-		Hosts             func(childComplexity int) int
-		IsolationPolicies func(childComplexity int) int
-		Labels            func(childComplexity int) int
-		SecurityGroups    func(childComplexity int) int
-		SecurityPolicies  func(childComplexity int) int
-		SystemEndpoints   func(childComplexity int) int
-		Tasks             func(childComplexity int, orderBy *model.TaskOrderByInput, last *int) int
-		Vms               func(childComplexity int) int
+		EverouteClusters          func(childComplexity int) int
+		Hosts                     func(childComplexity int) int
+		IsolationPolicies         func(childComplexity int) int
+		Labels                    func(childComplexity int) int
+		NetworkPolicyRuleServices func(childComplexity int) int
+		SecurityGroups            func(childComplexity int) int
+		SecurityPolicies          func(childComplexity int) int
+		SystemEndpoints           func(childComplexity int) int
+		Tasks                     func(childComplexity int, orderBy *model.TaskOrderByInput, last *int) int
+		Vms                       func(childComplexity int) int
 	}
 
 	SecurityGroup struct {
@@ -211,16 +218,23 @@ type ComplexityRoot struct {
 		PreviousValues func(childComplexity int) int
 	}
 
+	ServiceEvent struct {
+		Mutation       func(childComplexity int) int
+		Node           func(childComplexity int) int
+		PreviousValues func(childComplexity int) int
+	}
+
 	Subscription struct {
-		EverouteCluster func(childComplexity int) int
-		Host            func(childComplexity int) int
-		IsolationPolicy func(childComplexity int) int
-		Label           func(childComplexity int) int
-		SecurityGroup   func(childComplexity int) int
-		SecurityPolicy  func(childComplexity int) int
-		SystemEndpoints func(childComplexity int) int
-		Task            func(childComplexity int) int
-		VM              func(childComplexity int) int
+		EverouteCluster          func(childComplexity int) int
+		Host                     func(childComplexity int) int
+		IsolationPolicy          func(childComplexity int) int
+		Label                    func(childComplexity int) int
+		NetworkPolicyRuleService func(childComplexity int) int
+		SecurityGroup            func(childComplexity int) int
+		SecurityPolicy           func(childComplexity int) int
+		SystemEndpoints          func(childComplexity int) int
+		Task                     func(childComplexity int) int
+		VM                       func(childComplexity int) int
 	}
 
 	SystemEndpoints struct {
@@ -297,6 +311,7 @@ type QueryResolver interface {
 	SystemEndpoints(ctx context.Context) (*schema.SystemEndpoints, error)
 	Tasks(ctx context.Context, orderBy *model.TaskOrderByInput, last *int) ([]schema.Task, error)
 	SecurityGroups(ctx context.Context) ([]schema.SecurityGroup, error)
+	NetworkPolicyRuleServices(ctx context.Context) ([]schema.NetworkPolicyRuleService, error)
 }
 type SubscriptionResolver interface {
 	VM(ctx context.Context) (<-chan *model.VMEvent, error)
@@ -308,6 +323,7 @@ type SubscriptionResolver interface {
 	SystemEndpoints(ctx context.Context) (<-chan *schema.SystemEndpoints, error)
 	Task(ctx context.Context) (<-chan *model.TaskEvent, error)
 	SecurityGroup(ctx context.Context) (<-chan *model.SecurityGroupEvent, error)
+	NetworkPolicyRuleService(ctx context.Context) (<-chan *model.ServiceEvent, error)
 }
 
 type executableSchema struct {
@@ -666,6 +682,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.NetworkPolicyRule.Selector(childComplexity), true
 
+	case "NetworkPolicyRule.services":
+		if e.complexity.NetworkPolicyRule.Services == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.Services(childComplexity), true
+
 	case "NetworkPolicyRule.type":
 		if e.complexity.NetworkPolicyRule.Type == nil {
 			break
@@ -693,6 +716,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.NetworkPolicyRulePort.Protocol(childComplexity), true
+
+	case "NetworkPolicyRuleService.id":
+		if e.complexity.NetworkPolicyRuleService.ID == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRuleService.ID(childComplexity), true
+
+	case "NetworkPolicyRuleService.members":
+		if e.complexity.NetworkPolicyRuleService.Members == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRuleService.Members(childComplexity), true
 
 	case "Nic.id":
 		if e.complexity.Nic.ID == nil {
@@ -763,6 +800,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Labels(childComplexity), true
+
+	case "Query.networkPolicyRuleServices":
+		if e.complexity.Query.NetworkPolicyRuleServices == nil {
+			break
+		}
+
+		return e.complexity.Query.NetworkPolicyRuleServices(childComplexity), true
 
 	case "Query.securityGroups":
 		if e.complexity.Query.SecurityGroups == nil {
@@ -951,6 +995,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SecurityPolicyEvent.PreviousValues(childComplexity), true
 
+	case "ServiceEvent.mutation":
+		if e.complexity.ServiceEvent.Mutation == nil {
+			break
+		}
+
+		return e.complexity.ServiceEvent.Mutation(childComplexity), true
+
+	case "ServiceEvent.node":
+		if e.complexity.ServiceEvent.Node == nil {
+			break
+		}
+
+		return e.complexity.ServiceEvent.Node(childComplexity), true
+
+	case "ServiceEvent.previousValues":
+		if e.complexity.ServiceEvent.PreviousValues == nil {
+			break
+		}
+
+		return e.complexity.ServiceEvent.PreviousValues(childComplexity), true
+
 	case "Subscription.everouteCluster":
 		if e.complexity.Subscription.EverouteCluster == nil {
 			break
@@ -978,6 +1043,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.Label(childComplexity), true
+
+	case "Subscription.networkPolicyRuleService":
+		if e.complexity.Subscription.NetworkPolicyRuleService == nil {
+			break
+		}
+
+		return e.complexity.Subscription.NetworkPolicyRuleService(childComplexity), true
 
 	case "Subscription.securityGroup":
 		if e.complexity.Subscription.SecurityGroup == nil {
@@ -1358,6 +1430,7 @@ type Query {
     systemEndpoints: SystemEndpoints
     tasks(orderBy: TaskOrderByInput, last: Int): [Task!]!
     securityGroups: [SecurityGroup!]!
+    networkPolicyRuleServices: [NetworkPolicyRuleService!]!
 }
 
 # mock tower subscribe vm and label
@@ -1371,6 +1444,7 @@ type Subscription {
     systemEndpoints: SystemEndpoints!
     task: TaskEvent!
     securityGroup: SecurityGroupEvent!
+    networkPolicyRuleService: ServiceEvent!
 }
 
 # mock tower user login
@@ -1441,6 +1515,12 @@ type SecurityGroupEvent {
     previousValues: ObjectReference
 }
 
+type ServiceEvent {
+    mutation: MutationType!
+    node: NetworkPolicyRuleService!
+    previousValues: ObjectReference
+}
+
 type ObjectReference {
     id: ID!
 }
@@ -1502,6 +1582,7 @@ type NetworkPolicyRule {
     ip_block: String
     except_ip_block: [String!]
     ports: [NetworkPolicyRulePort!]
+    services: [ObjectReference!]
     selector: [ObjectReference!]
     security_group: ObjectReference
 }
@@ -1557,7 +1638,11 @@ type SecurityGroup {
 type LabelGroup {
     labels: [ObjectReference!]!
 }
-`, BuiltIn: false},
+
+type NetworkPolicyRuleService {
+    id: ID!
+    members: [NetworkPolicyRulePort!]
+}`, BuiltIn: false},
 	{Name: "../../schema/task_types.graphqls", Input: `type Task {
     id: ID!
     description: String!
@@ -3369,6 +3454,38 @@ func (ec *executionContext) _NetworkPolicyRule_ports(ctx context.Context, field 
 	return ec.marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _NetworkPolicyRule_services(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Services, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _NetworkPolicyRule_selector(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3530,6 +3647,73 @@ func (ec *executionContext) _NetworkPolicyRulePort_alg_protocol(ctx context.Cont
 	res := resTmp.(schema.NetworkPolicyRulePortAlgProtocol)
 	fc.Result = res
 	return ec.marshalONetworkPolicyRulePortAlgProtocol2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortAlgProtocol(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRuleService_id(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRuleService) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRuleService",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRuleService_members(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRuleService) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRuleService",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Members, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRulePort)
+	fc.Result = res
+	return ec.marshalONetworkPolicyRulePort2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRulePortᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Nic_id(ctx context.Context, field graphql.CollectedField, obj *schema.Nic) (ret graphql.Marshaler) {
@@ -4056,6 +4240,41 @@ func (ec *executionContext) _Query_securityGroups(ctx context.Context, field gra
 	res := resTmp.([]schema.SecurityGroup)
 	fc.Result = res
 	return ec.marshalNSecurityGroup2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityGroupᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_networkPolicyRuleServices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().NetworkPolicyRuleServices(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]schema.NetworkPolicyRuleService)
+	fc.Result = res
+	return ec.marshalNNetworkPolicyRuleService2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleServiceᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -4843,6 +5062,108 @@ func (ec *executionContext) _SecurityPolicyEvent_previousValues(ctx context.Cont
 	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _ServiceEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.ServiceEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ServiceEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mutation, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.MutationType)
+	fc.Result = res
+	return ec.marshalNMutationType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐMutationType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ServiceEvent_node(ctx context.Context, field graphql.CollectedField, obj *model.ServiceEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ServiceEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*schema.NetworkPolicyRuleService)
+	fc.Result = res
+	return ec.marshalNNetworkPolicyRuleService2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleService(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ServiceEvent_previousValues(ctx context.Context, field graphql.CollectedField, obj *model.ServiceEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ServiceEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousValues, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.ObjectReference)
+	fc.Result = res
+	return ec.marshalOObjectReference2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReference(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Subscription_vm(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -5243,6 +5564,51 @@ func (ec *executionContext) _Subscription_securityGroup(ctx context.Context, fie
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
 			ec.marshalNSecurityGroupEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐSecurityGroupEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
+func (ec *executionContext) _Subscription_networkPolicyRuleService(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().NetworkPolicyRuleService(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.ServiceEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNServiceEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐServiceEvent(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -8132,6 +8498,8 @@ func (ec *executionContext) _NetworkPolicyRule(ctx context.Context, sel ast.Sele
 			out.Values[i] = ec._NetworkPolicyRule_except_ip_block(ctx, field, obj)
 		case "ports":
 			out.Values[i] = ec._NetworkPolicyRule_ports(ctx, field, obj)
+		case "services":
+			out.Values[i] = ec._NetworkPolicyRule_services(ctx, field, obj)
 		case "selector":
 			out.Values[i] = ec._NetworkPolicyRule_selector(ctx, field, obj)
 		case "security_group":
@@ -8167,6 +8535,35 @@ func (ec *executionContext) _NetworkPolicyRulePort(ctx context.Context, sel ast.
 			}
 		case "alg_protocol":
 			out.Values[i] = ec._NetworkPolicyRulePort_alg_protocol(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var networkPolicyRuleServiceImplementors = []string{"NetworkPolicyRuleService"}
+
+func (ec *executionContext) _NetworkPolicyRuleService(ctx context.Context, sel ast.SelectionSet, obj *schema.NetworkPolicyRuleService) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkPolicyRuleServiceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkPolicyRuleService")
+		case "id":
+			out.Values[i] = ec._NetworkPolicyRuleService_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "members":
+			out.Values[i] = ec._NetworkPolicyRuleService_members(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8387,6 +8784,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "networkPolicyRuleServices":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_networkPolicyRuleServices(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
@@ -8596,6 +9007,40 @@ func (ec *executionContext) _SecurityPolicyEvent(ctx context.Context, sel ast.Se
 	return out
 }
 
+var serviceEventImplementors = []string{"ServiceEvent"}
+
+func (ec *executionContext) _ServiceEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ServiceEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, serviceEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ServiceEvent")
+		case "mutation":
+			out.Values[i] = ec._ServiceEvent_mutation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "node":
+			out.Values[i] = ec._ServiceEvent_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "previousValues":
+			out.Values[i] = ec._ServiceEvent_previousValues(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var subscriptionImplementors = []string{"Subscription"}
 
 func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func() graphql.Marshaler {
@@ -8627,6 +9072,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_task(ctx, fields[0])
 	case "securityGroup":
 		return ec._Subscription_securityGroup(ctx, fields[0])
+	case "networkPolicyRuleService":
+		return ec._Subscription_networkPolicyRuleService(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -9633,6 +10080,57 @@ func (ec *executionContext) marshalNNetworkPolicyRulePortProtocol2githubᚗcom�
 	return res
 }
 
+func (ec *executionContext) marshalNNetworkPolicyRuleService2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleService(ctx context.Context, sel ast.SelectionSet, v schema.NetworkPolicyRuleService) graphql.Marshaler {
+	return ec._NetworkPolicyRuleService(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNNetworkPolicyRuleService2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleServiceᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.NetworkPolicyRuleService) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNNetworkPolicyRuleService2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleService(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNNetworkPolicyRuleService2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleService(ctx context.Context, sel ast.SelectionSet, v *schema.NetworkPolicyRuleService) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._NetworkPolicyRuleService(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNNetworkPolicyRuleType2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐNetworkPolicyRuleType(ctx context.Context, v interface{}) (schema.NetworkPolicyRuleType, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := schema.NetworkPolicyRuleType(tmp)
@@ -9895,6 +10393,20 @@ func (ec *executionContext) marshalNSecurityPolicyType2githubᚗcomᚋeveroute�
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNServiceEvent2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐServiceEvent(ctx context.Context, sel ast.SelectionSet, v model.ServiceEvent) graphql.Marshaler {
+	return ec._ServiceEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNServiceEvent2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐServiceEvent(ctx context.Context, sel ast.SelectionSet, v *model.ServiceEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._ServiceEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {

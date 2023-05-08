@@ -62,6 +62,7 @@ type SecurityPolicyApply struct {
 type NetworkPolicyRule struct {
 	Type          NetworkPolicyRuleType   `json:"type"`
 	Ports         []NetworkPolicyRulePort `json:"ports,omitempty"`
+	Services      []ObjectReference       `json:"services,omitempty"`
 	IPBlock       *string                 `json:"ip_block"`
 	ExceptIPBlock []string                `json:"except_ip_block,omitempty"`
 	Selector      []ObjectReference       `json:"selector"`
@@ -172,4 +173,10 @@ type IPPortSystemEndpoint struct {
 	Key  string `json:"key"`
 	IP   string `json:"ip"`
 	Port *int   `json:"port,omitempty"`
+}
+
+type NetworkPolicyRuleService struct {
+	ObjectMeta
+
+	Members []NetworkPolicyRulePort `json:"members"`
 }

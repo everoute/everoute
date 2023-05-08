@@ -64,6 +64,7 @@ const (
 	securityGroupIndex   = "securityGroupIndex"
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
+	serviceIndex         = "serviceIndex"
 )
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
@@ -120,6 +121,10 @@ type Controller struct {
 	securityPolicyQueue        workqueue.RateLimitingInterface
 	systemEndpointPolicyQueue  workqueue.RateLimitingInterface
 	everouteClusterPolicyQueue workqueue.RateLimitingInterface
+
+	serviceInformer       cache.SharedIndexInformer
+	serviceLister         informer.Lister
+	serviceInformerSynced cache.InformerSynced
 }
 
 // New creates a new instance of controller.
@@ -140,6 +145,7 @@ func New(
 	erClusterInformer := towerFactory.EverouteCluster()
 	systemEndpointInformer := towerFactory.SystemEndpoints()
 	securityGroupInformer := towerFactory.SecurityGroup()
+	serviceInformer := towerFactory.Service()
 
 	c := &Controller{
 		name:                          "PolicyController",
@@ -158,6 +164,9 @@ func New(
 		isolationPolicyInformer:       isolationPolicyInformer,
 		isolationPolicyLister:         isolationPolicyInformer.GetIndexer(),
 		isolationPolicyInformerSynced: isolationPolicyInformer.HasSynced,
+		serviceInformer:               serviceInformer,
+		serviceLister:                 serviceInformer.GetIndexer(),
+		serviceInformerSynced:         serviceInformer.HasSynced,
 		crdPolicyInformer:             crdPolicyInformer,
 		crdPolicyLister:               crdPolicyInformer.GetIndexer(),
 		crdPolicyInformerSynced:       crdPolicyInformer.HasSynced,
@@ -214,6 +223,15 @@ func New(
 		resyncPeriod,
 	)
 
+	serviceInformer.AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.handleService,
+			UpdateFunc: c.updateService,
+			DeleteFunc: c.handleService,
+		},
+		resyncPeriod,
+	)
+
 	erClusterInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleEverouteCluster,
@@ -255,6 +273,7 @@ func New(
 	_ = securityPolicyInformer.AddIndexers(cache.Indexers{
 		labelIndex:         c.labelIndexFunc,
 		securityGroupIndex: c.securityGroupIndexFunc,
+		serviceIndex:       c.serviceIndexFunc,
 	})
 
 	// relate isolate vm, selected labels and security groups
@@ -262,6 +281,7 @@ func New(
 		vmIndex:            c.vmIndexFunc,
 		labelIndex:         c.labelIndexFunc,
 		securityGroupIndex: c.securityGroupIndexFunc,
+		serviceIndex:       c.serviceIndexFunc,
 	})
 
 	// relate vms and selected labels
@@ -301,6 +321,7 @@ func (c *Controller) Run(workers uint, stopCh <-chan struct{}) {
 		c.everouteClusterInformerSynced,
 		c.systemEndpointInformerSynced,
 		c.securityGroupInformerSynced,
+		c.serviceInformerSynced,
 	) {
 		return
 	}
@@ -388,6 +409,26 @@ func (c *Controller) securityGroupIndexFunc(obj interface{}) ([]string, error) {
 	}
 
 	return securityGroups, nil
+}
+
+func (c *Controller) serviceIndexFunc(obj interface{}) ([]string, error) {
+	var serviceIDs []string
+
+	switch o := obj.(type) {
+	case *schema.SecurityPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			for _, s := range rule.Services {
+				serviceIDs = append(serviceIDs, s.ID)
+			}
+		}
+	case *schema.IsolationPolicy:
+		for _, rule := range append(o.Ingress, o.Egress...) {
+			for _, s := range rule.Services {
+				serviceIDs = append(serviceIDs, s.ID)
+			}
+		}
+	}
+	return serviceIDs, nil
 }
 
 func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) {
@@ -633,6 +674,34 @@ func (c *Controller) updateSecurityGroup(old, new interface{}) {
 		return
 	}
 	c.handleSecurityGroup(newGroup)
+}
+
+func (c *Controller) handleService(obj interface{}) {
+	unknow, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		obj = unknow.Obj
+	}
+
+	svc := obj.(*schema.NetworkPolicyRuleService)
+
+	secPolicies, _ := c.securityPolicyLister.ByIndex(serviceIndex, svc.GetID())
+	for _, p := range secPolicies {
+		c.handleSecurityPolicy(p)
+	}
+
+	isoPolices, _ := c.isolationPolicyLister.ByIndex(serviceIndex, svc.GetID())
+	for _, p := range isoPolices {
+		c.handleIsolationPolicy(p)
+	}
+}
+
+func (c *Controller) updateService(old, new interface{}) {
+	oldSvc := old.(*schema.NetworkPolicyRuleService)
+	newSvc := new.(*schema.NetworkPolicyRuleService)
+
+	if !serviceMembersToSets(oldSvc).Equal(serviceMembersToSets(newSvc)) {
+		c.handleService(newSvc)
+	}
 }
 
 // syncSecurityPolicy sync SecurityPoicy to v1alpha1.SecurityPolicy
@@ -1216,6 +1285,22 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		}
 		policyPorts = append(policyPorts, *policyPort)
 	}
+	for _, svc := range rule.Services {
+		svcObj, exists, err := c.serviceLister.GetByKey(svc.ID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't find policy related service %s", svc.ID)
+		}
+		if !exists {
+			klog.Errorf("policy related service %s doesn't exists", svc.ID)
+			continue
+		}
+		svc := svcObj.(*schema.NetworkPolicyRuleService)
+		svcPorts, err := parseNetworkPolicyService(svc)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse service %s failed: %s", svc.ID, err)
+		}
+		policyPorts = append(policyPorts, svcPorts...)
+	}
 
 	switch rule.Type {
 	case schema.NetworkPolicyRuleTypeAll:
@@ -1424,4 +1509,30 @@ func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) (*v1alpha1.Se
 		}
 		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}, nil
 	}
+}
+
+func parseNetworkPolicyService(svc *schema.NetworkPolicyRuleService) ([]v1alpha1.SecurityPolicyPort, error) {
+	ports := []v1alpha1.SecurityPolicyPort{}
+	for i := range svc.Members {
+		port, err := parseNetworkPolicyRulePort(svc.Members[i])
+		if err != nil {
+			return ports, nil
+		}
+		ports = append(ports, *port)
+	}
+
+	return ports, nil
+}
+
+func serviceMembersToSets(svc *schema.NetworkPolicyRuleService) sets.String {
+	set := sets.NewString()
+	for i := range svc.Members {
+		portStr := ""
+		if svc.Members[i].Port != nil {
+			portStr = *svc.Members[i].Port
+		}
+		set.Insert(string(svc.Members[i].Protocol) + portStr)
+	}
+
+	return set
 }

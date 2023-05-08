@@ -23,6 +23,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -75,6 +76,13 @@ func AggregateLabels(labels ...*schema.Label) map[string]string {
 		labelMap[label.Key] = label.Value
 	}
 	return labelMap
+}
+
+func NewService(rulePorts ...schema.NetworkPolicyRulePort) *schema.NetworkPolicyRuleService {
+	return &schema.NetworkPolicyRuleService{
+		ObjectMeta: schema.ObjectMeta{ID: rand.String(10)},
+		Members:    rulePorts,
+	}
 }
 
 func NewSecurityPolicy(everouteCluster string, communicable bool, group *schema.SecurityGroup, selectors ...*schema.Label) *schema.SecurityPolicy {
@@ -147,6 +155,29 @@ func NetworkPolicyRuleAddPorts(rule *schema.NetworkPolicyRule, ports ...schema.N
 	rule.Ports = append(rule.Ports, ports...)
 }
 
+func NetworkPolicyRuleAddServices(rule *schema.NetworkPolicyRule, svcIDs ...string) {
+	for i := range svcIDs {
+		rule.Services = append(rule.Services, schema.ObjectReference{
+			ID: svcIDs[i],
+		})
+	}
+}
+
+func NetworkPolicyRuleDelServices(rule *schema.NetworkPolicyRule, svcIDs ...string) {
+	if len(svcIDs) == 0 || len(rule.Services) == 0 {
+		return
+	}
+
+	var curSvcIDs []string
+	for i := range rule.Services {
+		curSvcIDs = append(curSvcIDs, rule.Services[i].ID)
+	}
+	newSvcIDs := sets.NewString(curSvcIDs...).Delete(svcIDs...)
+
+	rule.Services = nil
+	NetworkPolicyRuleAddServices(rule, newSvcIDs.List()...)
+}
+
 func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 
@@ -191,6 +222,16 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock *networkingv1.IP
 	}
 
 	return &rule
+}
+
+func RuleAddPorts(rule *v1alpha1.Rule, portInfo ...string) {
+	portsLen := len(portInfo) / 2
+	for i := 0; i < portsLen; i++ {
+		rule.Ports = append(rule.Ports, v1alpha1.SecurityPolicyPort{
+			Protocol:  v1alpha1.Protocol(portInfo[2*i]),
+			PortRange: portInfo[2*i+1],
+		})
+	}
 }
 
 func NewSecurityPolicyApplyPeer(endpoint string, selectors ...*schema.Label) v1alpha1.ApplyToPeer {
@@ -286,6 +327,21 @@ func NewRandomIP() net.IP {
 			rand.Intn(256),
 		),
 	)
+}
+
+func NewRandomIPBlock() *networkingv1.IPBlock {
+	ipStr := NewRandomIP().String()
+	prefixLen := fmt.Sprintf("%d", rand.Intn(33))
+	ipBlock := &networkingv1.IPBlock{
+		CIDR: ipStr + "/" + prefixLen,
+	}
+	exceptLen := rand.Intn(3)
+	var exceptIPs []string
+	for i := 0; i <= exceptLen; i++ {
+		exceptIPs = append(exceptIPs, NewRandomIP().String()+"/32")
+	}
+	ipBlock.Except = exceptIPs
+	return ipBlock
 }
 
 func NewTask(status schema.TaskStatus) *schema.Task {
