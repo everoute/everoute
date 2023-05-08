@@ -113,6 +113,15 @@ func (r *queryResolver) SecurityGroups(ctx context.Context) ([]schema.SecurityGr
 	return groups, nil
 }
 
+func (r *queryResolver) NetworkPolicyRuleServices(ctx context.Context) ([]schema.NetworkPolicyRuleService, error) {
+	svcList := r.TrackerFactory().Service().List()
+	svcs := make([]schema.NetworkPolicyRuleService, 0, len(svcList))
+	for _, svc := range svcList {
+		svcs = append(svcs, *svc.(*schema.NetworkPolicyRuleService))
+	}
+	return svcs, nil
+}
+
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -351,6 +360,33 @@ func (r *subscriptionResolver) SecurityGroup(ctx context.Context) (<-chan *model
 	}()
 
 	return groupEventCh, nil
+}
+
+func (r *subscriptionResolver) NetworkPolicyRuleService(ctx context.Context) (<-chan *model.ServiceEvent, error) {
+	var svcEventCh = make(chan *model.ServiceEvent, 100)
+
+	go func() {
+		eventCh, stopWatch := r.TrackerFactory().Service().Watch()
+		defer stopWatch()
+		defer close(svcEventCh)
+
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					return
+				}
+				svcEventCh <- &model.ServiceEvent{
+					Mutation: event.Type,
+					Node:     event.Object.(*schema.NetworkPolicyRuleService),
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return svcEventCh, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

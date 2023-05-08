@@ -56,6 +56,12 @@ type SecurityPolicyEvent struct {
 	PreviousValues *schema.ObjectReference `json:"previousValues"`
 }
 
+type ServiceEvent struct {
+	Mutation       schema.MutationType              `json:"mutation"`
+	Node           *schema.NetworkPolicyRuleService `json:"node"`
+	PreviousValues *schema.ObjectReference          `json:"previousValues"`
+}
+
 type TaskEvent struct {
 	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.Task            `json:"node"`

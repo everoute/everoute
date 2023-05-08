@@ -469,6 +469,75 @@ var _ = Describe("PolicyController", func() {
 					)
 				})
 			})
+			When("SecurityPolicy with service", func() {
+				var policy *schema.SecurityPolicy
+				var ingress, egress *schema.NetworkPolicyRule
+				var svcA, svcB, svcC *schema.NetworkPolicyRuleService
+				var ipBlock1, ipBlock2 *networkingv1.IPBlock
+				BeforeEach(func() {
+					By("create service")
+					svcA = NewService()
+					svcB = NewService(*NewNetworkPolicyRulePort("TCP", "", "33-34"), *NewNetworkPolicyRulePort("ALG", "FTP", ""))
+					svcC = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23"))
+					server.TrackerFactory().Service().Create(svcA)
+					server.TrackerFactory().Service().Create(svcB)
+					server.TrackerFactory().Service().Create(svcC)
+
+					By("create SecurityPolicy with service")
+					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
+					ipBlock1 = NewRandomIPBlock()
+					ipBlock2 = NewRandomIPBlock()
+					ingress = NewNetworkPolicyRule("ICMP", "", ipBlock1)
+					NetworkPolicyRuleAddServices(ingress, svcA.ID)
+					egress = NewNetworkPolicyRule("", "", ipBlock2)
+					NetworkPolicyRuleAddServices(egress, svcB.ID, svcC.ID)
+					policy.Ingress = append(policy.Ingress, *ingress)
+					policy.Egress = append(policy.Egress, *egress)
+					server.TrackerFactory().SecurityPolicy().Create(policy)
+
+					assertPoliciesNum(ctx, 1)
+				})
+
+				It("should generate expect policies", func() {
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					expectEgress := NewSecurityPolicyRuleEgress("TCP", "33-34", ipBlock2)
+					RuleAddPorts(expectEgress, "TCP", "21", "UDP", "12,23")
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
+				})
+
+				It("update service", func() {
+					svcA.Members = append(svcA.Members, *NewNetworkPolicyRulePort("TCP", "", "90"), *NewNetworkPolicyRulePort("UDP", "", "3434"))
+					svcB.Members = nil
+					svcB.Members = append(svcB.Members, *NewNetworkPolicyRulePort("ICMP", "", ""))
+					server.TrackerFactory().Service().CreateOrUpdate(svcA)
+					server.TrackerFactory().Service().CreateOrUpdate(svcB)
+
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					RuleAddPorts(expectIngress, "TCP", "90", "UDP", "3434")
+					expectEgress := NewSecurityPolicyRuleEgress("ICMP", "", ipBlock2)
+					RuleAddPorts(expectEgress, "UDP", "12,23")
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
+				})
+
+				It("update SecurityPolicy referenced service", func() {
+					NetworkPolicyRuleAddServices(&policy.Ingress[0], svcB.ID)
+					NetworkPolicyRuleDelServices(&policy.Egress[0], svcB.ID)
+					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					RuleAddPorts(expectIngress, "TCP", "33-34", "TCP", "21")
+					expectEgress := NewSecurityPolicyRuleEgress("UDP", "12,23", ipBlock2)
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
+				})
+
+				It("delete SecurityPolicy", func() {
+					server.TrackerFactory().SecurityPolicy().Delete(policy.ID)
+					assertPoliciesNum(ctx, 0)
+				})
+			})
 		})
 
 		When("create SecurityPolicy with enforce mode", func() {
@@ -690,6 +759,24 @@ var _ = Describe("PolicyController", func() {
 				assertHasPolicy(ctx, constants.Tier1, true, "", v1alpha1.DefaultRuleDrop,
 					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 					NewSecurityPolicyRuleIngress("tcp", "22-80", nil, labelA, labelC),
+					nil,
+					NewSecurityPolicyApplyPeer(vnicA.GetID()),
+					NewSecurityPolicyApplyPeer(vnicB.GetID()),
+				)
+			})
+
+			It("update ingress with service", func() {
+				svcA := NewService(*NewNetworkPolicyRulePort("TCP", "", "34"))
+				NetworkPolicyRuleAddServices(&policy.Ingress[0], svcA.ID)
+				server.TrackerFactory().Service().Create(svcA)
+				server.TrackerFactory().IsolationPolicy().CreateOrUpdate(policy)
+
+				assertPoliciesNum(ctx, 2)
+				expectIngress := NewSecurityPolicyRuleIngress("tcp", "22-80", nil, labelA, labelC)
+				RuleAddPorts(expectIngress, "TCP", "34")
+				assertHasPolicy(ctx, constants.Tier1, true, "", v1alpha1.DefaultRuleDrop,
+					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+					expectIngress,
 					nil,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
@@ -1228,7 +1315,25 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 		if len(rule) != 1 {
 			return false
 		}
-		return (len(rule[0].Ports) == 0 && len(expectRule.Ports) == 0 || reflect.DeepEqual(rule[0].Ports, expectRule.Ports)) &&
+		matchPorts := func(ports, expectPorts []v1alpha1.SecurityPolicyPort) bool {
+			if len(ports) != len(expectPorts) {
+				return false
+			}
+			for _, ep := range expectPorts {
+				find := false
+				for _, p := range ports {
+					if ep.Protocol == p.Protocol && ep.PortRange == p.PortRange {
+						find = true
+						break
+					}
+				}
+				if !find {
+					return false
+				}
+			}
+			return true
+		}
+		return (len(rule[0].Ports) == 0 && len(expectRule.Ports) == 0 || matchPorts(rule[0].Ports, expectRule.Ports)) &&
 			(len(rule[0].From) == 0 && len(expectRule.From) == 0 || reflect.DeepEqual(rule[0].From, expectRule.From)) &&
 			(len(rule[0].To) == 0 && len(expectRule.To) == 0 || reflect.DeepEqual(rule[0].To, expectRule.To))
 	}

@@ -9,6 +9,7 @@ type Query {
     systemEndpoints: SystemEndpoints
     tasks(orderBy: TaskOrderByInput, last: Int): [Task!]!
     securityGroups: [SecurityGroup!]!
+    networkPolicyRuleServices: [NetworkPolicyRuleService!]!
 }
 
 # mock tower subscribe vm and label
@@ -22,6 +23,7 @@ type Subscription {
     systemEndpoints: SystemEndpoints!
     task: TaskEvent!
     securityGroup: SecurityGroupEvent!
+    networkPolicyRuleService: ServiceEvent!
 }
 
 # mock tower user login
@@ -89,6 +91,12 @@ type TaskEvent {
 type SecurityGroupEvent {
     mutation: MutationType!
     node: SecurityGroup!
+    previousValues: ObjectReference
+}
+
+type ServiceEvent {
+    mutation: MutationType!
+    node: NetworkPolicyRuleService!
     previousValues: ObjectReference
 }
 

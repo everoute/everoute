@@ -75,6 +75,10 @@ func (f *Factory) EverouteCluster() *Tracker {
 	return f.TrackerFor(&schema.EverouteCluster{}, nil, 0)
 }
 
+func (f *Factory) Service() *Tracker {
+	return f.TrackerFor(&schema.NetworkPolicyRuleService{}, nil, 0)
+}
+
 func (f *Factory) Host() *Tracker {
 	return f.TrackerFor(&schema.Host{}, nil, 0)
 }
