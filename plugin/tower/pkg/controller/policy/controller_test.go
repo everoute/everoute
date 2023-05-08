@@ -90,7 +90,6 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
-
 				})
 
 				When("update SecurityPolicy Selector", func() {

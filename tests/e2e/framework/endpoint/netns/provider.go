@@ -241,7 +241,6 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 	defer session.Close()
 
 	command := fmt.Sprintf("ip netns exec %s %s %s", netns, cmd, strings.Join(arg, " "))
-
 	out, err := session.CombinedOutput(command)
 	if _, ok := err.(*ssh.ExitError); ok {
 		return err.(*ssh.ExitError).ExitStatus(), out, nil
@@ -350,7 +349,7 @@ func (m *provider) setupNewEndpoint(endpoint *model.Endpoint) error {
 		return err
 	}
 
-	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort, endpoint.VID)
+	return runStartNewEndpoint(client, endpoint.Status.LocalID, agent.BridgeName, endpoint.Status.IPAddr, endpoint.TCPPort, endpoint.UDPPort, endpoint.VID, endpoint.Proto)
 }
 
 func (m *provider) destroyEndpoint(endpoint *model.Endpoint) error {

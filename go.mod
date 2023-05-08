@@ -18,6 +18,8 @@ require (
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-openapi/spec v0.19.3
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
+	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9
+	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
 	github.com/google/go-cmp v0.5.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-retryablehttp v0.7.0
@@ -26,6 +28,7 @@ require (
 	github.com/onsi/gomega v1.15.0
 	github.com/orcaman/concurrent-map v1.0.0
 	github.com/pkg/errors v0.9.1
+	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/spf13/cobra v1.1.3
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.1.0
@@ -73,6 +76,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jlaffaye/ftp v0.1.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
@@ -90,7 +94,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/safchain/ethtool v0.0.0-20210803160452-9aa261dae9b1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.7.0 // indirect
+	github.com/stretchr/testify v1.8.0 // indirect
 	github.com/ti-mo/netfilter v0.3.1 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/net v0.7.0 // indirect

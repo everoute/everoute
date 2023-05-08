@@ -77,7 +77,7 @@ type reachOptions struct {
 
 // runReach will check reachable between endpoint, and dynamic display
 func runReach(f *framework.Framework, protocol string, port int, options *reachOptions) error {
-	if protocol != "TCP" && protocol != "UDP" && protocol != "ICMP" {
+	if protocol != "TCP" && protocol != "UDP" && protocol != "ICMP" && protocol != "FTP" {
 		return fmt.Errorf("unsupport protocol %s", protocol)
 	}
 

@@ -132,6 +132,8 @@ func (m *Manager) Reachable(ctx context.Context, src string, dst string, protoco
 		args = []string{`connect`, `--protocol`, protocol, `--timeout`, "1s", `--server`, fmt.Sprintf("%s:%d", ip, port)}
 	case "ICMP":
 		args = []string{`connect`, `--protocol`, protocol, `--timeout`, "1s", `--server`, ip.String()}
+	case "FTP":
+		args = []string{`connect`, `--protocol`, protocol, `--server`, ip.String()}
 	default:
 		return false, fmt.Errorf("unknow protocol %s", protocol)
 	}
