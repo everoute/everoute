@@ -14,6 +14,9 @@ image-generate:
 image-test:
 	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
 
+image-test-pull:
+	docker pull registry.smtx.io/everoute/unit-test:latest
+
 yaml:
 	helm template deploy/chart --include-crds > deploy/everoute.yaml
 
@@ -51,6 +54,10 @@ docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
 
+docker-test-ci: image-test-pull
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
+
 cover-test: agent-uuid
 	go test ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
@@ -59,12 +66,20 @@ docker-cover-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make cover-test
 
+docker-cover-test-ci: image-test-pull
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
+
 race-test: agent-uuid
 	go test ./plugin/... ./pkg/... -race
 
 docker-race-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make race-test
+
+docker-race-test-ci: image-test-pull
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make race-test
 
 e2e-test:
 	go test ./tests/e2e/...
