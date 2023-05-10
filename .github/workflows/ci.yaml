@@ -13,24 +13,30 @@ on:
     - cron: "0 23 * * *"
 
 jobs:
+  build-unit-test-image:
+    runs-on: [self-hosted, build]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: build unit-test image
+        uses: docker/build-push-action@v4
+        with:
+          file: build/images/unit-test/Dockerfile
+          tags: registry.smtx.io/everoute/unit-test
+          context: ./build/images/unit-test/
+          push: true
+
   pr-check:
+    needs: [build-unit-test-image]
     runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
 
-      - name: build test image
-        uses: docker/build-push-action@v4
-        with:
-          file: build/images/unit-test/Dockerfile
-          tags: everoute/unit-test
-          context: ./build/images/unit-test/
-          load: true
-
       - name: run everoute unit test
         run: |
-          make docker-test
-          make docker-race-test
-          make docker-cover-test
+          make docker-test-ci
+          make docker-race-test-ci
+          make docker-cover-test-ci
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
@@ -90,7 +96,7 @@ jobs:
         run: cp /home/runner/tool/helm /runner/_work/bin/
 
       - name: install k8se2e binary
-        run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin /runner/_work/everoute/everoute/k8se2e
+        run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
 
       - name: specific proxy related param
         if: ${{ matrix.feature == 'Proxy'}}
