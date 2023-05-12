@@ -237,6 +237,20 @@ var _ = Describe("PolicyController", func() {
 						)
 					})
 				})
+
+				It("update SecurityPolicy peer with disable symmetric", func() {
+					policy.Ingress[0].OnlyApplyToExternalTraffic = true
+					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+					assertPoliciesNum(ctx, 1)
+					expectIngress := NewSecurityPolicyRuleIngress("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.1/32"}})
+					expectIngress.From[0].DisableSymmetric = true
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						expectIngress,
+						NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"}),
+						NewSecurityPolicyApplyPeer("", labelA, labelB),
+					)
+				})
 			})
 
 			When("create SecurityPolicy with allow all Ports", func() {
@@ -790,6 +804,7 @@ var _ = Describe("PolicyController", func() {
 			BeforeEach(func() {
 				policy = NewIsolationPolicy(everouteCluster, vm, schema.IsolationModePartial)
 				egress = NewNetworkPolicyRule("udp", "123", nil, labelA, labelB)
+				egress.OnlyApplyToExternalTraffic = true
 				policy.Egress = append(policy.Egress, *egress)
 
 				By(fmt.Sprintf("create IsolationPolicy %+v", policy))
@@ -804,10 +819,12 @@ var _ = Describe("PolicyController", func() {
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
+				expectEgress := NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelB)
+				expectEgress.To[0].DisableSymmetric = true
 				assertHasPolicy(ctx, constants.Tier1, true, "", v1alpha1.DefaultRuleDrop,
 					[]networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 					nil,
-					NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelB),
+					expectEgress,
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)

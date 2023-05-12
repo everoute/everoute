@@ -1804,6 +1804,13 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPeer(ref common.ReferenceCa
 				Description: "SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations of fields are allowed",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"disableSymmetric": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisableSymmetric if set true, won't generate symmetric rules for the peer even if SymmetricMode of policy set true, the default value is false",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"ipBlock": {
 						SchemaProps: spec.SchemaProps{
 							Description: "IPBlock defines policy on a particular IPBlock. If this field is set then neither of the other fields can be.",

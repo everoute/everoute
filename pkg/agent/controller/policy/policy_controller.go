@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -324,7 +325,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
-			ingressRule := &policycache.CompleteRule{
+			ingressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
 				Tier:            policy.Spec.Tier,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -335,23 +336,23 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				DstIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
 			}
 
-			if len(rule.From) == 0 {
-				// If "rule.From" is empty or missing, this rule matches all sources
-				ingressRule.SrcIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
-			} else {
-				// use policy namespace as ingress endpoint namespace
-				ingressRule.SrcGroups, ingressRule.SrcIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.From)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			ingressRule.Ports, err = FlattenPorts(rule.Ports)
+			ingressRuleTmpl.Ports, err = FlattenPorts(rule.Ports)
 			if err != nil {
 				return nil, err
 			}
 
-			completeRules = append(completeRules, ingressRule)
+			if len(rule.From) == 0 {
+				ingressRule := ingressRuleTmpl.Clone()
+				// If "rule.From" is empty or missing, this rule matches all sources
+				ingressRule.SrcIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
+				completeRules = append(completeRules, ingressRule)
+			} else {
+				ingressRules, err := r.getCompleteRulesByParseSymmetricMode(ingressRuleTmpl, policy, networkingv1.PolicyTypeIngress, rule.From)
+				if err != nil {
+					return nil, err
+				}
+				completeRules = append(completeRules, ingressRules...)
+			}
 		}
 
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
@@ -388,15 +389,15 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			if len(rule.To) > 0 {
 				egressRule := egressRuleTmpl.Clone()
 				// use policy namespace as egress endpoint namespace
-				egressRule.DstGroups, egressRule.DstIPBlocks, err = r.getPeersGroupsAndIPBlocks(policy.Namespace, rule.To)
-				if err != nil {
-					return nil, err
-				}
 				egressRule.Ports, err = FlattenPorts(rule.Ports)
 				if err != nil {
 					return nil, err
 				}
-				completeRules = append(completeRules, egressRule)
+				egressRules, err := r.getCompleteRulesByParseSymmetricMode(egressRule, policy, networkingv1.PolicyTypeEgress, rule.To)
+				if err != nil {
+					return nil, err
+				}
+				completeRules = append(completeRules, egressRules...)
 			} else {
 				numberPorts, namedPorts := classifyEgressPorts(rule.Ports)
 
@@ -452,13 +453,71 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	return completeRules, nil
 }
 
+func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.CompleteRule, policy *securityv1alpha1.SecurityPolicy,
+	policyType networkingv1.PolicyType, peers []securityv1alpha1.SecurityPolicyPeer) ([]*policycache.CompleteRule, error) {
+	var rules []*policycache.CompleteRule
+	if len(peers) == 0 {
+		return rules, nil
+	}
+
+	if !policy.Spec.SymmetricMode {
+		groups, ipBlocks, err := r.getPeersGroupsAndIPBlocks(policy.Namespace, peers)
+		if err != nil {
+			return nil, err
+		}
+		rule := ruleTmpl.Clone()
+		if policyType == networkingv1.PolicyTypeIngress {
+			rule.SrcGroups = groups
+			rule.SrcIPBlocks = ipBlocks
+		} else {
+			rule.DstGroups = groups
+			rule.DstIPBlocks = ipBlocks
+		}
+		rules = append(rules, rule)
+		return rules, nil
+	}
+
+	for i, symmetricMode := range []bool{true, false} {
+		groups, ipBlocks, err := r.getPeersGroupsAndIPBlocks(policy.Namespace, peers, symmetricMode)
+		if err != nil {
+			return nil, err
+		}
+		if len(groups) == 0 && len(ipBlocks) == 0 {
+			continue
+		}
+		rule := ruleTmpl.Clone()
+		rule.RuleID = fmt.Sprintf("%s.%d", rule.RuleID, i)
+		rule.SymmetricMode = symmetricMode
+		if policyType == networkingv1.PolicyTypeIngress {
+			rule.SrcGroups = groups
+			rule.SrcIPBlocks = ipBlocks
+		} else {
+			rule.DstGroups = groups
+			rule.DstIPBlocks = ipBlocks
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
+}
+
 // getPeersGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
 func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string,
-	peers []securityv1alpha1.SecurityPolicyPeer) (map[string]int32, map[string]*policycache.IPBlockItem, error) {
+	peers []securityv1alpha1.SecurityPolicyPeer, matchSymmetric ...bool) (map[string]int32, map[string]*policycache.IPBlockItem, error) {
 	var groups = make(map[string]int32)
 	var ipBlocks = make(map[string]*policycache.IPBlockItem)
 
+	var ignoreSymmetricMode, matchDisableSymmetric bool
+	if len(matchSymmetric) == 0 {
+		ignoreSymmetricMode = true
+	} else {
+		matchDisableSymmetric = !matchSymmetric[0]
+	}
+
 	for _, peer := range peers {
+		if !ignoreSymmetricMode && peer.DisableSymmetric != matchDisableSymmetric {
+			// symmetricMode doesn't match, skip peer
+			continue
+		}
 		switch {
 		case peer.IPBlock != nil:
 			ipNets, err := utils.ParseIPBlock(peer.IPBlock)

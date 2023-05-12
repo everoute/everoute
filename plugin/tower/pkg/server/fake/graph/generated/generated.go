@@ -137,13 +137,14 @@ type ComplexityRoot struct {
 	}
 
 	NetworkPolicyRule struct {
-		ExceptIPBlock func(childComplexity int) int
-		IPBlock       func(childComplexity int) int
-		Ports         func(childComplexity int) int
-		SecurityGroup func(childComplexity int) int
-		Selector      func(childComplexity int) int
-		Services      func(childComplexity int) int
-		Type          func(childComplexity int) int
+		ExceptIPBlock              func(childComplexity int) int
+		IPBlock                    func(childComplexity int) int
+		OnlyApplyToExternalTraffic func(childComplexity int) int
+		Ports                      func(childComplexity int) int
+		SecurityGroup              func(childComplexity int) int
+		Selector                   func(childComplexity int) int
+		Services                   func(childComplexity int) int
+		Type                       func(childComplexity int) int
 	}
 
 	NetworkPolicyRulePort struct {
@@ -660,6 +661,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.NetworkPolicyRule.IPBlock(childComplexity), true
+
+	case "NetworkPolicyRule.only_apply_to_external_traffic":
+		if e.complexity.NetworkPolicyRule.OnlyApplyToExternalTraffic == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.OnlyApplyToExternalTraffic(childComplexity), true
 
 	case "NetworkPolicyRule.ports":
 		if e.complexity.NetworkPolicyRule.Ports == nil {
@@ -1578,6 +1586,7 @@ enum IsolationMode {
 }
 
 type NetworkPolicyRule {
+    only_apply_to_external_traffic: Boolean
     type: NetworkPolicyRuleType!
     ip_block: String
     except_ip_block: [String!]
@@ -3322,6 +3331,38 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	res := resTmp.(*model.Login)
 	fc.Result = res
 	return ec.marshalNLogin2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐLogin(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _NetworkPolicyRule_only_apply_to_external_traffic(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OnlyApplyToExternalTraffic, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _NetworkPolicyRule_type(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
@@ -8488,6 +8529,8 @@ func (ec *executionContext) _NetworkPolicyRule(ctx context.Context, sel ast.Sele
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("NetworkPolicyRule")
+		case "only_apply_to_external_traffic":
+			out.Values[i] = ec._NetworkPolicyRule_only_apply_to_external_traffic(ctx, field, obj)
 		case "type":
 			out.Values[i] = ec._NetworkPolicyRule_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

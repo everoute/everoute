@@ -1060,6 +1060,11 @@ spec:
                           traffic to/from. Only certain combinations of fields are
                           allowed
                         properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
                           endpoint:
                             description: Endpoint defines policy on a specific Endpoint.
                               If this field is set then neither of the other fields
@@ -1276,6 +1281,11 @@ spec:
                           traffic to/from. Only certain combinations of fields are
                           allowed
                         properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
                           endpoint:
                             description: Endpoint defines policy on a specific Endpoint.
                               If this field is set then neither of the other fields
@@ -1458,6 +1468,11 @@ spec:
                           traffic to/from. Only certain combinations of fields are
                           allowed
                         properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
                           endpoint:
                             description: Endpoint defines policy on a specific Endpoint.
                               If this field is set then neither of the other fields
@@ -1674,6 +1689,11 @@ spec:
                           traffic to/from. Only certain combinations of fields are
                           allowed
                         properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
                           endpoint:
                             description: Endpoint defines policy on a specific Endpoint.
                               If this field is set then neither of the other fields

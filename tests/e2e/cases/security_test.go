@@ -426,6 +426,100 @@ var _ = Describe("SecurityPolicy", func() {
 				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "ICMP", true)
 			})
 		})
+
+		Context("security policy with symmetric mode [Feature:SymmetricMode]", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				if e2eEnv.EndpointManager().Name() == "tower" {
+					Skip("tower e2e has no disableSymmetric feature, skip it")
+				}
+
+				nginxDropPolicy := newPolicy("nginx-drop", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
+				Expect(e2eEnv.SetupObjects(ctx, nginxDropPolicy)).Should(Succeed())
+
+				policy = newPolicy("test-symmetric", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
+				addIngressRule(policy, "TCP", serverPort, nginxSelector)
+			})
+
+			When("create security policy enable SymmetricMode", func() {
+				BeforeEach(func() {
+					policy.Spec.SymmetricMode = true
+					Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+				})
+
+				It("should allow tcp packets because there are symmetric rules", func() {
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", true)
+				})
+
+				When("set peer DisableSymmetric enable", func() {
+					BeforeEach(func() {
+						policy.Spec.IngressRules[0].From[0].DisableSymmetric = true
+						Expect(e2eEnv.UpdateObjects(ctx, policy)).Should(Succeed())
+					})
+
+					It("shoulid limit tcp packets because there are no symmetric rules", func() {
+						assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", false)
+					})
+				})
+
+				When("set peer DisableSymmetric disable", func() {
+					BeforeEach(func() {
+						policy.Spec.IngressRules[0].From[0].DisableSymmetric = false
+						Expect(e2eEnv.UpdateObjects(ctx, policy)).Should(Succeed())
+					})
+
+					It("shoulid limit tcp packets because there are symmetric rules", func() {
+						assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", true)
+					})
+
+					When("disable SymmetricMode", func() {
+						BeforeEach(func() {
+							policy.Spec.SymmetricMode = false
+							Expect(e2eEnv.UpdateObjects(ctx, policy)).Should(Succeed())
+						})
+
+						It("should limit tcp packets because there are no symmetric rules", func() {
+							assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", false)
+						})
+					})
+				})
+			})
+
+			When("create security policy disable SymmetricMode", func() {
+				BeforeEach(func() {
+					policy.Spec.SymmetricMode = false
+					Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+				})
+
+				It("should limit tcp packets because there are no symmetric rules", func() {
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", false)
+				})
+
+				When("set peer DisableSymmetric enable", func() {
+					BeforeEach(func() {
+						policy.Spec.IngressRules[0].From[0].DisableSymmetric = true
+						Expect(e2eEnv.UpdateObjects(ctx, policy)).Should(Succeed())
+					})
+
+					It("should limit tcp packets because there are no symmetric rules, disableSymmetric can't change policy symmetric mode when SymmetricMode=false", func() {
+						assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", false)
+					})
+				})
+
+				When("set peer DisableSymmetric disable", func() {
+					BeforeEach(func() {
+						policy.Spec.IngressRules[0].From[0].DisableSymmetric = false
+						Expect(e2eEnv.UpdateObjects(ctx, policy)).Should(Succeed())
+					})
+
+					It("should limit tcp packets because there are no symmetric rules, disableSymmetric can't change policy symmetric mode when SymmetricMode=false", func() {
+						assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01}, "TCP", false)
+					})
+				})
+			})
+
+		})
 	})
 	Context("environment with endpoints provide public ftp service [Feature:FTP]", func() {
 		var ftpServer, client *model.Endpoint

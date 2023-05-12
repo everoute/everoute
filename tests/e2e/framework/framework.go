@@ -108,13 +108,27 @@ func (f *Framework) KubeClient() client.Client {
 func (f *Framework) SetupObjects(ctx context.Context, objects ...metav1.Object) error {
 	for _, object := range objects {
 		err := wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
-			err = f.kubeClient.Create(ctx, object.(runtime.Object).DeepCopyObject())
+			err = f.kubeClient.Create(ctx, object.(runtime.Object))
 			return err == nil || errors.IsAlreadyExists(err), nil
 		})
 		if err != nil {
 			return fmt.Errorf("unable create object %s: %s", object.GetName(), err)
 		}
 		klog.Infof("create object %s: %+v", object.GetName(), object)
+	}
+	return nil
+}
+
+func (f *Framework) UpdateObjects(ctx context.Context, objects ...metav1.Object) error {
+	for _, object := range objects {
+		err := wait.Poll(f.Interval(), f.Timeout(), func() (done bool, err error) {
+			err = f.kubeClient.Update(ctx, object.(runtime.Object))
+			return err == nil, nil
+		})
+		if err != nil {
+			return fmt.Errorf("unable update object %s: %s", object.GetName(), err)
+		}
+		klog.Infof("update object %s: %+v", object.GetName(), object)
 	}
 	return nil
 }
