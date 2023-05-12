@@ -40,6 +40,7 @@ enum IsolationMode {
 }
 
 type NetworkPolicyRule {
+    only_apply_to_external_traffic: Boolean
     type: NetworkPolicyRuleType!
     ip_block: String
     except_ip_block: [String!]

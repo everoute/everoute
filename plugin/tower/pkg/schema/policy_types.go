@@ -60,13 +60,14 @@ type SecurityPolicyApply struct {
 }
 
 type NetworkPolicyRule struct {
-	Type          NetworkPolicyRuleType   `json:"type"`
-	Ports         []NetworkPolicyRulePort `json:"ports,omitempty"`
-	Services      []ObjectReference       `json:"services,omitempty"`
-	IPBlock       *string                 `json:"ip_block"`
-	ExceptIPBlock []string                `json:"except_ip_block,omitempty"`
-	Selector      []ObjectReference       `json:"selector"`
-	SecurityGroup *ObjectReference        `json:"security_group,omitempty"`
+	OnlyApplyToExternalTraffic bool                    `json:"only_apply_to_external_traffic"`
+	Type                       NetworkPolicyRuleType   `json:"type"`
+	Ports                      []NetworkPolicyRulePort `json:"ports,omitempty"`
+	Services                   []ObjectReference       `json:"services,omitempty"`
+	IPBlock                    *string                 `json:"ip_block"`
+	ExceptIPBlock              []string                `json:"except_ip_block,omitempty"`
+	Selector                   []ObjectReference       `json:"selector"`
+	SecurityGroup              *ObjectReference        `json:"security_group,omitempty"`
 }
 
 type NetworkPolicyRulePort struct {

@@ -234,6 +234,19 @@ func RuleAddPorts(rule *v1alpha1.Rule, portInfo ...string) {
 	}
 }
 
+func RuleSetDisableSymmetric(rule *v1alpha1.Rule, disableSymmetric bool) {
+	if rule == nil {
+		return
+	}
+	if len(rule.From) > 0 {
+		rule.From[0].DisableSymmetric = disableSymmetric
+	}
+
+	if len(rule.To) > 0 {
+		rule.To[0].DisableSymmetric = disableSymmetric
+	}
+}
+
 func NewSecurityPolicyApplyPeer(endpoint string, selectors ...*schema.Label) v1alpha1.ApplyToPeer {
 	var peer v1alpha1.ApplyToPeer
 	if endpoint != "" {

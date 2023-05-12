@@ -590,6 +590,92 @@ var _ = Describe("PolicyController", func() {
 				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
 			})
 
+			When("add policy ingress rule with DisableSymmetric peer", func() {
+				var ipCIDR1, ipCIDR2 = "10.12.13.0/24", "13.13.23.0/24"
+				BeforeEach(func() {
+					ingressRule := securityv1alpha1.Rule{
+						Name: "ingress-2",
+						Ports: []securityv1alpha1.SecurityPolicyPort{
+							*newTestPort("TCP", "2245", "number"),
+						},
+						From: []securityv1alpha1.SecurityPolicyPeer{
+							{
+								DisableSymmetric: true,
+								IPBlock:          &networkingv1.IPBlock{CIDR: ipCIDR1},
+							},
+							{
+								DisableSymmetric: false,
+								IPBlock:          &networkingv1.IPBlock{CIDR: ipCIDR2},
+							},
+						},
+					}
+					policy.Spec.IngressRules = append(policy.Spec.IngressRules, ingressRule)
+					mustUpdatePolicy(ctx, policy)
+				})
+
+				It("should flatten policy to rules", func() {
+					assertPolicyRulesNum(policy, 9)
+					assertCompleteRuleNum(6)
+
+					assertHasPolicyRule(policy, "Ingress", "Allow", ipCIDR1, 0, "192.168.1.1/32", 2245, "TCP")
+					assertHasPolicyRule(policy, "Ingress", "Allow", ipCIDR2, 0, "192.168.1.1/32", 2245, "TCP")
+
+					// no symmetric rule for ipCIDR1
+					assertNoPolicyRule(policy, "Egress", "Allow", ipCIDR1, 0, "192.168.1.1/32", 2245, "TCP")
+
+					// symmetric rule for ipCIDR2
+					assertHasPolicyRule(policy, "Egress", "Allow", ipCIDR2, 0, "192.168.1.1/32", 2245, "TCP")
+				})
+
+				When("update peer DisableSymmetric from true to false", func() {
+					BeforeEach(func() {
+						policy.Spec.IngressRules[1].From[0].DisableSymmetric = false
+						policy.Spec.IngressRules[1].From[1].DisableSymmetric = false
+						mustUpdatePolicy(ctx, policy)
+					})
+
+					It("should generate symmetric rule", func() {
+						assertPolicyRulesNum(policy, 10)
+						assertCompleteRuleNum(5)
+
+						assertHasPolicyRule(policy, "Egress", "Allow", ipCIDR1, 0, "192.168.1.1/32", 2245, "TCP")
+						assertHasPolicyRule(policy, "Egress", "Allow", ipCIDR2, 0, "192.168.1.1/32", 2245, "TCP")
+					})
+				})
+
+				When("disable policy SymmetricMode", func() {
+					BeforeEach(func() {
+						policy.Spec.SymmetricMode = false
+						mustUpdatePolicy(ctx, policy)
+					})
+
+					It("should remove symmetric policy rules", func() {
+						assertPolicyRulesNum(policy, 6)
+						assertCompleteRuleNum(5)
+
+						assertNoPolicyRule(policy, "Egress", "Allow", ipCIDR1, 0, "192.168.1.1/32", 2245, "TCP")
+						assertNoPolicyRule(policy, "Egress", "Allow", ipCIDR2, 0, "192.168.1.1/32", 2245, "TCP")
+					})
+				})
+			})
+
+			When("update policy egress rule peer DisableSymmetric from false to true", func() {
+				BeforeEach(func() {
+					policy.Spec.EgressRules[0].To[0].DisableSymmetric = true
+					mustUpdatePolicy(ctx, policy)
+				})
+
+				It("should remove egress rule symmetric rules", func() {
+					assertPolicyRulesNum(policy, 5)
+					assertCompleteRuleNum(4)
+
+					// ingress rule has symmetry rule
+					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 443, "TCP")
+					// egress rule has no symmetric rule
+					assertNoPolicyRule(policy, "Ingress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 123, "UDP")
+				})
+
+			})
 			When("disable policy SymmetricMode", func() {
 				var updPolicy *securityv1alpha1.SecurityPolicy
 
@@ -1286,7 +1372,6 @@ func mustUpdatePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPoli
 
 func assertHasPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 	direction, action, srcCidr string, srcPort uint16, dstCidr string, dstPort uint16, protocol string) {
-
 	Eventually(func() bool {
 		var policyRuleList = getRuleByPolicy(policy)
 

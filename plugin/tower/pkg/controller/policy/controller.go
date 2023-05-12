@@ -1168,11 +1168,11 @@ func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.Pol
 			AppliedTo: appliedPeers,
 			IngressRules: []v1alpha1.Rule{{
 				Name: "ingress",
-				From: c.appliedPeersAsPolicyPeers(appliedPeers),
+				From: c.appliedPeersAsPolicyPeers(appliedPeers, false),
 			}},
 			EgressRules: []v1alpha1.Rule{{
 				Name: "egress",
-				To:   c.appliedPeersAsPolicyPeers(appliedPeers),
+				To:   c.appliedPeersAsPolicyPeers(appliedPeers, false),
 			}},
 			SecurityPolicyEnforcementMode: policyMode,
 			DefaultRule:                   v1alpha1.DefaultRuleDrop,
@@ -1302,6 +1302,11 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		policyPorts = append(policyPorts, svcPorts...)
 	}
 
+	disableSymmetric := false
+	if rule.OnlyApplyToExternalTraffic {
+		disableSymmetric = true
+	}
+
 	switch rule.Type {
 	case schema.NetworkPolicyRuleTypeAll:
 		// empty PolicyPeers match all
@@ -1313,7 +1318,7 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse IPBlock %s with except %v: %s", *rule.IPBlock, rule.ExceptIPBlock, err)
 		}
-		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
+		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock, DisableSymmetric: disableSymmetric})
 	case schema.NetworkPolicyRuleTypeSelector:
 		endpointSelector, err := c.parseSelectors(rule.Selector)
 		if err != nil {
@@ -1321,6 +1326,7 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		}
 		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
 			EndpointSelector: endpointSelector,
+			DisableSymmetric: disableSymmetric,
 		})
 	case schema.NetworkPolicyRuleTypeSecurityGroup:
 		if rule.SecurityGroup == nil {
@@ -1330,7 +1336,7 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		if err != nil {
 			return nil, nil, err
 		}
-		policyPeers = append(policyPeers, c.appliedPeersAsPolicyPeers(peers)...)
+		policyPeers = append(policyPeers, c.appliedPeersAsPolicyPeers(peers, disableSymmetric)...)
 	}
 
 	return policyPeers, policyPorts, nil
@@ -1403,7 +1409,7 @@ func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference
 	return appliedPeers, nil
 }
 
-func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPeer) []v1alpha1.SecurityPolicyPeer {
+func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPeer, disableSymmetric bool) []v1alpha1.SecurityPolicyPeer {
 	policyPeers := make([]v1alpha1.SecurityPolicyPeer, 0, len(appliedPeers))
 
 	for _, appliedPeer := range appliedPeers {
@@ -1417,6 +1423,7 @@ func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPe
 		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
 			Endpoint:         namespacedEndpoint,
 			EndpointSelector: appliedPeer.EndpointSelector,
+			DisableSymmetric: disableSymmetric,
 		})
 	}
 

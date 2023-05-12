@@ -171,6 +171,10 @@ type Rule struct {
 // SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
 // of fields are allowed
 type SecurityPolicyPeer struct {
+	// DisableSymmetric if set true, won't generate symmetric rules for the peer even if
+	// SymmetricMode of policy set true, the default value is false
+	// +optional
+	DisableSymmetric bool `json:"disableSymmetric,omitempty"`
 	// IPBlock defines policy on a particular IPBlock. If this field is set then
 	// neither of the other fields can be.
 	// +optional

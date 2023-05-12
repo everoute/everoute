@@ -175,7 +175,7 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 		DstGroups:         DeepCopyMap(rule.DstGroups).(map[string]int32),
 		SrcIPBlocks:       DeepCopyMap(rule.SrcIPBlocks).(map[string]*IPBlockItem),
 		DstIPBlocks:       DeepCopyMap(rule.DstIPBlocks).(map[string]*IPBlockItem),
-		Ports:             rule.Ports,
+		Ports:             append([]RulePort{}, rule.Ports...),
 	}
 }
 
