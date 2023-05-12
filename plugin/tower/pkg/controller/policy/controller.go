@@ -906,10 +906,6 @@ func (c *Controller) applyPoliciesChanges(oldKeys []string, new []v1alpha1.Secur
 
 // parseGlobalWhitelistPolicy convert schema.EverouteCluster Whitelist to []v1alpha1.SecurityPolicy
 func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster) ([]v1alpha1.SecurityPolicy, error) {
-	if !cluster.GlobalWhitelist.Enable {
-		return nil, nil
-	}
-
 	if len(cluster.GlobalWhitelist.Ingress) == 0 && len(cluster.GlobalWhitelist.Egress) == 0 {
 		return nil, nil
 	}
@@ -925,11 +921,12 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Tier:         constants.Tier2,
-			DefaultRule:  v1alpha1.DefaultRuleNone,
-			IngressRules: ingress,
-			EgressRules:  egress,
-			PolicyTypes:  []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			SecurityPolicyEnforcementMode: getGlobalWhitelistPolicyEnforceMode(cluster.GlobalWhitelist.Enable),
+			Tier:                          constants.Tier2,
+			DefaultRule:                   v1alpha1.DefaultRuleNone,
+			IngressRules:                  ingress,
+			EgressRules:                   egress,
+			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
 
@@ -1535,4 +1532,11 @@ func serviceMembersToSets(svc *schema.NetworkPolicyRuleService) sets.String {
 	}
 
 	return set
+}
+
+func getGlobalWhitelistPolicyEnforceMode(enable bool) v1alpha1.PolicyMode {
+	if enable {
+		return v1alpha1.WorkMode
+	}
+	return v1alpha1.MonitorMode
 }

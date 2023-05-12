@@ -971,7 +971,7 @@ var _ = Describe("PolicyController", func() {
 			})
 			It("should create security policy", func() {
 				assertPoliciesNum(ctx, 1)
-				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone,
+				assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone,
 					[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 					&v1alpha1.Rule{
 						Name: "ingress0",
@@ -995,7 +995,23 @@ var _ = Describe("PolicyController", func() {
 					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
 				})
 				It("should update security policy", func() {
-					assertPoliciesNum(ctx, 0)
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.MonitorMode, v1alpha1.DefaultRuleNone,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						&v1alpha1.Rule{
+							Name: "ingress0",
+							From: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Ingress[0].IPBlock + "/32"}},
+							},
+						},
+						&v1alpha1.Rule{
+							Name: "egress0",
+							To: []v1alpha1.SecurityPolicyPeer{
+								{IPBlock: &networkingv1.IPBlock{CIDR: *cluster.GlobalWhitelist.Egress[0].IPBlock + "/32"}},
+							},
+						},
+					)
+
 				})
 			})
 
@@ -1007,7 +1023,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should update security policy", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone,
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone,
 						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 						&v1alpha1.Rule{
 							Name: "ingress0",
@@ -1027,7 +1043,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should update security policy", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone,
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone,
 						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 						nil,
 						&v1alpha1.Rule{
@@ -1051,7 +1067,7 @@ var _ = Describe("PolicyController", func() {
 				})
 				It("should generate security policy with alg rule", func() {
 					assertPoliciesNum(ctx, 1)
-					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 						nil, NewSecurityPolicyRuleEgress("TCP", "27", ipBlock))
 				})
 			})
