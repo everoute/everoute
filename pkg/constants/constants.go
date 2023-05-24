@@ -37,6 +37,8 @@ const (
 	Tier1 = "tier1"
 	// Tier2 used for security policy and global policy
 	Tier2 = "tier2"
+	// TierECP used for ecp network policy
+	TierECP = "tier-ecp"
 
 	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
 

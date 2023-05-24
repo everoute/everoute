@@ -109,12 +109,14 @@ func getRuleDirection(ruleDir policycache.RuleDirection) uint8 {
 func getRuleTier(ruleTier string) uint8 {
 	var tier uint8
 	switch ruleTier {
-	case "tier0":
+	case constants.Tier0:
 		tier = datapath.POLICY_TIER1
-	case "tier1":
+	case constants.Tier1:
 		tier = datapath.POLICY_TIER2
-	case "tier2":
+	case constants.Tier2:
 		tier = datapath.POLICY_TIER3
+	case constants.TierECP:
+		tier = datapath.POLICY_TIER_ECP
 	default:
 		debug.PrintStack()
 		klog.Fatalf("unsupport ruleTier %s in policyRule.", ruleTier)

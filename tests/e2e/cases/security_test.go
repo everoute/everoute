@@ -1004,6 +1004,145 @@ var _ = Describe("SecurityPolicy", func() {
 			assertReachable([]*model.Endpoint{ipipEp2}, []*model.Endpoint{ipipEp1}, "TCP", false)
 		})
 	})
+
+	Context("ecp networkPolicy [Feature:TierECP]", func() {
+		var nginx, server, db *model.Endpoint
+		var nginxSelector, serverSelector, dbSelector *labels.Selector
+		var nginxPort, serverPort, dbPort = 443, 443, 3306
+
+		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "tower" {
+				Skip("tower e2e has no TierECP feature, skip it")
+			}
+
+			nginx = &model.Endpoint{Name: "nginx", TCPPort: nginxPort, Labels: map[string][]string{"component": {"nginx"}}}
+			server = &model.Endpoint{Name: "server", TCPPort: serverPort, Labels: map[string][]string{"component": {"webserver"}}}
+			db = &model.Endpoint{Name: "db", TCPPort: dbPort, Labels: map[string][]string{"component": {"database"}}}
+
+			nginxSelector = newSelector(map[string][]string{"component": {"nginx"}})
+			serverSelector = newSelector(map[string][]string{"component": {"webserver"}})
+			dbSelector = newSelector(map[string][]string{"component": {"database"}})
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, nginx, server, db)).Should(Succeed())
+
+			assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "ICMP", true)
+			assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "TCP", true)
+		})
+
+		When("create security policy with tier2 deny traffic", func() {
+			BeforeEach(func() {
+				tier2Policy := newPolicy("tier2-deny", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector, serverSelector, dbSelector)
+				Expect(e2eEnv.SetupObjects(ctx, tier2Policy)).Should(Succeed())
+			})
+
+			It("should limit all traffic", func() {
+				assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "ICMP", false)
+				assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "TCP", false)
+			})
+
+			When("create security policy with tier-ecp allow traffic", func() {
+				BeforeEach(func() {
+					tierECPServerPolicy := newPolicy("tier-ecp-server", constants.TierECP, securityv1alpha1.DefaultRuleNone, serverSelector)
+					addIngressRule(tierECPServerPolicy, "TCP", serverPort, nginxSelector)
+					addEngressRule(tierECPServerPolicy, "TCP", dbPort, dbSelector)
+
+					tierECPDbPolicy := newPolicy("tier-ecp-db", constants.TierECP, securityv1alpha1.DefaultRuleNone, dbSelector)
+					addIngressRule(tierECPDbPolicy, "TCP", dbPort, serverSelector)
+
+					Expect(e2eEnv.SetupObjects(ctx, tierECPServerPolicy, tierECPDbPolicy)).Should(Succeed())
+				})
+
+				It("the tier-ecp policy can allow traffic which tier2 policy deny", func() {
+					By("tier-ecp allow")
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db}, "TCP", true)
+					By("tier2 deny")
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{nginx}, "TCP", false)
+					assertReachable([]*model.Endpoint{nginx, db}, []*model.Endpoint{server, db, nginx}, "TCP", false)
+					assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "ICMP", false)
+				})
+			})
+		})
+
+		When("create security policy with tier2 allow traffic", func() {
+			BeforeEach(func() {
+				tier2Policy := newPolicy("tier2-allow", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector, serverSelector, dbSelector)
+				addIngressRule(tier2Policy, "TCP", nginxPort, nginxSelector, serverSelector, dbSelector)
+				addIngressRule(tier2Policy, "TCP", dbPort, nginxSelector, serverSelector, dbSelector)
+				addIngressRule(tier2Policy, "TCP", serverPort, nginxSelector, serverSelector, dbSelector)
+				addIngressRule(tier2Policy, "ICMP", 0, nginxSelector, serverSelector, dbSelector)
+				addEngressRule(tier2Policy, "TCP", nginxPort, nginxSelector, serverSelector, dbSelector)
+				addEngressRule(tier2Policy, "TCP", dbPort, nginxSelector, serverSelector, dbSelector)
+				addEngressRule(tier2Policy, "TCP", serverPort, nginxSelector, serverSelector, dbSelector)
+				addEngressRule(tier2Policy, "ICMP", 0, nginxSelector, serverSelector, dbSelector)
+				Expect(e2eEnv.SetupObjects(ctx, tier2Policy)).Should(Succeed())
+			})
+
+			It("should allow all traffic", func() {
+				assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "ICMP", true)
+				assertReachable([]*model.Endpoint{nginx, server, db}, []*model.Endpoint{nginx, server, db}, "TCP", true)
+			})
+
+			When("add security policy with tier-ecp", func() {
+				BeforeEach(func() {
+					tierECPServerPolicy := newPolicy("tier-ecp-server", constants.TierECP, securityv1alpha1.DefaultRuleDrop, serverSelector)
+					addIngressRule(tierECPServerPolicy, "TCP", serverPort, nginxSelector)
+					addEngressRule(tierECPServerPolicy, "TCP", dbPort, dbSelector)
+
+					tierECPDbPolicy := newPolicy("tier-ecp-db", constants.TierECP, securityv1alpha1.DefaultRuleDrop, dbSelector)
+					addIngressRule(tierECPDbPolicy, "TCP", dbPort, serverSelector)
+
+					Expect(e2eEnv.SetupObjects(ctx, tierECPServerPolicy, tierECPDbPolicy)).Should(Succeed())
+				})
+
+				It("the tier-ecp policy can deny traffic which tier2 policy allow", func() {
+					By("tier-ecp allow")
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db}, "TCP", true)
+					By("tier-ecp deny")
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{nginx}, "TCP", false)
+					assertReachable([]*model.Endpoint{db}, []*model.Endpoint{nginx, server}, "TCP", false)
+					By("tier2 allow")
+					assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server}, "TCP", true)
+				})
+			})
+		})
+
+		When("create isolation policy", func() {
+			BeforeEach(func() {
+				isolationPolicy := newPolicy("iso-policy", constants.Tier0, securityv1alpha1.DefaultRuleDrop, serverSelector)
+				Expect(e2eEnv.SetupObjects(ctx, isolationPolicy)).Should(Succeed())
+			})
+
+			It("should deny traffic for isolation policy", func() {
+				By("isolation server")
+				assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db, nginx}, "TCP", false)
+				assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db, nginx}, "ICMP", false)
+				assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{server}, "TCP", false)
+				assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{server}, "ICMP", false)
+				By("allow default")
+				assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{db, nginx}, "TCP", true)
+				assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{db, nginx}, "ICMP", true)
+			})
+
+			When("add security policy with tier-ecp allow isolation endpoints", func() {
+				BeforeEach(func() {
+					policy := newPolicy("allow-tier-ecp", constants.TierECP, securityv1alpha1.DefaultRuleNone, serverSelector)
+					addIngressRule(policy, "TCP", serverPort, nginxSelector, dbSelector)
+					addIngressRule(policy, "ICMP", 0, nginxSelector, dbSelector)
+					addEngressRule(policy, "TCP", nginxPort, nginxSelector)
+					addEngressRule(policy, "TCP", dbPort, dbSelector)
+					addEngressRule(policy, "ICMP", 0, nginxSelector, dbSelector)
+					Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+				})
+
+				It("tier ecp can't allow traffic which has been isolation", func() {
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db, nginx}, "TCP", false)
+					assertReachable([]*model.Endpoint{server}, []*model.Endpoint{db, nginx}, "ICMP", false)
+					assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{server}, "TCP", false)
+					assertReachable([]*model.Endpoint{db, nginx}, []*model.Endpoint{server}, "ICMP", false)
+				})
+			})
+		})
+	})
 })
 
 var _ = Describe("GlobalPolicy", func() {
@@ -1386,6 +1525,9 @@ func assertReachable(sources []*model.Endpoint, destinations []*model.Endpoint, 
 
 		for _, src := range sources {
 			for _, dst := range destinations {
+				if src.Name == dst.Name {
+					continue
+				}
 				var port int
 				if protocol == "TCP" {
 					port = dst.TCPPort

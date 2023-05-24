@@ -357,6 +357,12 @@ var _ = Describe("CRD Validate", func() {
 			policy.Spec.Tier = "UNExist-Tier-endpointName"
 			Expect(validate.Validate(fakeAdmissionReview(policy, securityPolicyIngress, "")).Allowed).Should(BeFalse())
 		})
+		It("Update policy with unsupported tier in monitor mode should not allowed", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Spec.Tier = "tier-ecp"
+			policy.Spec.SecurityPolicyEnforcementMode = securityv1alpha1.MonitorMode
+			Expect(validate.Validate(fakeAdmissionReview(policy, securityPolicyIngress, "")).Allowed).Should(BeFalse())
+		})
 		It("Delete policy should always allowed", func() {
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyEgress, "")).Allowed).Should(BeTrue())
 			Expect(validate.Validate(fakeAdmissionReview(nil, securityPolicyIngress, "")).Allowed).Should(BeTrue())

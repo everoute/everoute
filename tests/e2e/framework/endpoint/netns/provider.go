@@ -153,7 +153,11 @@ func (m *provider) Delete(ctx context.Context, name string) error {
 		return fmt.Errorf("unable delete endpoint %s on agent %s: %s", endpoint.Name, endpoint.Status.Host, err)
 	}
 
-	return m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err := m.kubeClient.SecurityV1alpha1().Endpoints(m.namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+
+	return m.ipPool.Release(endpoint.Status.IPAddr)
 }
 
 func (m *provider) RenewIP(ctx context.Context, name string) (*model.Endpoint, error) {

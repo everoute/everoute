@@ -319,8 +319,12 @@ func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.Securi
 	// check attached tier exist
 	switch policy.Spec.Tier {
 	case constants.Tier0, constants.Tier1, constants.Tier2:
+	case constants.TierECP:
+		if policy.Spec.SecurityPolicyEnforcementMode == securityv1alpha1.MonitorMode {
+			return fmt.Errorf("monitor mode doesn't support tier %s", policy.Spec.Tier)
+		}
 	default:
-		return fmt.Errorf("tier %s not in: %s, %s, %s", policy.Spec.Tier, constants.Tier0, constants.Tier1, constants.Tier2)
+		return fmt.Errorf("tier %s not in: %s, %s, %s, %s", policy.Spec.Tier, constants.Tier0, constants.Tier1, constants.Tier2, constants.TierECP)
 	}
 
 	// check validate of spec.appliedTo
