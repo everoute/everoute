@@ -192,6 +192,9 @@ func (m *provider) Delete(ctx context.Context, name string) error {
 		if err != nil {
 			return err
 		}
+		if err := m.ipPool.Release(ep.Status.IPAddr); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -984,7 +984,8 @@ spec:
                 type: boolean
               tier:
                 description: Tier specifies the tier to which this SecurityPolicy
-                  belongs to. In v1alpha1, Tier only support tier0, tier1, tier2.
+                  belongs to. In v1alpha1, Tier only support tier0, tier1, tier2,
+                  tier-ecp.
                 type: string
             required:
             - tier

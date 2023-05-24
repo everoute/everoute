@@ -70,7 +70,7 @@ const (
 // SecurityPolicySpec provides the specification of a SecurityPolicy
 type SecurityPolicySpec struct {
 	// Tier specifies the tier to which this SecurityPolicy belongs to.
-	// In v1alpha1, Tier only support tier0, tier1, tier2.
+	// In v1alpha1, Tier only support tier0, tier1, tier2, tier-ecp.
 	Tier string `json:"tier"`
 
 	// Work mode specify the policy enforcement state: monitor or work

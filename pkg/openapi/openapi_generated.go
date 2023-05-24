@@ -1887,7 +1887,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicySpec(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"tier": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Tier specifies the tier to which this SecurityPolicy belongs to. In v1alpha1, Tier only support tier0, tier1, tier2.",
+							Description: "Tier specifies the tier to which this SecurityPolicy belongs to. In v1alpha1, Tier only support tier0, tier1, tier2, tier-ecp.",
 							Type:        []string{"string"},
 							Format:      "",
 						},

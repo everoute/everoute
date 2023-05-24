@@ -61,9 +61,10 @@ const (
 
 //nolint
 const (
-	POLICY_TIER1 = 50
-	POLICY_TIER2 = 100
-	POLICY_TIER3 = 150
+	POLICY_TIER1    = 50
+	POLICY_TIER2    = 100
+	POLICY_TIER_ECP = 130
+	POLICY_TIER3    = 150
 )
 
 //nolint

@@ -109,6 +109,13 @@ var (
 		SrcIPAddr:  "10.100.100.0/24",
 		Action:     "deny",
 	}
+	rule3 = &EveroutePolicyRule{
+		RuleID:     "rule3",
+		IPProtocol: uint8(4),
+		SrcIPAddr:  "10.100.100.0/24",
+		DstIPAddr:  "10.23.1.90",
+		Action:     "allow",
+	}
 
 	rule1Flow = `table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
@@ -253,6 +260,19 @@ func testERPolicyRule(t *testing.T) {
 		}
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
+		}
+
+		if err := datapathManager.AddEveroutePolicyRule(rule3, "rule3", POLICY_DIRECTION_IN, POLICY_TIER_ECP, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule3, err)
+		}
+		if _, ok := datapathManager.Rules[rule3.RuleID]; !ok {
+			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule3)
+		}
+		if err := datapathManager.RemoveEveroutePolicyRule(rule3.RuleID, "rule3"); err != nil {
+			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule3, err)
+		}
+		if _, ok := datapathManager.Rules[rule3.RuleID]; ok {
+			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule3)
 		}
 	})
 }

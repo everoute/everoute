@@ -21,11 +21,13 @@ const (
 	EGRESS_TIER1_TABLE          = 20
 	EGRESS_TIER2_MONITOR_TABLE  = 24
 	EGRESS_TIER2_TABLE          = 25
+	EGRESS_TIER_ECP_TABLE       = 28
 	EGRESS_TIER3_MONITOR_TABLE  = 29
 	EGRESS_TIER3_TABLE          = 30
 	INGRESS_TIER1_TABLE         = 50
 	INGRESS_TIER2_MONITOR_TABLE = 54
 	INGRESS_TIER2_TABLE         = 55
+	INGRESS_TIER_ECP_TABLE      = 58
 	INGRESS_TIER3_MONITOR_TABLE = 59
 	INGRESS_TIER3_TABLE         = 60
 	CT_COMMIT_TABLE             = 70
@@ -45,11 +47,13 @@ type PolicyBridge struct {
 	egressTier1PolicyTable         *ofctrl.Table
 	egressTier2PolicyMonitorTable  *ofctrl.Table
 	egressTier2PolicyTable         *ofctrl.Table
+	egressTierECPPolicyTable       *ofctrl.Table
 	egressTier3PolicyMonitorTable  *ofctrl.Table
 	egressTier3PolicyTable         *ofctrl.Table
 	ingressTier1PolicyTable        *ofctrl.Table
 	ingressTier2PolicyMonitorTable *ofctrl.Table
 	ingressTier2PolicyTable        *ofctrl.Table
+	ingressTierECPPolicyTable      *ofctrl.Table
 	ingressTier3PolicyMonitorTable *ofctrl.Table
 	ingressTier3PolicyTable        *ofctrl.Table
 	ctCommitTable                  *ofctrl.Table
@@ -80,11 +84,13 @@ func (p *PolicyBridge) BridgeInit() {
 	p.ingressTier1PolicyTable, _ = sw.NewTable(INGRESS_TIER1_TABLE)
 	p.ingressTier2PolicyMonitorTable, _ = sw.NewTable(INGRESS_TIER2_MONITOR_TABLE)
 	p.ingressTier2PolicyTable, _ = sw.NewTable(INGRESS_TIER2_TABLE)
+	p.ingressTierECPPolicyTable, _ = sw.NewTable(INGRESS_TIER_ECP_TABLE)
 	p.ingressTier3PolicyMonitorTable, _ = sw.NewTable(INGRESS_TIER3_MONITOR_TABLE)
 	p.ingressTier3PolicyTable, _ = sw.NewTable(INGRESS_TIER3_TABLE)
 	p.egressTier1PolicyTable, _ = sw.NewTable(EGRESS_TIER1_TABLE)
 	p.egressTier2PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER2_MONITOR_TABLE)
 	p.egressTier2PolicyTable, _ = sw.NewTable(EGRESS_TIER2_TABLE)
+	p.egressTierECPPolicyTable, _ = sw.NewTable(EGRESS_TIER_ECP_TABLE)
 	p.egressTier3PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER3_MONITOR_TABLE)
 	p.egressTier3PolicyTable, _ = sw.NewTable(EGRESS_TIER3_TABLE)
 	p.ctCommitTable, _ = sw.NewTable(CT_COMMIT_TABLE)
@@ -330,8 +336,14 @@ func (p *PolicyBridge) initPolicyTable() error {
 	egressTier2DefaultFlow, _ := p.egressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := egressTier2DefaultFlow.Next(p.egressTier3PolicyMonitorTable); err != nil {
+	if err := egressTier2DefaultFlow.Next(p.egressTierECPPolicyTable); err != nil {
 		return fmt.Errorf("failed to install egress tier2 default flow, error: %v", err)
+	}
+	egressTierECPDefaultFlow, _ := p.egressTierECPPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := egressTierECPDefaultFlow.Next(p.egressTier3PolicyMonitorTable); err != nil {
+		return fmt.Errorf("failed to install egress tier ecp default flow, error: %v", err)
 	}
 	egressTier3MonitorDefaultFlow, _ := p.egressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
@@ -362,7 +374,13 @@ func (p *PolicyBridge) initPolicyTable() error {
 	ingressTier2DefaultFlow, _ := p.ingressTier2PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ingressTier2DefaultFlow.Next(p.ingressTier3PolicyMonitorTable); err != nil {
+	if err := ingressTier2DefaultFlow.Next(p.ingressTierECPPolicyTable); err != nil {
+		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
+	}
+	ingressTierECPDefaultFlow, _ := p.ingressTierECPPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := ingressTierECPDefaultFlow.Next(p.ingressTier3PolicyMonitorTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
 	}
 	ingressTier3MonitorDefaultFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
@@ -509,6 +527,9 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			case POLICY_TIER3:
 				policyTable = p.egressTier3PolicyTable
 				nextTable = p.ctCommitTable
+			case POLICY_TIER_ECP:
+				policyTable = p.egressTierECPPolicyTable
+				nextTable = p.ctCommitTable
 			default:
 				return nil, nil, errors.New("unknown policy tier")
 			}
@@ -522,6 +543,9 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 				nextTable = p.ctCommitTable
 			case POLICY_TIER3:
 				policyTable = p.ingressTier3PolicyTable
+				nextTable = p.ctCommitTable
+			case POLICY_TIER_ECP:
+				policyTable = p.ingressTierECPPolicyTable
 				nextTable = p.ctCommitTable
 			default:
 				return nil, nil, errors.New("unknown policy tier")
@@ -538,6 +562,8 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			case POLICY_TIER3:
 				policyTable = p.egressTier3PolicyMonitorTable
 				nextTable = p.egressTier3PolicyTable
+			case POLICY_TIER_ECP:
+				return nil, nil, fmt.Errorf("monitor mode doesn't support tier-ecp")
 			default:
 				return nil, nil, errors.New("unknown policy tier")
 			}
@@ -550,6 +576,8 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 			case POLICY_TIER3:
 				policyTable = p.ingressTier3PolicyMonitorTable
 				nextTable = p.ingressTier3PolicyTable
+			case POLICY_TIER_ECP:
+				return nil, nil, fmt.Errorf("monitor mode doesn't support tier-ecp")
 			default:
 				return nil, nil, errors.New("unknown policy tier")
 			}
