@@ -162,7 +162,7 @@ func (c *Client) Auth() (string, error) {
 		return "", fmt.Errorf("failed to unmarshal %s to token: %s", tokenRaw, err)
 	}
 
-	c.setToken(token)
+	c.SetToken(token)
 	return token, nil
 }
 
@@ -247,7 +247,7 @@ func (c *Client) setScheme(u *url.URL, websocket bool) {
 	}
 }
 
-func (c *Client) setToken(token string) {
+func (c *Client) SetToken(token string) {
 	c.tokenLock.Lock()
 	defer c.tokenLock.Unlock()
 	c.token = token
