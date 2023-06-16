@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
@@ -38,6 +39,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
@@ -63,8 +65,10 @@ func main() {
 
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
-	ofPortIPAddrMoniotorChan := make(chan map[string]net.IP, 1024)
+	ofportIPMonitorChan := make(chan map[string]net.IP, 1024)
 	proxySyncChan := make(chan event.GenericEvent)
+	config := ctrl.GetConfigOrDie()
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 
 	// complete options
 	err := opts.complete()
@@ -74,20 +78,19 @@ func main() {
 
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
-	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan)
 	datapathManager.InitializeDatapath(stopChan)
 
 	var mgr manager.Manager
-	var ovsdbMonitor *monitor.OVSDBMonitor
 	if opts.IsEnableCNI() {
 		// in the cni scenario, cni initialization must precede ovsdb monitor initialization
-		mgr = initK8sCtrlManager(stopChan)
+		mgr = initK8sCtrlManager(config, stopChan)
 		initCNI(datapathManager, mgr, proxySyncChan)
-		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
+		startMonitor(datapathManager, config, ofportIPMonitorChan, stopChan)
 	} else {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
-		ovsdbMonitor = initOvsdbMonitor(datapathManager, stopChan)
-		mgr = initK8sCtrlManager(stopChan)
+		startMonitor(datapathManager, config, ofportIPMonitorChan, stopChan)
+		mgr = initK8sCtrlManager(config, stopChan)
 	}
 
 	// add health check handler
@@ -102,11 +105,7 @@ func main() {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
-	k8sClient := mgr.GetClient()
-	agentmonitor := monitor.NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddrMoniotorChan)
-	go agentmonitor.Run(stopChan)
-
-	rpcServer := rpcserver.Initialize(datapathManager, k8sClient, opts.IsEnableCNI(), proxyCache)
+	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache)
 	go rpcServer.Run(stopChan)
 
 	<-stopChan
@@ -123,11 +122,9 @@ func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySync
 	datapathManager.InitializeCNI()
 }
 
-func initK8sCtrlManager(stopChan <-chan struct{}) manager.Manager {
+func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.Manager {
 	var mgr manager.Manager
 	var err error
-	config := ctrl.GetConfigOrDie()
-	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 
 	// create eventBroadcaster before manager to avoid goroutine leakage: kubernetes-sigs/controller-runtime#637
 	eventBroadcaster := record.NewBroadcaster()
@@ -150,7 +147,7 @@ func initK8sCtrlManager(stopChan <-chan struct{}) manager.Manager {
 	return mgr
 }
 
-func initOvsdbMonitor(datapathManager *datapath.DpManager, stopChan <-chan struct{}) *monitor.OVSDBMonitor {
+func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan map[string]net.IP, stopChan <-chan struct{}) {
 	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
@@ -175,8 +172,12 @@ func initOvsdbMonitor(datapathManager *datapath.DpManager, stopChan <-chan struc
 			}
 		},
 	})
+
+	agentClient := clientset.NewForConfigOrDie(config).AgentInfos()
+	agentmonitor := monitor.NewAgentMonitor(agentClient, ovsdbMonitor, ofportIPMonitorChan)
+
 	go ovsdbMonitor.Run(stopChan)
-	return ovsdbMonitor
+	go agentmonitor.Run(stopChan)
 }
 
 func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {

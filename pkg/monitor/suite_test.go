@@ -28,14 +28,13 @@ import (
 
 	ovsdb "github.com/contiv/libovsdb"
 	"github.com/vishvananda/netlink"
-	k8stypes "k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
-	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 )
 
 const (
@@ -62,7 +61,7 @@ type Ep struct {
 }
 
 var (
-	k8sClient                  client.Client
+	k8sClient                  clientset.AgentInfoInterface
 	ovsClient                  *ovsdb.OvsdbClient
 	agentName                  string
 	ovsdbMonitor               *OVSDBMonitor
@@ -74,8 +73,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	// todo: we need to use the real k8s client
-	k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
+	k8sClient = fake.NewSimpleClientset().AgentV1alpha1().AgentInfos()
 
 	var err error
 
@@ -485,9 +483,8 @@ func ovsdbTransact(client *ovsdb.OvsdbClient, database string, operation ...ovsd
 	return results, err
 }
 
-func getBridge(client client.Client, brName string) (*agentv1alpha1.OVSBridge, error) {
-	agentInfo := &agentv1alpha1.AgentInfo{}
-	err := client.Get(context.Background(), k8stypes.NamespacedName{Name: agentName}, agentInfo)
+func getBridge(client clientset.AgentInfoInterface, brName string) (*agentv1alpha1.OVSBridge, error) {
+	agentInfo, err := client.Get(context.Background(), agentName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +498,7 @@ func getBridge(client client.Client, brName string) (*agentv1alpha1.OVSBridge, e
 	return nil, notFoundError(fmt.Errorf("bridge %s not found in agentInfo", brName))
 }
 
-func getPort(client client.Client, brName, portName string) (*agentv1alpha1.OVSPort, error) {
+func getPort(client clientset.AgentInfoInterface, brName, portName string) (*agentv1alpha1.OVSPort, error) {
 	bridge, err := getBridge(client, brName)
 	if err != nil {
 		return nil, err
@@ -516,7 +513,7 @@ func getPort(client client.Client, brName, portName string) (*agentv1alpha1.OVSP
 	return nil, notFoundError(fmt.Errorf("port %s not found in agentInfo", portName))
 }
 
-func getIface(client client.Client, brName, portName, ifaceName string) (*agentv1alpha1.OVSInterface, error) {
+func getIface(client clientset.AgentInfoInterface, brName, portName, ifaceName string) (*agentv1alpha1.OVSInterface, error) {
 	port, err := getPort(client, brName, portName)
 	if err != nil {
 		return nil, err
