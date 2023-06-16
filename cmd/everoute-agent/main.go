@@ -38,8 +38,8 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
-	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
@@ -173,8 +173,8 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 		},
 	})
 
-	agentClient := clientset.NewForConfigOrDie(config).AgentInfos()
-	agentmonitor := monitor.NewAgentMonitor(agentClient, ovsdbMonitor, ofportIPMonitorChan)
+	clientset := clientset.NewForConfigOrDie(config)
+	agentmonitor := monitor.NewAgentMonitor(clientset, ovsdbMonitor, ofportIPMonitorChan)
 
 	go ovsdbMonitor.Run(stopChan)
 	go agentmonitor.Run(stopChan)
