@@ -30,11 +30,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
-	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
+	client "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	informer "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -52,31 +55,31 @@ const (
 
 // AgentMonitor monitor agent state, update agentinfo to apiserver.
 type AgentMonitor struct {
-	// k8sClient used to create/read/update agentinfo
-	k8sClient clientset.AgentInfoInterface
-	// ovsdbMonitor used to access ovsdb cache
-	ovsdbMonitor *OVSDBMonitor
+	k8sClient     client.AgentInfoInterface // k8sClient used to CRUD agentinfo
+	agentInformer cache.SharedIndexInformer // agentInformer used to speedup query
+	ovsdbMonitor  *OVSDBMonitor             // ovsdbMonitor used to access ovsdb cache
 
 	// agentName is the name and uuid of this agent
-	agentName                  string
-	ipCacheLock                sync.RWMutex
-	ipCache                    map[string]map[types.IPAddress]metav1.Time
-	ofPortIPAddressMonitorChan chan map[string]net.IP
+	agentName           string
+	ipCacheLock         sync.RWMutex
+	ipCache             map[string]map[types.IPAddress]metav1.Time
+	ofportIPMonitorChan chan map[string]net.IP
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client clientset.AgentInfoInterface, ovsdbMonitor *OVSDBMonitor, ofportIPMonitorChan chan map[string]net.IP) *AgentMonitor {
+func NewAgentMonitor(clientset clientset.Interface, ovsdbMonitor *OVSDBMonitor, ofportIPMonitorChan chan map[string]net.IP) *AgentMonitor {
 	return &AgentMonitor{
-		k8sClient:                  client,
-		agentName:                  utils.CurrentAgentName(),
-		ipCacheLock:                sync.RWMutex{},
-		ipCache:                    make(map[string]map[types.IPAddress]metav1.Time),
-		ofPortIPAddressMonitorChan: ofportIPMonitorChan,
-		ovsdbMonitor:               ovsdbMonitor,
-		syncQueue:                  ovsdbMonitor.GetSyncQueue(),
+		k8sClient:           clientset.AgentV1alpha1().AgentInfos(),
+		agentInformer:       informer.NewAgentInfoInformer(clientset, 0, cache.Indexers{}),
+		agentName:           utils.CurrentAgentName(),
+		ipCacheLock:         sync.RWMutex{},
+		ipCache:             make(map[string]map[types.IPAddress]metav1.Time),
+		ofportIPMonitorChan: ofportIPMonitorChan,
+		ovsdbMonitor:        ovsdbMonitor,
+		syncQueue:           ovsdbMonitor.GetSyncQueue(),
 	}
 }
 
@@ -86,7 +89,8 @@ func (monitor *AgentMonitor) Run(stopChan <-chan struct{}) {
 	klog.Infof("start agent %s monitor", monitor.Name())
 	defer klog.Infof("shutting down agent %s monitor", monitor.Name())
 
-	go monitor.handleOfPortIPAddressUpdate(monitor.ofPortIPAddressMonitorChan, stopChan)
+	go monitor.agentInformer.Run(stopChan)
+	go monitor.handleOfPortIPAddressUpdate(monitor.ofportIPMonitorChan, stopChan)
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
 	go monitor.periodicallySyncAgentInfo(AgentInfoSyncInterval, stopChan)
 	<-stopChan
@@ -126,7 +130,7 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]
 }
 
 func (monitor *AgentMonitor) shouldSyncOnLearnIPLocked() bool {
-	agentInfo, err := monitor.k8sClient.Get(context.Background(), monitor.Name(), metav1.GetOptions{})
+	agentInfo, err := monitor.k8sClientGet(context.Background(), monitor.Name(), metav1.GetOptions{})
 	if err != nil {
 		// error only happens on the agentinfo not found, quickly sync
 		return true
@@ -195,7 +199,7 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't get agentinfo: %s", err)
 	}
 
-	originAgentInfo, err := monitor.k8sClient.Get(ctx, agentName, metav1.GetOptions{})
+	originAgentInfo, err := monitor.k8sClientGet(ctx, agentName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		if _, err = monitor.k8sClient.Create(ctx, agentInfo, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("couldn't create agent %s agentinfo: %s", agentName, err)
@@ -216,6 +220,20 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 	monitor.ipCache = make(map[string]map[types.IPAddress]metav1.Time)
 
 	return nil
+}
+
+func (monitor *AgentMonitor) k8sClientGet(ctx context.Context, name string, options metav1.GetOptions) (*agentv1alpha1.AgentInfo, error) {
+	if monitor.agentInformer.HasSynced() {
+		obj, exists, err := monitor.agentInformer.GetIndexer().GetByKey(name)
+		if err != nil {
+			return nil, errors.NewInternalError(err)
+		}
+		if !exists {
+			return nil, errors.NewNotFound(agentv1alpha1.Resource("agentinfo"), name)
+		}
+		return obj.(*agentv1alpha1.AgentInfo).DeepCopy(), nil
+	}
+	return monitor.k8sClient.Get(ctx, name, options)
 }
 
 func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1alpha1.AgentInfo) {

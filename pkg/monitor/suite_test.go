@@ -73,7 +73,8 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	k8sClient = fake.NewSimpleClientset().AgentV1alpha1().AgentInfos()
+	clientset := fake.NewSimpleClientset()
+	k8sClient = clientset.AgentV1alpha1().AgentInfos()
 
 	var err error
 
@@ -86,7 +87,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		klog.Fatalf("fail to create ovsdb monitor: %s", err)
 	}
-	monitor = NewAgentMonitor(k8sClient, ovsdbMonitor, ofPortIPAddressMonitorChan)
+	monitor = NewAgentMonitor(clientset, ovsdbMonitor, ofPortIPAddressMonitorChan)
 
 	ovsdbMonitor.RegisterOvsdbEventHandler(OvsdbEventHandlerFuncs{
 		LocalEndpointAddFunc: func(endpoint *datapath.Endpoint) {
