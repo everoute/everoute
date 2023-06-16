@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -128,12 +129,15 @@ func initK8sCtrlManager(stopChan <-chan struct{}) manager.Manager {
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 
+	// create eventBroadcaster before manager to avoid goroutine leakage: kubernetes-sigs/controller-runtime#637
+	eventBroadcaster := record.NewBroadcaster()
+
 	// loop initialize manager until success or stop
 	err = wait.PollImmediateUntil(time.Second, func() (bool, error) {
 		mgr, err = ctrl.NewManager(config, ctrl.Options{
 			Scheme:             clientsetscheme.Scheme,
 			MetricsBindAddress: opts.metricsAddr,
-			Port:               9443,
+			EventBroadcaster:   eventBroadcaster,
 		})
 		if err != nil {
 			klog.Errorf("unable to create manager: %s", err.Error())
