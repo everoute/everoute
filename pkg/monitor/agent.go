@@ -29,13 +29,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -54,7 +53,7 @@ const (
 // AgentMonitor monitor agent state, update agentinfo to apiserver.
 type AgentMonitor struct {
 	// k8sClient used to create/read/update agentinfo
-	k8sClient client.Client
+	k8sClient clientset.AgentInfoInterface
 	// ovsdbMonitor used to access ovsdb cache
 	ovsdbMonitor *OVSDBMonitor
 
@@ -69,13 +68,13 @@ type AgentMonitor struct {
 }
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(client client.Client, ovsdbMonitor *OVSDBMonitor, ofPortIPAddressMonitorChan chan map[string]net.IP) *AgentMonitor {
+func NewAgentMonitor(client clientset.AgentInfoInterface, ovsdbMonitor *OVSDBMonitor, ofportIPMonitorChan chan map[string]net.IP) *AgentMonitor {
 	return &AgentMonitor{
 		k8sClient:                  client,
 		agentName:                  utils.CurrentAgentName(),
 		ipCacheLock:                sync.RWMutex{},
 		ipCache:                    make(map[string]map[types.IPAddress]metav1.Time),
-		ofPortIPAddressMonitorChan: ofPortIPAddressMonitorChan,
+		ofPortIPAddressMonitorChan: ofportIPMonitorChan,
 		ovsdbMonitor:               ovsdbMonitor,
 		syncQueue:                  ovsdbMonitor.GetSyncQueue(),
 	}
@@ -127,9 +126,7 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]
 }
 
 func (monitor *AgentMonitor) shouldSyncOnLearnIPLocked() bool {
-	agentInfo := &agentv1alpha1.AgentInfo{}
-
-	err := monitor.k8sClient.Get(context.Background(), k8stypes.NamespacedName{Name: monitor.Name()}, agentInfo)
+	agentInfo, err := monitor.k8sClient.Get(context.Background(), monitor.Name(), metav1.GetOptions{})
 	if err != nil {
 		// error only happens on the agentinfo not found, quickly sync
 		return true
@@ -198,11 +195,9 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't get agentinfo: %s", err)
 	}
 
-	cpAgentInfo := &agentv1alpha1.AgentInfo{}
-
-	err = monitor.k8sClient.Get(ctx, k8stypes.NamespacedName{Name: agentName}, cpAgentInfo)
+	originAgentInfo, err := monitor.k8sClient.Get(ctx, agentName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		if err = monitor.k8sClient.Create(ctx, agentInfo); err != nil {
+		if _, err = monitor.k8sClient.Create(ctx, agentInfo, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("couldn't create agent %s agentinfo: %s", agentName, err)
 		}
 		return nil
@@ -212,9 +207,9 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
 	}
 
-	monitor.mergeAgentInfo(agentInfo, cpAgentInfo)
-	agentInfo.ObjectMeta = cpAgentInfo.ObjectMeta
-	err = monitor.k8sClient.Update(ctx, agentInfo)
+	monitor.mergeAgentInfo(agentInfo, originAgentInfo)
+	agentInfo.ObjectMeta = originAgentInfo.ObjectMeta
+	_, err = monitor.k8sClient.Update(ctx, agentInfo, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
