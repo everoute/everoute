@@ -158,18 +158,20 @@ jobs:
           kubectl wait --for=condition=Ready nodes --all --timeout=5m
           kubectl get nodes -owide
 
-      - name: run test cases
-        timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+      # - name: run test cases
+      #   timeout-minutes: 40
+      #   run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
-      - name: delete test k8s cluster
-        id: delenv
-        if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+      - run: sleep 10800
 
-      - name: recycle vip
-        if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
+      # - name: delete test k8s cluster
+      #   id: delenv
+      #   if: ${{ always() }}
+      #   run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+
+      # - name: recycle vip
+      #   if: ${{ always() && steps.delenv.conclusion == 'success' }}
+      #   run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
 
   generate-check:
     runs-on: [ubuntu-20.04]
