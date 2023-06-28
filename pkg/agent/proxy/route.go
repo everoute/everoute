@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -164,6 +165,91 @@ func (r *NodeReconciler) UpdateRoute(nodeList corev1.NodeList, thisNode corev1.N
 	}
 }
 
+func (r *NodeReconciler) updateEverouteOutputChain(ipt *iptables.IPTables, nodeList corev1.NodeList, thisNode corev1.Node) {
+	var exist bool
+	var err error
+	newRules := make(map[string]struct{})
+	// check and add MASQUERADE in EVEROUTE-OUTPUT"
+	for _, podCIDR := range thisNode.Spec.PodCIDRs {
+		ruleSpec := []string{"-s", podCIDR, "-j", "MASQUERADE"}
+		newRules[strings.Join(ruleSpec, " ")] = struct{}{}
+		if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+			klog.Errorf("Check MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+			continue
+		}
+		if !exist {
+			err = ipt.Append("nat", "EVEROUTE-OUTPUT", ruleSpec...)
+			if err != nil {
+				klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+				continue
+			}
+		}
+	}
+
+	// check and add ACCEPT in EVEROUTE-OUTPUT
+	// ACCEPT is used to skip the traffic inside the cluster.
+	for _, podCIDR := range thisNode.Spec.PodCIDRs {
+		for _, nodeItem := range nodeList.Items {
+			if nodeItem.Name == thisNode.Name {
+				continue
+			}
+			for _, otherPodCIDR := range nodeItem.Spec.PodCIDRs {
+				if podCIDR == otherPodCIDR {
+					klog.Errorf("Node %s and Node %s has same podCIDR %s", thisNode.Name, nodeItem.Name, podCIDR)
+					continue
+				}
+				ruleSpec := []string{"-s", podCIDR, "-d", otherPodCIDR, "-j", "ACCEPT"}
+				newRules[strings.Join(ruleSpec, " ")] = struct{}{}
+				if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+					klog.Errorf("Check ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+					continue
+				}
+				if !exist {
+					if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
+						klog.Errorf("[ALERT] Add ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+						continue
+					}
+				}
+			}
+		}
+	}
+
+	if r.DatapathManager.IsEnableProxy() {
+		return
+	}
+
+	// check and add ACCEPT for traffic from gw-local
+	ruleSpec := []string{"-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"}
+	newRules[strings.Join(ruleSpec, " ")] = struct{}{}
+	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+	}
+	if !exist {
+		if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
+			klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
+		}
+	}
+
+	oldRules, err := ipt.List("nat", "EVEROUTE-OUTPUT")
+	if err != nil {
+		klog.Errorf("Failed to get iptables chain EVEROUTE-OUTPUT rules, err: %v", err)
+		return
+	}
+	for _, item := range oldRules {
+		rule := strings.Split(item, " ")
+		if len(rule) <= 2 {
+			continue
+		}
+		ruleSpec := rule[2:]
+		if _, ok := newRules[strings.Join(ruleSpec, " ")]; !ok {
+			if err = ipt.DeleteIfExists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
+				klog.Errorf("Failed to delete expired iptables rule: %v, err: %v", ruleSpec, err)
+				return
+			}
+		}
+	}
+}
+
 // UpdateIptables will be called when Node has been updated, or every 100 seconds.
 // This function will update iptables in linux kernel.
 // iptables used to DNAT for the OUTPUT traffic( outside of the cluster)
@@ -207,58 +293,7 @@ func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev
 		}
 	}
 
-	// check and add MASQUERADE in EVEROUTE-OUTPUT"
-	for _, podCIDR := range thisNode.Spec.PodCIDRs {
-		ruleSpec := []string{"-s", podCIDR, "-j", "MASQUERADE"}
-		if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-			klog.Errorf("Check MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-			continue
-		}
-		if !exist {
-			err = ipt.Append("nat", "EVEROUTE-OUTPUT", ruleSpec...)
-			if err != nil {
-				klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-				continue
-			}
-		}
-	}
-
-	// check and add ACCEPT in EVEROUTE-OUTPUT
-	// ACCEPT is used to skip the traffic inside the cluster.
-	for _, podCIDR := range thisNode.Spec.PodCIDRs {
-		for _, nodeItem := range nodeList.Items {
-			if nodeItem.Name == thisNode.Name {
-				continue
-			}
-			for _, otherPodCIDR := range nodeItem.Spec.PodCIDRs {
-				ruleSpec := []string{"-s", podCIDR, "-d", otherPodCIDR, "-j", "ACCEPT"}
-				if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-					klog.Errorf("Check ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-					continue
-				}
-				if !exist {
-					if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
-						klog.Errorf("[ALERT] Add ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-						continue
-					}
-				}
-			}
-		}
-	}
-
-	if r.DatapathManager.IsEnableProxy() {
-		return
-	}
-
-	// check and add ACCEPT for traffic from gw-local
-	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
-		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-	}
-	if !exist {
-		if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, "-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"); err != nil {
-			klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-		}
-	}
+	r.updateEverouteOutputChain(ipt, nodeList, thisNode)
 
 	// check and add CT zone for gw-local
 	if exist, err = ipt.Exists("raw", "PREROUTING", "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
