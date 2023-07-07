@@ -1089,6 +1089,47 @@ var _ = Describe("PolicyController", func() {
 				})
 			})
 
+			When("update everouteCluster with service", func() {
+				var svc *schema.NetworkPolicyRuleService
+				var ipBlock1 *networkingv1.IPBlock
+				BeforeEach(func() {
+					By("create service")
+					svc = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23"))
+					server.TrackerFactory().Service().Create(svc)
+
+					cluster.GlobalWhitelist.Ingress = nil
+					cluster.GlobalWhitelist.Egress = nil
+					ipBlock1 = NewRandomIPBlock()
+					ingress := NewNetworkPolicyRule("ICMP", "", ipBlock1)
+					NetworkPolicyRuleAddServices(ingress, svc.ID)
+					cluster.GlobalWhitelist.Ingress = append(cluster.GlobalWhitelist.Ingress, *ingress)
+					By(fmt.Sprintf("update everouteCluster to %+v", cluster))
+					server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+				})
+
+				It("should generate security policy with service ports", func() {
+					assertPoliciesNum(ctx, 1)
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					RuleAddPorts(expectIngress, "UDP", "12,23")
+					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+						expectIngress, nil)
+				})
+
+				When("update service", func() {
+					BeforeEach(func() {
+						svc.Members = append(svc.Members, *NewNetworkPolicyRulePort("TCP", "", "90"), *NewNetworkPolicyRulePort("UDP", "", "3434"))
+						server.TrackerFactory().Service().CreateOrUpdate(svc)
+					})
+
+					It("should update security policy ports as service", func() {
+						expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+						RuleAddPorts(expectIngress, "UDP", "12,23", "TCP", "90", "UDP", "3434")
+						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+							expectIngress, nil)
+					})
+				})
+			})
+
 			// TODO: assertHasPolicy has problems with multi-rules
 			/*
 				When("add more items in cluster", func() {
