@@ -69,11 +69,11 @@ const (
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
 // from tower. For v1alpha1.SecurityPolicy, has the following naming rules:
-//   1. If origin policy is SecurityPolicy, policy.name = {{SecurityPolicyPrefix}}{{SecurityPolicy.ID}}
-//   2. If origin policy is IsolationPolicy, policy.name = {{IsolationPolicyPrefix}}{{IsolationPolicy.ID}}
-//   3. If policy was generated to make intragroup communicable, policy.name = {{SecurityPolicyCommunicablePrefix}}{{SelectorHash}}-{{SecurityPolicy.ID}}
-//   4. If origin policy is SystemEndpointsPolicy, policy.name = {{SystemEndpointsPolicyName}}
-//   5. If origin policy is ControllerPolicy, policy.name = {{ControllerPolicyName}}
+//  1. If origin policy is SecurityPolicy, policy.name = {{SecurityPolicyPrefix}}{{SecurityPolicy.ID}}
+//  2. If origin policy is IsolationPolicy, policy.name = {{IsolationPolicyPrefix}}{{IsolationPolicy.ID}}
+//  3. If policy was generated to make intragroup communicable, policy.name = {{SecurityPolicyCommunicablePrefix}}{{SelectorHash}}-{{SecurityPolicy.ID}}
+//  4. If origin policy is SystemEndpointsPolicy, policy.name = {{SystemEndpointsPolicyName}}
+//  5. If origin policy is ControllerPolicy, policy.name = {{ControllerPolicyName}}
 type Controller struct {
 	// name of this controller
 	name string
@@ -128,6 +128,7 @@ type Controller struct {
 }
 
 // New creates a new instance of controller.
+//
 //nolint:funlen
 func New(
 	towerFactory informer.SharedInformerFactory,
@@ -301,6 +302,10 @@ func New(
 		isolationPolicyIndex: c.isolationPolicyIndexFunc,
 	})
 
+	_ = erClusterInformer.AddIndexers(cache.Indexers{
+		serviceIndex: c.serviceIndexFunc,
+	})
+
 	return c
 }
 
@@ -423,6 +428,12 @@ func (c *Controller) serviceIndexFunc(obj interface{}) ([]string, error) {
 		}
 	case *schema.IsolationPolicy:
 		for _, rule := range append(o.Ingress, o.Egress...) {
+			for _, s := range rule.Services {
+				serviceIDs = append(serviceIDs, s.ID)
+			}
+		}
+	case *schema.EverouteCluster:
+		for _, rule := range append(o.GlobalWhitelist.Ingress, o.GlobalWhitelist.Egress...) {
 			for _, s := range rule.Services {
 				serviceIDs = append(serviceIDs, s.ID)
 			}
@@ -692,6 +703,11 @@ func (c *Controller) handleService(obj interface{}) {
 	isoPolices, _ := c.isolationPolicyLister.ByIndex(serviceIndex, svc.GetID())
 	for _, p := range isoPolices {
 		c.handleIsolationPolicy(p)
+	}
+
+	ers, _ := c.everouteClusterLister.ByIndex(serviceIndex, svc.GetID())
+	if len(ers) > 0 {
+		c.handleEverouteCluster(ers[0])
 	}
 }
 
