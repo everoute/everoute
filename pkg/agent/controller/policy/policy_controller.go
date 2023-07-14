@@ -77,6 +77,7 @@ func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
 
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
+	klog.Infof("Reconcile policy: %v", req)
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
@@ -107,16 +108,19 @@ func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
+	klog.Infof("Reconcile patch: %v", *patch)
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, patch.GroupName)
 
 	for _, completeRule := range completeRules {
 		var rule = completeRule.(*policycache.CompleteRule)
+		klog.Infof("Complete rule when reconcile patch: %v", *rule)
 
 		newPolicyRuleList, oldPolicyRuleList := rule.GetPatchPolicyRules(patch)
 		r.syncPolicyRulesUntilSuccess(oldPolicyRuleList, newPolicyRuleList)
 
 		rule.ApplyPatch(patch)
+		klog.Infof("Complete rule after apply patch: %v", *rule)
 	}
 
 	r.groupCache.ApplyPatch(patch)
@@ -247,9 +251,11 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 
 func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
 	var oldRuleList []policycache.PolicyRule
+	klog.Infof("Process policy add or update, policy: %v", *policy)
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
+		klog.Infof("complete rule: %v", completeRule)
 		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
 	}
 
