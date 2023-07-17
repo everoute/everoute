@@ -6,7 +6,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
 
-func testResolveDstPort(t *testing.T) {
+func TestResolveDstPort(t *testing.T) {
 	tests := []struct {
 		name       string
 		port       RulePort
