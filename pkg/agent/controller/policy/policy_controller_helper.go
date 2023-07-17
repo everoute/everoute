@@ -277,10 +277,18 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 	return rulePortList, nil
 }
 
-func toRuleMap(ruleList []policycache.PolicyRule) map[string]*policycache.PolicyRule {
-	var ruleMap = make(map[string]*policycache.PolicyRule, len(ruleList))
+type RuleCount struct {
+	rule  *policycache.PolicyRule
+	count int
+}
+
+func toRuleMap(ruleList []policycache.PolicyRule) map[string]*RuleCount {
+	var ruleMap = make(map[string]*RuleCount, len(ruleList))
 	for item, rule := range ruleList {
-		ruleMap[rule.Name] = &ruleList[item]
+		if _, ok := ruleMap[rule.Name]; !ok {
+			ruleMap[rule.Name] = &RuleCount{rule: &ruleList[item], count: 0}
+		}
+		ruleMap[rule.Name].count++
 	}
 	return ruleMap
 }
