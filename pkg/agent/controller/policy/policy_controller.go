@@ -611,7 +611,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 			if oldExist && ruleIsSame(oldRule.rule, newRule.rule) {
 				if oldRule.count >= newRule.count {
 					if oldRule.count > newRule.count {
-						klog.Infof("remove policyRule: %v", oldRule)
+						klog.Infof("remove policyRule: %v", oldRule.rule)
 						errList = append(errList,
 							r.processPolicyRuleDelete(oldRule.rule.Name),
 						)
@@ -619,13 +619,13 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 					continue
 				}
 			}
-			klog.Infof("create policyRule: %v", newRule)
+			klog.Infof("create policyRule: %v", newRule.rule)
 			errList = append(errList,
 				r.processPolicyRuleAdd(newRule.rule),
 			)
 
 		} else if oldExist {
-			klog.Infof("remove policyRule: %v", oldRule)
+			klog.Infof("remove policyRule: %v", oldRule.rule)
 			errList = append(errList,
 				r.processPolicyRuleDelete(oldRule.rule.Name),
 			)
