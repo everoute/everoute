@@ -140,8 +140,7 @@ const (
 
 	MaxArpChanCache = 100
 
-	MaxCleanConntrackChanSize  = 2000
-	MaxCleanConntrackWorkerNum = 5
+	MaxCleanConntrackChanSize = 5000
 )
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
@@ -202,7 +201,10 @@ type DpManager struct {
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	flowReplayMutex           sync.RWMutex
-	cleanConntrackChan        chan EveroutePolicyRule // clean conntrack entries for rule in chan
+
+	flushMutex         sync.RWMutex
+	needFlush          bool                    // need to flush
+	cleanConntrackChan chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
 	ArpChan chan ArpInfo
 
@@ -367,9 +369,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		go datapathManager.syncIntenalIPs(stopChan)
 	}
 
-	for i := 0; i < MaxCleanConntrackWorkerNum; i++ {
-		go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
-	}
+	go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
 
 	for vdsID, vdsName := range datapathManager.Config.ManagedVDSMap {
 		for bridgeKeyword := range datapathManager.ControllerMap[vdsID] {
@@ -1095,8 +1095,34 @@ func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 	}
 }
 
+func (datapathManager *DpManager) getFlush() bool {
+	datapathManager.flushMutex.Lock()
+	defer datapathManager.flushMutex.Unlock()
+	return datapathManager.needFlush
+}
+
+func (datapathManager *DpManager) setFlush(needFlush bool) {
+	datapathManager.flushMutex.Lock()
+	defer datapathManager.flushMutex.Unlock()
+	datapathManager.needFlush = needFlush
+}
+
 func (datapathManager *DpManager) cleanConntrackWorker() {
 	for {
+		if datapathManager.getFlush() {
+			datapathManager.flushMutex.Lock()
+			err := netlink.ConntrackTableFlush(netlink.ConntrackTable)
+			if err != nil {
+				klog.Errorf("Flush ct failed: %v", err)
+			} else {
+				datapathManager.needFlush = false
+				klog.Info("Success flush ct")
+			}
+			datapathManager.flushMutex.Unlock()
+
+			continue
+		}
+
 		ruleList := receiveRuleListFromChan(datapathManager.cleanConntrackChan)
 		if ruleList == nil {
 			return
@@ -1111,7 +1137,29 @@ func (datapathManager *DpManager) cleanConntrackWorker() {
 }
 
 func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
-	datapathManager.cleanConntrackChan <- *rule
+	if rule == nil {
+		klog.Error("The rule for clean conntrack flow is nil")
+		return
+	}
+
+	if datapathManager.getFlush() {
+		return
+	}
+
+	if len(datapathManager.cleanConntrackChan) < cap(datapathManager.cleanConntrackChan) {
+		datapathManager.cleanConntrackChan <- *rule
+		return
+	}
+
+	klog.Info("The cleanConntrackChan has blocked, clean channel")
+	for {
+		select {
+		case <-datapathManager.cleanConntrackChan:
+		default:
+			datapathManager.setFlush(true)
+			return
+		}
+	}
 }
 
 func (datapathManager *DpManager) IsEnableCNI() bool {
@@ -1141,12 +1189,17 @@ func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyR
 		return nil
 	}
 	ruleList = append(ruleList, rule)
+	ruleSet := sets.NewString(rule.RuleID)
 
 	// read and return all rules in chan
 	for {
 		select {
 		case rule := <-ruleChan:
+			if ruleSet.Has(rule.RuleID) {
+				continue
+			}
 			ruleList = append(ruleList, rule)
+			ruleSet.Insert(rule.RuleID)
 		default:
 			return ruleList
 		}
