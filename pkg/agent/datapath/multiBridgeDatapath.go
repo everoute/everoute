@@ -1119,8 +1119,6 @@ func (datapathManager *DpManager) cleanConntrackWorker() {
 				klog.Info("Success flush ct")
 			}
 			datapathManager.flushMutex.Unlock()
-
-			continue
 		}
 
 		ruleList := receiveRuleListFromChan(datapathManager.cleanConntrackChan)
