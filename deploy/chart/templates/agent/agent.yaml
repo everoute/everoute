@@ -1,36 +1,5 @@
 {{ if .Values.deployment_enabled }}
 ---
-apiVersion: v1
-data:
-  agentconfig.yaml: |
-    datapathConfig:
-      {{ .Values.bridgeName }}: {{ .Values.bridgeName }}
-    enableCNI: {{ .Values.enableCNI }}
-    CNIConf:
-      localGwIP: {{ .Values.CNIConf.localGwIP }}
-      enableProxy: {{ .Values.CNIConf.enableProxy }}
-  cni-conf.conflist: |
-    {
-        "cniVersion": "0.3.0",
-        "name": "everoute",
-        "plugins": [
-            {
-                "type": "everoute"
-            },
-            {
-                "type": "portmap",
-                "capabilities": {"portMappings": true}
-            }
-        ]
-    }
-kind: ConfigMap
-metadata:
-  annotations: {}
-  labels:
-    app: everoute
-  name: everoute-config-xu73od84d3
-  namespace: kube-system
----
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

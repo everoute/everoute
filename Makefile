@@ -28,7 +28,7 @@ docker-generate: image-generate
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
 controller:
-	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
+	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/*.go
 
 agent:
 	CGO_ENABLED=0 go build -o bin/everoute-agent cmd/everoute-agent/*.go
