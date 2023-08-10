@@ -51,6 +51,8 @@ import (
 	"github.com/everoute/everoute/third_party/cert"
 )
 
+var opts *Options
+
 func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(admv1.AddToScheme(clientsetscheme.Scheme))
@@ -58,45 +60,41 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var tlsCertDir string
-	var serverPort int
-	var leaderElectionNamespace string
+	opts = NewOptions()
 	var towerPluginOptions towerplugin.Options
-	var enableCNI bool
-	var enableProxy bool
 
-	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
+	flag.StringVar(&opts.metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
+	flag.BoolVar(&opts.enableLeaderElection, "enable-leader-election", true,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
-	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
-	flag.IntVar(&serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
-	flag.BoolVar(&enableCNI, "enable-cni", false, "Enable CNI related controller.")
-	flag.BoolVar(&enableProxy, "enable-proxy", false, "Enable CNI service proxy")
+	flag.StringVar(&opts.tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
+	flag.StringVar(&opts.leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
+	flag.IntVar(&opts.serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
+
+	if err := opts.complete(); err != nil {
+		klog.Fatalf("Failed to complete Options, err: %v", err)
+	}
 
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                  clientsetscheme.Scheme,
-		MetricsBindAddress:      metricsAddr,
-		Port:                    serverPort,
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionNamespace: leaderElectionNamespace,
+		MetricsBindAddress:      opts.metricsAddr,
+		Port:                    opts.serverPort,
+		LeaderElection:          opts.enableLeaderElection,
+		LeaderElectionNamespace: opts.leaderElectionNamespace,
 		LeaderElectionID:        "24d5749e.leader-election.everoute.io",
-		CertDir:                 tlsCertDir,
+		CertDir:                 opts.tlsCertDir,
 	})
 	if err != nil {
 		klog.Fatalf("unable to start manager: %s", err.Error())
 	}
 
 	// set secret and webhook
-	setWebhookCert(mgr.GetAPIReader(), tlsCertDir)
+	setWebhookCert(mgr.GetAPIReader())
 	if err = (&common.WebhookReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -128,7 +126,7 @@ func main() {
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
 
-	if enableCNI {
+	if opts.IsEnableCNI() {
 		// pod controller
 		if err = (&k8s.PodReconciler{
 			Client: mgr.GetClient(),
@@ -147,7 +145,7 @@ func main() {
 		}
 		klog.Info("start networkPolicy controller")
 
-		if enableProxy {
+		if opts.IsEnableProxy() {
 			if err = (&k8s.EndpointsReconcile{
 				APIReader: mgr.GetAPIReader(),
 				Client:    mgr.GetClient(),
@@ -189,7 +187,7 @@ func main() {
 	}
 }
 
-func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
+func setWebhookCert(k8sReader client.Reader) {
 	ctx := context.Background()
 	k8sClient := k8sReader.(client.Client)
 
@@ -219,7 +217,7 @@ func setWebhookCert(k8sReader client.Reader, tlsCertDir string) {
 	}
 
 	// write tls cert into file
-	certPath, keyPath := cert.PathsForCertAndKey(tlsCertDir, "tls")
+	certPath, keyPath := cert.PathsForCertAndKey(opts.tlsCertDir, "tls")
 	if err := certutil.WriteCert(certPath, secret.Data["tls.crt"]); err != nil {
 		klog.Fatalf("fail to write tls cert. err: %s", err)
 	}
