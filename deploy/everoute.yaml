@@ -2009,7 +2009,7 @@ metadata:
   name: everoute-controller
   namespace: kube-system
 ---
-# Source: everoute/templates/agent/agent.yaml
+# Source: everoute/templates/config.yaml
 apiVersion: v1
 data:
   agentconfig.yaml: |
@@ -2018,7 +2018,10 @@ data:
     enableCNI: true
     CNIConf:
       localGwIP: 100.64.254.254
+      # enable everoute proxy
       enableProxy: false
+      # use overlay mode
+      # encapMode: geneve
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -2033,6 +2036,13 @@ data:
             }
         ]
     }
+  controllerconfig.yaml: |
+    enableCNI: true
+    CNIConf:
+      # enable everoute proxy
+      enableProxy: false
+      # use overlay mode
+      # encapMode: geneve
 kind: ConfigMap
 metadata:
   annotations: {}
@@ -2457,8 +2467,6 @@ spec:
           args:
             - --enable-leader-election=true
             - --port=9443
-            - --enable-cni=true
-            - --enable-proxy=false
             - -v=0
           livenessProbe:
             httpGet:
@@ -2469,6 +2477,14 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             failureThreshold: 3
+          volumeMounts:
+            - name: everoute-config
+              mountPath: /var/lib/everoute/controllerconfig.yaml
+              subPath: controllerconfig.yaml
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config
 ---
 # Source: everoute/templates/controller/webhook.yaml
 apiVersion: admissionregistration.k8s.io/v1

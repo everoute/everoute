@@ -60,6 +60,8 @@ const (
 	AllEpWithNamedPort = "all-endpoints-with-named-port"
 
 	HealthCheckPath = "/healthz"
+
+	EncapModeGeneve = "geneve"
 )
 
 const (

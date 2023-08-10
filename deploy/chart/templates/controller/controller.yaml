@@ -39,8 +39,6 @@ spec:
           args:
             - --enable-leader-election=true
             - --port=9443
-            - --enable-cni=true
-            - --enable-proxy={{ .Values.CNIConf.enableProxy }}
             - -v=0
           livenessProbe:
             httpGet:
@@ -51,3 +49,11 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             failureThreshold: 3
+          volumeMounts:
+            - name: everoute-config
+              mountPath: /var/lib/everoute/controllerconfig.yaml
+              subPath: controllerconfig.yaml
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config

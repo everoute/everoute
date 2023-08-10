@@ -44,7 +44,8 @@ type Options struct {
 }
 
 type CNIConf struct {
-	EnableProxy bool `yaml:"enableProxy,omitempty"`
+	EnableProxy bool   `yaml:"enableProxy,omitempty"`
+	EncapMode   string `yaml:"encapMode,omitempty"`
 }
 
 type agentConfig struct {
@@ -74,6 +75,14 @@ func (o *Options) IsEnableProxy() bool {
 	}
 
 	return o.Config.CNIConf.EnableProxy
+}
+
+func (o *Options) IsEnableOverlay() bool {
+	if !o.Config.EnableCNI {
+		return false
+	}
+
+	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
 }
 
 func (o *Options) complete() error {
