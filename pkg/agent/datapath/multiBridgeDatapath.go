@@ -216,7 +216,8 @@ type DpManagerInfo struct {
 	PodCIDR    []cnitypes.IPNet
 	BridgeName string
 
-	ClusterCIDR *cnitypes.IPNet
+	ClusterCIDR    *cnitypes.IPNet
+	ClusterPodCidr *net.IPNet
 
 	LocalGwName   string
 	LocalGwIP     net.IP
@@ -238,6 +239,7 @@ type DpManagerConfig struct {
 
 type DpManagerCNIConfig struct {
 	EnableProxy bool // enable proxy
+	EncapMode   string
 }
 
 type Endpoint struct {
@@ -1176,6 +1178,17 @@ func (datapathManager *DpManager) IsEnableProxy() bool {
 	}
 
 	return datapathManager.Config.CNIConfig.EnableProxy
+}
+
+func (datapathManager *DpManager) IsEnableOverlay() bool {
+	if !datapathManager.IsEnableCNI() {
+		return false
+	}
+	if datapathManager.Config.CNIConfig == nil {
+		return false
+	}
+
+	return datapathManager.Config.CNIConfig.EncapMode == constants.EncapModeGeneve
 }
 
 func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {
