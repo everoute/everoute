@@ -192,14 +192,8 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}
 
 	if opts.IsEnableCNI() {
-		if err = (&proxy.NodeReconciler{
-			Client:          mgr.GetClient(),
-			Scheme:          mgr.GetScheme(),
-			DatapathManager: datapathManager,
-			StopChan:        stopChan,
-		}).SetupWithManager(mgr); err != nil {
-			klog.Errorf("unable to create node controller: %s", err.Error())
-			return nil, err
+		if err = proxy.SetupRouteAndIPtables(mgr, datapathManager, stopChan); err != nil {
+			klog.Fatalf("unable to setup route and iptables controller: %v", err)
 		}
 	}
 

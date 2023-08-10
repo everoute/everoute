@@ -20,11 +20,9 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	corev1 "k8s.io/api/core/v1"
@@ -34,9 +32,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	eriptables "github.com/everoute/everoute/pkg/agent/proxy/iptables"
 	"github.com/everoute/everoute/pkg/constants"
 )
 
@@ -53,6 +53,8 @@ type NodeReconciler struct {
 
 	StopChan    <-chan struct{}
 	updateMutex sync.Mutex
+
+	iptCtrl *eriptables.RouteIPtables
 }
 
 func GetNodeInternalIP(node corev1.Node) net.IP {
@@ -165,159 +167,6 @@ func (r *NodeReconciler) UpdateRoute(nodeList corev1.NodeList, thisNode corev1.N
 	}
 }
 
-func (r *NodeReconciler) updateEverouteOutputChain(ipt *iptables.IPTables, nodeList corev1.NodeList, thisNode corev1.Node) {
-	var exist bool
-	var err error
-	newRules := make(map[string]struct{})
-	// check and add MASQUERADE in EVEROUTE-OUTPUT"
-	for _, podCIDR := range thisNode.Spec.PodCIDRs {
-		ruleSpec := []string{"-s", podCIDR, "-j", "MASQUERADE"}
-		newRules[strings.Join(ruleSpec, " ")] = struct{}{}
-		if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-			klog.Errorf("Check MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-			continue
-		}
-		if !exist {
-			err = ipt.Append("nat", "EVEROUTE-OUTPUT", ruleSpec...)
-			if err != nil {
-				klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-				continue
-			}
-		}
-	}
-
-	// check and add ACCEPT in EVEROUTE-OUTPUT
-	// ACCEPT is used to skip the traffic inside the cluster.
-	for _, podCIDR := range thisNode.Spec.PodCIDRs {
-		for _, nodeItem := range nodeList.Items {
-			if nodeItem.Name == thisNode.Name {
-				continue
-			}
-			for _, otherPodCIDR := range nodeItem.Spec.PodCIDRs {
-				if podCIDR == otherPodCIDR {
-					klog.Errorf("Node %s and Node %s has same podCIDR %s", thisNode.Name, nodeItem.Name, podCIDR)
-					continue
-				}
-				ruleSpec := []string{"-s", podCIDR, "-d", otherPodCIDR, "-j", "ACCEPT"}
-				newRules[strings.Join(ruleSpec, " ")] = struct{}{}
-				if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-					klog.Errorf("Check ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-					continue
-				}
-				if !exist {
-					if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
-						klog.Errorf("[ALERT] Add ACCEPT rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
-						continue
-					}
-				}
-			}
-		}
-	}
-
-	if r.DatapathManager.IsEnableProxy() {
-		return
-	}
-
-	// check and add ACCEPT for traffic from gw-local
-	ruleSpec := []string{"-o", r.DatapathManager.Info.LocalGwName, "-j", "ACCEPT"}
-	newRules[strings.Join(ruleSpec, " ")] = struct{}{}
-	if exist, err = ipt.Exists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-		klog.Errorf("Check %s in nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-	}
-	if !exist {
-		if err = ipt.Insert("nat", "EVEROUTE-OUTPUT", 1, ruleSpec...); err != nil {
-			klog.Errorf("Append %s into nat EVEROUTE-OUTPUT error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-		}
-	}
-
-	oldRules, err := ipt.List("nat", "EVEROUTE-OUTPUT")
-	if err != nil {
-		klog.Errorf("Failed to get iptables chain EVEROUTE-OUTPUT rules, err: %v", err)
-		return
-	}
-	for _, item := range oldRules {
-		rule := strings.Split(item, " ")
-		if len(rule) <= 2 {
-			continue
-		}
-		ruleSpec := rule[2:]
-		if _, ok := newRules[strings.Join(ruleSpec, " ")]; !ok {
-			if err = ipt.DeleteIfExists("nat", "EVEROUTE-OUTPUT", ruleSpec...); err != nil {
-				klog.Errorf("Failed to delete expired iptables rule: %v, err: %v", ruleSpec, err)
-				return
-			}
-		}
-	}
-}
-
-// UpdateIptables will be called when Node has been updated, or every 100 seconds.
-// This function will update iptables in linux kernel.
-// iptables used to DNAT for the OUTPUT traffic( outside of the cluster)
-func (r *NodeReconciler) UpdateIptables(nodeList corev1.NodeList, thisNode corev1.Node) {
-	var exist bool
-	var err error
-
-	ipt, err := iptables.New()
-	if err != nil {
-		klog.Errorf("init iptables error, err: %s", err)
-		return
-	}
-
-	// set FORWARD in filter to accept
-	err = ipt.ChangePolicy("filter", "FORWARD", "ACCEPT")
-	if err != nil {
-		klog.Errorf("Set iptables FORWARD error, error: %s", err)
-		return
-	}
-
-	// check existence of chain EVEROUTE-OUTPUT, if not, then create it
-	if exist, err = ipt.ChainExists("nat", "EVEROUTE-OUTPUT"); err != nil {
-		klog.Errorf("Get iptables EVEROUTE-OUTPUT error, error: %s", err)
-		return
-	}
-	if !exist {
-		err = ipt.NewChain("nat", "EVEROUTE-OUTPUT")
-		if err != nil {
-			klog.Errorf("Create iptables EVEROUTE-OUTPUT error, error: %s", err)
-			return
-		}
-	}
-
-	// check and add EVEROUTE-OUTPUT to POSTROUTING
-	if exist, err = ipt.Exists("nat", "POSTROUTING", "-j", "EVEROUTE-OUTPUT"); err != nil {
-		klog.Errorf("Check EVEROUTE-OUTPUT in nat POSTROUTING error, err: %s", err)
-	}
-	if !exist {
-		if err = ipt.Append("nat", "POSTROUTING", "-j", "EVEROUTE-OUTPUT"); err != nil {
-			klog.Errorf("Append EVEROUTE-OUTPUT into nat POSTROUTING error, err: %s", err)
-		}
-	}
-
-	r.updateEverouteOutputChain(ipt, nodeList, thisNode)
-
-	// check and add CT zone for gw-local
-	if exist, err = ipt.Exists("raw", "PREROUTING", "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
-		klog.Errorf("Check %s in raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-	}
-	if !exist {
-		if err = ipt.Insert("raw", "PREROUTING", 1, "-i", r.DatapathManager.Info.LocalGwName, "-j", "CT", "--zone", "65510"); err != nil {
-			klog.Errorf("Append %s into raw PREROUTING error, err: %s", r.DatapathManager.Info.LocalGwName, err)
-		}
-	}
-
-	// allow ct invalid from gw-local
-	if exist, err = ipt.Exists("filter", "FORWARD", "-i", r.DatapathManager.Info.LocalGwName,
-		"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
-		klog.Errorf("Check filter FORWARD error, err: %s", err)
-	}
-	if !exist {
-		if err = ipt.Insert("filter", "FORWARD", 1, "-i", r.DatapathManager.Info.LocalGwName,
-			"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
-			klog.Errorf("Append filter FORWARD error, err: %s", err)
-		}
-	}
-}
-
 func (r *NodeReconciler) UpdateNetwork() {
 	klog.Infof("update network config")
 	r.updateMutex.Lock()
@@ -339,7 +188,7 @@ func (r *NodeReconciler) UpdateNetwork() {
 	}
 
 	r.UpdateRoute(nodeList, currentNode)
-	r.UpdateIptables(nodeList, currentNode)
+	r.iptCtrl.Update(nodeList, currentNode)
 }
 
 // Reconcile receive node from work queue, synchronize network config
@@ -356,6 +205,10 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
+
+	r.iptCtrl = eriptables.NewRouteIPtables(r.DatapathManager.IsEnableProxy(), &eriptables.Options{
+		LocalGwName: r.DatapathManager.Info.LocalGwName,
+	})
 
 	c, err := controller.New("node-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -383,5 +236,65 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 	}()
 
+	return nil
+}
+
+func updateRouteForOverlay(clusterPodCidr *net.IPNet, gatewayIP net.IP) {
+	oldRoutes := GetRouteByDst(clusterPodCidr)
+	targetRoute := netlink.Route{
+		Dst:   clusterPodCidr,
+		Gw:    gatewayIP,
+		Table: defaultRouteTable,
+	}
+
+	for i := range oldRoutes {
+		if RouteEqual(oldRoutes[i], targetRoute) {
+			return
+		}
+	}
+
+	if err := netlink.RouteAdd(&targetRoute); err != nil {
+		klog.Errorf("[ALERT] add route item failed, err: %s", err)
+	} else {
+		klog.Infof("add route item %v", targetRoute)
+	}
+}
+
+func SetupRouteAndIPtables(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
+	// route mode
+	if !datapathManager.IsEnableOverlay() {
+		if err := (&NodeReconciler{
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			DatapathManager: datapathManager,
+			StopChan:        stopChan,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Errorf("unable to create node controller: %s", err.Error())
+			return err
+		}
+		return nil
+	}
+
+	// overlay mode
+	clusterPodCidr := datapathManager.Info.ClusterPodCidr
+	clusterPodCidrString := clusterPodCidr.String()
+	gatewayIP := datapathManager.Info.GatewayIP
+	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.Config.CNIConfig.EnableProxy, &eriptables.Options{
+		LocalGwName:    datapathManager.Info.LocalGwName,
+		ClusterPodCidr: clusterPodCidrString,
+	})
+	// update network config every 100 seconds
+	ticker := time.NewTicker(100 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				updateRouteForOverlay(clusterPodCidr, gatewayIP)
+				iptCtrl.Update()
+			case <-stopChan:
+				return
+			}
+		}
+	}()
 	return nil
 }
