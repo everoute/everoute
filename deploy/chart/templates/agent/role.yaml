@@ -45,9 +45,13 @@ rules:
   resources:
     - securitypolicies
     - globalpolicies
+    - endpoints
+    - endpoints/status
   verbs:
     - get
     - list
+    - update
+    - delete
     - watch
     - create
 - apiGroups:

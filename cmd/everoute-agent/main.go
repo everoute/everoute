@@ -17,11 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coretypes "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -29,6 +35,7 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -38,11 +45,14 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
+	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
+	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 var (
@@ -107,6 +117,10 @@ func main() {
 
 	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache)
 	go rpcServer.Run(stopChan)
+
+	if err := resourceUpdate(mgr, datapathManager, stopChan); err != nil {
+		klog.Fatalf("resource update failed when start everoute-agent, err: %v", err)
+	}
 
 	<-stopChan
 }
@@ -220,4 +234,80 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}()
 
 	return proxyCache, nil
+}
+
+func resourceUpdate(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
+	mgr.GetCache().WaitForCacheSync(stopChan)
+
+	if opts.IsEnableOverlay() {
+		err := wait.PollImmediate(5*time.Second, time.Minute, func() (bool, error) {
+			err := updateGwEndpoint(mgr.GetClient(), datapathManager)
+			return err == nil, nil
+		})
+		if err == nil {
+			klog.Info("Success create or update gw-ep endpoint")
+		}
+		return err
+	}
+	return nil
+}
+
+func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManager) error {
+	ctx := context.Background()
+	ns := os.Getenv(constants.NamespaceNameENV)
+	if ns == "" {
+		return fmt.Errorf("can't get agent namespace from env to create gw-ep endpoint in overlay mode")
+	}
+	epName := utils.GetGwEndpointName(datapathManager.Info.NodeName)
+
+	ep := v1alpha1.Endpoint{}
+	epReq := coretypes.NamespacedName{
+		Namespace: ns,
+		Name:      epName,
+	}
+	err := k8sClient.Get(ctx, epReq, &ep)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			ep = v1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epName,
+					Namespace: ns,
+				},
+				Spec: v1alpha1.EndpointSpec{
+					Type: v1alpha1.EndpointStatic,
+					Reference: v1alpha1.EndpointReference{
+						ExternalIDName:  "gw-ep",
+						ExternalIDValue: datapathManager.Info.NodeName,
+					},
+				},
+			}
+			if err := k8sClient.Create(ctx, &ep); err != nil {
+				klog.Errorf("Failed to create gw-ep endpoint: %v", err)
+				return err
+			}
+		} else {
+			klog.Errorf("Failed to get gw-ep endpoint: %v", err)
+			return err
+		}
+	}
+
+	if ep.Spec.Type != v1alpha1.EndpointStatic {
+		ep.Spec.Type = v1alpha1.EndpointStatic
+		if err := k8sClient.Update(ctx, &ep); err != nil {
+			klog.Errorf("Failed to update gw-ep endpoint: %v", err)
+			return err
+		}
+	}
+
+	if len(ep.Status.Agents) != 1 || ep.Status.Agents[0] != datapathManager.Info.NodeName ||
+		len(ep.Status.IPs) != 1 || string(ep.Status.IPs[0]) != (datapathManager.Info.GatewayIP).String() {
+		ep.Status.Agents = []string{datapathManager.Info.NodeName}
+		ep.Status.IPs = []types.IPAddress{types.IPAddress(datapathManager.Info.GatewayIP.String())}
+		if err := k8sClient.Status().Update(ctx, &ep); err != nil {
+			klog.Errorf("Failed to update gw-ep endpoint status: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
