@@ -2079,9 +2079,13 @@ rules:
   resources:
     - securitypolicies
     - globalpolicies
+    - endpoints
+    - endpoints/status
   verbs:
     - get
     - list
+    - update
+    - delete
     - watch
     - create
 - apiGroups:
@@ -2329,6 +2333,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           securityContext:
             privileged: true
           livenessProbe:
@@ -2449,6 +2457,11 @@ spec:
             - --enable-leader-election=true
             - --port=9443
             - -v=0
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           livenessProbe:
             httpGet:
               scheme: HTTPS

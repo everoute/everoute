@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -159,6 +160,17 @@ func main() {
 				klog.Fatalf("unable to create endpoints controller: %s", err.Error())
 			}
 			klog.Info("start endpoints controller")
+		}
+
+		if opts.IsEnableOverlay() {
+			if err = (&k8s.NodeReconciler{
+				Client:        mgr.GetClient(),
+				Scheme:        mgr.GetScheme(),
+				GwEpNamespace: os.Getenv(constants.NamespaceNameENV),
+			}).SetupWithManager(mgr); err != nil {
+				klog.Fatalf("unable to create node controller: %v", err)
+			}
+			klog.Info("start node controller")
 		}
 	}
 
