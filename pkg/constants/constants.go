@@ -52,6 +52,8 @@ const (
 	AgentNodeNameENV    = "NODE_NAME"
 	AgentNameConfigPath = "/var/lib/everoute/agent/name"
 
+	NamespaceNameENV = "NAMESPACE"
+
 	EverouteComponentType = 0x0
 
 	RPCSocketAddr   = "/var/lib/everoute/rpc.sock"
@@ -62,6 +64,8 @@ const (
 	HealthCheckPath = "/healthz"
 
 	EncapModeGeneve = "geneve"
+
+	GwEndpointName = "gw-ep"
 )
 
 const (
