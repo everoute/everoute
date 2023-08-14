@@ -45,6 +45,7 @@ var (
 
 const (
 	RunTestWithExistingCluster = "TESTING_WITH_EXISTING_CLUSTER"
+	GwEpNs = "test-gw"
 )
 
 func TestPolicyController(t *testing.T) {
@@ -127,6 +128,13 @@ var _ = BeforeSuite(func() {
 		APIReader: k8sManager.GetAPIReader(),
 		Client:    k8sManager.GetClient(),
 		Scheme:    k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&NodeReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		GwEpNamespace: GwEpNs,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
