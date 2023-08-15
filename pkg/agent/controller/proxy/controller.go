@@ -213,11 +213,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
-	return nil
+	err = syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
+	return err
 }
 
 func (r *Reconciler) updateService(ctx context.Context, newService *corev1.Service) error {
