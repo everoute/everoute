@@ -38,6 +38,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	eriptables "github.com/everoute/everoute/pkg/agent/proxy/iptables"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 const (
@@ -58,10 +59,9 @@ type NodeReconciler struct {
 }
 
 func GetNodeInternalIP(node corev1.Node) net.IP {
-	for _, item := range node.Status.Addresses {
-		if item.Type == corev1.NodeInternalIP {
-			return net.ParseIP(item.Address)
-		}
+	ipString := utils.GetNodeInternalIP(node)
+	if ipString != "" {
+		return net.ParseIP(ipString)
 	}
 	return nil
 }

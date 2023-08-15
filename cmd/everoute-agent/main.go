@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/everoute/everoute/pkg/agent/controller/overlay"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
@@ -208,6 +209,17 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	if opts.IsEnableCNI() {
 		if err = proxy.SetupRouteAndIPtables(mgr, datapathManager, stopChan); err != nil {
 			klog.Fatalf("unable to setup route and iptables controller: %v", err)
+		}
+	}
+
+	if opts.IsEnableOverlay() {
+		if err = (&overlay.Reconciler{
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			DpMgr:     datapathManager,
+			LocalNode: datapathManager.Info.NodeName,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create overlay related controller: %v", err)
 		}
 	}
 
