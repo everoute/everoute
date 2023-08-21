@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
@@ -54,6 +54,9 @@ var (
 	vlanIDAndFlagMask uint16 = 0x1fff
 	VlanFlagMask      uint16 = 0x1000
 	SvcPktMarkMask    uint32 = 0x20000000
+
+	SvcPktMarkValue int                 = 0x1
+	SvcPktMarkRange *openflow13.NXRange = openflow13.NewNXRange(29, 29)
 )
 
 type LocalBridge struct {
@@ -399,8 +402,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	})
 	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47))
-	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", 0x1,
-		openflow13.NewNXRange(29, 29))
+	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", uint64(SvcPktMarkValue), SvcPktMarkRange)
 	outputPortLocalGateWay, _ := sw.OutputPort(l.datapathManager.Info.LocalGwOfPort)
 	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
@@ -540,7 +542,7 @@ func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		log.Errorf("Failed to new a flow in table %d, err: %s", FROM_LOCAL_REDIRECT_TABLE, err)
 		return err
 	}
-	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", 0x1, openflow13.NewNXRange(29, 29))
+	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", uint64(SvcPktMarkValue), SvcPktMarkRange)
 	if err != nil {
 		log.Errorf("Failed to add a load pkt mark action to flow, err: %s", err)
 		return err

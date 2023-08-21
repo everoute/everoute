@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 )
@@ -64,36 +64,48 @@ func (b *BaseBridge) WaitForSwitchConnection() {
 	log.Fatalf("OVS switch %s Failed to connect", b.name)
 }
 
-func (n *NatBridge) AddVNFInstance() error {
+func (b *BaseBridge) BridgeInit() {}
+
+func (b *BaseBridge) AddVNFInstance() error {
 	return nil
 }
 
-func (n *NatBridge) RemoveVNFInstance() error {
+func (b *BaseBridge) RemoveVNFInstance() error {
 	return nil
 }
 
-func (n *NatBridge) AddSFCRule() error {
+func (b *BaseBridge) AddSFCRule() error {
 	return nil
 }
 
-func (n *NatBridge) RemoveSFCRule() error {
+func (b *BaseBridge) RemoveSFCRule() error {
 	return nil
 }
 
-func (n *NatBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+func (b *BaseBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	return nil, nil
 }
 
-func (n *NatBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
+func (b *BaseBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
 	return nil
 }
 
 // Controller received a packet from the switch
-func (n *NatBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {}
+func (b *BaseBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {}
 
 // Controller received a multi-part reply from the switch
-func (n *NatBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {}
+func (b *BaseBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {}
 
 func (b *BaseBridge) getOfSwitch() *ofctrl.OFSwitch {
 	return b.OfSwitch
 }
+
+func (b *BaseBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) BridgeReset() {}

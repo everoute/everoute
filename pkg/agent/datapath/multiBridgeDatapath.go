@@ -28,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
@@ -36,6 +35,7 @@ import (
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	cmap "github.com/orcaman/concurrent-map"
+	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -48,7 +48,7 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-//nolint
+// nolint
 const (
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
@@ -59,7 +59,7 @@ const (
 	FLOW_MATCH_OFFSET                   = 3
 )
 
-//nolint
+// nolint
 const (
 	POLICY_TIER1    = 50
 	POLICY_TIER2    = 100
@@ -67,19 +67,19 @@ const (
 	POLICY_TIER3    = 150
 )
 
-//nolint
+// nolint
 const (
 	POLICY_DIRECTION_OUT = 0
 	POLICY_DIRECTION_IN  = 1
 )
 
-//nolint
+// nolint
 const (
 	IP_BROADCAST_ADDR = "255.255.255.255"
 	LOOP_BACK_ADDR    = "127.0.0.1"
 )
 
-//nolint
+// nolint
 const (
 	FLOW_ROUND_NUM_LENGTH           = 4
 	FLOW_SEQ_NUM_LENGTH             = 28
@@ -88,7 +88,7 @@ const (
 	DEFAULT_POLICY_ENFORCEMENT_MODE = "work"
 )
 
-//nolint
+// nolint
 const (
 	PROTOCOL_ARP = 0x0806
 	PROTOCOL_IP  = 0x0800
@@ -96,7 +96,7 @@ const (
 	PROTOCOL_TCP = 0x06
 )
 
-//nolint
+// nolint
 const (
 	LOCAL_BRIDGE_KEYWORD  = "local"
 	POLICY_BRIDGE_KEYWORD = "policy"
@@ -141,6 +141,16 @@ const (
 	MaxArpChanCache = 100
 
 	MaxCleanConntrackChanSize = 5000
+)
+
+var (
+	EtherTypeLength uint16 = 16
+	ProtocolLength  uint16 = 8
+	MacLength       uint16 = 48
+	IPv4Lenth       uint16 = 32
+	PortLength      uint16 = 16
+
+	ArpOperReply uint64 = 2
 )
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
@@ -217,16 +227,19 @@ type DpManagerInfo struct {
 	BridgeName string
 
 	ClusterCIDR    *cnitypes.IPNet
-	ClusterPodCidr *net.IPNet
+	ClusterPodCIDR *net.IPNet
 
 	LocalGwName   string
 	LocalGwIP     net.IP
 	LocalGwMac    net.HardwareAddr
 	LocalGwOfPort uint32
 
-	GatewayName string
-	GatewayIP   net.IP
-	GatewayMac  net.HardwareAddr
+	GatewayName   string
+	GatewayIP     net.IP
+	GatewayMac    net.HardwareAddr
+	GatewayOfPort uint32
+
+	TunnelOfPort uint32
 }
 
 type DpManagerConfig struct {
@@ -488,17 +501,7 @@ func (datapathManager *DpManager) InitializeCNI() {
 
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	NewVDSForConfigBase(datapathManager, vdsID, ovsbrname)
-	if datapathManager.Config.EnableCNI {
-		NewVDSForConfigCNI(datapathManager, vdsID, ovsbrname)
-	}
-}
-
-func NewVDSForConfigCNI(datapathManager *DpManager, vdsID, ovsbrname string) {
-	if datapathManager.Config.CNIConfig == nil {
-		log.Info("No CNI config")
-		return
-	}
-	if datapathManager.Config.CNIConfig.EnableProxy {
+	if datapathManager.IsEnableProxy() {
 		NewVDSForConfigProxy(datapathManager, vdsID, ovsbrname)
 	}
 }
@@ -537,13 +540,34 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
-//nolint
+func newLocalBridge(ovsbrname string, datapathManager *DpManager) Bridge {
+	if datapathManager.IsEnableOverlay() {
+		return NewLocalBridgeOverlay(ovsbrname, datapathManager)
+	}
+	return NewLocalBridge(ovsbrname, datapathManager)
+}
+
+func newClsBridge(ovsbrname string, datapathManager *DpManager) Bridge {
+	if datapathManager.IsEnableOverlay() {
+		return NewClsBridgeOverlay(ovsbrname, datapathManager)
+	}
+	return NewClsBridge(ovsbrname, datapathManager)
+}
+
+func newUplinkBridge(ovsbrname string, datapathManager *DpManager) Bridge {
+	if datapathManager.IsEnableOverlay() {
+		return NewUplinkBridgeOverlay(ovsbrname, datapathManager)
+	}
+	return NewUplinkBridge(ovsbrname, datapathManager)
+}
+
+// nolint
 func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
-	localBridge := NewLocalBridge(ovsbrname, datapathManager)
+	localBridge := newLocalBridge(ovsbrname, datapathManager)
 	policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
-	clsBridge := NewClsBridge(ovsbrname, datapathManager)
-	uplinkBridge := NewUplinkBridge(ovsbrname, datapathManager)
+	clsBridge := newClsBridge(ovsbrname, datapathManager)
+	uplinkBridge := newUplinkBridge(ovsbrname, datapathManager)
 	vdsBridgeMap := make(map[string]Bridge)
 	vdsBridgeMap[LOCAL_BRIDGE_KEYWORD] = localBridge
 	vdsBridgeMap[POLICY_BRIDGE_KEYWORD] = policyBridge
@@ -560,10 +584,10 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize ovsdbDriver
 	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
 	bridgeSuffixToNameMap := map[string]string{
-		LOCAL_BRIDGE_KEYWORD:  localBridge.name,
-		POLICY_BRIDGE_KEYWORD: policyBridge.name,
-		CLS_BRIDGE_KEYWORD:    clsBridge.name,
-		UPLINK_BRIDGE_KEYWORD: uplinkBridge.name,
+		LOCAL_BRIDGE_KEYWORD:  localBridge.GetName(),
+		POLICY_BRIDGE_KEYWORD: policyBridge.GetName(),
+		CLS_BRIDGE_KEYWORD:    clsBridge.GetName(),
+		UPLINK_BRIDGE_KEYWORD: uplinkBridge.GetName(),
 	}
 	var wg sync.WaitGroup
 	var vdsOvsdbDriverMapMutex sync.RWMutex
@@ -639,10 +663,10 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	portMap[UplinkToClsSuffix] = uplinkToClsOfPort
 	datapathManager.BridgeChainPortMap[ovsbrname] = portMap
 
-	go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, localBridge.name, ovsVswitchdUnixDomainSockSuffix))
-	go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, policyBridge.name, ovsVswitchdUnixDomainSockSuffix))
-	go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, clsBridge.name, ovsVswitchdUnixDomainSockSuffix))
-	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.name, ovsVswitchdUnixDomainSockSuffix))
+	go vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, localBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
+	go vdsOfControllerMap[POLICY_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, policyBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
+	go vdsOfControllerMap[CLS_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, clsBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
+	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
 func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, stopChan <-chan struct{}) {

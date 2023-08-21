@@ -166,6 +166,7 @@ else
     [[ `cat /proc/sys/net/ipv4/conf/${GW_LOCAL_IFACE}/arp_announce` -ne 2 ]] && error_handle
 fi
 
+if 
 # set sysctl
 echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
 echo 1 > /proc/sys/net/ipv4/conf/${DEFAULT_BRIDGE}/rp_filter

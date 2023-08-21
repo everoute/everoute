@@ -11,18 +11,18 @@ type OverlayIPtables struct {
 	baseIPtables
 	proxy proxyIPtables
 
-	clusterPodCidr string
+	ClusterPodCIDR string
 }
 
 func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) *OverlayIPtables {
-	if opt == nil || opt.ClusterPodCidr == "" {
-		klog.Fatal("New overlay mode iptables controller failed, missing param clusterPodCidr")
+	if opt == nil || opt.ClusterPodCIDR == "" {
+		klog.Fatal("New overlay mode iptables controller failed, missing param ClusterPodCIDR")
 	}
 	if enableEverouteProxy {
 		return &OverlayIPtables{
 			baseIPtables:   baseIPtables{},
 			proxy:          &everouteProxy{},
-			clusterPodCidr: opt.ClusterPodCidr,
+			ClusterPodCIDR: opt.ClusterPodCIDR,
 		}
 	}
 
@@ -32,7 +32,7 @@ func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) *OverlayIPtables
 	return &OverlayIPtables{
 		baseIPtables:   baseIPtables{},
 		proxy:          &kubeProxy{localGwName: opt.LocalGwName},
-		clusterPodCidr: opt.ClusterPodCidr,
+		ClusterPodCIDR: opt.ClusterPodCIDR,
 	}
 }
 
@@ -61,7 +61,7 @@ func (o *OverlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
 	var err error
 	newRules := make(map[string]struct{})
 
-	ruleSpec := []string{"-s", o.clusterPodCidr, "-j", "MASQUERADE"}
+	ruleSpec := []string{"-s", o.ClusterPodCIDR, "-j", "MASQUERADE"}
 	newRules[strings.Join(ruleSpec, " ")] = struct{}{}
 	err = ipt.AppendUnique("nat", "EVEROUTE-OUTPUT", ruleSpec...)
 	if err != nil {

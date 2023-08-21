@@ -21,7 +21,7 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	corev1 "k8s.io/api/core/v1"
@@ -63,10 +63,6 @@ var (
 	BackendPortRegNumber int                 = 2
 	BackendPortRange     *openflow13.NXRange = openflow13.NewNXRange(0, 15)
 
-	EtherTypeLength         uint16 = 16
-	IPv4Lenth               uint16 = 32
-	ProtocolLength          uint16 = 8
-	PortLength              uint16 = 16
 	ChooseBackendFlagLength uint16 = 1
 )
 
