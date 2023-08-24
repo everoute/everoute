@@ -154,7 +154,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	}
 
 	for _, pod := range pods.Items {
-		if agentInfo.ClusterCIDR != nil && agentInfo.ClusterPodCidr != nil {
+		if agentInfo.ClusterCIDR != nil && agentInfo.ClusterPodCIDR != nil {
 			break
 		}
 		if strings.HasPrefix(pod.Name, "kube-controller-manager") {
@@ -167,7 +167,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 					}
 					if strings.HasPrefix(commond, "--cluster-cidr=") {
 						cidr, _ := cnitypes.ParseCIDR(strings.TrimPrefix(commond, "--cluster-cidr="))
-						agentInfo.ClusterPodCidr = cidr
+						agentInfo.ClusterPodCIDR = cidr
 					}
 				}
 			}
@@ -176,7 +176,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	if agentInfo.ClusterCIDR == nil {
 		klog.Fatalf("Service cluster CIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --service-cidr 10.244.0.0/16`")
 	}
-	if opts.IsEnableOverlay() && agentInfo.ClusterPodCidr == nil {
+	if opts.IsEnableOverlay() && agentInfo.ClusterPodCIDR == nil {
 		klog.Fatalf("Cluster pod CIDR should be specified when setup kubernetes cluster, E.g. `kubeadm init --pod-cidr 10.0.0.0/16`")
 	}
 
