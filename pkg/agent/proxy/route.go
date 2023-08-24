@@ -239,10 +239,10 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func updateRouteForOverlay(clusterPodCidr *net.IPNet, gatewayIP net.IP) {
-	oldRoutes := GetRouteByDst(clusterPodCidr)
+func updateRouteForOverlay(clusterPodCIDR *net.IPNet, gatewayIP net.IP) {
+	oldRoutes := GetRouteByDst(clusterPodCIDR)
 	targetRoute := netlink.Route{
-		Dst:   clusterPodCidr,
+		Dst:   clusterPodCIDR,
 		Gw:    gatewayIP,
 		Table: defaultRouteTable,
 	}
@@ -276,12 +276,12 @@ func SetupRouteAndIPtables(mgr manager.Manager, datapathManager *datapath.DpMana
 	}
 
 	// overlay mode
-	clusterPodCidr := datapathManager.Info.ClusterPodCidr
-	clusterPodCidrString := clusterPodCidr.String()
+	clusterPodCIDR := datapathManager.Info.ClusterPodCIDR
+	clusterPodCIDRString := clusterPodCIDR.String()
 	gatewayIP := datapathManager.Info.GatewayIP
 	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.Config.CNIConfig.EnableProxy, &eriptables.Options{
 		LocalGwName:    datapathManager.Info.LocalGwName,
-		ClusterPodCidr: clusterPodCidrString,
+		ClusterPodCIDR: clusterPodCIDRString,
 	})
 	// update network config every 100 seconds
 	ticker := time.NewTicker(100 * time.Second)
@@ -289,7 +289,7 @@ func SetupRouteAndIPtables(mgr manager.Manager, datapathManager *datapath.DpMana
 		for {
 			select {
 			case <-ticker.C:
-				updateRouteForOverlay(clusterPodCidr, gatewayIP)
+				updateRouteForOverlay(clusterPodCIDR, gatewayIP)
 				iptCtrl.Update()
 			case <-stopChan:
 				return

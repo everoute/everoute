@@ -4,9 +4,9 @@ import (
 	"errors"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl/cookie"
+	log "github.com/sirupsen/logrus"
 )
 
 const InvalidGroupID uint32 = 0

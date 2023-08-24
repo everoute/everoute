@@ -19,9 +19,9 @@ package datapath
 import (
 	"fmt"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 )
 
 type UplinkBridge struct {
