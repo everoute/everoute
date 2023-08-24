@@ -25,10 +25,15 @@ RUN chmod 755 /opt/everoute/bin/*
 
 #FROM ubuntu
 FROM ubuntu:20.04
+ARG TARGETOS
+ARG TARGETARCH
+RUN echo "platform $TARGETOS $TARGETARCH"
 
-#RUN apk update && apk add openvswitch
 RUN apt update && apt install -y openvswitch-switch=2.13.* iptables \
-    conntrack=1:1.4.5-2 iproute2 tcpdump && rm -rf /var/lib/apt/lists/*
+    conntrack=1:1.4.5-2 iproute2 tcpdump wget && rm -rf /var/lib/apt/lists/*
+
+#RUN install yq
+RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_${TARGETOS}_${TARGETARCH} && chmod a+x /usr/local/bin/yq
 
 # Automatically detect iptables mode (legacy or nf_tables) from baseOS
 RUN ln -s -f /opt/everoute/bin/iptables-wrapper /etc/alternatives/iptables
