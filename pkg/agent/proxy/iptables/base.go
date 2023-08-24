@@ -9,7 +9,7 @@ import (
 
 type Options struct {
 	LocalGwName    string
-	ClusterPodCidr string
+	ClusterPodCIDR string
 }
 
 type baseIPtables struct{}

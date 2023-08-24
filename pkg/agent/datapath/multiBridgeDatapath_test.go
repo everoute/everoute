@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	. "github.com/onsi/gomega"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
