@@ -349,13 +349,13 @@ spec:
                               20,22-24,90.
                             type: string
                           protocol:
-                            description: The protocol (TCP, UDP or ICMP) which traffic
-                              must match.
+                            description: The ip protocol which traffic must match.
                             enum:
                             - TCP
                             - UDP
                             - ICMP
                             - IPIP
+                            - VRRP
                             type: string
                           type:
                             default: number
@@ -757,13 +757,13 @@ spec:
                               20,22-24,90.
                             type: string
                           protocol:
-                            description: The protocol (TCP, UDP or ICMP) which traffic
-                              must match.
+                            description: The ip protocol which traffic must match.
                             enum:
                             - TCP
                             - UDP
                             - ICMP
                             - IPIP
+                            - VRRP
                             type: string
                           type:
                             default: number

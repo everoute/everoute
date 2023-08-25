@@ -81,6 +81,7 @@ spec:
                       - UDP
                       - ICMP
                       - IPIP
+                      - VRRP
                       type: string
                   type: object
                 type: array

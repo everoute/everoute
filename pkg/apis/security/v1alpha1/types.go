@@ -215,7 +215,7 @@ const (
 
 // SecurityPolicyPort describes the port and protocol to match in a rule.
 type SecurityPolicyPort struct {
-	// The protocol (TCP, UDP or ICMP) which traffic must match.
+	// The ip protocol which traffic must match.
 	Protocol Protocol `json:"protocol"`
 
 	// PortRange is a range of port. If you want match all ports, you should set empty. If you
@@ -244,7 +244,7 @@ func (n NamespacedName) String() string {
 }
 
 // Protocol defines network protocols supported for SecurityPolicy.
-// +kubebuilder:validation:Enum=TCP;UDP;ICMP;IPIP
+// +kubebuilder:validation:Enum=TCP;UDP;ICMP;IPIP;VRRP
 type Protocol string
 
 const (
@@ -256,6 +256,8 @@ const (
 	ProtocolICMP Protocol = "ICMP"
 	// ProtocolIPIP is the IPIP protocol.
 	ProtocolIPIP Protocol = "IPIP"
+	// ProtocolVRRP is the VRRP protocol.
+	ProtocolVRRP Protocol = "VRRP"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

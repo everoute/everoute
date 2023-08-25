@@ -71,6 +71,8 @@ func protocolToInt(ipProtocol string) uint8 {
 		protoNo = 17
 	case "IPIP":
 		protoNo = 4
+	case "VRRP":
+		protoNo = 112
 	case "":
 		protoNo = 0
 	default:
@@ -218,12 +220,12 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 	var rulePortList []policycache.RulePort
 	var portMapTCP [65536]bool
 	var portMapUDP [65536]bool
-	var ignorePortProtocol = make(map[securityv1alpha1.Protocol]bool, 0)
+	var portlessProtocol = make(map[securityv1alpha1.Protocol]bool, 0)
 
 	for _, port := range ports {
-		if port.Protocol == securityv1alpha1.ProtocolICMP || port.Protocol == securityv1alpha1.ProtocolIPIP {
-			// ignore port when Protocol is ICMP or IPIP
-			ignorePortProtocol[port.Protocol] = true
+		if port.Protocol != securityv1alpha1.ProtocolTCP && port.Protocol != securityv1alpha1.ProtocolUDP {
+			// ignore port when Protocol neither TCP nor UDP
+			portlessProtocol[port.Protocol] = true
 			continue
 		}
 
@@ -265,13 +267,12 @@ func FlattenPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]policycache.Ru
 	}
 	rulePortList = append(rulePortList, processFlattenPorts(portMapTCP, securityv1alpha1.ProtocolTCP)...)
 	rulePortList = append(rulePortList, processFlattenPorts(portMapUDP, securityv1alpha1.ProtocolUDP)...)
-	// add ICMP and IPIP Rule to rulePortList
-	for protocol := range ignorePortProtocol {
-		if ignorePortProtocol[protocol] {
-			rulePortList = append(rulePortList, policycache.RulePort{
-				Protocol: protocol,
-			})
-		}
+
+	// add portless protocol to rulePortList
+	for protocol := range portlessProtocol {
+		rulePortList = append(rulePortList, policycache.RulePort{
+			Protocol: protocol,
+		})
 	}
 
 	return rulePortList, nil
