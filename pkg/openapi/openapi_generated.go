@@ -1852,7 +1852,7 @@ func schema_pkg_apis_security_v1alpha1_SecurityPolicyPort(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"protocol": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The protocol (TCP, UDP or ICMP) which traffic must match.",
+							Description: "The ip protocol which traffic must match.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
