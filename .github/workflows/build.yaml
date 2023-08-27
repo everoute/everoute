@@ -91,7 +91,7 @@ jobs:
           password: ${{ secrets.HARBOR_PUSH_TOKEN }}
 
       - name: Generate deploy yaml
-        run: helm template deploy/chart --include-crds --set image.tag=${{ needs.build.outputs.ReleaseTag }} > deploy/everoute.yaml
+        run: helm template deploy/chart --set image.tag=${{ needs.build.outputs.ReleaseTag }} > deploy/everoute.yaml
 
       - name: Create Release
         id: create_release

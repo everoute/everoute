@@ -8,12 +8,16 @@ webhooks:
     sideEffects: None
     clientConfig:
       # CaBundle must set as the ca for secret everoute-controller-tls.
-      caBundle:
+      caBundle: {{ .Values.webhook.caBundle }}
+    {{- if eq .Values.webhook.type "Service" }}
       service:
         name: everoute-validator-webhook
         namespace: kube-system
         path: /validate/crds
-        port: 9443
+        port: {{ .Values.webhook.port }}
+    {{- else if eq .Values.webhook.type "URL" }}
+      url: https://127.0.0.1:{{ .Values.webhook.port }}/validate/crds
+    {{- end }}
     failurePolicy: Fail
     name: validator.everoute.io
     rules:
@@ -40,6 +44,7 @@ webhooks:
         resources:
           - endpointgroups
 
+{{ if eq .Values.webhook.type "Service" }}
 ---
 apiVersion: v1
 kind: Service
@@ -49,11 +54,11 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 9443
+    - port: {{ .Values.webhook.port }}
       protocol: TCP
       # This port should match port everoute-controller exposed.
       targetPort: 9443
   selector:
     app: everoute
     component: everoute-controller
-
+{{ end }}

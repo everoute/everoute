@@ -18,7 +18,7 @@ image-test-pull:
 	docker pull registry.smtx.io/everoute/unit-test:latest
 
 yaml:
-	helm template deploy/chart --include-crds > deploy/everoute.yaml
+	helm template deploy/chart > deploy/everoute.yaml
 
 generate: codegen gqlgen protopb manifests yaml apidocs-gen
 	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
@@ -122,7 +122,7 @@ apidocs-gen:
 
 # Generate CRD manifests
 manifests:
-	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/chart/crds output:stdout
+	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/chart/templates/crds output:stdout
 
 # Run go fmt against code
 fmt:
