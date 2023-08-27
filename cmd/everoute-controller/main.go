@@ -60,6 +60,7 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var disableAutoTLS bool
 	var tlsCertDir string
 	var serverPort int
 	var leaderElectionNamespace string
@@ -68,9 +69,8 @@ func main() {
 	var enableProxy bool
 
 	flag.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableLeaderElection, "enable-leader-election", true, "Enable leader election for controller manager.")
+	flag.BoolVar(&disableAutoTLS, "disable-auto-tls", false, "Disable auto tls cert generate for webhook.")
 	flag.StringVar(&tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
 	flag.IntVar(&serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
@@ -95,13 +95,15 @@ func main() {
 		klog.Fatalf("unable to start manager: %s", err.Error())
 	}
 
-	// set secret and webhook
-	setWebhookCert(mgr.GetAPIReader(), tlsCertDir)
-	if err = (&common.WebhookReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		klog.Fatalf("unable to create webhook controller: %s", err.Error())
+	if !disableAutoTLS {
+		// set secret and webhook
+		setWebhookCert(mgr.GetAPIReader(), tlsCertDir)
+		if err = (&common.WebhookReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create webhook controller: %s", err.Error())
+		}
 	}
 
 	// endpoint controller sync endpoint status from agentinfo.

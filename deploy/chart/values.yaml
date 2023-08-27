@@ -11,3 +11,10 @@ enableCNI: true
 CNIConf:
   localGwIP: 100.64.254.254
   enableProxy: false
+
+webhook:
+  type: Service # enum: Service, URL
+  port: 9443
+  caBundle: Cg==
+
+deployment_enabled: true

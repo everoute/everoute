@@ -114,8 +114,8 @@ function generate_certs() {
 }
 
 function setup_crds() {
-  local crds_path=${BASEDIR}/deploy/chart/crds
-  kubectl apply -f ${crds_path}
+  local crds_path=${BASEDIR}/deploy/chart/templates/crds
+  kubectl apply -f "${crds_path}"
 }
 
 function setup_rbac() {
