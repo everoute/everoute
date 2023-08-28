@@ -190,6 +190,18 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 				klog.Fatalf("fetch local gateway ofport error, err: %s", err)
 			}
 		}
+
+		if opts.IsEnableOverlay() {
+			agentInfo.GatewayOfPort, err = datapathManager.OvsdbDriverMap[bridge][datapath.UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.GatewayName)
+			if err != nil {
+				klog.Fatalf("fetch gateway ofport error, err: %v", err)
+			}
+			tunnelName := agentInfo.BridgeName + "-tunnel"
+			agentInfo.TunnelOfPort, err = datapathManager.OvsdbDriverMap[bridge][datapath.UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(tunnelName)
+			if err != nil {
+				klog.Fatalf("fetch tunnel ofport error, err: %v", err)
+			}
+		}
 		break // only one VDS in CNI scene
 	}
 
