@@ -49,7 +49,14 @@ type ClsBridge struct {
 	clsBridgeOutputTable     *ofctrl.Table
 }
 
-func NewClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
+func NewClsBridge(brName string, datapathManager *DpManager) Bridge {
+	if datapathManager.IsEnableOverlay() {
+		return newClsBridgeOverlay(brName, datapathManager)
+	}
+	return newClsBridge(brName, datapathManager)
+}
+
+func newClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
 	clsBridge := new(ClsBridge)
 	clsBridge.name = fmt.Sprintf("%s-cls", brName)
 	clsBridge.datapathManager = datapathManager
