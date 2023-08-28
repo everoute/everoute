@@ -234,9 +234,12 @@ type DpManagerInfo struct {
 	LocalGwMac    net.HardwareAddr
 	LocalGwOfPort uint32
 
-	GatewayName string
-	GatewayIP   net.IP
-	GatewayMac  net.HardwareAddr
+	GatewayName   string
+	GatewayIP     net.IP
+	GatewayMac    net.HardwareAddr
+	GatewayOfPort uint32
+
+	TunnelOfPort uint32
 }
 
 type DpManagerConfig struct {

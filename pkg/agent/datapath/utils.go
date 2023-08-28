@@ -378,19 +378,19 @@ func k8sProtocolToOvsProtocol(p corev1.Protocol) (uint8, error) {
 }
 
 func setupArpProxyFlowAction(arpProxyFlow *ofctrl.Flow, proxyMac net.HardwareAddr) error {
-	if err := arpProxyFlow.MoveField(MacLength, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
+	if err := arpProxyFlow.SetMacSa(proxyMac); err != nil {
 		return err
 	}
-	if err := arpProxyFlow.SetMacSa(proxyMac); err != nil {
+	if err := arpProxyFlow.MoveField(MacLength, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
 		return err
 	}
 	if err := arpProxyFlow.LoadField("nxm_of_arp_op", ArpOperReply, openflow.NewNXRange(0, 15)); err != nil {
 		return err
 	}
-	if err := arpProxyFlow.MoveField(MacLength, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
+	if err := arpProxyFlow.LoadField("nxm_nx_arp_sha", ParseMacToUint64(proxyMac), openflow.NewNXRange(0, 47)); err != nil {
 		return err
 	}
-	if err := arpProxyFlow.LoadField("nxm_nx_arp_sha", ParseMacToUint64(proxyMac), openflow.NewNXRange(0, 47)); err != nil {
+	if err := arpProxyFlow.MoveField(MacLength, 0, 0, "nxm_nx_arp_sha", "nxm_nx_arp_tha", false); err != nil {
 		return err
 	}
 	return arpProxyFlow.MoveField(IPv4Lenth, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false)
