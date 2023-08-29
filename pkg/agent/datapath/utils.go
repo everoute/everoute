@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
@@ -31,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 const (
@@ -89,21 +91,30 @@ const (
 			-- del-br ${CLS_BRIDGE} \
 			-- del-br ${UPLINK_BRIDGE}
     `
+
 	SetupCNIBridgeChain = `
 		set -o errexit
 		set -o nounset
 		set -o xtrace
 
 		DEFAULT_BRIDGE=%s
-		NAT_BRIDGE="${DEFAULT_BRIDGE}-nat"
 		UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
-		LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
-		NAT_TO_LOCAL_PATCH="${NAT_BRIDGE}-nat-to-local"
 		GW_IFACE=${DEFAULT_BRIDGE}-gw
 		GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
 
 		ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal
 		ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
+	`
+
+	SetupProxyBridgeChain = `
+		set -o errexit
+		set -o nounset
+		set -o xtrace
+
+		DEFAULT_BRIDGE=%s
+		NAT_BRIDGE="${DEFAULT_BRIDGE}-nat"
+		LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
+		NAT_TO_LOCAL_PATCH="${NAT_BRIDGE}-nat-to-local"
 
 		ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 		ip link set ${NAT_BRIDGE} up
@@ -113,7 +124,20 @@ const (
 			-- add-port ${NAT_BRIDGE} ${NAT_TO_LOCAL_PATCH} \
 			-- set interface ${NAT_TO_LOCAL_PATCH} type=patch options:peer=${LOCAL_TO_NAT_PATCH}
 	`
-	CleanCNIBridgeChain = `
+
+	SetupTunnelBridgeChain = `
+		set -o errexit
+		set -o nounset
+		set -o xtrace
+
+		DEFAULT_BRIDGE=%s
+		UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
+		TUNNEL_IFACE="${DEFAULT_BRIDGE}-tunnel"
+
+		ovs-vsctl add-port ${UPLINK_BRIDGE} ${TUNNEL_IFACE} -- set interface ${TUNNEL_IFACE} type=geneve options:key=5000 options:remote_ip=flow
+	`
+
+	CleanProxyBridgeChain = `
 		NAT_BRIDGE="%s-nat"
 		ovs-vsctl -- del-br ${NAT_BRIDGE}
 	`
@@ -127,6 +151,59 @@ func ExcuteCommand(cmdStr, arg string) error {
 	}
 
 	return nil
+}
+
+func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, enableOverlay bool) (*DpManager, error) {
+	var err error
+	dpConfig := &DpManagerConfig{
+		ManagedVDSMap: map[string]string{brName: brName},
+		EnableCNI:     true,
+		CNIConfig:     &DpManagerCNIConfig{},
+	}
+	if enableProxy {
+		dpConfig.CNIConfig.EnableProxy = true
+	}
+	if enableOverlay {
+		dpConfig.CNIConfig.EncapMode = constants.EncapModeGeneve
+	}
+	updateChan := make(chan map[string]net.IP, 10)
+	datapathManager := NewDatapathManager(dpConfig, updateChan)
+	datapathManager.InitializeDatapath(stopCh)
+
+	agentInfo := datapathManager.Info
+	agentInfo.NodeName = "testnode"
+	podCidr, _ := cnitypes.ParseCIDR("10.0.0.0/24")
+	agentInfo.PodCIDR = append(agentInfo.PodCIDR, cnitypes.IPNet(*podCidr))
+	cidr, _ := cnitypes.ParseCIDR("10.96.0.0/12")
+	cidrNet := cnitypes.IPNet(*cidr)
+	agentInfo.ClusterCIDR = &cidrNet
+	clusterPodCidr, _ := cnitypes.ParseCIDR("10.0.0.0/16")
+	agentInfo.ClusterPodCIDR = clusterPodCidr
+	agentInfo.BridgeName = brName
+	agentInfo.GatewayName = agentInfo.BridgeName + "-gw"
+	agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
+	agentInfo.LocalGwOfPort, err = datapathManager.OvsdbDriverMap[brName][LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.LocalGwName)
+	if err != nil {
+		return nil, err
+	}
+	agentInfo.LocalGwIP = net.ParseIP("10.0.100.100")
+	agentInfo.LocalGwMac, _ = net.ParseMAC("fe:00:5e:00:53:01")
+	agentInfo.GatewayIP = net.ParseIP("10.0.0.1")
+	agentInfo.GatewayMac, _ = net.ParseMAC("fe:00:5e:00:53:06")
+	if enableOverlay {
+		agentInfo.GatewayOfPort, err = datapathManager.OvsdbDriverMap[brName][UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.GatewayName)
+		if err != nil {
+			return nil, err
+		}
+		agentInfo.TunnelOfPort, err = datapathManager.OvsdbDriverMap[brName][UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(brName + "-tunnel")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	datapathManager.InitializeCNI()
+
+	return datapathManager, nil
 }
 
 func ParseMacToUint64(b []byte) uint64 {

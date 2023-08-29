@@ -41,7 +41,8 @@ type UplinkBridgeOverlay struct {
 	paddingL2Table        *ofctrl.Table
 	outputTable           *ofctrl.Table
 
-	ovsBrName string
+	ovsBrName      string
+	localEpFlowMap map[string]*ofctrl.Flow
 }
 
 func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBridgeOverlay {
@@ -52,6 +53,7 @@ func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBr
 	uplinkBridge.name = fmt.Sprintf("%s-uplink", brName)
 	uplinkBridge.datapathManager = datapathManager
 	uplinkBridge.ovsBrName = brName
+	uplinkBridge.localEpFlowMap = make(map[string]*ofctrl.Flow)
 	return uplinkBridge
 }
 
@@ -94,6 +96,66 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	if err := u.initOutputTable(); err != nil {
 		log.Fatalf("Failed to init output table of uplink bridge overlay, err: %v", err)
 	}
+}
+
+func (u *UplinkBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
+	if endpoint == nil {
+		return nil
+	}
+	if u.localEpFlowMap[endpoint.InterfaceUUID] != nil {
+		log.Infof("Uplink bridge overlay, the endpoint %+v related flow in forward to local table has been installed, skip add again", endpoint)
+		return nil
+	}
+
+	if endpoint.IPAddr == nil {
+		log.Infof("the endpoint %+v IPAddr is empty, skip add flow to forward to local table for uplink bridge overlay", endpoint)
+		return nil
+	}
+
+	if endpoint.IPAddr.To4() == nil {
+		log.Errorf("Failed to add flow to forward to local table for uplink bridge overlay: the endpoint %+v IPAddr is not valid ipv4", endpoint)
+		return fmt.Errorf("the endpoint %+v IPAddr is not valid ipv4", endpoint)
+	}
+
+	flow, _ := u.forwardToLocalTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &endpoint.IPAddr,
+	})
+	if err := flow.LoadField(UBOOutputPortReg, uint64(u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToClsSuffix]), UBOOutputPortRange); err != nil {
+		log.Errorf("Failed to setup forward to local table flow load field action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		return err
+	}
+	if err := flow.Resubmit(nil, &LBOOutputTable); err != nil {
+		log.Errorf("Failed to setup forward to local table flow resubmit action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		return err
+	}
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install forward to local table flow in uplink bridge overlay for endpoint %+v, err: %v", endpoint, err)
+		return err
+	}
+
+	u.localEpFlowMap[endpoint.InterfaceUUID] = flow
+	log.Infof("Uplink bridge overlay, success to add local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	if endpoint == nil {
+		return nil
+	}
+
+	delFlow := u.localEpFlowMap[endpoint.InterfaceUUID]
+	if delFlow == nil {
+		return nil
+	}
+	if err := delFlow.Delete(); err != nil {
+		log.Errorf("Failed to delete local endpoint flow in forward to local table of uplink bridge overlay, endpoint: %+v, err: %v", endpoint, err)
+		return err
+	}
+	delete(u.localEpFlowMap, endpoint.InterfaceUUID)
+	log.Infof("Uplink bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	return nil
 }
 
 //nolint

@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -896,18 +895,6 @@ func (l *LocalBridge) BridgeReset() {
 }
 
 func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
-	// skip ovs patch port
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
-		return nil
-	}
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
-		return nil
-	}
-	// skip cni gateway
-	if l.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
-		return nil
-	}
-
 	// trunk port
 	if endpoint.Trunk != "" {
 		return l.addTrunkPortEndpoint(endpoint)
