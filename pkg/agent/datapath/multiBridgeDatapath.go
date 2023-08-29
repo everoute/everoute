@@ -820,11 +820,36 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	return dpStatus
 }
 
+func (datapathManager *DpManager) skipLocalEndpoint(endpoint *Endpoint) bool {
+	// skip ovs patch port
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
+		return true
+	}
+	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
+		return true
+	}
+	// skip cni local gateway
+	if datapathManager.Info.LocalGwName == endpoint.InterfaceName {
+		return true
+	}
+
+	// skip cni bridge default interface
+	if endpoint.InterfaceName == datapathManager.Info.BridgeName {
+		return true
+	}
+
+	return false
+}
+
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
+	}
+
+	if datapathManager.skipLocalEndpoint(endpoint) {
+		return nil
 	}
 
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
@@ -839,14 +864,10 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 			// if it's failed to add endpoint flow, replayVDSFlow routine would rebuild local endpoint flow according to
 			// current localEndpointDB
 			datapathManager.localEndpointDB.Set(endpoint.InterfaceUUID, endpoint)
-			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
-			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
-			}
-			if datapathManager.IsEnableProxy() {
-				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
-				if err := natBr.AddLocalEndpoint(endpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+			for kword := range datapathManager.BridgeChainMap[vdsID] {
+				br := datapathManager.BridgeChainMap[vdsID][kword]
+				if err := br.AddLocalEndpoint(endpoint); err != nil {
+					return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, br.GetName(), err)
 				}
 			}
 			break
@@ -876,25 +897,27 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 				newEndpoint.IPAddr = utils.IPCopy(ep.IPAddr)
 			}
 
+			// assume that ofport does not update, so doesn't need to remove old flow for local bridge overlay
 			datapathManager.localEndpointDB.Remove(oldEndpoint.InterfaceUUID)
-			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
-			if err != nil {
-				return fmt.Errorf("failed to remove old local endpoint %v from vds %v, bridge %v, error: %v", oldEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
+			if !datapathManager.IsEnableOverlay() {
+				err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(oldEndpoint)
+				if err != nil {
+					return fmt.Errorf("failed to remove old local endpoint %v from vds %v, bridge %v, error: %v", oldEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
+				}
 			}
 
+			if datapathManager.skipLocalEndpoint(newEndpoint) {
+				break
+			}
 			if newEP, _ := datapathManager.localEndpointDB.Get(newEndpoint.InterfaceUUID); newEP != nil {
 				return fmt.Errorf("new local endpoint: %v already exits", newEP)
 			}
 			datapathManager.localEndpointDB.Set(newEndpoint.InterfaceUUID, newEndpoint)
-			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
-			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
-			}
-			// endpoint update may change ipaddr in cni(endpoint doesn't get ipaddr from interface external-ids first), so try to add local endpoint when update endpoint
-			if datapathManager.IsEnableProxy() {
-				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
-				if err := natBr.AddLocalEndpoint(newEndpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+			for kword := range datapathManager.BridgeChainMap[vdsID] {
+				br := datapathManager.BridgeChainMap[vdsID][kword]
+				// for cni, endpoint ipaddr may update from null, so try to add endpoint
+				if err := br.AddLocalEndpoint(newEndpoint); err != nil {
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, br.GetName(), err)
 				}
 			}
 
@@ -921,15 +944,10 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 		if ovsbrname == cachedEP.BridgeName {
 			// Same as addLocalEndpoint routine, keep datapath endpointDB is consistent with ovsdb
 			datapathManager.localEndpointDB.Remove(endpoint.InterfaceUUID)
-			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
-			if err != nil {
-				return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
-			}
-
-			if datapathManager.IsEnableProxy() {
-				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
-				if err := natBr.RemoveLocalEndpoint(endpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+			for kword := range datapathManager.BridgeChainMap[vdsID] {
+				br := datapathManager.BridgeChainMap[vdsID][kword]
+				if err := br.RemoveLocalEndpoint(endpoint); err != nil {
+					return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, br.GetName(), err)
 				}
 			}
 
