@@ -52,6 +52,9 @@ var (
 		},
 	}
 
+	cniDpMgr *DpManager
+	cniBrName = "cnibr0"
+
 	ovsBridgeList   = []string{"ovsbr0", "ovsbr0-policy", "ovsbr0-cls", "ovsbr0-uplink"}
 	defaultFlowList []string
 
@@ -59,6 +62,7 @@ var (
 		InterfaceName: "ep1",
 		InterfaceUUID: ifaceUUID,
 		PortNo:        uint32(11),
+		IPAddr:        net.ParseIP("10.10.1.7"),
 		MacAddrStr:    "00:00:aa:aa:aa:aa",
 		BridgeName:    "ovsbr0",
 		VlanID:        uint16(1),
@@ -67,6 +71,7 @@ var (
 		InterfaceName: "ep1",
 		InterfaceUUID: ifaceUUID,
 		PortNo:        uint32(12),
+		IPAddr:        net.ParseIP("10.10.1.7"),
 		MacAddrStr:    "00:00:aa:aa:aa:aa",
 		BridgeName:    "ovsbr0",
 		VlanID:        uint16(1),
@@ -83,6 +88,7 @@ var (
 		InterfaceName: "ep2",
 		InterfaceUUID: iface2UUID,
 		PortNo:        uint32(22),
+		IPAddr:        net.ParseIP("10.10.1.8"),
 		MacAddrStr:    "00:00:aa:aa:aa:bb",
 		BridgeName:    "ovsbr0",
 		VlanID:        uint16(1),
@@ -137,6 +143,15 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	setupEverouteDp()
+	setupOverlayDp()
+	exitCode := m.Run()
+	teardownEverouteDp()
+	teardownOverlayDp()
+	os.Exit(exitCode)
+}
+
+func setupEverouteDp() {
 	ipAddressChan := make(chan map[string]net.IP, 100)
 	if err := ExcuteCommand(SetupBridgeChain, "ovsbr0"); err != nil {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
@@ -145,13 +160,40 @@ func TestMain(m *testing.M) {
 	stopChan := make(<-chan struct{})
 	datapathManager = NewDatapathManager(&datapathConfig, ipAddressChan)
 	datapathManager.InitializeDatapath(stopChan)
-
-	exitCode := m.Run()
-	_ = ExcuteCommand(CleanBridgeChain, "ovsbr0")
-	os.Exit(exitCode)
 }
 
-func TestDpManager(t *testing.T) {
+func setupOverlayDp() {
+	if err := ExcuteCommand(SetupBridgeChain, cniBrName); err != nil {
+		log.Fatalf("Failed to setup bridgechain, error: %v", err)
+	}
+	if err := ExcuteCommand(SetupCNIBridgeChain, cniBrName); err != nil {
+		log.Fatalf("Failed to setup cni bridgechain, error: %v", err)
+	}
+	if err := ExcuteCommand(SetupTunnelBridgeChain, cniBrName); err != nil {
+		log.Fatalf("Failed to setup tunnel bridgechain, error: %v", err)
+	}
+
+	stopChan := make(<-chan struct{})
+	var err error
+	cniDpMgr, err = InitCNIDpMgrUT(stopChan, cniBrName, false, true)
+	if err != nil || cniDpMgr == nil {
+		log.Fatalf("Failed to init cni dp mgr, err: %v", err)
+	}
+}
+
+func teardownEverouteDp() {
+	_ = ExcuteCommand(CleanBridgeChain, "ovsbr0")
+}
+
+func teardownOverlayDp() {
+	_ = ExcuteCommand(CleanBridgeChain, cniBrName)
+}
+
+func TestOverlayDp(t *testing.T) {
+	testLocalEndpointOverlay(t)
+}
+
+func testEverouteDp(t *testing.T) {
 	var err error
 	if defaultFlowList, err = dumpAllFlows(); err != nil {
 		log.Fatalf("Failed to dump default flow while test env setup")
@@ -409,9 +451,15 @@ func restartOvsVswitchd(interval int) error {
 	return nil
 }
 
-func dumpAllFlows() ([]string, error) {
+func dumpAllFlows(bridges ...string) ([]string, error) {
 	var flowDump []string
-	for _, br := range ovsBridgeList {
+	var brList []string
+	if len(bridges) == 0 {
+		brList = ovsBridgeList
+	} else {
+		brList = bridges
+	}
+	for _, br := range brList {
 		cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 dump-flows %s", br)
 		flowsByte, err := excuteCommand(cmdStr)
 		if err != nil {
@@ -435,4 +483,154 @@ func dumpAllFlows() ([]string, error) {
 	}
 
 	return flowDump, nil
+}
+
+func testLocalEndpointOverlay(t *testing.T) {
+	RegisterTestingT(t)
+	ep1Copy := copyEp(ep1)
+	ep1Copy.BridgeName = cniBrName
+	newEp1Copy := copyEp(newep1)
+	newEp1Copy.BridgeName = cniBrName
+	ep2Copy := copyEp(ep2)
+	ep2Copy.BridgeName = cniBrName
+	newEp2Copy := copyEp(newep2)
+	newEp2Copy.BridgeName = cniBrName
+
+	t.Run("test add and remove local endpoint normal", func (t *testing.T) {
+		if err := cniDpMgr.AddLocalEndpoint(ep1Copy); err != nil {
+			t.Errorf("Failed to add local endpoint %+v, err: %v", ep1Copy, err)
+		}
+		
+		Eventually(func() bool {
+			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep1Copy)
+			if err != nil {
+				return false
+			}
+			return validate
+		}, timeout, interval).Should(BeTrue())
+
+		if err := cniDpMgr.RemoveLocalEndpoint(ep1Copy); err != nil {
+			t.Errorf("Failed to delete local endpoint : %+v, err: %v", ep1Copy, err)
+		}
+		Eventually(func() bool {
+			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep1Copy)
+			if err != nil {
+				return true
+			}
+			return validate
+		}, timeout, interval).Should(BeFalse())
+	})
+
+	t.Run("test add local endpoint without ip", func (t *testing.T) {
+		if err := cniDpMgr.AddLocalEndpoint(ep2Copy); err != nil {
+			t.Errorf("Failed to add local endpoint %+v, err: %v", ep2Copy, err)
+		}
+		time.Sleep(timeout)
+		validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep2Copy)
+		if err != nil {
+			t.Errorf("Failed to validate local endpoint flow: %v", err)
+		}
+		Expect(validate).Should(BeFalse())
+	})
+
+	t.Run("test update local endpoint exists flow", func (t *testing.T) {
+		if err := cniDpMgr.AddLocalEndpoint(ep1Copy); err != nil {
+			t.Errorf("Failed to add local endpoint %+v, err: %v", ep1Copy, err)
+		}
+		if err := cniDpMgr.UpdateLocalEndpoint(newEp1Copy, ep1Copy); err != nil {
+			t.Errorf("Failed to update local endpoint %+v, err: %v", newEp1Copy, err)
+		}
+		
+		Eventually(func() error {
+			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep1Copy)
+			if err != nil {
+				return err
+			}
+			if !validate {
+				return fmt.Errorf("can't found flow")
+			}
+			return nil
+		}, timeout, interval).Should(Succeed())
+		
+		if err := cniDpMgr.RemoveLocalEndpoint(newEp1Copy); err != nil {
+			t.Errorf("Failed to delete local endpoint : %+v, err: %v", newEp1Copy, err)
+		}
+	})
+
+	t.Run("test update local endpoint without exists flow", func (t *testing.T) {
+		if err := cniDpMgr.AddLocalEndpoint(ep2Copy); err != nil {
+			t.Errorf("Failed to add local endpoint %+v, err: %v", ep2Copy, err)
+		}
+		if err := cniDpMgr.UpdateLocalEndpoint(newEp2Copy, ep2Copy); err != nil {
+			t.Errorf("Failed to update local endpoint %+v, err: %v", newEp2Copy, err)
+		}
+		Eventually(func() bool {
+			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, newEp2Copy)
+			if err != nil {
+				return false
+			}
+			return validate
+		}, timeout, interval).Should(BeTrue())
+		if err := cniDpMgr.RemoveLocalEndpoint(newEp2Copy); err != nil {
+			t.Errorf("Failed to delete local endpoint : %+v, err: %v", newEp2Copy, err)
+		}
+	})
+}
+
+func validateLocalEndpointFlowForOverlay(brName string, ep *Endpoint) (bool, error) {
+	localBrFlows, err := dumpAllFlows(brName)
+	if err != nil {
+		return false, err
+	}
+	validate := false
+	for _, f := range localBrFlows {
+		if !strings.Contains(f, fmt.Sprintf("table=%d", LBOForwardToLocalTable)) {
+			continue
+		}
+		if !strings.Contains(f, fmt.Sprintf("nw_dst=%s", ep.IPAddr.String())) {
+			continue
+		}
+		if !strings.Contains(f, fmt.Sprintf("load:%#x->NXM_NX_REG2[0..15]", ep.PortNo)) {
+			continue
+		}
+		if !strings.Contains(f, fmt.Sprintf("set_field:%s->eth_dst", ep.MacAddrStr)) {
+			continue
+		}
+		validate = true
+		break
+	}
+	if !validate {
+		return false, nil
+	}
+
+	validate = false
+	uplinkBrFlows, err := dumpAllFlows(brName+"-uplink")
+	if err != nil {
+		return false, err
+	}
+	for _, f := range uplinkBrFlows {
+		if !strings.Contains(f, fmt.Sprintf("table=%d", UBOForwardToLocalTable)) {
+			continue
+		}
+		if !strings.Contains(f, fmt.Sprintf("nw_dst=%s", ep.IPAddr.String())) {
+			continue
+		}
+		if !strings.Contains(f, "load:0x1->NXM_NX_REG2[0..15]") {
+			continue
+		}
+		validate = true
+	}
+	return validate, nil
+}
+
+func copyEp(src *Endpoint) *Endpoint {
+	return &Endpoint{
+		InterfaceName: src.InterfaceName,
+		InterfaceUUID: src.InterfaceUUID,
+		PortNo:        src.PortNo,
+		IPAddr:        src.IPAddr,
+		MacAddrStr:    src.MacAddrStr,
+		BridgeName:    src.BridgeName,
+		VlanID:        src.VlanID,
+	}
 }

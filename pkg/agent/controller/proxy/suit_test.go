@@ -1,13 +1,11 @@
 package proxy
 
 import (
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -75,10 +73,13 @@ var _ = BeforeSuite(func() {
 
 	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, BrName)).ToNot(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.SetupCNIBridgeChain, BrName)).ToNot(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.SetupProxyBridgeChain, BrName)).ToNot(HaveOccurred())
 
 	stopCh := ctrl.SetupSignalHandler()
 
-	dpMgr := initDpMgr(stopCh)
+	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh, BrName, true, false)
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(dpMgr).ShouldNot(BeNil())
 
 	natbrs := dpMgr.GetNatBridges()
 	Expect(len(natbrs) == 1).Should(BeTrue())
@@ -113,39 +114,8 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, BrName)).NotTo(HaveOccurred())
-	Expect(datapath.ExcuteCommand(datapath.CleanCNIBridgeChain, BrName)).NotTo(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.CleanProxyBridgeChain, BrName)).NotTo(HaveOccurred())
 })
-
-func initDpMgr(stopCh <-chan struct{}) *datapath.DpManager {
-	var err error
-	updateChan := make(chan map[string]net.IP, 10)
-	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
-		ManagedVDSMap: map[string]string{BrName: BrName},
-		EnableCNI:     true,
-		CNIConfig:     &datapath.DpManagerCNIConfig{EnableProxy: true}}, updateChan)
-	datapathManager.InitializeDatapath(stopCh)
-
-	agentInfo := datapathManager.Info
-	agentInfo.NodeName = "testnode"
-	podCidr, _ := cnitypes.ParseCIDR("10.0.0.0/24")
-	agentInfo.PodCIDR = append(datapathManager.Info.PodCIDR, cnitypes.IPNet(*podCidr))
-	cidr, _ := cnitypes.ParseCIDR("10.96.0.0/12")
-	cidrNet := cnitypes.IPNet(*cidr)
-	agentInfo.ClusterCIDR = &cidrNet
-	agentInfo.BridgeName = BrName
-	agentInfo.GatewayName = agentInfo.BridgeName + "-gw"
-	agentInfo.LocalGwName = agentInfo.BridgeName + "-gw-local"
-	agentInfo.LocalGwOfPort, err = datapathManager.OvsdbDriverMap[BrName][datapath.LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(agentInfo.LocalGwName)
-	Expect(err).Should(BeNil())
-	agentInfo.LocalGwIP = net.ParseIP("10.0.100.100")
-	agentInfo.LocalGwMac, _ = net.ParseMAC("fe:00:5e:00:53:01")
-	agentInfo.GatewayIP = net.ParseIP("10.0.0.1")
-	agentInfo.GatewayMac, _ = net.ParseMAC("fe:00:5e:00:53:06")
-
-	datapathManager.InitializeCNI()
-
-	return datapathManager
-}
 
 func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 	if b1 == nil && b2 == nil {

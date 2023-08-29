@@ -163,21 +163,6 @@ func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		log.Infof("The endpoint %+v related flow has been installed, skip add again", endpoint)
 		return nil
 	}
-	// skip ovs patch port
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
-		return nil
-	}
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
-		return nil
-	}
-	// skip cni gateway
-	if n.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
-		return nil
-	}
-	// skip cni bridge default interface
-	if endpoint.InterfaceName == n.datapathManager.Info.BridgeName {
-		return nil
-	}
 
 	macAddr, err := net.ParseMAC(endpoint.MacAddrStr)
 	if err != nil {
@@ -226,21 +211,6 @@ func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 
 func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	if endpoint == nil {
-		return nil
-	}
-	// skip ovs patch port
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToPolicySuffix) {
-		return nil
-	}
-	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
-		return nil
-	}
-	// skip cni gateway
-	if n.datapathManager.Info.LocalGwName == endpoint.InterfaceName {
-		return nil
-	}
-	// skip cni bridge default interface
-	if endpoint.InterfaceName == n.datapathManager.Info.BridgeName {
 		return nil
 	}
 
