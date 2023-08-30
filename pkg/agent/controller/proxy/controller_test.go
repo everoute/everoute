@@ -16,6 +16,7 @@ import (
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	dpcache "github.com/everoute/everoute/pkg/agent/datapath/cache"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
+	ersource "github.com/everoute/everoute/pkg/source"
 )
 
 var _ = Describe("proxy controller", func() {
@@ -1066,7 +1067,7 @@ var _ = Describe("proxy controller", func() {
 		})
 
 		It("test replay flows", func() {
-			syncChan <- NewReplayEvent()
+			syncChan <- ersource.NewReplayEvent()
 			time.Sleep(10 * time.Second)
 			ovsInfo1 := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(ovsInfo1).ToNot(BeNil())

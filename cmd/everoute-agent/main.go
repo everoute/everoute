@@ -52,6 +52,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
+	ersource "github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -78,6 +79,7 @@ func main() {
 	stopChan := ctrl.SetupSignalHandler()
 	ofportIPMonitorChan := make(chan map[string]net.IP, 1024)
 	proxySyncChan := make(chan event.GenericEvent)
+	overlaySyncChan := make(chan event.GenericEvent)
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
 
@@ -96,7 +98,7 @@ func main() {
 	if opts.IsEnableCNI() {
 		// in the cni scenario, cni initialization must precede ovsdb monitor initialization
 		mgr = initK8sCtrlManager(config, stopChan)
-		initCNI(datapathManager, mgr, proxySyncChan)
+		initCNI(datapathManager, mgr, proxySyncChan, overlaySyncChan)
 		startMonitor(datapathManager, config, ofportIPMonitorChan, stopChan)
 	} else {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
@@ -126,13 +128,20 @@ func main() {
 	<-stopChan
 }
 
-func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent) {
-	if opts.IsEnableProxy() {
-		proxyReplayFunc := func() {
-			proxySyncChan <- ctrlProxy.NewReplayEvent()
+func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent, overlaySyncChan chan event.GenericEvent) {
+	if opts.IsEnableOverlay() {
+		overlayReplayFunc := func() {
+			overlaySyncChan <- ersource.NewReplayEvent()
 		}
-		datapathManager.SetProxySyncFunc(proxyReplayFunc)
+		datapathManager.SetOverlaySyncFunc(overlayReplayFunc)
 	}
+	if opts.IsEnableProxy() {
+		proxySyncFunc := func() {
+			proxySyncChan <- ersource.NewReplayEvent()
+		}
+		datapathManager.SetProxySyncFunc(proxySyncFunc)
+	}
+
 	setAgentConf(datapathManager, mgr.GetAPIReader())
 	datapathManager.InitializeCNI()
 }
@@ -213,10 +222,11 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}
 
 	if opts.IsEnableOverlay() {
+		uplinkBridgeOverlay := datapathManager.GetUplinkBridgeOverlay()
 		if err = (&overlay.Reconciler{
 			Client:    mgr.GetClient(),
 			Scheme:    mgr.GetScheme(),
-			DpMgr:     datapathManager,
+			UplinkBr:  uplinkBridgeOverlay,
 			LocalNode: datapathManager.Info.NodeName,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create overlay related controller: %v", err)

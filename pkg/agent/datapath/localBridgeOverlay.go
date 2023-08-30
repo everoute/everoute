@@ -54,7 +54,6 @@ func newLocalBridgeOverlay(brName string, datapathManager *DpManager) *LocalBrid
 	localBridge := &LocalBridgeOverlay{}
 	localBridge.name = brName
 	localBridge.datapathManager = datapathManager
-	localBridge.localEpFlowMap = make(map[string]*ofctrl.Flow)
 
 	return localBridge
 }
@@ -66,6 +65,7 @@ func (l *LocalBridgeOverlay) BridgeInitCNI() {
 	} else {
 		l.natPort = l.datapathManager.Info.LocalGwOfPort
 	}
+	l.localEpFlowMap = make(map[string]*ofctrl.Flow)
 
 	sw := l.OfSwitch
 

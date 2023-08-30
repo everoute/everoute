@@ -23,6 +23,7 @@ import (
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
+	ersource "github.com/everoute/everoute/pkg/source"
 )
 
 type Cache struct {
@@ -149,10 +150,10 @@ func (r *Reconciler) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
 	defer r.syncLock.Unlock()
 
 	klog.Infof("Receive proxy sync event: %+v", req)
-	syncType := syncType(req.Namespace)
+	syncType := ersource.SyncType(req.Namespace)
 	var err error
 	switch syncType {
-	case ReplayType:
+	case ersource.ReplayType:
 		err = r.replay()
 	default:
 		klog.Errorf("Invalid proxy sync event: %+v, skip", req)

@@ -1,4 +1,4 @@
-package proxy
+package source
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -6,17 +6,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
-// SyncEvent is struct of proxy sync event
+// SyncEvent is struct of sync dp event
 type SyncEvent struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
 }
 
-type syncType string
+type SyncType string
 
 const (
 	// ReplayType sync event type is replay service proxy flow
-	ReplayType syncType = "replay"
+	ReplayType SyncType = "replay"
 )
 
 // DeepCopyObject is deep copy method for a event

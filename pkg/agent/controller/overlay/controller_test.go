@@ -13,6 +13,7 @@ import (
 
 	ercache "github.com/everoute/everoute/pkg/agent/controller/overlay/cache"
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	ersource "github.com/everoute/everoute/pkg/source"
 	ertypes "github.com/everoute/everoute/pkg/types"
 )
 
@@ -94,8 +95,7 @@ var _ = Describe("overlay controller", func() {
 			It("create endpoint status", func() {
 				Eventually(func(g Gomega) {
 					g.Expect(checkEndpointInCache(epIndex, nodeName, []string{epIP})).Should(BeTrue())
-
-					// TODO check dp
+					g.Expect(checkRemoteFlow(epIP, internalIP)).Should(BeTrue())
 				}, Timeout, Interval).Should(Succeed())
 			})
 
@@ -107,8 +107,9 @@ var _ = Describe("overlay controller", func() {
 				Expect(k8sClient.Status().Update(ctx, &ep)).ToNot(HaveOccurred())
 				Eventually(func(g Gomega) {
 					g.Expect(checkEndpointInCache(epIndex, nodeName, []string{"12.12.11.11", "12.12.11.13"})).Should(BeTrue())
-
-					// TODO check dp
+					g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
+					g.Expect(checkRemoteFlow("12.12.11.11", internalIP)).Should(BeTrue())
+					g.Expect(checkRemoteFlow("12.12.11.13", internalIP)).Should(BeTrue())
 				}, Timeout, Interval).Should(Succeed())
 			})
 
@@ -117,8 +118,7 @@ var _ = Describe("overlay controller", func() {
 				Expect(k8sClient.Status().Update(ctx, &ep)).NotTo(HaveOccurred())
 				Eventually(func(g Gomega) {
 					g.Expect(checkEndpointNotInCache(epIndex, nodeName)).Should(BeTrue())
-
-					// TODO check dp
+					g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
 				}, Timeout, Interval).Should(Succeed())
 			})
 
@@ -126,8 +126,7 @@ var _ = Describe("overlay controller", func() {
 				Expect(k8sClient.Delete(ctx, &ep)).NotTo(HaveOccurred())
 				Eventually(func(g Gomega) {
 					g.Expect(checkEndpointNotInCache(epIndex, nodeName)).Should(BeTrue())
-
-					// TODO check dp
+					g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
 				}, Timeout, Interval).Should(Succeed())
 			})
 		})
@@ -314,26 +313,26 @@ var _ = Describe("overlay controller", func() {
 				Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
 			})
 
-			It("create node without internalIP", func() {
-				// TODO check dp has nothing to do
-			})
-
 			When("add node status with internalIP", func() {
 				BeforeEach(func() {
 					node.Status.Addresses = []corev1.NodeAddress{
 						{
-							Type:    corev1.NodeExternalIP,
+							Type:    corev1.NodeInternalIP,
 							Address: internalIP,
 						},
 					}
 					Expect(k8sClient.Status().Update(ctx, &node)).Should(Succeed())
+					Eventually(func(g Gomega) {
+						g.Expect(checkNodeIPsInCache(nodeName, internalIP)).Should(BeTrue())
+						g.Expect(checkRemoteFlow(epIP, internalIP)).Should(BeTrue())
+					}, Timeout, Interval).Should(Succeed())
 				})
 
 				It("add node internalIP", func() {
 					Eventually(func(g Gomega) {
 						g.Expect(checkNodeIPsInCache(nodeName, internalIP)).Should(BeTrue())
-						// TODO check dp
-					})
+						g.Expect(checkRemoteFlow(epIP, internalIP)).Should(BeTrue())
+					}, Timeout, Interval).Should(Succeed())
 				})
 
 				It("delete internalIP", func() {
@@ -341,21 +340,54 @@ var _ = Describe("overlay controller", func() {
 					Expect(k8sClient.Status().Update(ctx, &node)).Should(Succeed())
 					Eventually(func(g Gomega) {
 						g.Expect(checkNodeIPsInCache(nodeName, "")).Should(BeTrue())
-						// TODO check dp
-					})
+						g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
+					}, Timeout, Interval).Should(Succeed())
 				})
 
 				It("delete node", func() {
 					Expect(k8sClient.Delete(ctx, &node)).Should(Succeed())
 					Eventually(func(g Gomega) {
 						_, exists, err := overlayReconciler.nodeIPsCache.GetByKey(nodeName)
-						Expect(err).Should(BeNil())
-						Expect(exists).Should(BeFalse())
-
-						// TODO check dp
-					})
+						g.Expect(err).Should(BeNil())
+						g.Expect(exists).Should(BeFalse())
+						g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
+					}, Timeout, Interval).Should(Succeed())
 				})
 			})
+		})
+	})
+
+	Context("test replay", func() {
+		node1 := &ercache.NodeIPs{
+			Name: "replayNode1",
+			IP:   "192.13.13.13",
+			PodIPs: map[string]sets.String{
+				"ep1": sets.NewString("193.1.1.1", "193.1.1.2"),
+				"ep2": sets.NewString("193.1.1.3"),
+			},
+		}
+		node2 := &ercache.NodeIPs{
+			Name: "replayNode2",
+			PodIPs: map[string]sets.String{
+				"ep3": sets.NewString("193.1.1.4"),
+			},
+		}
+		BeforeEach(func() {
+			overlayReconciler.nodeIPsCache.Add(node1)
+			overlayReconciler.nodeIPsCache.Add(node2)
+		})
+		AfterEach(func() {
+			overlayReconciler.nodeIPsCache.Delete(node1)
+			overlayReconciler.nodeIPsCache.Delete(node2)
+		})
+		It("replay flow", func() {
+			ReplayChan <- ersource.NewReplayEvent()
+			Eventually(func(g Gomega) {
+				g.Expect(checkRemoteFlow("193.1.1.1", node1.IP)).Should(BeTrue())
+				g.Expect(checkRemoteFlow("193.1.1.2", node1.IP)).Should(BeTrue())
+				g.Expect(checkRemoteFlow("193.1.1.3", node1.IP)).Should(BeTrue())
+				g.Expect(checkRemoteFlow("193.1.1.4")).Should(BeFalse())
+			}, Timeout, Interval).Should(Succeed())
 		})
 	})
 })

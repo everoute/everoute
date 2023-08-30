@@ -2,11 +2,13 @@ package overlay
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -15,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -22,17 +25,19 @@ import (
 	ercache "github.com/everoute/everoute/pkg/agent/controller/overlay/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	ersource "github.com/everoute/everoute/pkg/source"
 	ertypes "github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
 type Reconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	DpMgr  *datapath.DpManager
+	Scheme   *runtime.Scheme
+	UplinkBr *datapath.UplinkBridgeOverlay
 
 	lock      sync.RWMutex
 	LocalNode string
+	syncChan  chan event.GenericEvent
 
 	nodeIPsCache cache.Indexer
 }
@@ -52,7 +57,7 @@ func (r *Reconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if errors.IsNotFound(err) {
+	if apierr.IsNotFound(err) {
 		klog.Infof("Begin to delete endpoint %v", req.NamespacedName)
 		if err := r.deleteEndpoint(req.NamespacedName); err != nil {
 			klog.Errorf("Delete endpoint %v failed: %v", req.NamespacedName, err)
@@ -84,7 +89,7 @@ func (r *Reconciler) ReconcileNode(req ctrl.Request) (ctrl.Result, error) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 
-	if errors.IsNotFound(err) {
+	if apierr.IsNotFound(err) {
 		klog.Infof("Begin to delete node %v", req.NamespacedName)
 		if err := r.deleteNode(req.NamespacedName); err != nil {
 			klog.Errorf("Faield to delete node %v, err: %v", req.NamespacedName, err)
@@ -102,6 +107,28 @@ func (r *Reconciler) ReconcileNode(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
+func (r *Reconciler) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
+	klog.Infof("Receive overlay sync event: %+v", req)
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	syncType := ersource.SyncType(req.Namespace)
+	var err error
+	switch syncType {
+	case ersource.ReplayType:
+		err = r.replay()
+	default:
+		klog.Errorf("Invalid overlay sync event: %+v, skip", req)
+		return ctrl.Result{}, nil
+	}
+	if err != nil {
+		klog.Errorf("Failed to sync overlay dp flows for sync event %+v, err: %s", req, err)
+	} else {
+		klog.Infof("Success to sync overlay dp flows for sync event %+v", req)
+	}
+	return ctrl.Result{}, err
+}
+
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
@@ -109,6 +136,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if r.LocalNode == "" {
 		return fmt.Errorf("can't setup without set param localNode")
+	}
+
+	if r.UplinkBr == nil {
+		return fmt.Errorf("can't setup without uplink bridge overlay")
 	}
 
 	r.nodeIPsCache = ercache.NewNodeIPsCache()
@@ -129,7 +160,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	err = n.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate(r.LocalNode))
+	if err := n.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate(r.LocalNode)); err != nil {
+		return err
+	}
+
+	replay, err := controller.New("replay controller", mgr, controller.Options{
+		Reconciler: reconcile.Func(r.ReconcileSync),
+	})
+	if err != nil {
+		return err
+	}
+	err = replay.Watch(&source.Channel{Source: r.syncChan}, &handler.EnqueueRequestForObject{})
 	return err
 }
 
@@ -145,7 +186,17 @@ func (r *Reconciler) deleteEndpoint(key types.NamespacedName) error {
 		ips := nodeIPs.PodIPs[epIndex]
 		if len(ips) > 0 && nodeIPs.IP != "" {
 			klog.Infof("Delete remote endpoint %v ips %v for node %s with node ip %s in dp", key, ips, nodeIPs.Name, nodeIPs.IP)
-			// TODO dp delete remote endpoint
+			epIPs := ips.List()
+			var errs []error
+			for _, ip := range epIPs {
+				if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
+					klog.Errorf("Failed to remove remote endpoint in dp, epIP: %s, nodeIP: %s, err: %v", ip, nodeIPs.IP, err)
+					errs = append(errs, err)
+				}
+			}
+			if errors.Join(errs...) != nil {
+				return fmt.Errorf("failed to remove remote endpoint in dp")
+			}
 		}
 		delete(nodeIPs.PodIPs, epIndex)
 		_ = r.nodeIPsCache.Update(nodeIPs)
@@ -179,7 +230,17 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 				nodeIPs := obj.(*ercache.NodeIPs).DeepCopy()
 				if nodeIPs.IP != "" {
 					klog.Infof("Add remote endpoint %v ips for node %s with node ip %s in dp", ep, curNode, nodeIPs.IP)
-					// TODO add remote endpoint to dp
+					epIPs := newIPs.List()
+					var errs []error
+					for _, epIP := range epIPs {
+						if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(epIP), net.ParseIP(nodeIPs.IP)); err != nil {
+							klog.Errorf("Failed to add remote endpoint in dp, epIP: %s, nodeIP: %s, err: %v", epIP, nodeIPs.IP, err)
+							errs = append(errs, err)
+						}
+					}
+					if errors.Join(errs...) != nil {
+						return fmt.Errorf("failed to add remote endpoint in dp")
+					}
 				}
 				nodeIPs.PodIPs[epIndex] = newIPs
 				_ = r.nodeIPsCache.Update(nodeIPs)
@@ -195,16 +256,23 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 				continue
 			}
 			if nodeIPs.IP != "" {
+				nodeIP := net.ParseIP(nodeIPs.IP)
 				for ip := range newIPs {
 					if !oldIPs.Has(ip) {
 						klog.Infof("Add remote endpoint %s ip %s for node %s with node ip %s in dp", epIndex, ip, nodeName, nodeIPs.IP)
-						// TODO add remote endpoint to dp
+						if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(ip), nodeIP); err != nil {
+							klog.Errorf("Failed to add remote endpoint in dp, epIP: %s, nodeIP: %s, err: %v", ip, nodeIPs.IP, err)
+							return err
+						}
 					}
 				}
 				for ip := range oldIPs {
 					if !newIPs.Has(ip) {
 						klog.Infof("Delete remote endpoint %s ip %s for node %s with node ip %s in dp", epIndex, ip, nodeName, nodeIPs.IP)
-						// TODO delete remote endpoint to dp
+						if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
+							klog.Errorf("Failed to remove remote endpoint in dp, epIP: %s, nodeIP: %s, err: %v", ip, nodeIPs.IP, err)
+							return err
+						}
 					}
 				}
 			}
@@ -214,7 +282,17 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 			// delete endpoint in this node
 			if nodeIPs.IP != "" {
 				klog.Infof("Delete remote endpoint %v ips for node %s with node ip %s in dp", ep, nodeName, nodeIPs.IP)
-				// TODO delete remote endpoint to dp
+				epIPs := newIPs.List()
+				var errs []error
+				for _, epIP := range epIPs {
+					if err := r.UplinkBr.RemoveRemoteEndpoint(epIP); err != nil {
+						klog.Errorf("Failed to remove remote endpoint in dp, epIP: %s, nodeIP: %s, err: %v", epIP, nodeIPs.IP, err)
+						errs = append(errs, err)
+					}
+				}
+				if errors.Join(errs...) != nil {
+					return fmt.Errorf("failed to remove remote endpoint in dp")
+				}
 			}
 			delete(nodeIPs.PodIPs, epIndex)
 			_ = r.nodeIPsCache.Update(nodeIPs)
@@ -244,13 +322,27 @@ func (r *Reconciler) deleteNode(key types.NamespacedName) error {
 
 	ips := nodeIPs.ListPodIPs()
 	klog.Infof("Delete all remote ips %v of node %s with node ip %s", ips, nodeIPs.Name, nodeIPs.IP)
-	// TODO delete all remote ips of deleted node in dp
+	var errs []error
+	for _, ip := range ips {
+		if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
+			klog.Errorf("Failed to remove remote ip %s with node ip %s in dp, err: %v", ip, nodeIPs.IP, err)
+			errs = append(errs, err)
+		}
+	}
+	if errors.Join(errs...) != nil {
+		return fmt.Errorf("failed to remove remote ips in dp")
+	}
 	_ = r.nodeIPsCache.Delete(nodeIPs)
 	return nil
 }
 
 func (r *Reconciler) updateNode(node corev1.Node) error {
 	newNodeIP := utils.GetNodeInternalIP(node)
+	if newNodeIP != "" && net.ParseIP(newNodeIP) == nil {
+		klog.Errorf("Invalid nodeIP %s for node %v", newNodeIP, node)
+		return fmt.Errorf("nodeIP %s is invalid ip address", newNodeIP)
+	}
+
 	nodeName := node.GetName()
 
 	obj, exists, _ := r.nodeIPsCache.GetByKey(nodeName)
@@ -276,15 +368,58 @@ func (r *Reconciler) updateNode(node corev1.Node) error {
 
 	if nodeIPs.IP != "" {
 		klog.Infof("Delete all remote ips %v with node ip %s in node %s for update node ip from %s to %s", allPodIPs, nodeIPs.IP, nodeName, nodeIPs.IP, newNodeIP)
-		// TODO delete remote ip in dp
+		var errs []error
+		for _, ip := range allPodIPs {
+			if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
+				klog.Errorf("Failed to remove remote ip %s with node ip %s in dp, err: %v", ip, nodeIPs.IP, err)
+				errs = append(errs, err)
+			}
+		}
+		if errors.Join(errs...) != nil {
+			return fmt.Errorf("failed to remove remote ips in dp")
+		}
 	}
 
 	if newNodeIP != "" {
-		klog.Infof("all remote ips %v with node ip %s in node %s for update node ip from %s to %s", allPodIPs, newNodeIP, nodeName, nodeIPs.IP, newNodeIP)
-		// TODO add remote ip in dp
+		klog.Infof("Add all remote ips %v with node ip %s in node %s for update node ip from %s to %s", allPodIPs, newNodeIP, nodeName, nodeIPs.IP, newNodeIP)
+		var errs []error
+		for _, ip := range allPodIPs {
+			if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(ip), net.ParseIP(newNodeIP)); err != nil {
+				klog.Errorf("Failed to add remote ip %s with node ip %s in dp, err: %v", ip, newNodeIP, err)
+				errs = append(errs, err)
+			}
+		}
+		if errors.Join(errs...) != nil {
+			return fmt.Errorf("failed to add remote ips in dp")
+		}
 	}
 	nodeIPs.IP = newNodeIP
 	_ = r.nodeIPsCache.Update(nodeIPs)
+	return nil
+}
+
+func (r *Reconciler) replay() error {
+	objs := r.nodeIPsCache.List()
+	var errs []error
+	for i := range objs {
+		cur := objs[i].(*ercache.NodeIPs).DeepCopy()
+		if cur.IP == "" {
+			continue
+		}
+		ips := cur.ListPodIPs()
+		if len(ips) == 0 {
+			continue
+		}
+		for _, ip := range ips {
+			if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(ip), net.ParseIP(cur.IP)); err != nil {
+				klog.Errorf("Failed to add remote ip %s with node ip %s in dp, err: %v", ip, cur.IP, err)
+				errs = append(errs, err)
+			}
+		}
+	}
+	if errors.Join(errs...) != nil {
+		return fmt.Errorf("failed to add remote endpoint in dp")
+	}
 	return nil
 }
 

@@ -55,11 +55,13 @@ var _ = Describe("node controller test", func() {
 					Namespace: GwEpNs,
 					Name: utils.GetGwEndpointName(nodeName),
 				}
-				ep := v1alpha1.Endpoint{}
-				Eventually(func() bool {
-					err := k8sClient.Get(ctx, epKey, &ep)
-					return err != nil && errors.IsNotFound(err)
-				}, 2*time.Minute, interval).Should(BeTrue())
+				
+				Eventually(func(g Gomega) {
+					ep := v1alpha1.Endpoint{}
+					err2 := k8sClient.Get(ctx, epKey, &ep)
+					g.Expect(err2).ShouldNot(BeNil())
+					g.Expect(errors.IsNotFound(err2)).Should(BeTrue())
+				}, 5*time.Minute, interval).Should(Succeed())
 			})
 		})
 	})

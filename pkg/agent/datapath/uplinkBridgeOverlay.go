@@ -26,6 +26,8 @@ var (
 	UBOOutputPortReg                     = "nxm_nx_reg2"
 	UBOOutputPortStart                   = 0
 	UBOOutputPortRange *openflow.NXRange = openflow.NewNXRange(UBOOutputPortStart, 15)
+
+	TunnelDstReg = "nxm_nx_tun_ipv4_dst"
 )
 
 type UplinkBridgeOverlay struct {
@@ -41,8 +43,9 @@ type UplinkBridgeOverlay struct {
 	paddingL2Table        *ofctrl.Table
 	outputTable           *ofctrl.Table
 
-	ovsBrName      string
-	localEpFlowMap map[string]*ofctrl.Flow
+	ovsBrName       string
+	localEpFlowMap  map[string]*ofctrl.Flow
+	remoteEpFlowMap map[string]*ofctrl.Flow
 }
 
 func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBridgeOverlay {
@@ -53,11 +56,13 @@ func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBr
 	uplinkBridge.name = fmt.Sprintf("%s-uplink", brName)
 	uplinkBridge.datapathManager = datapathManager
 	uplinkBridge.ovsBrName = brName
-	uplinkBridge.localEpFlowMap = make(map[string]*ofctrl.Flow)
 	return uplinkBridge
 }
 
 func (u *UplinkBridgeOverlay) BridgeInitCNI() {
+	u.localEpFlowMap = make(map[string]*ofctrl.Flow)
+	u.remoteEpFlowMap = make(map[string]*ofctrl.Flow)
+
 	sw := u.OfSwitch
 	u.inputTable = sw.DefaultTable()
 	u.arpProxyTable, _ = sw.NewTable(UBOArpProxyTable)
@@ -155,6 +160,50 @@ func (u *UplinkBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	}
 	delete(u.localEpFlowMap, endpoint.InterfaceUUID)
 	log.Infof("Uplink bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) AddRemoteEndpoint(epIP, remoteNodeIP net.IP) error {
+	if u.remoteEpFlowMap[epIP.String()] != nil {
+		log.Infof("Remote endpoint %v flow has been add, flow: %v", epIP, u.remoteEpFlowMap[epIP.String()])
+		return nil
+	}
+
+	flow, _ := u.setRemoteIPTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &epIP,
+	})
+	if err := flow.SetTunnelDstIP(remoteNodeIP); err != nil {
+		log.Errorf("Failed to setup set remote ip table flow set tunnel dst ip action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		return err
+	}
+	if err := flow.Resubmit(nil, &UBOSetTunnelOutPortTable); err != nil {
+		log.Errorf("Failed to setup set remote ip table flow resubmit action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		return err
+	}
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install set remote ip table flow, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		return err
+	}
+
+	u.remoteEpFlowMap[epIP.String()] = flow
+	log.Infof("Success add remote endpoint flow, epIP: %v, remoteNodeIP: %v", epIP, remoteNodeIP)
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) RemoveRemoteEndpoint(epIPStr string) error {
+	if u.remoteEpFlowMap[epIPStr] == nil {
+		log.Infof("Remote endpoint %s flow has been removed", epIPStr)
+		return nil
+	}
+	if err := u.remoteEpFlowMap[epIPStr].Delete(); err != nil {
+		log.Errorf("Failed to remove remote endpoint %s flow, err: %v", epIPStr, err)
+		return err
+	}
+
+	delete(u.remoteEpFlowMap, epIPStr)
+	log.Infof("Success to remove remote endpoint %s flow", epIPStr)
 	return nil
 }
 

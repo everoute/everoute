@@ -93,14 +93,8 @@ func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 	natBr := new(NatBridge)
 	natBr.name = fmt.Sprintf("%s-nat", brName)
 	natBr.datapathManager = datapathManager
-	natBr.svcIndexCache = cache.NewSvcIndex()
-	natBr.l3FlowMap = make(map[string]*ofctrl.Flow)
 
 	return natBr
-}
-
-func (n *NatBridge) ResetSvcIndexCache() {
-	n.svcIndexCache = cache.NewSvcIndex()
 }
 
 func (n *NatBridge) BridgeInit() {}
@@ -109,6 +103,9 @@ func (n *NatBridge) BridgeInitCNI() {
 	if !n.datapathManager.IsEnableProxy() {
 		return
 	}
+	n.svcIndexCache = cache.NewSvcIndex()
+	n.l3FlowMap = make(map[string]*ofctrl.Flow)
+
 	sw := n.OfSwitch
 
 	_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
