@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,7 +79,6 @@ var _ = Describe("pod controller", func() {
 			Namespace: "default",
 		}
 		endpointName := "pod-" + pod.Name
-		endpoint := securityv1alpha1.Endpoint{}
 		endpointReq := types.NamespacedName{
 			Name:      endpointName,
 			Namespace: pod.Namespace,
@@ -111,14 +111,11 @@ var _ = Describe("pod controller", func() {
 		})
 
 		It("should create and delete an endpoint", func() {
-			Eventually(func() int {
-				endpointList := securityv1alpha1.EndpointList{}
-				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
-				return len(endpointList.Items)
-			}, time.Minute, interval).Should(Equal(1))
-
 			endpointGet := securityv1alpha1.Endpoint{}
-			Expect(k8sClient.Get(ctx, endpointReq, &endpointGet)).Should(Succeed())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, endpointReq, &endpointGet)
+			}, time.Minute, interval).Should(Succeed())
+
 			Expect(endpointGet.Spec.Reference.ExternalIDName).Should(Equal("pod-uuid"))
 			Expect(endpointGet.Spec.Reference.ExternalIDValue).Should(Equal(externalIDValue))
 			Expect(len(endpointGet.ObjectMeta.Labels)).Should(Equal(2))
@@ -126,48 +123,48 @@ var _ = Describe("pod controller", func() {
 
 			Expect(k8sClient.Delete(ctx, pod)).Should(Succeed())
 
-			Eventually(func() int {
-				endpointList := securityv1alpha1.EndpointList{}
-				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
-				return len(endpointList.Items)
-			}, timeout, interval).Should(BeZero())
+			Eventually(func() bool {
+				endpointGet := securityv1alpha1.Endpoint{}
+				err := k8sClient.Get(ctx, endpointReq, &endpointGet)
+				return err != nil && errors.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
 		})
 
 		It("should update an endpoint - add a new label", func() {
-			Eventually(func() int {
-				endpointList := securityv1alpha1.EndpointList{}
-				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
-				return len(endpointList.Items)
-			}, time.Minute, interval).Should(Equal(1))
+			endpointGet := securityv1alpha1.Endpoint{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, endpointReq, &endpointGet)
+			}, time.Minute, interval).Should(Succeed())
 
 			podGet := &corev1.Pod{}
 			Expect(k8sClient.Get(ctx, podReq, podGet)).Should(Succeed())
 			podGet.ObjectMeta.Labels["label2"] = "value2"
 			Expect(k8sClient.Update(ctx, podGet)).Should(Succeed())
 
-			Eventually(func() int {
-				Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
-				return len(endpoint.ObjectMeta.Labels)
-			}, timeout, interval).Should(Equal(3))
+			Eventually(func(g Gomega) {
+				resEp := securityv1alpha1.Endpoint{}
+				g.Expect(k8sClient.Get(ctx, endpointReq, &resEp)).Should(Succeed())
+				g.Expect(len(resEp.ObjectMeta.Labels)).Should(Equal(3))
+			}, timeout, interval).Should(Succeed())
 
 		})
 
 		It("should update an endpoint - remove a label", func() {
-			Eventually(func() int {
-				endpointList := securityv1alpha1.EndpointList{}
-				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
-				return len(endpointList.Items)
-			}, time.Minute, interval).Should(Equal(1))
+			endpointGet := securityv1alpha1.Endpoint{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, endpointReq, &endpointGet)
+			}, time.Minute, interval).Should(Succeed())
 
 			podGet := &corev1.Pod{}
 			Expect(k8sClient.Get(ctx, podReq, podGet)).Should(Succeed())
 			delete(podGet.ObjectMeta.Labels, "label1")
 			Expect(k8sClient.Update(ctx, podGet)).Should(Succeed())
 
-			Eventually(func() int {
-				Expect(k8sClient.Get(ctx, endpointReq, &endpoint)).Should(Succeed())
-				return len(endpoint.ObjectMeta.Labels)
-			}, timeout, interval).Should(Equal(1))
+			Eventually(func(g Gomega) {
+				resEp := securityv1alpha1.Endpoint{}
+				g.Expect(k8sClient.Get(ctx, endpointReq, &resEp)).Should(Succeed())
+				g.Expect(len(resEp.ObjectMeta.Labels)).Should(Equal(1))
+			}, timeout, interval).Should(Succeed())
 
 		})
 	})

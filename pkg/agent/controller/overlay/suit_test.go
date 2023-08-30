@@ -1,8 +1,11 @@
 package overlay
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,8 +15,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 )
 
@@ -22,12 +27,14 @@ const (
 	LocalNode                  = "nodelocal"
 	Interval                   = time.Second
 	Timeout                    = time.Minute
+	BrName                     = "overlay"
 )
 
 var (
 	testEnv           *envtest.Environment
 	k8sClient         client.Client
 	overlayReconciler *Reconciler
+	ReplayChan        = make(chan event.GenericEvent)
 )
 
 func TestController(t *testing.T) {
@@ -65,15 +72,27 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
 
+	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, BrName)).ToNot(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.SetupCNIBridgeChain, BrName)).ToNot(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.SetupProxyBridgeChain, BrName)).ToNot(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.SetupTunnelBridgeChain, BrName)).ToNot(HaveOccurred())
+
+	stopCh := ctrl.SetupSignalHandler()
+
+	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh, BrName, true, true)
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(dpMgr).ShouldNot(BeNil())
+
 	overlayReconciler = &Reconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		LocalNode: LocalNode,
+		UplinkBr:  dpMgr.GetUplinkBridgeOverlay(),
+		syncChan:  ReplayChan,
 	}
 	err = overlayReconciler.SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(stopCh)
@@ -91,3 +110,57 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func excuteCommand(commandStr string) ([]byte, error) {
+	out, err := exec.Command("/bin/sh", "-c", commandStr).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to excute cmd: %v, error: %v", string(out), err)
+	}
+
+	return out, nil
+}
+
+func dumpRemoteFlows() ([]string, error) {
+	var flowDump []string
+	br := BrName + "-uplink"
+	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 dump-flows %s table=70", br)
+	flowsByte, err := excuteCommand(cmdStr)
+	if err != nil {
+		return nil, err
+	}
+
+	flowOutStr := string(flowsByte)
+	flowDB := strings.Split(flowOutStr, "\n")[1:]
+
+	var flowList []string
+	for _, flow := range flowDB {
+		felem := strings.Fields(flow)
+		if len(felem) > 2 {
+			felem = append([]string{felem[2]}, felem[5:]...)
+			fstr := strings.Join(felem, " ")
+			flowList = append(flowList, fstr)
+		}
+	}
+
+	flowDump = append(flowDump, flowList...)
+
+	return flowDump, nil
+}
+
+func checkRemoteFlow(epIP string, remoteIP ...string) bool {
+	allFlows, err := dumpRemoteFlows()
+	if err != nil {
+		return false
+	}
+	for i := range allFlows {
+		f := allFlows[i]
+		if !strings.Contains(f, fmt.Sprintf("nw_dst=%s", epIP)) {
+			continue
+		}
+		if len(remoteIP) >0 && !strings.Contains(f, fmt.Sprintf("set_field:%s->tun_dst", remoteIP[0])) {
+			continue
+		}
+		return true
+	}
+	return false
+}

@@ -218,7 +218,8 @@ type DpManager struct {
 
 	ArpChan chan ArpInfo
 
-	proxyReplayFunc func()
+	proxyReplayFunc   func()
+	overlayReplayFunc func()
 }
 
 type DpManagerInfo struct {
@@ -344,6 +345,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 	datapathManager.proxyReplayFunc = func() {}
+	datapathManager.overlayReplayFunc = func() {}
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -398,13 +400,14 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			}(vdsID, bridgeKeyword)
 		}
 	}
-
-	// replay proxy flow
-	datapathManager.proxyReplayFunc()
 }
 
 func (datapathManager *DpManager) SetProxySyncFunc(f func()) {
 	datapathManager.proxyReplayFunc = f
+}
+
+func (datapathManager *DpManager) SetOverlaySyncFunc(f func()) {
+	datapathManager.overlayReplayFunc = f
 }
 
 func (datapathManager *DpManager) GetChainBridge() []string {
@@ -722,7 +725,8 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 	datapathManager.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
 
 	// replay local endpoint flow
-	if bridgeKeyword == LOCAL_BRIDGE_KEYWORD || bridgeKeyword == NAT_BRIDGE_KEYWORD {
+	if bridgeKeyword == LOCAL_BRIDGE_KEYWORD || bridgeKeyword == NAT_BRIDGE_KEYWORD ||
+		(datapathManager.IsEnableOverlay() && bridgeKeyword == UPLINK_BRIDGE_KEYWORD) {
 		if err := datapathManager.ReplayVDSLocalEndpointFlow(vdsID, bridgeKeyword); err != nil {
 			return fmt.Errorf("failed to replay local endpoint flow while vswitchd restart, error: %v", err)
 		}
@@ -737,8 +741,12 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 
 	// replay proxy flow
 	if bridgeKeyword == NAT_BRIDGE_KEYWORD {
-		datapathManager.BridgeChainMap[vdsID][bridgeKeyword].(*NatBridge).ResetSvcIndexCache()
 		datapathManager.proxyReplayFunc()
+	}
+
+	// replay overlay flow
+	if datapathManager.IsEnableOverlay() && bridgeKeyword == UPLINK_BRIDGE_KEYWORD {
+		datapathManager.overlayReplayFunc()
 	}
 
 	// reset port no flood
@@ -1065,6 +1073,20 @@ func (datapathManager *DpManager) GetNatBridges() []*NatBridge {
 		}
 	}
 	return natBrs
+}
+
+func (datapathManager *DpManager) GetUplinkBridgeOverlay() *UplinkBridgeOverlay {
+	for vdsID := range datapathManager.BridgeChainMap {
+		br := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD]
+		if br != nil {
+			uplinkBr, ok := br.(*UplinkBridgeOverlay)
+			if ok {
+				// cni only has one vdsID
+				return uplinkBr
+			}
+		}
+	}
+	return nil
 }
 
 func (datapathManager *DpManager) syncIntenalIPs(stopChan <-chan struct{}) {
