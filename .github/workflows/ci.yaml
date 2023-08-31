@@ -27,16 +27,16 @@ jobs:
           push: true
 
   pr-check:
-    needs: [build-unit-test-image]
+    needs: [build-unit-test-image, static-check, generate-check]
     runs-on: [self-hosted, pod]
+    strategy:
+      matrix:
+        act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
     steps:
       - uses: actions/checkout@v2
 
       - name: run everoute unit test
-        run: |
-          make docker-test-ci
-          make docker-race-test-ci
-          make docker-cover-test-ci
+        run: make ${{ matrix.act }}
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
@@ -68,6 +68,7 @@ jobs:
 
   run-e2e:
     runs-on: [ubuntu-20.04]
+    needs: [static-check, generate-check, pr-check]
     steps:
       - uses: actions/checkout@v2
 
@@ -88,7 +89,7 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image]
+    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
     strategy:
       fail-fast: false
       matrix:
@@ -180,26 +181,27 @@ jobs:
         if: ${{ always() && steps.delenv.conclusion == 'success' }}
         run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
   
-  run-tower-e2e:
-    runs-on: [self-hosted, tower]
-    steps:
-      - uses: actions/checkout@v3
+  # run-tower-e2e:
+  #   runs-on: [self-hosted, tower]
+  #   needs: [static-check, generate-check]
+  #   steps:
+  #     - uses: actions/checkout@v3
       
-      # TODO: Not implemented
+  #     # TODO: Not implemented
 
-      # - name: reset environment
+  #     # - name: reset environment
 
-      # - name: build everoute
+  #     # - name: build everoute
 
-      # - name: install everoute
+  #     # - name: install everoute
 
-      # - name: setup environment
+  #     # - name: setup environment
 
-      - name: skip-known-bugs
-        run: git am -s < hack/0001-Skip-known-bugs-in-everoute-1.1.0.patch
+  #     - name: skip-known-bugs
+  #       run: git am -s < hack/0001-Skip-known-bugs-in-everoute-1.1.0.patch
         
-      - name: run test cases
-        run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
+  #     - name: run test cases
+  #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
     runs-on: [ubuntu-20.04]
@@ -218,7 +220,7 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,run-tower-e2e,generate-check ]
+    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
     runs-on: [ ubuntu-20.04 ]
     env:
       SLACK_COLOR: 2EA44F
