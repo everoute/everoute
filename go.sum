@@ -311,8 +311,8 @@ github.com/everoute/libOpenflow v1.0.0 h1:3xxCS3Fjo44NvP6jpD9zuPSHEe8AxvfQzOjbCJ
 github.com/everoute/libOpenflow v1.0.0/go.mod h1:Glli90eKTMhkETRmgjf2DgHTf+PDCQUv6nZvubrLuuA=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155 h1:JwthEk9kaDQF2W1R5PVR19Unwj3e55FUVG3YM6409Dw=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155/go.mod h1:qV7bn/XogGqNiuk52aU4x8WqOb2JEU1CYDpf8D1jkRg=
-github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66 h1:/QretgciXKji8tf5ZqaqHL17hkAk+EiNmwc3nnrB5ok=
-github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
+github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe h1:3++NPEpYdP4ccpnN7t5Mi/DJMqzQM19NbpO4orkeJT8=
+github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
 github.com/everoute/ofnet v0.0.0-20230830110125-a966c64a4f35 h1:rRnMzsi0vPPwM4ddrjSU7PpadmPcSlrvklj5vnGmNuU=
 github.com/everoute/ofnet v0.0.0-20230830110125-a966c64a4f35/go.mod h1:vYu4XOPwt0SjYAIMd4Zl/IZi+NsneStCCA2stlmlwts=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=

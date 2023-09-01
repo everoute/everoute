@@ -27,12 +27,15 @@ import (
 	"golang.org/x/sys/unix"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
@@ -168,7 +171,6 @@ func (r *NodeReconciler) UpdateRoute(nodeList corev1.NodeList, thisNode corev1.N
 }
 
 func (r *NodeReconciler) UpdateNetwork() {
-	klog.Infof("update network config")
 	r.updateMutex.Lock()
 	defer r.updateMutex.Unlock()
 
@@ -200,6 +202,46 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
+func nodePredicate(localNode string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			if e.Meta.GetName() == localNode {
+				return false
+			}
+			o, ok := e.Object.(*corev1.Node)
+			if !ok {
+				klog.Errorf("Node create event transform to node resource failed, event: %v", e)
+				return false
+			}
+			if utils.GetNodeInternalIP(*o) != "" && len(o.Spec.PodCIDRs) != 0 {
+				return true
+			}
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if e.MetaNew.GetName() == localNode {
+				return false
+			}
+			oldObj, oldOk := e.ObjectOld.(*corev1.Node)
+			newObj, newOk := e.ObjectNew.(*corev1.Node)
+			if !oldOk || !newOk {
+				klog.Errorf("Node update event transform to node resource failed, event: %v", e)
+				return false
+			}
+			if utils.GetNodeInternalIP(*oldObj) != utils.GetNodeInternalIP(*newObj) {
+				return true
+			}
+			if !sets.NewString(oldObj.Spec.PodCIDRs...).Equal(sets.NewString(newObj.Spec.PodCIDRs...)) {
+				return true
+			}
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return e.Meta.GetName() != localNode
+		},
+	}
+}
+
 // SetupWithManager create and add Endpoint Controller to the manager.
 func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
@@ -218,7 +260,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate(r.DatapathManager.Info.NodeName))
 	if err != nil {
 		return err
 	}

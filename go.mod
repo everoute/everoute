@@ -122,7 +122,7 @@ replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230830110125-a966c64a4f35
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
-	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
+	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
 	k8s.io/apimachinery v0.22.2 => k8s.io/apimachinery v0.20.6
 	k8s.io/client-go v0.22.2 => k8s.io/client-go v0.20.6
