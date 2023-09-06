@@ -37,7 +37,7 @@ type Reconciler struct {
 
 	lock      sync.RWMutex
 	LocalNode string
-	syncChan  chan event.GenericEvent
+	SyncChan  chan event.GenericEvent
 
 	nodeIPsCache cache.Indexer
 }
@@ -141,6 +141,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.UplinkBr == nil {
 		return fmt.Errorf("can't setup without uplink bridge overlay")
 	}
+	if r.SyncChan == nil {
+		return fmt.Errorf("can't setup without SyncChan")
+	}
 
 	r.nodeIPsCache = ercache.NewNodeIPsCache()
 
@@ -170,7 +173,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	err = replay.Watch(&source.Channel{Source: r.syncChan}, &handler.EnqueueRequestForObject{})
+	err = replay.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
 	return err
 }
 

@@ -105,7 +105,7 @@ var _ = Describe("pod controller", func() {
 
 			Eventually(func() int {
 				endpointList := securityv1alpha1.EndpointList{}
-				Expect(k8sClient.List(ctx, &endpointList)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &endpointList, client.InNamespace(pod.Namespace))).Should(Succeed())
 				return len(endpointList.Items)
 			}, time.Minute, interval).Should(BeZero())
 		})
