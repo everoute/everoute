@@ -113,7 +113,7 @@ func main() {
 		klog.Fatalf("failed to add health check handler: %s", err)
 	}
 
-	proxyCache, err := startManager(mgr, datapathManager, stopChan, proxySyncChan)
+	proxyCache, err := startManager(mgr, datapathManager, stopChan, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
@@ -204,7 +204,8 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 	go agentmonitor.Run(stopChan)
 }
 
-func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
+func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent,
+	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
 	var err error
 	// Policy controller: watch policy related resource and update
 	if err = (&policy.Reconciler{
@@ -228,6 +229,7 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 			Scheme:    mgr.GetScheme(),
 			UplinkBr:  uplinkBridgeOverlay,
 			LocalNode: datapathManager.Info.NodeName,
+			SyncChan:  overlaySyncChan,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create overlay related controller: %v", err)
 		}

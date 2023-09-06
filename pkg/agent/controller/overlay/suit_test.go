@@ -88,7 +88,7 @@ var _ = BeforeSuite(func() {
 		Scheme:    mgr.GetScheme(),
 		LocalNode: LocalNode,
 		UplinkBr:  dpMgr.GetUplinkBridgeOverlay(),
-		syncChan:  ReplayChan,
+		SyncChan:  ReplayChan,
 	}
 	err = overlayReconciler.SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
