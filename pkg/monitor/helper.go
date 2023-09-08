@@ -92,18 +92,15 @@ func getDriverNameFromInterface(row ovsdb.Row) string {
 }
 
 func getMacStrFromInterface(row ovsdb.Row) (string, error) {
+	var macStr string
 	driver := getDriverNameFromInterface(row)
 	if driver == "" {
 		return "", fmt.Errorf("get interface driver failed, interface row: %+v", row)
 	}
 
-	var macStr string
-	if driver == VMNicDriver || driver == PodNicDriver {
-		if externalIds, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
-			if mac, ok := externalIds.GoMap[LocalEndpointIdentity]; ok {
-				macStr = mac.(string)
-			}
-		}
+	isErEp, mac := isErEndpointIntface(row, driver)
+	if isErEp {
+		macStr = mac
 	} else {
 		macStr = row.Fields["mac_in_use"].(string)
 	}
@@ -113,4 +110,16 @@ func getMacStrFromInterface(row ovsdb.Row) (string, error) {
 	}
 
 	return macStr, nil
+}
+
+func isErEndpointIntface(row ovsdb.Row, driver string) (bool, string) {
+	if driver == VMNicDriver || driver == PodNicDriver {
+		if externalIds, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
+			if mac, ok := externalIds.GoMap[LocalEndpointIdentity]; ok {
+				return true, mac.(string)
+			}
+		}
+	}
+
+	return false, ""
 }
