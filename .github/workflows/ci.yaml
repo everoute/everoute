@@ -6,7 +6,7 @@ on:
       - '**'
 
   push:
-    branches: [ main, release-1.0 ]
+    branches: [ main, release-1.0]
 
   schedule:
     # 7:00 UTC+8
@@ -89,17 +89,25 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
+    #needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - feature: Proxy
-            focus: NetworkPolicy|ClusterIP|clusterIP
-          - focus: NetworkPolicy
+        enable-proxy: [true, false]
+        encap-mode: ["", geneve]
     runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
+
+      - name: set focus
+        run: |
+          if [[ "${{ matrix.enable-proxy }}" == "true" ]]; then
+            echo "focus=NetworkPolicy|ClusterIP|clusterIP" >> $GITHUB_ENV
+          else
+            echo "focus=NetworkPolicy" >> $GITHUB_ENV
+          fi
+      
+      - run: echo "${{ env.focus }}"
 
       - name: config PATH
         run: |
@@ -111,17 +119,12 @@ jobs:
 
       - name: install k8se2e binary
         run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
-
-      - name: specific proxy related param
-        if: ${{ matrix.feature == 'Proxy'}}
-        run: sed -i s#enableProxy:\ false#enableProxy:\ true#g deploy/chart/values.yaml
       
       - name: generate everoute cni deploy yaml
-        run: |
-          sed -i s#everoute/release#registry.smtx.io/everoute/everoute_release#g deploy/chart/values.yaml
-          sed -i s#latest#${{ github.sha }}#g deploy/chart/values.yaml
-          cat deploy/chart/values.yaml
-          make yaml
+        run: helm template deploy/chart --set CNIConf.encapMode=${{ matrix.encap-mode }},CNIConf.enableProxy=${{ matrix.enable-proxy }} > deploy/everoute.yaml
+
+      - name: show deploy yaml
+        run: cat deploy/everoute.yaml
 
       - name: test kubectl connect to sks
         run: kubectl get crd --kubeconfig /home/runner/sksconfig/sksconfig | grep smart
@@ -170,7 +173,7 @@ jobs:
 
       - name: run test cases
         timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ env.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: delete test k8s cluster
         id: delenv
