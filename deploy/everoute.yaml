@@ -2321,6 +2321,11 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             failureThreshold: 5
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 512Mi
         - name: everoute-agent
           image: everoute/release:latest
           imagePullPolicy: IfNotPresent
@@ -2371,6 +2376,11 @@ spec:
               mountPath: /tmp
             - name: xtables-lock
               mountPath: /run/xtables.lock
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 128Mi
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
@@ -2475,6 +2485,11 @@ spec:
             - name: everoute-config
               mountPath: /var/lib/everoute/controllerconfig.yaml
               subPath: controllerconfig.yaml
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 128Mi
       volumes:
         - configMap:
             name: everoute-config-xu73od84d3
