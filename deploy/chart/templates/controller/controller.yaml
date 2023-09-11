@@ -59,6 +59,11 @@ spec:
             - name: everoute-config
               mountPath: /var/lib/everoute/controllerconfig.yaml
               subPath: controllerconfig.yaml
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 128Mi
       volumes:
         - configMap:
             name: everoute-config-xu73od84d3
