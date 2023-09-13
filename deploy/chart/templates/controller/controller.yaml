@@ -50,7 +50,4 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           resources:
-            requests:
-              memory: 64Mi
-            limits:
-              memory: 128Mi
+            {{- toYaml .Values.quota.controller | nindent 12 }}

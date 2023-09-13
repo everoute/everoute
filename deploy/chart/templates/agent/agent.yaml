@@ -96,10 +96,7 @@ spec:
             successThreshold: 1
             failureThreshold: 5
           resources:
-            requests:
-              memory: 256Mi
-            limits:
-              memory: 512Mi
+            {{- toYaml .Values.quota.initAgent | nindent 12 }}
         - name: everoute-agent
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: IfNotPresent
@@ -148,10 +145,7 @@ spec:
             - name: xtables-lock
               mountPath: /run/xtables.lock
           resources:
-            requests:
-              memory: 64Mi
-            limits:
-              memory: 128Mi
+            {{- toYaml .Values.quota.agent | nindent 12 }}
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists

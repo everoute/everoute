@@ -2032,10 +2032,10 @@ spec:
             successThreshold: 1
             failureThreshold: 5
           resources:
-            requests:
-              memory: 256Mi
             limits:
               memory: 512Mi
+            requests:
+              memory: 256Mi
         - name: everoute-agent
           image: everoute/release:latest
           imagePullPolicy: IfNotPresent
@@ -2084,10 +2084,10 @@ spec:
             - name: xtables-lock
               mountPath: /run/xtables.lock
           resources:
-            requests:
-              memory: 64Mi
             limits:
               memory: 128Mi
+            requests:
+              memory: 64Mi
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
@@ -2184,10 +2184,10 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           resources:
-            requests:
-              memory: 64Mi
             limits:
               memory: 128Mi
+            requests:
+              memory: 64Mi
 ---
 # Source: everoute/templates/controller/webhook.yaml
 apiVersion: admissionregistration.k8s.io/v1
