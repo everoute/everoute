@@ -19,3 +19,20 @@ webhook:
   caBundle: Cg==
 
 deployment_enabled: true
+
+quota:
+  initAgent:
+    requests:
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  agent:
+    requests:
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  controller:
+    requests:
+      memory: 64Mi
+    limits:
+      memory: 128Mi
