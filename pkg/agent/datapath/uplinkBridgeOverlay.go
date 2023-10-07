@@ -251,6 +251,7 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &u.datapathManager.Info.GatewayIP,
 		ArpTpaMask: &IPMaskMatchFullBit,
+		ArpOper:    ArpOperRequest,
 		Priority:   HIGH_MATCH_FLOW_PRIORITY,
 	})
 	if err := setupArpProxyFlowAction(gwProxyFlow, u.datapathManager.Info.GatewayMac); err != nil {
@@ -264,6 +265,7 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &u.datapathManager.Info.ClusterPodCIDR.IP,
 		ArpTpaMask: (*net.IP)(&u.datapathManager.Info.ClusterPodCIDR.Mask),
+		ArpOper:    ArpOperRequest,
 		Priority:   MID_MATCH_FLOW_PRIORITY,
 	})
 	fakeMac, _ := net.ParseMAC(FACK_MAC)

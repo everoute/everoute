@@ -150,7 +150,8 @@ var (
 	IPv4Lenth       uint16 = 32
 	PortLength      uint16 = 16
 
-	ArpOperReply uint64 = 2
+	ArpOperRequest uint16 = 1
+	ArpOperReply   uint64 = 2
 )
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")

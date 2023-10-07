@@ -220,6 +220,7 @@ func (l *LocalBridgeOverlay) initArpProxytable() error {
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &l.datapathManager.Info.ClusterPodCIDR.IP,
 		ArpTpaMask: (*net.IP)(&l.datapathManager.Info.ClusterPodCIDR.Mask),
+		ArpOper:    ArpOperRequest,
 		Priority:   MID_MATCH_FLOW_PRIORITY,
 	})
 	fakeMac, _ := net.ParseMAC(FACK_MAC)
@@ -236,6 +237,7 @@ func (l *LocalBridgeOverlay) initArpProxytable() error {
 			InputPort:  l.datapathManager.Info.LocalGwOfPort,
 			ArpTpa:     &l.datapathManager.Info.LocalGwIP,
 			ArpTpaMask: &IPMaskMatchFullBit,
+			ArpOper:    ArpOperRequest,
 			Priority:   HIGH_MATCH_FLOW_PRIORITY,
 		})
 		if err := setupArpProxyFlowAction(gwLocalProxyFlow, l.datapathManager.Info.LocalGwMac); err != nil {
@@ -243,6 +245,20 @@ func (l *LocalBridgeOverlay) initArpProxytable() error {
 		}
 		if err := gwLocalProxyFlow.Next(inportOutput); err != nil {
 			return fmt.Errorf("failed to install arp proxy table gw local arp proxy flow, err: %v", err)
+		}
+
+		otherIPProxyFlow, _ := l.arpProxyTable.NewFlow(ofctrl.FlowMatch{
+			InputPort: l.datapathManager.Info.LocalGwOfPort,
+			Ethertype: PROTOCOL_ARP,
+			ArpOper:   ArpOperRequest,
+			Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		})
+		fakeMac, _ := net.ParseMAC(FACK_MAC)
+		if err := setupArpProxyFlowAction(otherIPProxyFlow, fakeMac); err != nil {
+			return fmt.Errorf("failed to setup arp proxy table arp proxy flow for other ips action, err: %v", err)
+		}
+		if err := otherIPProxyFlow.Next(inportOutput); err != nil {
+			return fmt.Errorf("failed to install arp proxy table arp proxy flow for other ips, err: %v", err)
 		}
 	}
 
