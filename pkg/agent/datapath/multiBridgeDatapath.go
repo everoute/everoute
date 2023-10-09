@@ -255,6 +255,7 @@ type DpManagerConfig struct {
 type DpManagerCNIConfig struct {
 	EnableProxy bool // enable proxy
 	EncapMode   string
+	MTU         int // pod mtu
 }
 
 type Endpoint struct {

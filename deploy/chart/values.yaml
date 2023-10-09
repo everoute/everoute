@@ -12,6 +12,7 @@ CNIConf:
   localGwIP: 100.64.254.254
   enableProxy: false
   encapMode: ""
+  mtu: 0
 
 webhook:
   type: Service # enum: Service, URL

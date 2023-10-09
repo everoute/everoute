@@ -54,7 +54,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 				klog.Errorf("Node create event transform to node resource failed, event: %v", e)
 				return false
 			}
-			if utils.GetNodeInternalIP(*o) != "" {
+			if utils.GetNodeInternalIP(o) != "" {
 				return true
 			}
 			return false
@@ -69,7 +69,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 				klog.Errorf("Node update event transform to node resource failed, event: %v", e)
 				return false
 			}
-			if utils.GetNodeInternalIP(*oldObj) != utils.GetNodeInternalIP(*newObj) {
+			if utils.GetNodeInternalIP(oldObj) != utils.GetNodeInternalIP(newObj) {
 				return true
 			}
 			return false

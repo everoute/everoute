@@ -340,7 +340,7 @@ func (r *Reconciler) deleteNode(key types.NamespacedName) error {
 }
 
 func (r *Reconciler) updateNode(node corev1.Node) error {
-	newNodeIP := utils.GetNodeInternalIP(node)
+	newNodeIP := utils.GetNodeInternalIP(&node)
 	if newNodeIP != "" && net.ParseIP(newNodeIP) == nil {
 		klog.Errorf("Invalid nodeIP %s for node %v", newNodeIP, node)
 		return fmt.Errorf("nodeIP %s is invalid ip address", newNodeIP)
