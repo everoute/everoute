@@ -97,7 +97,7 @@ jobs:
           - feature: Proxy
             focus: NetworkPolicy|ClusterIP|clusterIP
           - focus: NetworkPolicy
-    runs-on: [self-hosted, pod]
+    runs-on: [self-hosted, pod-k8s-e2e]
     steps:
       - uses: actions/checkout@v2
 
@@ -170,7 +170,7 @@ jobs:
 
       - name: run test cases
         timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+        run: ./k8se2e/bin/ginkgo -nodes=10 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: delete test k8s cluster
         id: delenv
