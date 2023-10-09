@@ -64,6 +64,7 @@ const (
 	HealthCheckPath = "/healthz"
 
 	EncapModeGeneve = "geneve"
+	GeneveHeaderLen = 50
 
 	GwEndpointName = "gw-ep"
 )

@@ -46,6 +46,7 @@ type Options struct {
 type CNIConf struct {
 	EnableProxy bool   `yaml:"enableProxy,omitempty"`
 	EncapMode   string `yaml:"encapMode,omitempty"`
+	MTU         int    `yaml:"mtu,omitempty"`
 }
 
 type agentConfig struct {
@@ -117,6 +118,7 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 		cniConfig := &datapath.DpManagerCNIConfig{
 			EnableProxy: agentConfig.CNIConf.EnableProxy,
 			EncapMode:   agentConfig.CNIConf.EncapMode,
+			MTU:         agentConfig.CNIConf.MTU,
 		}
 		dpConfig.CNIConfig = cniConfig
 	}
@@ -145,6 +147,15 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	}
 	if len(agentInfo.PodCIDR) == 0 {
 		klog.Fatalf("PodCIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --pod-network-cidr 10.0.0.0/16`")
+	}
+
+	// get pod mtu
+	if datapathManager.Config.CNIConfig.MTU == 0 {
+		podMTU, err := getPodMTU(&node)
+		if err != nil {
+			klog.Fatalf("Failed to get pod mtu, err: %v", err)
+		}
+		datapathManager.Config.CNIConfig.MTU = podMTU
 	}
 
 	// get cluster CIDR
@@ -242,4 +253,28 @@ func getAgentConfig() (*agentConfig, error) {
 	}
 
 	return &agentConfig, nil
+}
+
+func getPodMTU(node *corev1.Node) (int, error) {
+	nodeIP := utils.GetNodeInternalIP(node)
+	if nodeIP == "" {
+		return 0, fmt.Errorf("failed to get node mtu for doesn't find node internal IP")
+	}
+	nodeMTU, err := utils.GetIfaceMTUByIP(nodeIP)
+	if err != nil {
+		return 0, err
+	}
+	if nodeMTU <= 0 {
+		return 0, fmt.Errorf("find invalid node mtu %d", nodeMTU)
+	}
+
+	podMTU := nodeMTU
+	if opts.IsEnableOverlay() {
+		podMTU = nodeMTU - constants.GeneveHeaderLen
+	}
+
+	if podMTU <= 0 {
+		return 0, fmt.Errorf("find invalid pod mtu %d", podMTU)
+	}
+	return podMTU, nil
 }

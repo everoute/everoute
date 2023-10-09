@@ -14,6 +14,8 @@ data:
       {{- if ne .Values.CNIConf.encapMode "" }}
       encapMode: {{ .Values.CNIConf.encapMode }}
       {{- end}}
+      # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
+      mtu: {{ .Values.CNIConf.mtu }}
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",

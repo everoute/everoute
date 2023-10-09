@@ -62,7 +62,7 @@ type NodeReconciler struct {
 }
 
 func GetNodeInternalIP(node corev1.Node) net.IP {
-	ipString := utils.GetNodeInternalIP(node)
+	ipString := utils.GetNodeInternalIP(&node)
 	if ipString != "" {
 		return net.ParseIP(ipString)
 	}
@@ -213,7 +213,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 				klog.Errorf("Node create event transform to node resource failed, event: %v", e)
 				return false
 			}
-			if utils.GetNodeInternalIP(*o) != "" && len(o.Spec.PodCIDRs) != 0 {
+			if utils.GetNodeInternalIP(o) != "" && len(o.Spec.PodCIDRs) != 0 {
 				return true
 			}
 			return false
@@ -228,7 +228,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 				klog.Errorf("Node update event transform to node resource failed, event: %v", e)
 				return false
 			}
-			if utils.GetNodeInternalIP(*oldObj) != utils.GetNodeInternalIP(*newObj) {
+			if utils.GetNodeInternalIP(oldObj) != utils.GetNodeInternalIP(newObj) {
 				return true
 			}
 			if !sets.NewString(oldObj.Spec.PodCIDRs...).Equal(sets.NewString(newObj.Spec.PodCIDRs...)) {

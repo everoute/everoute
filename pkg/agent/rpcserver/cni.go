@@ -48,6 +48,7 @@ type CNIServer struct {
 	gwName    string
 	brName    string
 	podCIDR   []cnitypes.IPNet
+	podMTU    int
 
 	mutex sync.Mutex
 }
@@ -143,8 +144,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 	vethName := "_" + request.ContainerId[:12]
 	if err = ns.WithNetNSPath(nsPath, func(hostNS ns.NetNS) error {
 		// create veth pair in container NS and host NS
-		// TODO: MTU is a const variable here
-		_, containerVeth, err := ip.SetupVethWithName(request.Ifname, vethName, 1500, "", hostNS)
+		_, containerVeth, err := ip.SetupVethWithName(request.Ifname, vethName, s.podMTU, "", hostNS)
 		if err != nil {
 			klog.Errorf("create veth device error, err: %s", err)
 			return err
@@ -325,6 +325,7 @@ func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) 
 		gwName:    datapathManager.Info.GatewayName,
 		ovsDriver: datapathManager.OvsdbDriverMap[datapathManager.Info.BridgeName][datapath.LOCAL_BRIDGE_KEYWORD],
 		podCIDR:   append([]cnitypes.IPNet{}, datapathManager.Info.PodCIDR...),
+		podMTU:    datapathManager.Config.CNIConfig.MTU,
 	}
 
 	// set gateway ip address, first ip in first CIDR

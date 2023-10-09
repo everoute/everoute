@@ -61,6 +61,29 @@ func GetIfaceMAC(name string) (net.HardwareAddr, error) {
 	return link.Attrs().HardwareAddr, nil
 }
 
+func GetLinkByIP(ip string) (netlink.Link, error) {
+	allAddrs, err := netlink.AddrList(nil, unix.AF_INET)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range allAddrs {
+		if allAddrs[i].IP.String() == ip {
+			return netlink.LinkByIndex(allAddrs[i].LinkIndex)
+		}
+	}
+
+	return nil, fmt.Errorf("can't find link by ip %s", ip)
+}
+
+func GetIfaceMTUByIP(ip string) (int, error) {
+	link, err := GetLinkByIP(ip)
+	if err != nil {
+		return 0, err
+	}
+	return link.Attrs().MTU, nil
+}
+
 // EqualStringSlice return true when two unordered string slice have same items.
 func EqualStringSlice(list1, list2 []string) bool {
 	if len(list1) != len(list2) {
