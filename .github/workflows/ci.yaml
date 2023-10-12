@@ -6,17 +6,27 @@ on:
       - '**'
 
   push:
-    branches: [ main, release-1.0 ]
+    branches: [ main, release-1.0, zj-test-build ]
 
   schedule:
     # 7:00 UTC+8
     - cron: "0 23 * * *"
 
+env:
+  cache-registry: 'docker-registry-cache.docker-registry.svc:5000'
+
 jobs:
   build-unit-test-image:
-    runs-on: [self-hosted, build]
+    runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
+
+      - name: Login registry.smtx.io
+        uses: docker/login-action@v2
+        with:
+          registry: registry.smtx.io
+          username: ${{ secrets.HARBOR_PUSH_USERNAME }}
+          password: ${{ secrets.HARBOR_PUSH_TOKEN }}
 
       - name: build unit-test image
         uses: docker/build-push-action@v4
@@ -25,6 +35,8 @@ jobs:
           tags: registry.smtx.io/everoute/unit-test
           context: ./build/images/unit-test/
           push: true
+          cache-from: type=registry,ref=${{ env.cache-registry }}/everoute/cni/unit
+          cache-to: type=registry,ref=${{ env.cache-registry }}/everoute/cni/unit, mod=max
 
   pr-check:
     needs: [build-unit-test-image, static-check, generate-check]
@@ -43,7 +55,6 @@ jobs:
 
   static-check:
     runs-on: [ubuntu-20.04]
-    if: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/setup-go@v3
         with:
@@ -58,6 +69,8 @@ jobs:
         uses: crate-ci/typos@v1.0.4
 
       - name: Check golang lint
+        # skip it for branch main can't pass this check
+        if: ${{ github.event_name == 'pull_request' }}
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
@@ -76,9 +89,16 @@ jobs:
         run: sudo make docker-e2e-test
   
   build-k8s-e2e-image:
-    runs-on: [self-hosted, build]
+    runs-on: [self-hosted, pod]
     steps:
       - uses: actions/checkout@v2
+
+      - name: Login registry.smtx.io
+        uses: docker/login-action@v2
+        with:
+          registry: registry.smtx.io
+          username: ${{ secrets.HARBOR_PUSH_USERNAME }}
+          password: ${{ secrets.HARBOR_PUSH_TOKEN }}
 
       - name: build everoute image
         uses: docker/build-push-action@v4
@@ -87,6 +107,8 @@ jobs:
           tags: registry.smtx.io/everoute/everoute_release:${{ github.sha }}
           context: .
           push: true
+          cache-from: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build
+          cache-to: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build, mod=max
 
   run-k8s-e2e:
     needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
@@ -106,8 +128,6 @@ jobs:
           else
             echo "focus=NetworkPolicy" >> $GITHUB_ENV
           fi
-      
-      - run: echo "${{ env.focus }}"
 
       - name: config PATH
         run: |
