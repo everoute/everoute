@@ -5,10 +5,7 @@ on:
     tags:
       - "**"
     branches:
-      - zj-test-build
-
-env:
-  cache-registry: 'docker-registry-cache.docker-registry.svc:5000'
+      - main
 
 jobs:
   build:
@@ -16,7 +13,7 @@ jobs:
     steps:
       - run: echo "IMAGE_TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
 
-      - if: ${{ github.ref == 'refs/heads/zj-test-build' }}
+      - if: ${{ github.ref == 'refs/heads/main' }}
         run: echo "IMAGE_TAG=latest" >> $GITHUB_ENV
 
       - run: echo "push image to everoute/release:${{ env.IMAGE_TAG }}"
@@ -52,8 +49,6 @@ jobs:
             registry.smtx.io/everoute/release:${{ env.IMAGE_TAG }}
           platforms: linux/amd64,linux/arm64
           push: true
-          cache-from: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build
-          cache-to: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build, mod=max
 
       - name: Check if tag is a release tag
         run: |
@@ -94,7 +89,7 @@ jobs:
           registry: registry.smtx.io
           username: ${{ secrets.HARBOR_PUSH_USERNAME }}
           password: ${{ secrets.HARBOR_PUSH_TOKEN }}
-          
+
       - name: Generate deploy yaml
         run: helm template deploy/chart --set image.tag=${{ needs.build.outputs.ReleaseTag }} > deploy/everoute.yaml
 
