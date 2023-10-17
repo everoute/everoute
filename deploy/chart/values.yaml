@@ -13,6 +13,7 @@ CNIConf:
   enableProxy: false
   encapMode: ""
   mtu: 0
+  vni: 5000
 
 webhook:
   type: Service # enum: Service, URL
