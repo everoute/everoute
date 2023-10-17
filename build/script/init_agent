@@ -72,6 +72,7 @@ DEFAULT_BRIDGE=`cat ${AGENT_CONFIG_PATH} | grep datapathConfig: -A1 | grep -v da
 LOCAL_GW_IP=`yq '.CNIConf.localGwIP'  ${AGENT_CONFIG_PATH}`
 ENABLE_PROXY=`yq '.CNIConf.enableProxy'  ${AGENT_CONFIG_PATH}`
 ENCAP_MODE=`yq '.CNIConf.encapMode'  ${AGENT_CONFIG_PATH}`
+VNI=`yq '.CNIConf.vni' ${AGENT_CONFIG_PATH}`
 GW_IFACE=${DEFAULT_BRIDGE}-gw
 GW_LOCAL_IFACE=${DEFAULT_BRIDGE}-gw-local
 POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
@@ -169,8 +170,12 @@ else
 fi
 
 if [ "${ENCAP_MODE}" == "geneve" ]; then
-    echo "create tunnel port"
-    ovs-vsctl add-port ${UPLINK_BRIDGE} ${TUNNEL_IFACE} -- set interface ${TUNNEL_IFACE} type=geneve options:key=5000 options:remote_ip=flow
+    if [ "$VNI" == "" ]; then
+    VNI=5000
+    fi
+    echo "create tunnel port, vni $VNI"
+    ovs-vsctl del-port ${UPLINK_BRIDGE} ${TUNNEL_IFACE}
+    ovs-vsctl add-port ${UPLINK_BRIDGE} ${TUNNEL_IFACE} -- set interface ${TUNNEL_IFACE} type=geneve options:key=$VNI options:remote_ip=flow
 fi
 
 # set sysctl

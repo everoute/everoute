@@ -28,6 +28,8 @@ data:
       # encapMode: geneve
       # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
       mtu: 0
+      # specified encap vni, only valid when encapMode isn't empty, default is 5000 
+      vni: 5000
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
