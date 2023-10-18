@@ -43,8 +43,7 @@ type Reconciler struct {
 }
 
 //nolint
-func (r *Reconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *Reconciler) ReconcileEndpoint(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Received endpoint %v reconcile", req.NamespacedName)
 
 	ep := v1alpha1.Endpoint{}
@@ -75,8 +74,7 @@ func (r *Reconciler) ReconcileEndpoint(req ctrl.Request) (ctrl.Result, error) {
 }
 
 //nolint
-func (r *Reconciler) ReconcileNode(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *Reconciler) ReconcileNode(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Receive node %v reconcile", req.NamespacedName)
 
 	node := corev1.Node{}
@@ -107,7 +105,7 @@ func (r *Reconciler) ReconcileNode(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileSync(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Receive overlay sync event: %+v", req)
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -153,7 +151,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	if err := e.Watch(&source.Kind{Type: &v1alpha1.Endpoint{}}, &handler.EnqueueRequestForObject{}, endpointPredicate()); err != nil {
+	if err := e.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Endpoint{}), &handler.EnqueueRequestForObject{}, endpointPredicate()); err != nil {
 		return err
 	}
 
@@ -163,7 +161,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	if err := n.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate(r.LocalNode)); err != nil {
+	if err := n.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate(r.LocalNode)); err != nil {
 		return err
 	}
 
@@ -173,8 +171,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	err = replay.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
-	return err
+	return replay.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
 }
 
 func (r *Reconciler) deleteEndpoint(key types.NamespacedName) error {

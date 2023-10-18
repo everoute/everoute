@@ -17,6 +17,7 @@ limitations under the License.
 package register
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"time"
@@ -95,15 +96,15 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
 	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 
-	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
-		opts.SharedFactory.Start(stopChan)
-		crdFactory.Start(stopChan)
+	err = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		opts.SharedFactory.Start(ctx.Done())
+		crdFactory.Start(ctx.Done())
 
-		go endpointController.Run(opts.WorkerNumber, stopChan)
-		go policyController.Run(opts.WorkerNumber, stopChan)
-		go globalController.Run(opts.WorkerNumber, stopChan)
+		go endpointController.Run(opts.WorkerNumber, ctx.Done())
+		go policyController.Run(opts.WorkerNumber, ctx.Done())
+		go globalController.Run(opts.WorkerNumber, ctx.Done())
 
-		<-stopChan
+		<-ctx.Done()
 		return nil
 	}))
 

@@ -60,7 +60,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = groupGenerator.Watch(&source.Kind{Type: &securityv1alpha1.SecurityPolicy{}}, &handler.Funcs{
+	err = groupGenerator.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.SecurityPolicy{}), &handler.Funcs{
 		CreateFunc: r.addSecurityPolicy,
 		UpdateFunc: r.updateSecurityPolicy,
 		DeleteFunc: r.deleteSecurityPolicy,
@@ -69,7 +69,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = groupGenerator.Watch(&source.Kind{Type: &groupv1alpha1.EndpointGroup{}}, &handler.EnqueueRequestForObject{})
+	err = groupGenerator.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.EndpointGroup{}), &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}

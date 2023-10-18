@@ -55,8 +55,7 @@ type GroupReconciler struct {
 
 // Reconcile receive endpointgroup from work queue, first it create groupmemberspatch,
 // then it update groupmembers, latest it clean old groupmemberspatches.
-func (r *GroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.V(2).Infof("PatchReconciler received group %s members changes", req.NamespacedName)
 
 	group := groupv1alpha1.EndpointGroup{}
@@ -95,7 +94,7 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.Funcs{
+	err = c.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.Endpoint{}), &handler.Funcs{
 		CreateFunc: r.addEndpoint,
 		UpdateFunc: r.updateEndpoint,
 		DeleteFunc: r.deleteEndpoint,
@@ -104,7 +103,7 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &groupv1alpha1.EndpointGroup{}}, &handler.Funcs{
+	err = c.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.EndpointGroup{}), &handler.Funcs{
 		CreateFunc: r.addEndpointGroup,
 		UpdateFunc: r.updateEndpointGroup,
 		DeleteFunc: r.deleteEndpointGroup,
@@ -113,19 +112,14 @@ func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Namespace{}}, &handler.Funcs{
+	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Namespace{}), &handler.Funcs{
 		CreateFunc: r.addNamespace,
 		UpdateFunc: r.updateNamespace,
 		DeleteFunc: r.deleteNamespace,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func (r *GroupReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) addEndpoint(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	endpoint, ok := e.Object.(*securityv1alpha1.Endpoint)
 	if !ok {
 		klog.Errorf("AddEndpoint received with unavailable object event: %v", e)
@@ -137,7 +131,7 @@ func (r *GroupReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimit
 	}
 
 	// Find all endpointgroup keys which match the endpoint's labels.
-	groupNameSet := r.filterEndpointGroupsByEndpoint(context.Background(), endpoint)
+	groupNameSet := r.filterEndpointGroupsByEndpoint(ctx, endpoint)
 
 	// Enqueue groups to queue for reconciler process.
 	for groupName := range groupNameSet {
@@ -148,7 +142,7 @@ func (r *GroupReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimit
 	}
 }
 
-func (r *GroupReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	newEndpoint, newOK := e.ObjectNew.(*securityv1alpha1.Endpoint)
 	oldEndpoint, oldOK := e.ObjectOld.(*securityv1alpha1.Endpoint)
 	if !(newOK && oldOK) {
@@ -175,14 +169,14 @@ func (r *GroupReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLi
 	}
 }
 
-func (r *GroupReconciler) deleteEndpoint(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) deleteEndpoint(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	endpoint, ok := e.Object.(*securityv1alpha1.Endpoint)
 	if !ok {
 		klog.Errorf("DeleteEndpoint received with unavailable object event: %v", e)
 	}
 
 	// Find all endpointgroup keys which match the endpoint's labels.
-	groupNameSet := r.filterEndpointGroupsByEndpoint(context.Background(), endpoint)
+	groupNameSet := r.filterEndpointGroupsByEndpoint(ctx, endpoint)
 
 	// Enqueue groups to queue for reconciler process.
 	for groupName := range groupNameSet {
@@ -193,21 +187,21 @@ func (r *GroupReconciler) deleteEndpoint(e event.DeleteEvent, q workqueue.RateLi
 	}
 }
 
-func (r *GroupReconciler) addEndpointGroup(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
+func (r *GroupReconciler) addEndpointGroup(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	if e.Object == nil {
 		klog.Errorf("AddEndpointGroup received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
+		Namespace: e.Object.GetNamespace(),
+		Name:      e.Object.GetName(),
 	}})
 }
 
 // updateEndpointGroup enqueue endpointgroup if endpointgroup need
 // to delete or selector update.
-func (r *GroupReconciler) updateEndpointGroup(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) updateEndpointGroup(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	newGroup, newOK := e.ObjectNew.(*groupv1alpha1.EndpointGroup)
 	oldGroup, oldOK := e.ObjectOld.(*groupv1alpha1.EndpointGroup)
 
@@ -232,19 +226,19 @@ func (r *GroupReconciler) updateEndpointGroup(e event.UpdateEvent, q workqueue.R
 	}
 }
 
-func (r *GroupReconciler) deleteEndpointGroup(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
+func (r *GroupReconciler) deleteEndpointGroup(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	if e.Object == nil {
 		klog.Errorf("DeleteEndpointGroup received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
+		Namespace: e.Object.GetNamespace(),
+		Name:      e.Object.GetName(),
 	}})
 }
 
-func (r *GroupReconciler) addNamespace(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) addNamespace(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	newNamespace := e.Object.(*corev1.Namespace)
 	groupNameSet := r.filterEndpointGroupsByNamespace(context.Background(), newNamespace)
 
@@ -257,7 +251,7 @@ func (r *GroupReconciler) addNamespace(e event.CreateEvent, q workqueue.RateLimi
 	}
 }
 
-func (r *GroupReconciler) updateNamespace(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) updateNamespace(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	oldNamespace := e.ObjectOld.(*corev1.Namespace)
 	newNamespace := e.ObjectNew.(*corev1.Namespace)
 
@@ -278,7 +272,7 @@ func (r *GroupReconciler) updateNamespace(e event.UpdateEvent, q workqueue.RateL
 	}
 }
 
-func (r *GroupReconciler) deleteNamespace(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *GroupReconciler) deleteNamespace(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	oldNamespace := e.Object.(*corev1.Namespace)
 	groupNameSet := r.filterEndpointGroupsByNamespace(context.Background(), oldNamespace)
 

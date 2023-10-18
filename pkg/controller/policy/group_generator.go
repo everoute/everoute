@@ -22,7 +22,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
@@ -40,11 +39,11 @@ import (
 )
 
 // GroupGenerateReconcile generate EndpointGroups by SecurityPolicy selector.
-func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) GroupGenerateReconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	policyList := securityv1alpha1.SecurityPolicyList{}
 	var endpointGroupExist bool
 
-	err := r.List(context.Background(), &policyList, client.MatchingFields{
+	err := r.List(ctx, &policyList, client.MatchingFields{
 		constants.SecurityPolicyByEndpointGroupIndex: req.Name,
 	})
 	if err != nil {
@@ -52,7 +51,7 @@ func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
-	err = r.Get(context.Background(), req.NamespacedName, &groupv1alpha1.EndpointGroup{})
+	err = r.Get(ctx, req.NamespacedName, &groupv1alpha1.EndpointGroup{})
 	if err != nil && !errors.IsNotFound(err) {
 		klog.Errorf("get EndpointGroup %s: %s", req.Name, err)
 		return ctrl.Result{}, err
@@ -63,7 +62,7 @@ func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, erro
 	case 0:
 		if endpointGroupExist {
 			// not SecurityPolicies reference the EndpointGroup, try to delete the EndpointGroup
-			err = r.Delete(context.Background(), &groupv1alpha1.EndpointGroup{
+			err = r.Delete(ctx, &groupv1alpha1.EndpointGroup{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      req.Name,
 					Namespace: req.Namespace,
@@ -80,7 +79,7 @@ func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, erro
 		if !endpointGroupExist {
 			endpointGroup := r.getEndpointGroupFromSecurityPolicy(&policyList.Items[0], req.Name)
 			// make sure the EndpointGroup has been created
-			err = r.Create(context.Background(), endpointGroup)
+			err = r.Create(ctx, endpointGroup)
 			if err != nil && !errors.IsAlreadyExists(err) {
 				klog.Errorf("unable create EndpointGroup %+v: %s", req.Name, err)
 				return ctrl.Result{}, err
@@ -93,7 +92,7 @@ func (r *Reconciler) GroupGenerateReconcile(req ctrl.Request) (ctrl.Result, erro
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) addSecurityPolicy(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	policy := e.Object.(*securityv1alpha1.SecurityPolicy)
 
 	for _, group := range EndpointGroupIndexSecurityPolicyFunc(policy) {
@@ -104,7 +103,7 @@ func (r *Reconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.RateLimi
 	}
 }
 
-func (r *Reconciler) updateSecurityPolicy(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) updateSecurityPolicy(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	policyNew := e.ObjectNew.(*securityv1alpha1.SecurityPolicy)
 	policyOld := e.ObjectOld.(*securityv1alpha1.SecurityPolicy)
 
@@ -117,7 +116,7 @@ func (r *Reconciler) updateSecurityPolicy(e event.UpdateEvent, q workqueue.RateL
 	}
 }
 
-func (r *Reconciler) deleteSecurityPolicy(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) deleteSecurityPolicy(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	policy := e.Object.(*securityv1alpha1.SecurityPolicy)
 
 	for _, group := range EndpointGroupIndexSecurityPolicyFunc(policy) {
@@ -171,7 +170,7 @@ func GetAllEpWithNamedPortGroup() *groupv1alpha1.EndpointGroup {
 }
 
 // EndpointGroupIndexSecurityPolicyFunc return the SecurityPolicy reference EndpointGroup names
-func EndpointGroupIndexSecurityPolicyFunc(o runtime.Object) []string {
+func EndpointGroupIndexSecurityPolicyFunc(o client.Object) []string {
 	policy := o.(*securityv1alpha1.SecurityPolicy)
 	groupSet := sets.NewString()
 

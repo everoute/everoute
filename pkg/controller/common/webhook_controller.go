@@ -46,8 +46,7 @@ type WebhookReconciler struct {
 }
 
 // Reconcile receive webhook from work queue
-func (r *WebhookReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *WebhookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("WebhookReconciler received webhook %s reconcile", req.NamespacedName)
 
 	secret := &corev1.Secret{}
@@ -96,19 +95,19 @@ func (r *WebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &admv1.ValidatingWebhookConfiguration{}}, &handler.Funcs{
-		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	return c.Watch(source.Kind(mgr.GetCache(), &admv1.ValidatingWebhookConfiguration{}), &handler.Funcs{
+		CreateFunc: func(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 			if e.Object == nil {
 				klog.Errorf("receive create event with no object %v", e)
 				return
 			}
-			if e.Meta.GetName() == constants.EverouteWebhookName {
+			if e.Object.GetName() == constants.EverouteWebhookName {
 				q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
-					Name: e.Meta.GetName(),
+					Name: e.Object.GetName(),
 				}})
 			}
 		},
-		UpdateFunc: func(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+		UpdateFunc: func(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 			newWebhook := e.ObjectNew.(*admv1.ValidatingWebhookConfiguration)
 			if newWebhook.GetName() == constants.EverouteWebhookName {
 				q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
@@ -116,9 +115,5 @@ func (r *WebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}})
 			}
 		},
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }

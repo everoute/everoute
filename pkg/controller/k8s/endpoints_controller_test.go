@@ -7,17 +7,21 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	svc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
 var _ = Describe("endpoints controller", func() {
 	ctx := context.Background()
+	ns := "testep"
+	nsSelector := client.InNamespace(ns)
 	epNamespacedName := types.NamespacedName{
 		Name:      "eps",
-		Namespace: "default",
+		Namespace: ns,
 	}
 	node1 := "node1"
 	node2 := "node2"
@@ -26,6 +30,21 @@ var _ = Describe("endpoints controller", func() {
 	ip3 := "10.0.0.5"
 	portName1 := "http"
 	portName2 := "ssh"
+	BeforeEach(func() {
+		Eventually(func(g Gomega) {
+			creatNS := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ns,
+				},
+			}
+			req := types.NamespacedName{Name: ns}
+			err := k8sClient.Get(ctx, req, &creatNS)
+			if err != nil {
+				g.Expect(errors.IsNotFound(err)).Should(BeTrue())
+				g.Expect(k8sClient.Create(ctx, &creatNS)).Should(Succeed())
+			}
+		}, time.Minute, interval).Should(Succeed())
+	})
 
 	Context("endpoints with only one port", func() {
 		endpoints := corev1.Endpoints{
@@ -58,15 +77,11 @@ var _ = Describe("endpoints controller", func() {
 		})
 
 		AfterEach(func() {
-			Expect(k8sClient.Delete(ctx, &endpoints)).Should(Succeed())
-			Eventually(func() int {
-				eps := corev1.EndpointsList{}
-				Expect(k8sClient.List(ctx, &eps)).Should(Succeed())
-				return len(eps.Items)
-			}, time.Minute, interval).Should(BeZero())
+			ep := corev1.Endpoints{}
+			Expect(k8sClient.DeleteAllOf(ctx, &ep, nsSelector)).Should(Succeed())
 			Eventually(func() int {
 				svcPorts := svc.ServicePortList{}
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				return len(svcPorts.Items)
 			}, time.Minute, interval).Should(BeZero())
 		})
@@ -88,7 +103,7 @@ var _ = Describe("endpoints controller", func() {
 
 			svcPorts := svc.ServicePortList{}
 			Eventually(func() bool {
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				if len(svcPorts.Items) != 1 {
 					return false
 				}
@@ -160,7 +175,7 @@ var _ = Describe("endpoints controller", func() {
 
 			svcPorts := svc.ServicePortList{}
 			Eventually(func() bool {
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				if len(svcPorts.Items) != 1 {
 					return false
 				}
@@ -227,7 +242,7 @@ var _ = Describe("endpoints controller", func() {
 
 			svcPorts := svc.ServicePortList{}
 			Eventually(func() bool {
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				if len(svcPorts.Items) != 1 {
 					return false
 				}
@@ -287,15 +302,11 @@ var _ = Describe("endpoints controller", func() {
 		})
 
 		AfterEach(func() {
-			Expect(k8sClient.Delete(ctx, &endpoints)).Should(Succeed())
-			Eventually(func() int {
-				eps := corev1.EndpointsList{}
-				Expect(k8sClient.List(ctx, &eps)).Should(Succeed())
-				return len(eps.Items)
-			}, time.Minute, interval).Should(BeZero())
+			ep := corev1.Endpoints{}
+			Expect(k8sClient.DeleteAllOf(ctx, &ep, nsSelector)).Should(Succeed())
 			Eventually(func() int {
 				svcPorts := svc.ServicePortList{}
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				return len(svcPorts.Items)
 			}, time.Minute, interval).Should(BeZero())
 		})
@@ -338,7 +349,7 @@ var _ = Describe("endpoints controller", func() {
 
 			svcPorts := svc.ServicePortList{}
 			Eventually(func() bool {
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				if len(svcPorts.Items) != 2 {
 					return false
 				}
@@ -404,7 +415,7 @@ var _ = Describe("endpoints controller", func() {
 
 			svcPorts := svc.ServicePortList{}
 			Eventually(func() bool {
-				Expect(k8sClient.List(ctx, &svcPorts)).Should(Succeed())
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
 				if len(svcPorts.Items) != 1 {
 					return false
 				}

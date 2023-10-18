@@ -25,11 +25,11 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	tcache "k8s.io/client-go/tools/cache"
 	fcache "k8s.io/client-go/tools/cache/testing"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -40,7 +40,7 @@ import (
 )
 
 var mgr manager.Manager
-var reconcileFunc reconcile.Func = func(reconcile.Request) (reconcile.Result, error) { return reconcile.Result{}, nil }
+var reconcileFunc reconcile.Func = func(context.Context, reconcile.Request) (reconcile.Result, error) { return reconcile.Result{}, nil }
 var newCacheFunc = func(*rest.Config, cache.Options) (cache.Cache, error) { return &FakeInformers{}, nil }
 
 func TestMain(m *testing.M) {
@@ -62,7 +62,7 @@ func TestKind(t *testing.T) {
 		ctr01, err := controller.New("test01", mgr, controller.Options{Reconciler: reconcileFunc})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		err = ctr01.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{})
+		err = ctr01.Watch(source.Kind(mgr.GetCache(), &corev1.ConfigMap{}), &handler.EnqueueRequestForObject{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		fakeInformers, ok := mgr.GetCache().(*FakeInformers)
@@ -78,7 +78,7 @@ func TestKind(t *testing.T) {
 		ctr02, err := controller.New("test02", mgr, controller.Options{Reconciler: reconcileFunc})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		err = ctr02.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForObject{})
+		err = ctr02.Watch(source.Kind(mgr.GetCache(), &corev1.Service{}), &handler.EnqueueRequestForObject{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		fakeInformers, ok := mgr.GetCache().(*FakeInformers)
@@ -95,11 +95,11 @@ func TestKind(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		go mgr.Start(ctx.Done())
+		go mgr.Start(ctx)
 
 		fakeInformers, ok := mgr.GetCache().(*FakeInformers)
 		Expect(ok).Should(BeTrue())
-		Expect(fakeInformers.WaitForCacheSync(ctx.Done())).Should(BeTrue())
+		Expect(fakeInformers.WaitForCacheSync(ctx)).Should(BeTrue())
 
 		informer, ok := fakeInformers.Informers[reflect.TypeOf(&corev1.ConfigMap{})]
 		Expect(ok).Should(BeTrue())
@@ -116,7 +116,7 @@ type FakeInformers struct {
 	Informers map[reflect.Type]tcache.SharedIndexInformer
 }
 
-func (c *FakeInformers) GetInformer(_ context.Context, obj runtime.Object) (cache.Informer, error) {
+func (c *FakeInformers) GetInformer(_ context.Context, obj client.Object) (cache.Informer, error) {
 	if c.Informers == nil {
 		c.Informers = map[reflect.Type]tcache.SharedIndexInformer{}
 	}
@@ -130,17 +130,17 @@ func (c *FakeInformers) GetInformer(_ context.Context, obj runtime.Object) (cach
 	return informer, nil
 }
 
-func (c *FakeInformers) Start(stopCh <-chan struct{}) error {
+func (c *FakeInformers) Start(ctx context.Context) error {
 	for _, informer := range c.Informers {
-		go informer.Run(stopCh)
+		go informer.Run(ctx.Done())
 	}
 	return nil
 }
 
-func (c *FakeInformers) WaitForCacheSync(stop <-chan struct{}) bool {
+func (c *FakeInformers) WaitForCacheSync(ctx context.Context) bool {
 	informersHasSynced := make([]tcache.InformerSynced, 0, len(c.Informers))
 	for _, informer := range c.Informers {
 		informersHasSynced = append(informersHasSynced, informer.HasSynced)
 	}
-	return tcache.WaitForCacheSync(stop, informersHasSynced...)
+	return tcache.WaitForCacheSync(ctx.Done(), informersHasSynced...)
 }

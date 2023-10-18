@@ -34,7 +34,7 @@ const (
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
-func (r *Reconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileGlobalPolicy(context.Context, ctrl.Request) (ctrl.Result, error) {
 	var newPolicyRule, oldPolicyRule []cache.PolicyRule
 
 	oldPolicyRuleList := r.globalRuleCache.List()

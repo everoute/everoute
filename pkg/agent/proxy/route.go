@@ -194,7 +194,7 @@ func (r *NodeReconciler) UpdateNetwork() {
 }
 
 // Reconcile receive node from work queue, synchronize network config
-func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *NodeReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("NodeReconciler received node %s reconcile", req.NamespacedName)
 
 	r.UpdateNetwork()
@@ -205,7 +205,7 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func nodePredicate(localNode string) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if e.Meta.GetName() == localNode {
+			if e.Object.GetName() == localNode {
 				return false
 			}
 			o, ok := e.Object.(*corev1.Node)
@@ -219,7 +219,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 			return false
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			if e.MetaNew.GetName() == localNode {
+			if e.ObjectNew.GetName() == localNode {
 				return false
 			}
 			oldObj, oldOk := e.ObjectOld.(*corev1.Node)
@@ -237,7 +237,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			return e.Meta.GetName() != localNode
+			return e.Object.GetName() != localNode
 		},
 	}
 }
@@ -260,7 +260,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate(r.DatapathManager.Info.NodeName))
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate(r.DatapathManager.Info.NodeName))
 	if err != nil {
 		return err
 	}

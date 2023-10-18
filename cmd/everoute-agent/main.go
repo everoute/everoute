@@ -76,7 +76,7 @@ func main() {
 	defer klog.Flush()
 
 	// Init everoute datapathManager: init bridge chain config and default flow
-	stopChan := ctrl.SetupSignalHandler()
+	stopCtx := ctrl.SetupSignalHandler()
 	ofportIPMonitorChan := make(chan map[string]net.IP, 1024)
 	proxySyncChan := make(chan event.GenericEvent)
 	overlaySyncChan := make(chan event.GenericEvent)
@@ -92,18 +92,18 @@ func main() {
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan)
-	datapathManager.InitializeDatapath(stopChan)
+	datapathManager.InitializeDatapath(stopCtx.Done())
 
 	var mgr manager.Manager
 	if opts.IsEnableCNI() {
 		// in the cni scenario, cni initialization must precede ovsdb monitor initialization
-		mgr = initK8sCtrlManager(config, stopChan)
+		mgr = initK8sCtrlManager(config, stopCtx.Done())
 		initCNI(datapathManager, mgr, proxySyncChan, overlaySyncChan)
-		startMonitor(datapathManager, config, ofportIPMonitorChan, stopChan)
+		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
 	} else {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
-		startMonitor(datapathManager, config, ofportIPMonitorChan, stopChan)
-		mgr = initK8sCtrlManager(config, stopChan)
+		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
+		mgr = initK8sCtrlManager(config, stopCtx.Done())
 	}
 
 	// add health check handler
@@ -113,19 +113,19 @@ func main() {
 		klog.Fatalf("failed to add health check handler: %s", err)
 	}
 
-	proxyCache, err := startManager(mgr, datapathManager, stopChan, proxySyncChan, overlaySyncChan)
+	proxyCache, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
 	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache)
-	go rpcServer.Run(stopChan)
+	go rpcServer.Run(stopCtx.Done())
 
-	if err := resourceUpdate(mgr, datapathManager, stopChan); err != nil {
+	if err := resourceUpdate(stopCtx, mgr, datapathManager); err != nil {
 		klog.Fatalf("resource update failed when start everoute-agent, err: %v", err)
 	}
 
-	<-stopChan
+	<-stopCtx.Done()
 }
 
 func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent, overlaySyncChan chan event.GenericEvent) {
@@ -204,7 +204,7 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 	go agentmonitor.Run(stopChan)
 }
 
-func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}, proxySyncChan chan event.GenericEvent,
+func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
 	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
 	var err error
 	// Policy controller: watch policy related resource and update
@@ -217,7 +217,7 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	}
 
 	if opts.IsEnableCNI() {
-		if err = proxy.SetupRouteAndIPtables(mgr, datapathManager, stopChan); err != nil {
+		if err = proxy.SetupRouteAndIPtables(mgr, datapathManager, ctx.Done()); err != nil {
 			klog.Fatalf("unable to setup route and iptables controller: %v", err)
 		}
 	}
@@ -252,7 +252,7 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 
 	klog.Info("starting manager")
 	go func() {
-		if err := mgr.Start(stopChan); err != nil {
+		if err := mgr.Start(ctx); err != nil {
 			klog.Fatalf("error while start manager: %s", err.Error())
 		}
 	}()
@@ -260,8 +260,8 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	return proxyCache, nil
 }
 
-func resourceUpdate(mgr manager.Manager, datapathManager *datapath.DpManager, stopChan <-chan struct{}) error {
-	mgr.GetCache().WaitForCacheSync(stopChan)
+func resourceUpdate(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) error {
+	mgr.GetCache().WaitForCacheSync(ctx)
 
 	if opts.IsEnableOverlay() {
 		err := wait.PollImmediate(5*time.Second, time.Minute, func() (bool, error) {

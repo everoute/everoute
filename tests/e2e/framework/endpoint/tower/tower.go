@@ -172,6 +172,7 @@ func adaptMutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, er
 	// add required property network_identities to adapt SMTXOS 504
 	deepcopyData := &(*data)
 	deepcopyData.NetworkIdentities = &NetworkIdentities{Set: []int{data.VlanID}}
+	deepcopyData.NetworkIDs = &NetworkIDs{Set: []string{fmt.Sprintf("%d", data.VlanID)}}
 	return mutationCreateVlan(c, deepcopyData)
 }
 

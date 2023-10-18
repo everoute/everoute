@@ -27,7 +27,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -100,7 +99,7 @@ func E2eFail(message string, callerSkip ...int) {
 	Fail(message, callerSkip...)
 }
 
-func dumpAndPrintResource(splitLine string, resources ...runtime.Object) {
+func dumpAndPrintResource(splitLine string, resources ...client.ObjectList) {
 	for _, resource := range resources {
 		err := e2eEnv.KubeClient().List(ctx, resource, client.InNamespace(e2eEnv.Namespace()))
 		if err == nil {

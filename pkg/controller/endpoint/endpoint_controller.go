@@ -67,14 +67,13 @@ const (
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
 // from agentinfo.
-func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var err error
-	ctx := context.Background()
 	klog.V(4).Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
 
 	endpoint := securityv1alpha1.Endpoint{}
 	if err := r.Get(ctx, req.NamespacedName, &endpoint); err != nil {
-		klog.Errorf("unable to fetch endpointGroup %s: %s", req.Name, err.Error())
+		klog.Errorf("unable to fetch endpoint %s: %s", req.Name, err.Error())
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
@@ -138,7 +137,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		})
 	}
 
-	err = c.Watch(&source.Kind{Type: &agentv1alpha1.AgentInfo{}}, &handler.Funcs{
+	err = c.Watch(source.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
 		CreateFunc: r.addAgentInfo,
 		UpdateFunc: r.updateAgentInfo,
 		DeleteFunc: r.deleteAgentInfo,
@@ -147,7 +146,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &securityv1alpha1.Endpoint{}}, &handler.Funcs{
+	err = c.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.Endpoint{}), &handler.Funcs{
 		CreateFunc: r.addEndpoint,
 		UpdateFunc: r.updateEndpoint,
 	})
@@ -155,42 +154,37 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
-		r.agentInfoCleaner(ifaceIPAddrTimeout, stopChan)
+	return mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		r.agentInfoCleaner(ifaceIPAddrTimeout, ctx.Done())
 		return nil
 	}))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func (r *EndpointReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Meta == nil {
+func (r *EndpointReconciler) addEndpoint(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	if e.Object == nil {
 		klog.Errorf("AddEndpoint received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetName(),
+		Namespace: e.Object.GetNamespace(),
+		Name:      e.Object.GetName(),
 	}})
 }
 
-func (r *EndpointReconciler) updateEndpoint(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	if e.MetaNew == nil {
+func (r *EndpointReconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	if e.ObjectNew == nil {
 		klog.Errorf("UpdateEndpoint received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.MetaNew.GetNamespace(),
-		Name:      e.MetaNew.GetName(),
+		Namespace: e.ObjectNew.GetNamespace(),
+		Name:      e.ObjectNew.GetName(),
 	}})
 }
 
-func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *EndpointReconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("AddAgentInfo received with unavailable object event: %v", e)
@@ -224,7 +218,7 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
-func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
 	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
 
@@ -260,7 +254,7 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 	r.updateCachedAgentInfo(newAgentInfo, q)
 }
 
-func (r *EndpointReconciler) deleteAgentInfo(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *EndpointReconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("DeleteAgentInfo received with unavailable object event: %v", e)

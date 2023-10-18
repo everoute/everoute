@@ -18,6 +18,7 @@ package healthz
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -42,7 +43,7 @@ var NewInformerSyncHealthz = healthz.NewInformerSyncHealthz
 var NamedCheck = healthz.NamedCheck
 
 type cacheSyncWaiter interface {
-	WaitForCacheSync(stopCh <-chan struct{}) bool
+	WaitForCacheSync(context.Context) bool
 }
 
 type cacheSync struct {
@@ -68,9 +69,9 @@ func (i *cacheSync) Check(_ *http.Request) error {
 	// WaitForCacheSync block until the cache synced.
 	// We check once and wait the cache synced.
 	go i.checkOnce.Do(func() {
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		i.cacheSynced.Store(i.cacheSyncWaiter.WaitForCacheSync(stopCh))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		i.cacheSynced.Store(i.cacheSyncWaiter.WaitForCacheSync(ctx))
 	})
 
 	if synced := i.cacheSynced.Load(); synced == nil || !synced.(bool) {

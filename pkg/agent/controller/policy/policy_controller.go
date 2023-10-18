@@ -71,9 +71,8 @@ type Reconciler struct {
 	DatapathManager *datapath.DpManager
 }
 
-func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var policy securityv1alpha1.SecurityPolicy
-	var ctx = context.Background()
 
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
@@ -97,7 +96,7 @@ func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
 	return r.processPolicyUpdate(&policy)
 }
 
-func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcilePatch(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var groupName = req.Name
 
 	patch := r.groupCache.NextPatch(groupName)
@@ -166,7 +165,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = policyController.Watch(&source.Kind{Type: &securityv1alpha1.SecurityPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err = policyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.SecurityPolicy{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -177,23 +176,23 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = patchController.Watch(&source.Kind{Type: &groupv1alpha1.GroupMembersPatch{}}, &handler.Funcs{
+	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembersPatch{}), &handler.Funcs{
 		CreateFunc: r.addPatch,
 	}); err != nil {
 		return err
 	}
 
-	if err = patchController.Watch(&source.Kind{Type: &groupv1alpha1.GroupMembers{}}, &handler.Funcs{
-		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.Funcs{
+		CreateFunc: func(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 			r.groupCache.AddGroupMembership(e.Object.(*groupv1alpha1.GroupMembers))
 			// add into queue to process the group patches.
 			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-				Namespace: e.Meta.GetNamespace(),
-				Name:      e.Meta.GetName(),
+				Namespace: e.Object.GetNamespace(),
+				Name:      e.Object.GetName(),
 			}})
 		},
-		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-			r.groupCache.DelGroupMembership(e.Meta.GetName())
+		DeleteFunc: func(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			r.groupCache.DelGroupMembership(e.Object.GetName())
 		},
 	}); err != nil {
 		return err
@@ -207,14 +206,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = globalPolicyController.Watch(&source.Kind{Type: &securityv1alpha1.GlobalPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
-	return nil
+	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
 }
 
-func (r *Reconciler) addPatch(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) addPatch(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	if e.Object == nil {
 		klog.Errorf("receive create event with no object %v", e)
 		return

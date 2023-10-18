@@ -73,13 +73,12 @@ func (r *Reconciler) GetCache() *Cache {
 }
 
 // ReconcileService receive Service from work queue
-func (r *Reconciler) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileService(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.RLock()
 	defer r.syncLock.RUnlock()
 
 	klog.Infof("Receive Service %+v reconcile", req.NamespacedName)
 	var svc corev1.Service
-	ctx := context.Background()
 	err := r.Get(ctx, req.NamespacedName, &svc)
 	if client.IgnoreNotFound(err) != nil {
 		klog.Errorf("Failed to get service: %v, err: %s", req.NamespacedName, err)
@@ -114,12 +113,11 @@ func (r *Reconciler) ReconcileService(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // ReconcileSvcPort receive servicePort from work queue
-func (r *Reconciler) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileServicePort(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.RLock()
 	defer r.syncLock.RUnlock()
 
 	klog.Infof("Receive ServicePort %+v reconcile", req.NamespacedName)
-	ctx := context.Background()
 	svcPort := everoutesvc.ServicePort{}
 	err := r.Client.Get(ctx, req.NamespacedName, &svcPort)
 	if client.IgnoreNotFound(err) != nil {
@@ -145,7 +143,7 @@ func (r *Reconciler) ReconcileServicePort(req ctrl.Request) (ctrl.Result, error)
 }
 
 // ReconcileSync receive proxySuncEvent from work queue
-func (r *Reconciler) ReconcileSync(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileSync(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.syncLock.Lock()
 	defer r.syncLock.Unlock()
 
@@ -192,7 +190,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := svcController.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := svcController.Watch(source.Kind(mgr.GetCache(), &corev1.Service{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -203,7 +201,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := svcPortController.Watch(&source.Kind{Type: &everoutesvc.ServicePort{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := svcPortController.Watch(source.Kind(mgr.GetCache(), &everoutesvc.ServicePort{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -214,8 +212,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
-	return err
+	return syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
 }
 
 func (r *Reconciler) updateService(ctx context.Context, newService *corev1.Service) error {

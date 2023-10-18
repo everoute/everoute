@@ -118,7 +118,7 @@ var _ = BeforeSuite(func() {
 		ManagedVDSMap: map[string]string{
 			brName: brName,
 		}}, updateChan)
-	datapathManager.InitializeDatapath(stopCh)
+	datapathManager.InitializeDatapath(stopCh.Done())
 
 	policyController := &policy.Reconciler{
 		Client:          k8sManager.GetClient(),
