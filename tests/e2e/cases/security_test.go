@@ -80,34 +80,6 @@ var _ = Describe("SecurityPolicy", func() {
 		When("limits tcp packets between components", func() {
 			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
 
-			JustBeforeEach(func() {
-				serviceRestarter.Stop()
-			})
-			JustAfterEach(func() {
-				serviceRestarter.RunAsync()
-			})
-
-			BeforeEach(func() {
-				nginxPolicy = newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
-				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
-				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
-
-				serverPolicy = newPolicy("server-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
-				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
-				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
-
-				dbPolicy = newPolicy("db-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, dbSelector)
-				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
-				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
-
-				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
-			})
-
-		})
-
-		When("limits tcp packets between components", func() {
-			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
-
 			BeforeEach(func() {
 				nginxPolicy = newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
 				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port

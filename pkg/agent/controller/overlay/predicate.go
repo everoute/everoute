@@ -46,7 +46,7 @@ func endpointPredicate() predicate.Predicate {
 func nodePredicate(localNode string) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if e.Meta.GetName() == localNode {
+			if e.Object.GetName() == localNode {
 				return false
 			}
 			o, ok := e.Object.(*corev1.Node)
@@ -60,7 +60,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 			return false
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			if e.MetaNew.GetName() == localNode {
+			if e.ObjectNew.GetName() == localNode {
 				return false
 			}
 			oldObj, oldOk := e.ObjectOld.(*corev1.Node)
@@ -75,7 +75,7 @@ func nodePredicate(localNode string) predicate.Predicate {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			return e.Meta.GetName() != localNode
+			return e.Object.GetName() != localNode
 		},
 	}
 }

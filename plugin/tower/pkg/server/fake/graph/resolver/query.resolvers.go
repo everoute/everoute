@@ -12,6 +12,7 @@ import (
 	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/model"
 )
 
+// Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, data model.LoginInput) (*model.Login, error) {
 	obj, exists := r.Resolver.TrackerFactory().User().Get(data.Username)
 	if !exists {
@@ -30,6 +31,7 @@ func (r *mutationResolver) Login(ctx context.Context, data model.LoginInput) (*m
 	return &model.Login{Token: user.Token}, nil
 }
 
+// Vms is the resolver for the vms field.
 func (r *queryResolver) Vms(ctx context.Context) ([]schema.VM, error) {
 	vmList := r.TrackerFactory().VM().List()
 	vms := make([]schema.VM, 0, len(vmList))
@@ -39,6 +41,7 @@ func (r *queryResolver) Vms(ctx context.Context) ([]schema.VM, error) {
 	return vms, nil
 }
 
+// Labels is the resolver for the labels field.
 func (r *queryResolver) Labels(ctx context.Context) ([]schema.Label, error) {
 	labelList := r.TrackerFactory().Label().List()
 	labels := make([]schema.Label, 0, len(labelList))
@@ -48,6 +51,7 @@ func (r *queryResolver) Labels(ctx context.Context) ([]schema.Label, error) {
 	return labels, nil
 }
 
+// SecurityPolicies is the resolver for the securityPolicies field.
 func (r *queryResolver) SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error) {
 	policyList := r.TrackerFactory().SecurityPolicy().List()
 	policies := make([]schema.SecurityPolicy, 0, len(policyList))
@@ -57,6 +61,7 @@ func (r *queryResolver) SecurityPolicies(ctx context.Context) ([]schema.Security
 	return policies, nil
 }
 
+// IsolationPolicies is the resolver for the isolationPolicies field.
 func (r *queryResolver) IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error) {
 	policyList := r.TrackerFactory().IsolationPolicy().List()
 	policies := make([]schema.IsolationPolicy, 0, len(policyList))
@@ -66,6 +71,7 @@ func (r *queryResolver) IsolationPolicies(ctx context.Context) ([]schema.Isolati
 	return policies, nil
 }
 
+// EverouteClusters is the resolver for the everouteClusters field.
 func (r *queryResolver) EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error) {
 	erClusterList := r.TrackerFactory().EverouteCluster().List()
 	erClusters := make([]schema.EverouteCluster, 0, len(erClusterList))
@@ -75,6 +81,7 @@ func (r *queryResolver) EverouteClusters(ctx context.Context) ([]schema.Everoute
 	return erClusters, nil
 }
 
+// Hosts is the resolver for the hosts field.
 func (r *queryResolver) Hosts(ctx context.Context) ([]schema.Host, error) {
 	hostList := r.TrackerFactory().Host().List()
 	hosts := make([]schema.Host, 0, len(hostList))
@@ -84,6 +91,7 @@ func (r *queryResolver) Hosts(ctx context.Context) ([]schema.Host, error) {
 	return hosts, nil
 }
 
+// SystemEndpoints is the resolver for the systemEndpoints field.
 func (r *queryResolver) SystemEndpoints(ctx context.Context) (*schema.SystemEndpoints, error) {
 	systemEndpointsList := r.TrackerFactory().SystemEndpoints().List()
 	if len(systemEndpointsList) == 0 {
@@ -92,6 +100,7 @@ func (r *queryResolver) SystemEndpoints(ctx context.Context) (*schema.SystemEndp
 	return systemEndpointsList[0].(*schema.SystemEndpoints), nil
 }
 
+// Tasks is the resolver for the tasks field.
 func (r *queryResolver) Tasks(ctx context.Context, orderBy *model.TaskOrderByInput, last *int) ([]schema.Task, error) {
 	taskList := r.TrackerFactory().Task().List()
 	var tasks []schema.Task
@@ -104,6 +113,7 @@ func (r *queryResolver) Tasks(ctx context.Context, orderBy *model.TaskOrderByInp
 	return tasks, nil
 }
 
+// SecurityGroups is the resolver for the securityGroups field.
 func (r *queryResolver) SecurityGroups(ctx context.Context) ([]schema.SecurityGroup, error) {
 	groupList := r.TrackerFactory().SecurityGroup().List()
 	groups := make([]schema.SecurityGroup, 0, len(groupList))
@@ -113,6 +123,7 @@ func (r *queryResolver) SecurityGroups(ctx context.Context) ([]schema.SecurityGr
 	return groups, nil
 }
 
+// NetworkPolicyRuleServices is the resolver for the networkPolicyRuleServices field.
 func (r *queryResolver) NetworkPolicyRuleServices(ctx context.Context) ([]schema.NetworkPolicyRuleService, error) {
 	svcList := r.TrackerFactory().Service().List()
 	svcs := make([]schema.NetworkPolicyRuleService, 0, len(svcList))
@@ -122,6 +133,7 @@ func (r *queryResolver) NetworkPolicyRuleServices(ctx context.Context) ([]schema
 	return svcs, nil
 }
 
+// VM is the resolver for the vm field.
 func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, error) {
 	var vmEventCh = make(chan *model.VMEvent, 100)
 
@@ -149,6 +161,7 @@ func (r *subscriptionResolver) VM(ctx context.Context) (<-chan *model.VMEvent, e
 	return vmEventCh, nil
 }
 
+// Label is the resolver for the label field.
 func (r *subscriptionResolver) Label(ctx context.Context) (<-chan *model.LabelEvent, error) {
 	var labelEventCh = make(chan *model.LabelEvent, 100)
 
@@ -176,6 +189,7 @@ func (r *subscriptionResolver) Label(ctx context.Context) (<-chan *model.LabelEv
 	return labelEventCh, nil
 }
 
+// SecurityPolicy is the resolver for the securityPolicy field.
 func (r *subscriptionResolver) SecurityPolicy(ctx context.Context) (<-chan *model.SecurityPolicyEvent, error) {
 	var policyEventCh = make(chan *model.SecurityPolicyEvent, 100)
 
@@ -203,6 +217,7 @@ func (r *subscriptionResolver) SecurityPolicy(ctx context.Context) (<-chan *mode
 	return policyEventCh, nil
 }
 
+// IsolationPolicy is the resolver for the isolationPolicy field.
 func (r *subscriptionResolver) IsolationPolicy(ctx context.Context) (<-chan *model.IsolationPolicyEvent, error) {
 	var policyEventCh = make(chan *model.IsolationPolicyEvent, 100)
 
@@ -230,6 +245,7 @@ func (r *subscriptionResolver) IsolationPolicy(ctx context.Context) (<-chan *mod
 	return policyEventCh, nil
 }
 
+// EverouteCluster is the resolver for the everouteCluster field.
 func (r *subscriptionResolver) EverouteCluster(ctx context.Context) (<-chan *model.EverouteClusterEvent, error) {
 	var erClusterEventCh = make(chan *model.EverouteClusterEvent, 100)
 
@@ -257,6 +273,7 @@ func (r *subscriptionResolver) EverouteCluster(ctx context.Context) (<-chan *mod
 	return erClusterEventCh, nil
 }
 
+// Host is the resolver for the host field.
 func (r *subscriptionResolver) Host(ctx context.Context) (<-chan *model.HostEvent, error) {
 	var hostEventCh = make(chan *model.HostEvent, 100)
 
@@ -284,6 +301,7 @@ func (r *subscriptionResolver) Host(ctx context.Context) (<-chan *model.HostEven
 	return hostEventCh, nil
 }
 
+// SystemEndpoints is the resolver for the systemEndpoints field.
 func (r *subscriptionResolver) SystemEndpoints(ctx context.Context) (<-chan *schema.SystemEndpoints, error) {
 	var systemEndpointsCh = make(chan *schema.SystemEndpoints, 100)
 
@@ -308,6 +326,7 @@ func (r *subscriptionResolver) SystemEndpoints(ctx context.Context) (<-chan *sch
 	return systemEndpointsCh, nil
 }
 
+// Task is the resolver for the task field.
 func (r *subscriptionResolver) Task(ctx context.Context) (<-chan *model.TaskEvent, error) {
 	var taskEventCh = make(chan *model.TaskEvent, 100)
 
@@ -335,6 +354,7 @@ func (r *subscriptionResolver) Task(ctx context.Context) (<-chan *model.TaskEven
 	return taskEventCh, nil
 }
 
+// SecurityGroup is the resolver for the securityGroup field.
 func (r *subscriptionResolver) SecurityGroup(ctx context.Context) (<-chan *model.SecurityGroupEvent, error) {
 	var groupEventCh = make(chan *model.SecurityGroupEvent, 100)
 
@@ -362,6 +382,7 @@ func (r *subscriptionResolver) SecurityGroup(ctx context.Context) (<-chan *model
 	return groupEventCh, nil
 }
 
+// NetworkPolicyRuleService is the resolver for the networkPolicyRuleService field.
 func (r *subscriptionResolver) NetworkPolicyRuleService(ctx context.Context) (<-chan *model.ServiceEvent, error) {
 	var svcEventCh = make(chan *model.ServiceEvent, 100)
 

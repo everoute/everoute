@@ -33,5 +33,5 @@ func NewReplayEvent() event.GenericEvent {
 	e := SyncEvent{}
 	e.Namespace = string(ReplayType)
 
-	return event.GenericEvent{Meta: &e.ObjectMeta, Object: &e}
+	return event.GenericEvent{Object: &e}
 }

@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/everoute/everoute/pkg/types"
@@ -132,9 +131,8 @@ func TestNodePredicate(t *testing.T) {
 		},
 	}
 	for _, curT := range createTests {
-		meta, obj := setupNodeEvent(curT.node, curT.internalIP)
+		obj := setupNodeEvent(curT.node, curT.internalIP)
 		e := event.CreateEvent{
-			Meta: meta,
 			Object: obj,
 		}
 		res := predicateFuncs.Create(e)
@@ -175,11 +173,9 @@ func TestNodePredicate(t *testing.T) {
 	}
 	for _, curT := range updateTests {
 		t.Logf("---- curT: %v", curT)
-		oldMeta, oldObj := setupNodeEvent(curT.node, curT.oldIP)
-		newMeta, newObj := setupNodeEvent(curT.node, curT.newIP)
+		oldObj := setupNodeEvent(curT.node, curT.oldIP)
+		newObj := setupNodeEvent(curT.node, curT.newIP)
 		e := event.UpdateEvent{
-			MetaOld: oldMeta,
-			MetaNew: newMeta,
 			ObjectOld: oldObj,
 			ObjectNew: newObj,
 		}
@@ -208,9 +204,9 @@ func TestNodePredicate(t *testing.T) {
 		},
 	}
 	for _, curT := range deleteTests {
-		meta, _ := setupNodeEvent(curT.node, "")
+		obj := setupNodeEvent(curT.node, "")
 		e := event.DeleteEvent{
-			Meta: meta,
+			Object: obj,
 		}
 		res := predicateFuncs.Delete(e)
 		if res != curT.exp {
@@ -219,12 +215,12 @@ func TestNodePredicate(t *testing.T) {
 	}
 }
 
-func setupNodeEvent(node, ip string) (metav1.Object, runtime.Object) {
-	meta := &metav1.ObjectMeta{
+func setupNodeEvent(node, ip string) *corev1.Node {
+	meta := metav1.ObjectMeta{
 		Name: node,
 	}
 
-	obj := &corev1.Node{}
+	obj := &corev1.Node{ObjectMeta: meta}
 	rand.Seed(time.Now().UnixNano())
 	obj.Status.Addresses = make([]corev1.NodeAddress, 0)
 	if rand.Intn(2) == 1 {
@@ -240,5 +236,5 @@ func setupNodeEvent(node, ip string) (metav1.Object, runtime.Object) {
 		})
 	}
 
-	return meta, obj
+	return obj
 }

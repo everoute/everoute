@@ -24,8 +24,8 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/clock"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/server/fake"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"

@@ -32,9 +32,8 @@ type EndpointsReconcile struct {
 }
 
 // Reconcile receive Endpoints from workqueue, gen servicePort
-func (r *EndpointsReconcile) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *EndpointsReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Receive endpoints %v Reconcile", req.NamespacedName)
-	ctx := context.Background()
 	svcEp := corev1.Endpoints{}
 
 	err := r.Client.Get(ctx, req.NamespacedName, &svcEp)
@@ -47,11 +46,11 @@ func (r *EndpointsReconcile) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 			return ctrl.Result{}, nil
 		}
-		klog.Errorf("Failed to get endpoints %v, err: %s", req.NamespacedName, err)
+		klog.Errorf("Failed to get endpoints %#v, err: %s", req.NamespacedName, err)
 		return ctrl.Result{}, err
 	}
 
-	klog.Infof("Add or update endpoints %v", req.NamespacedName)
+	klog.Infof("Add or update endpoints %#v", svcEp)
 	if err := r.updateEndpoints(ctx, svcEp); err != nil {
 		klog.Errorf("Failed to reconcile add or update endpoints %v, err: %s", svcEp, err)
 		return ctrl.Result{}, err
@@ -65,30 +64,26 @@ func (r *EndpointsReconcile) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	if err := c.Watch(&source.Kind{Type: &corev1.Endpoints{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Endpoints{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	if err := c.Watch(&source.Kind{Type: &svc.ServicePort{}}, handler.Funcs{
+	return c.Watch(source.Kind(mgr.GetCache(), &svc.ServicePort{}), handler.Funcs{
 		CreateFunc: r.addServicePort,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
-func (r *EndpointsReconcile) addServicePort(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *EndpointsReconcile) addServicePort(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	if e.Object == nil {
 		klog.Errorf("Receive create event with no object %v", e)
 		return
 	}
 
 	namespacedName := types.NamespacedName{
-		Namespace: e.Meta.GetNamespace(),
-		Name:      e.Meta.GetLabels()[svc.LabelRefEndpoints],
+		Namespace: e.Object.GetNamespace(),
+		Name:      e.Object.GetLabels()[svc.LabelRefEndpoints],
 	}
-	err := r.Client.Get(context.Background(), namespacedName, &corev1.Endpoints{})
+	err := r.Client.Get(ctx, namespacedName, &corev1.Endpoints{})
 	if err == nil {
 		// servicePort related endpoints exists, don't need to clear the servicePort
 		return

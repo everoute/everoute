@@ -283,7 +283,8 @@ func (v endpointGroupValidator) validateGroupSpec(spec *groupv1alpha1.EndpointGr
 		allErrs = append(allErrs, &field.Error{Type: field.ErrorTypeInvalid, Detail: message})
 	}
 
-	errs := metav1validation.ValidateLabelSelector(spec.NamespaceSelector, field.NewPath("NamespaceSelector"))
+	errs := metav1validation.ValidateLabelSelector(spec.NamespaceSelector,
+		metav1validation.LabelSelectorValidationOptions{AllowInvalidLabelValueInSelector: true}, field.NewPath("NamespaceSelector"))
 	allErrs = append(allErrs, errs...)
 
 	return allErrs.ToAggregate()
@@ -448,7 +449,8 @@ func (v *securityPolicyValidator) validateRulePeer(peer *securityv1alpha1.Securi
 	}
 
 	if peer.NamespaceSelector != nil {
-		errs := metav1validation.ValidateLabelSelector(peer.NamespaceSelector, field.NewPath("NamespaceSelector"))
+		errs := metav1validation.ValidateLabelSelector(peer.NamespaceSelector,
+			metav1validation.LabelSelectorValidationOptions{AllowInvalidLabelValueInSelector: true}, field.NewPath("NamespaceSelector"))
 		if len(errs) != 0 {
 			return fmt.Errorf("%+v not a available selector: %+v", peer.NamespaceSelector, errs)
 		}

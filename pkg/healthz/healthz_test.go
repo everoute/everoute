@@ -112,6 +112,6 @@ type cacheSyncWaiterStub struct {
 
 // WaitForCacheSync is a stub implementation of the corresponding func
 // that simply returns the value passed during stub initialization.
-func (s cacheSyncWaiterStub) WaitForCacheSync(_ <-chan struct{}) bool {
+func (s cacheSyncWaiterStub) WaitForCacheSync(context.Context) bool {
 	return s.started
 }

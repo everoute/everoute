@@ -129,6 +129,11 @@ type VlanCreateInput struct {
 	Vds               *ConnectInput      `json:"vds"`
 	VlanID            int                `json:"vlan_id"`
 	NetworkIdentities *NetworkIdentities `json:"network_identities,omitempty"`
+	NetworkIDs        *NetworkIDs        `json:"network_ids,omiempty"`
+}
+
+type NetworkIDs struct {
+	Set []string `json:"set"`
 }
 
 type NetworkIdentities struct {

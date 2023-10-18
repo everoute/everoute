@@ -19,8 +19,8 @@ package informer
 import (
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/clock"
 )
 
 // Reflector watches a specified resource and causes all changes to be reflected in the given store.

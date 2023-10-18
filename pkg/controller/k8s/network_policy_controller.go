@@ -48,8 +48,7 @@ type NetworkPolicyReconciler struct {
 }
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
-func (r *NetworkPolicyReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *NetworkPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("NetworkPolicyReconciler received NetworkPolicy %s reconcile", req.NamespacedName)
 
 	networkPolicy := networkingv1.NetworkPolicy{}
@@ -116,30 +115,26 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &networkingv1.NetworkPolicy{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err = c.Watch(source.Kind(mgr.GetCache(), &networkingv1.NetworkPolicy{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.SecurityPolicy{}}, &handler.Funcs{
+	return c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.SecurityPolicy{}), &handler.Funcs{
 		CreateFunc: r.addSecurityPolicy,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
-func (r *NetworkPolicyReconciler) addSecurityPolicy(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *NetworkPolicyReconciler) addSecurityPolicy(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	if e.Object == nil {
 		klog.Errorf("receive create event with no object %v", e)
 		return
 	}
 
 	// only handle addSecurityPolicy with "np-" prefix
-	if strings.HasPrefix(e.Meta.GetName(), "np-") {
+	if strings.HasPrefix(e.Object.GetName(), "np-") {
 		q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
-			Namespace: e.Meta.GetNamespace(),
-			Name:      strings.TrimPrefix(e.Meta.GetName(), "np-"),
+			Namespace: e.Object.GetNamespace(),
+			Name:      strings.TrimPrefix(e.Object.GetName(), "np-"),
 		}})
 	}
 }

@@ -321,9 +321,10 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 	_ = agentv1alpha1.AddToScheme(scheme.Scheme)
 	_ = securityv1alpha1.AddToScheme(scheme.Scheme)
 	_ = groupv1alpha1.AddToScheme(scheme.Scheme)
+	ep := securityv1alpha1.Endpoint{}
 
 	return &EndpointReconciler{
-		Client: fakeclient.NewFakeClientWithScheme(scheme.Scheme, initObjs...),
+		Client: fakeclient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(initObjs...).WithStatusSubresource(&ep).Build(),
 		Scheme: scheme.Scheme,
 		ifaceCache: cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
 			agentIndex:      agentIndexFunc,
@@ -335,10 +336,11 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 
 // processQueue use reconciler r process item in workqueue q, simulate processing events.
 func processQueue(r reconcile.Reconciler, q workqueue.RateLimitingInterface) error {
+	ctx := context.Background()
 	qLen := q.Len()
 	for i := 0; i < qLen; i++ {
 		request, _ := q.Get()
-		if _, err := r.Reconcile(request.(ctrl.Request)); err != nil {
+		if _, err := r.Reconcile(ctx, request.(ctrl.Request)); err != nil {
 			return err
 		}
 		q.Done(request)
@@ -366,29 +368,26 @@ func TestEndpointController(t *testing.T) {
 func testProcessAgentinfo(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointD, fakeEndpointE)
+	ctx := context.Background()
 
 	t.Run("agentinfo-added", func(t *testing.T) {
 		// Fake: endpoint added and agentinfo added event when controller start.
-		r.addEndpoint(event.CreateEvent{
-			Meta:   fakeEndpointA.GetObjectMeta(),
+		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointA,
 		}, queue)
 
-		r.addEndpoint(event.CreateEvent{
-			Meta:   fakeEndpointD.GetObjectMeta(),
+		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointD,
 		}, queue)
 
-		r.addEndpoint(event.CreateEvent{
-			Meta:   fakeEndpointE.GetObjectMeta(),
+		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointE,
 		}, queue)
 
 		_ = r.Client.Update(context.Background(), fakeEndpointD)
 		_ = r.Client.Update(context.Background(), fakeEndpointE)
 
-		r.addAgentInfo(event.CreateEvent{
-			Meta:   fakeAgentInfoA.GetObjectMeta(),
+		r.addAgentInfo(ctx, event.CreateEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
@@ -431,10 +430,9 @@ func testProcessAgentinfo(t *testing.T) {
 		}
 
 		// Fake: agent will update information when ovsinfo changes.
-		r.updateAgentInfo(event.UpdateEvent{
-			MetaOld:   fakeAgentInfoA.GetObjectMeta(),
+		r.updateAgentInfo(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoA,
-			MetaNew:   fakeAgentInfoB.GetObjectMeta(),
+
 			ObjectNew: fakeAgentInfoB,
 		}, queue)
 
@@ -463,8 +461,7 @@ func testProcessAgentinfo(t *testing.T) {
 
 	t.Run("agentinfo-deleted", func(t *testing.T) {
 		// Fake: agent removed from cluster delete agentinfo.
-		r.deleteAgentInfo(event.DeleteEvent{
-			Meta:   fakeAgentInfoA.GetObjectMeta(),
+		r.deleteAgentInfo(ctx, event.DeleteEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
@@ -496,23 +493,20 @@ func testProcessAgentinfo(t *testing.T) {
 func testInterfaceIPUpdate(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	r := newFakeReconciler(fakeAgentInfoA, fakeAgentInfoC, fakeEndpointA, fakeEndpointC)
+	ctx := context.Background()
 	t.Run("interface ipset update", func(t *testing.T) {
 		// agentinfo added event when controller start.
-		r.addEndpoint(event.CreateEvent{
-			Meta:   fakeEndpointA.GetObjectMeta(),
+		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointA,
 		}, queue)
-		r.addAgentInfo(event.CreateEvent{
-			Meta:   fakeAgentInfoA.GetObjectMeta(),
+		r.addAgentInfo(ctx, event.CreateEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
-		r.addEndpoint(event.CreateEvent{
-			Meta:   fakeEndpointC.GetObjectMeta(),
+		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointC,
 		}, queue)
-		r.addAgentInfo(event.CreateEvent{
-			Meta:   fakeAgentInfoC.GetObjectMeta(),
+		r.addAgentInfo(ctx, event.CreateEvent{
 			Object: fakeAgentInfoC,
 		}, queue)
 		// process new agentinfo create request from queue
@@ -520,10 +514,8 @@ func testInterfaceIPUpdate(t *testing.T) {
 			t.Errorf("failed to process add agentinfo request")
 		}
 
-		r.updateAgentInfo(event.UpdateEvent{
-			MetaOld:   fakeAgentInfoC.GetObjectMeta(),
+		r.updateAgentInfo(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoC,
-			MetaNew:   updatedfakeAgentInfoC.GetObjectMeta(),
 			ObjectNew: updatedfakeAgentInfoC,
 		}, queue)
 		// process new agentinfo create request from queue

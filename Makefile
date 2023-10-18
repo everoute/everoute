@@ -97,7 +97,7 @@ docker-e2e-test: image-test
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests
-	$(APISERVER_BOOT) build generated --generator openapi --generator client --generator deepcopy --copyright hack/boilerplate.generatego.txt \
+	$(APISERVER_BOOT) build generated --generator client --generator deepcopy --copyright hack/boilerplate.generatego.txt \
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
 		--api-versions security/v1alpha1 \

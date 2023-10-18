@@ -49,6 +49,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - "coordination.k8s.io"
+  resources:
+  - "leases"
+  verbs:
+  - create
+  - get
+  - update
+  - patch
+- apiGroups:
   - agent.everoute.io
   resources:
   - agentinfos

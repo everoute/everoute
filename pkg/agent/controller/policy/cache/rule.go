@@ -381,8 +381,8 @@ func NewGlobalRuleCache() cache.Indexer {
 
 func groupIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	srcGroups := sets.StringKeySet(rule.SrcGroups)
-	dstGroups := sets.StringKeySet(rule.DstGroups)
+	srcGroups := sets.StringKeySet[int32](rule.SrcGroups)
+	dstGroups := sets.StringKeySet[int32](rule.DstGroups)
 	groups := srcGroups.Union(dstGroups)
 	return groups.UnsortedList(), nil
 }

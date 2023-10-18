@@ -48,8 +48,7 @@ type PodReconciler struct {
 }
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
-func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("PodReconciler received pod %s reconcile", req.NamespacedName)
 
 	pod := corev1.Pod{}
@@ -151,30 +150,26 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.Endpoint{}}, &handler.Funcs{
+	return c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Endpoint{}), &handler.Funcs{
 		CreateFunc: r.addEndpoint,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
-func (r *PodReconciler) addEndpoint(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *PodReconciler) addEndpoint(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	if e.Object == nil {
 		klog.Errorf("receive create event with no object %v", e)
 		return
 	}
 
 	// only handle endpoint with "pod-" prefix
-	if strings.HasPrefix(e.Meta.GetName(), "pod-") {
+	if strings.HasPrefix(e.Object.GetName(), "pod-") {
 		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-			Namespace: e.Meta.GetNamespace(),
-			Name:      strings.TrimPrefix(e.Meta.GetName(), "pod-"),
+			Namespace: e.Object.GetNamespace(),
+			Name:      strings.TrimPrefix(e.Object.GetName(), "pod-"),
 		}})
 	}
 }

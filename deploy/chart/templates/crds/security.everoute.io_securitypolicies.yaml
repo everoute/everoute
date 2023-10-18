@@ -256,14 +256,14 @@ spec:
                               can be.
                             properties:
                               cidr:
-                                description: CIDR is a string representing the IP
-                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: Except is a slice of CIDRs that should
-                                  not be included within an IP Block Valid examples
-                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
-                                  will be rejected if they are outside the CIDR range
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -477,14 +477,14 @@ spec:
                               can be.
                             properties:
                               cidr:
-                                description: CIDR is a string representing the IP
-                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: Except is a slice of CIDRs that should
-                                  not be included within an IP Block Valid examples
-                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
-                                  will be rejected if they are outside the CIDR range
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -664,14 +664,14 @@ spec:
                               can be.
                             properties:
                               cidr:
-                                description: CIDR is a string representing the IP
-                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: Except is a slice of CIDRs that should
-                                  not be included within an IP Block Valid examples
-                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
-                                  will be rejected if they are outside the CIDR range
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -885,14 +885,14 @@ spec:
                               can be.
                             properties:
                               cidr:
-                                description: CIDR is a string representing the IP
-                                  Block Valid examples are "192.168.1.1/24" or "2001:db9::/64"
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: Except is a slice of CIDRs that should
-                                  not be included within an IP Block Valid examples
-                                  are "192.168.1.1/24" or "2001:db9::/64" Except values
-                                  will be rejected if they are outside the CIDR range
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -969,7 +969,7 @@ spec:
                   that include "Egress" (since such a policy would not include an
                   Egress section and would otherwise default to just [ "Ingress" ]).
                 items:
-                  description: Policy Type string describes the NetworkPolicy type
+                  description: PolicyType string describes the NetworkPolicy type
                     This type is beta-level in 1.8
                   type: string
                 type: array

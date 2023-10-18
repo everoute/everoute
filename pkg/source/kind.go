@@ -20,40 +20,25 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // Kind provides a source of events originating inside the cluster from Watches
 // difference from source.Kind, add informer to factory on cache inject
-type Kind struct {
-	Type runtime.Object
-	source.Kind
-}
 
-var _ inject.Cache = &Kind{}  // implements cache inject
-var _ source.Source = &Kind{} // implements watch source
-
-func (ks *Kind) InjectCache(c cache.Cache) error {
-	// inject source watch type
-	ks.Kind.Type = ks.Type
-
-	// inject source watch cache
-	if err := ks.Kind.InjectCache(c); err != nil {
-		return err
-	}
-
+func Kind(cache cache.Cache, object client.Object) source.SyncingSource {
 	// should never hang on WaitForCacheSync
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// add typed informer to informers factory before controller start
 	// make sure that when controllers start, all caches are synchronized
-	if _, err := c.GetInformer(ctx, ks.Type); err != nil && !errors.IsTimeout(err) {
-		return err
+	if _, err := cache.GetInformer(ctx, object); err != nil && !errors.IsTimeout(err) {
+		klog.Fatalf("Failed to add %v informer, err: %v", object, err)
 	}
 
-	return nil
+	return source.Kind(cache, object)
 }

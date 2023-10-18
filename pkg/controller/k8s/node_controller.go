@@ -28,8 +28,7 @@ type NodeReconciler struct {
 	GwEpNamespace string
 }
 
-func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Received node %v reconcile", req.NamespacedName)
 
 	node := &corev1.Node{}
@@ -74,8 +73,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}, nodePredicate())
-	return err
+	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate())
 }
 
 func nodePredicate() predicate.Predicate {
