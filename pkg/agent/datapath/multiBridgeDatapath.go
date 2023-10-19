@@ -513,7 +513,7 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	natBr := NewNatBridge(ovsbrname, datapathManager)
-	natControl := ofctrl.NewControllerAsOFClient(natBr, utils.GenerateControllerID(constants.EverouteComponentType))
+	natControl := ofctrl.NewOFController(natBr, utils.GenerateControllerID(constants.EverouteComponentType), nil, natBr.GetName())
 	natDriver := ovsdbDriver.NewOvsDriverForExistBridge(natBr.GetName())
 
 	protocols := map[string][]string{
@@ -560,10 +560,10 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 	// initialize of controller
 	vdsOfControllerMap := make(map[string]*ofctrl.Controller)
-	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(localBridge, utils.GenerateControllerID(constants.EverouteComponentType))
-	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(policyBridge, utils.GenerateControllerID(constants.EverouteComponentType))
-	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(clsBridge, utils.GenerateControllerID(constants.EverouteComponentType))
-	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewControllerAsOFClient(uplinkBridge, utils.GenerateControllerID(constants.EverouteComponentType))
+	vdsOfControllerMap[LOCAL_BRIDGE_KEYWORD] = ofctrl.NewOFController(localBridge, utils.GenerateControllerID(constants.EverouteComponentType), nil, localBridge.GetName())
+	vdsOfControllerMap[POLICY_BRIDGE_KEYWORD] = ofctrl.NewOFController(policyBridge, utils.GenerateControllerID(constants.EverouteComponentType), nil, policyBridge.GetName())
+	vdsOfControllerMap[CLS_BRIDGE_KEYWORD] = ofctrl.NewOFController(clsBridge, utils.GenerateControllerID(constants.EverouteComponentType), nil, clsBridge.GetName())
+	vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD] = ofctrl.NewOFController(uplinkBridge, utils.GenerateControllerID(constants.EverouteComponentType), nil, uplinkBridge.GetName())
 
 	// initialize ovsdbDriver
 	vdsOvsdbDriverMap := make(map[string]*ovsdbDriver.OvsDriver)
