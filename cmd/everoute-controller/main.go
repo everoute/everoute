@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"flag"
 	"fmt"
@@ -92,6 +93,9 @@ func main() {
 		LeaderElectionNamespace: opts.leaderElectionNamespace,
 		LeaderElectionID:        "24d5749e.leader-election.everoute.io",
 		CertDir:                 opts.tlsCertDir,
+		TLSOpts: []func(*tls.Config){
+			func(conf *tls.Config) { conf.MinVersion = tls.VersionTLS13 },
+		},
 	})
 	if err != nil {
 		klog.Fatalf("unable to start manager: %s", err.Error())
