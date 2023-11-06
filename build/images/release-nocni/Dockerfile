@@ -10,16 +10,17 @@ ENV CGO_ENABLED=0
 ARG GO_LDFLAGS=""
 
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
-      go build -o bin/erctl -ldflags "${GO_LDFLAGS}" \
-      $GOPATH/src/github.com/everoute/everoute/cmd/everoute-cli/.
-
-RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
       go build -o bin/everoute-controller -ldflags "${GO_LDFLAGS}" \
       $GOPATH/src/github.com/everoute/everoute/cmd/everoute-controller/.
 
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
       go build -o bin/everoute-agent -ldflags "${GO_LDFLAGS}" \
       $GOPATH/src/github.com/everoute/everoute/cmd/everoute-agent/.
+
+ARG GO_LDFLAGS="-s -w"
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+      go build -o bin/erctl -ldflags "${GO_LDFLAGS}" \
+      $GOPATH/src/github.com/everoute/everoute/cmd/everoute-cli/.
 
 FROM alpine:3.13.6
 
