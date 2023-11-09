@@ -13,12 +13,12 @@ ENV KUBERNETES_VERSION=v1.18.17
 RUN curl -L ${KUBERNETES_RELEASE_URL}/${KUBERNETES_VERSION}/bin/linux/amd64/kube-apiserver -o /usr/local/bin/kube-apiserver && \
     chmod +x /usr/local/bin/kube-apiserver
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # install openvswitch and dependencies
 RUN apt update && \
     apt install -y --no-install-recommends iptables make sudo ca-certificates gcc libc6-dev \
-      openvswitch-switch=2.13.* ssh curl iproute2 conntrack=1:1.4.5-2 iputils-ping && \
+      openvswitch-switch=2.17.* ssh curl iproute2 iputils-ping && \
     apt clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 COPY --from=downloader /usr/local/bin/kube-apiserver /usr/local/bin/etcd /usr/local/kubebuilder/bin/
