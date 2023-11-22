@@ -59,6 +59,7 @@ var _ = Describe("proxy controller", func() {
 			Port:     80,
 		}
 		portName3 = port3.Name
+		svcPortName3 = "svcportname-http"
 	)
 
 	var (
@@ -66,7 +67,7 @@ var _ = Describe("proxy controller", func() {
 			IP:       "10.244.0.1",
 			Protocol: corev1.ProtocolTCP,
 			Port:     788,
-			Node:     "node1",
+			Node:     localNode,
 		}
 		bk1 = proxycache.GenBackendKey(backend1.IP, backend1.Port, backend1.Protocol)
 
@@ -530,7 +531,6 @@ var _ = Describe("proxy controller", func() {
 		}
 
 		var svcPortCopy everoutesvc.ServicePort
-		var oldOvsInfo *testSvcOvsInfo
 		var oldDnatMap map[string]uint64
 		BeforeEach(func() {
 			svcPortCopy = svcPort
@@ -573,9 +573,8 @@ var _ = Describe("proxy controller", func() {
 					return nil
 				}
 				return ovsInfo.GetGroup(portName1)
-			}, Timeout, Interval).ShouldNot(BeNil())
+			}, Timeout, Interval).Should(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
-			oldOvsInfo = genTestSvcOvsInfo(ovsInfo)
 			oldDnatMap = make(map[string]uint64)
 			oldDnatMap[bk1] = svcIndex.GetDnatFlow(bk1).FlowID
 		})
@@ -594,8 +593,7 @@ var _ = Describe("proxy controller", func() {
 			}, Timeout, Interval).Should(BeZero())
 
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
-			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(portName1)).ShouldNot(BeNil())
+			Expect(dpOvs).Should(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
 		})
@@ -652,7 +650,7 @@ var _ = Describe("proxy controller", func() {
 					return nil
 				}
 				return ovsInfo.GetGroup(portName2)
-			}, Timeout, Interval).ShouldNot(BeNil())
+			}, Timeout, Interval).Should(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
 		})
@@ -692,9 +690,7 @@ var _ = Describe("proxy controller", func() {
 			}, Timeout, Interval).Should(BeTrue())
 
 			ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
-			Expect(ovsInfo).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName1)).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName1).GroupID).To(Equal(oldOvsInfo.groupMap[portName1]))
+			Expect(ovsInfo).To(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
 			Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
@@ -723,14 +719,12 @@ var _ = Describe("proxy controller", func() {
 			}, Timeout, Interval).Should(BeZero())
 
 			ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
-			Expect(ovsInfo).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName1)).ToNot(BeNil())
-			Expect(ovsInfo.GetGroup(portName1).GroupID).To(Equal(oldOvsInfo.groupMap[portName1]))
+			Expect(ovsInfo).To(BeNil())
 			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
 		})
 	})
 
-	Describe("test servicePort with service", func() {
+	Describe("test servicePort with service cluster internal traffic policy", func() {
 		var oldOvsInfo *testSvcOvsInfo
 
 		svc := corev1.Service{
@@ -776,6 +770,7 @@ var _ = Describe("proxy controller", func() {
 				},
 				SessionAffinity:        corev1.ServiceAffinityClientIP,
 				SessionAffinityTimeout: affinityTimeout,
+				InternalTrafficPolicy:  proxycache.TrafficPolicyCluster,
 			}
 			Eventually(func() bool {
 				obj, _, _ := proxyController.baseSvcCache.GetByKey(svcID)
@@ -980,6 +975,162 @@ var _ = Describe("proxy controller", func() {
 		})
 	})
 
+	FDescribe("test servicePort with service local internal traffic policy", func() {
+		var oldOvsInfo *testSvcOvsInfo
+		var localTrafficPolicy = corev1.ServiceInternalTrafficPolicyLocal
+
+		svc := corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      svcName,
+				Namespace: svcNs,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:       corev1.ServiceTypeNodePort,
+				ClusterIP:  ip1,
+				ClusterIPs: []string{ip1},
+				Ports: []corev1.ServicePort{
+					{
+						Name:     port1.Name,
+						NodePort: port1.NodePort,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					{
+						Name:     port2.Name,
+						NodePort: port2.NodePort,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+				},
+				SessionAffinity: corev1.ServiceAffinityClientIP,
+				SessionAffinityConfig: &corev1.SessionAffinityConfig{
+					ClientIP: &corev1.ClientIPConfig{TimeoutSeconds: &affinityTimeout},
+				},
+				InternalTrafficPolicy: &localTrafficPolicy,
+			},
+		}
+
+		BeforeEach(func() {
+			svcCopy := svc
+			Expect(k8sClient.Create(ctx, &svcCopy)).Should(Succeed())
+			expBaseSvc := proxycache.BaseSvc{
+				SvcID:      svcNs + "/" + svcName,
+				SvcType:    corev1.ServiceTypeNodePort,
+				ClusterIPs: []string{ip1},
+				Ports: map[string]*proxycache.Port{
+					port1.Name: &port1,
+					port2.Name: &port2,
+				},
+				SessionAffinity:        corev1.ServiceAffinityClientIP,
+				SessionAffinityTimeout: affinityTimeout,
+				InternalTrafficPolicy:  proxycache.TrafficPolicyLocal,
+			}
+			Eventually(func() bool {
+				obj, _, _ := proxyController.baseSvcCache.GetByKey(svcID)
+				if obj == nil {
+					return false
+				}
+				return equalBaseSvc(&expBaseSvc, obj.(*proxycache.BaseSvc))
+			}, Timeout, Interval).Should(BeTrue())
+			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
+			Expect(dpOvs).ShouldNot(BeNil())
+			for _, portName := range []string{port1.Name, port2.Name} {
+				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetGroup(portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(BeNil())
+			}
+			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
+		})
+
+		AfterEach(func() {
+			Expect(k8sClient.Delete(ctx, &svc)).Should(Succeed())
+			Eventually(func() bool {
+				_, exists, _ := proxyController.baseSvcCache.GetByKey(svcID)
+				return !exists
+			}, Timeout, Interval).Should(BeTrue())
+			Expect(svcIndex.GetSvcOvsInfo(svcID)).Should(BeNil())
+		})
+		Context("test servicePort", func() {
+			svcPort := everoutesvc.ServicePort{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svcPortName3,
+					Namespace: svcNs,
+					Labels:    map[string]string{everoutesvc.LabelRefEndpoints: svcName},
+				},
+				Spec: everoutesvc.ServicePortSpec{
+					PortName: portName3,
+					SvcRef:   svcName,
+					Backends: []everoutesvc.Backend{backend3},
+				},
+			}
+
+			var svcPortCopy everoutesvc.ServicePort
+			var oldDnatMap map[string]uint64
+
+			BeforeEach(func() {
+				svcPortCopy = svcPort
+				Expect(k8sClient.Create(ctx, &svcPortCopy)).Should(Succeed())
+				expSvcPort := proxycache.SvcPort{
+					Name:      svcPortName3,
+					Namespace: svcNs,
+					PortName:  portName3,
+					SvcName:   svcName,
+				}
+				svcPortRef := proxycache.GenServicePortRef(svcNs, svcName, portName3)
+				expBackend := proxycache.Backend{
+					IP:              backend3.IP,
+					Protocol:        backend3.Protocol,
+					Port:            backend3.Port,
+					Node:            backend3.Node,
+					ServicePortRefs: sets.NewString(svcPortRef),
+				}
+				Eventually(func() proxycache.SvcPort {
+					svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName3))
+					if !exists || svcPortCache == nil {
+						return proxycache.SvcPort{}
+					}
+					return *(svcPortCache.(*proxycache.SvcPort))
+				}, Timeout, Interval).Should(Equal(expSvcPort))
+
+				Eventually(func() bool {
+					backCache, exists, _ := proxyController.backendCache.GetByKey(bk3)
+					if !exists || backCache == nil {
+						return false
+					}
+					return equalBackend(backCache.(*proxycache.Backend), &expBackend)
+				}, Timeout, Interval).Should(BeTrue())
+				
+				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
+				Expect(dpOvs).ToNot(BeNil())
+				Expect(svcIndex.GetDnatFlow(bk3)).ToNot(BeNil())
+				oldOvsInfo.groupMap[portName3] = dpOvs.GetGroup(portName3).GroupID
+				oldDnatMap = make(map[string]uint64)
+				oldDnatMap[bk3] = svcIndex.GetDnatFlow(bk3).FlowID
+			})
+
+			AfterEach(func() {
+				delSvcPort := everoutesvc.ServicePort{}
+				namespaceSelector := client.InNamespace(svcNs)
+				labelSelector := client.MatchingLabels{everoutesvc.LabelRefEndpoints: svcName}
+				Expect(k8sClient.DeleteAllOf(ctx, &delSvcPort, namespaceSelector, labelSelector)).Should(Succeed())
+				Eventually(func() int {
+					return len(proxyController.svcPortCache.List())
+				}, Timeout, Interval).Should(BeZero())
+
+				Eventually(func() int {
+					return len(proxyController.backendCache.List())
+				}, Timeout, Interval).Should(BeZero())
+
+				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
+				Expect(dpOvs).ToNot(BeNil())
+				Expect(dpOvs.GetGroup(portName1).GroupID).To(Equal(oldOvsInfo.groupMap[portName1]))
+				Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
+				Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+				Expect(svcIndex.GetDnatFlow(bk3)).To(BeNil())
+			})
+		})
+
+	})
 	Context("test replay flows", func() {
 		baseSvc1 := proxycache.BaseSvc{
 			SvcID:      svcID,

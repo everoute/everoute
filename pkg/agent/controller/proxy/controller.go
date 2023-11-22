@@ -62,8 +62,12 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 	DpMgr  *datapath.DpManager
 
+	LocalNode string
+
 	SyncChan chan event.GenericEvent
 	syncLock sync.RWMutex
+
+	svcPortChan chan event.GenericEvent
 
 	Cache
 }
@@ -171,6 +175,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("can't setup with nil manager")
 	}
 
+	if r.LocalNode == "" {
+		return fmt.Errorf("can't setup without local node")
+	}
+
 	if r.baseSvcCache == nil {
 		r.baseSvcCache = proxycache.NewBaseSvcCache()
 	}
@@ -202,6 +210,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err := svcPortController.Watch(source.Kind(mgr.GetCache(), &everoutesvc.ServicePort{}), &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+
+	r.svcPortChan = make(chan event.GenericEvent)
+	if err := svcPortController.Watch(&source.Channel{Source: r.svcPortChan}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -304,6 +317,13 @@ func (r *Reconciler) processServiceUpdate(ctx context.Context, new *proxycache.B
 		klog.Errorf("Failed to process service %+v session affinity config update, err: %s", *new, err)
 		return err
 	}
+
+	// traffic policy
+	if err := r.processUpdateTrafficPolicy(ctx, new, old); err != nil {
+		klog.Errorf("Failed to process service %+v traffic policy config update, err: %s", *new, err)
+		return err
+	}
+
 	klog.Infof("Success process service %s session affinity config update", new.SvcID)
 	return nil
 }
@@ -476,6 +496,40 @@ func (r *Reconciler) processUpdateSessionAffinityOfService(new *proxycache.BaseS
 	return nil
 }
 
+func (r *Reconciler) processUpdateTrafficPolicy(ctx context.Context, new *proxycache.BaseSvc, old *proxycache.BaseSvc) error {
+	if old.InternalTrafficPolicy == new.InternalTrafficPolicy {
+		return nil
+	}
+
+	oldInternalTrafficPolicy := old.InternalTrafficPolicy
+	old.InternalTrafficPolicy = new.InternalTrafficPolicy
+	if err := r.baseSvcCache.Update(old.DeepCopy()); err != nil {
+		klog.Errorf("Failed to update %+v to baseSvc cache, err: %s", *old, err)
+		return err
+	}
+
+	svcPortList := everoutesvc.ServicePortList{}
+	svcNs, svcName := proxycache.GetNsAndNameFromSvcID(new.SvcID)
+	labels := map[string]string{
+		everoutesvc.LabelRefEndpoints: svcName,
+	}
+	if err := r.List(ctx, &svcPortList, client.InNamespace(svcNs), client.MatchingLabels(labels)); err != nil {
+		klog.Errorf("Failed to list svcPorts for svc %v, err: %s", old.SvcID, err)
+		// rollback, cache update wouldn't failed for keyfunc allways return nil error
+		old.InternalTrafficPolicy = oldInternalTrafficPolicy
+		if err := r.baseSvcCache.Update(old.DeepCopy()); err != nil {
+			klog.Errorf("Failed to update %+v to baseSvc cache, err: %s", *old, err)
+		}
+		return err
+	}
+	for _, svcPort := range svcPortList.Items {
+		r.svcPortChan <- ersource.NewResourceEvent(svcPort.GetName(), svcPort.GetNamespace())
+	}
+	klog.Infof("Success update svc %s traffic policy to %s", old.SvcID, new.InternalTrafficPolicy)
+
+	return nil
+}
+
 func (r *Reconciler) updateServicePort(ctx context.Context, servicePort *everoutesvc.ServicePort) error {
 	if servicePort == nil {
 		return nil
@@ -533,10 +587,17 @@ func (r *Reconciler) updateServicePortForGroup(servicePort *everoutesvc.ServiceP
 	}
 
 	svcID := proxycache.GenSvcID(servicePort.GetNamespace(), servicePort.Spec.SvcRef)
+	isLocalInternalTrafficPolicy, err := r.isLocalInternalTrafficPolicy(svcID)
+	if err != nil {
+		klog.Errorf("Can't get svc %s InternalTrafficPolicy", svcID)
+		return err
+	}
+	svcPortFilter := r.filterServicePortBackends(servicePort, isLocalInternalTrafficPolicy)
+
 	dpNatBrs := r.DpMgr.GetNatBridges()
 	for i := range dpNatBrs {
 		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.UpdateLBGroup(svcID, servicePort.Spec.PortName, servicePort.Spec.Backends); err != nil {
+		if err := dpNatBr.UpdateLBGroup(svcID, svcPortFilter.Spec.PortName, svcPortFilter.Spec.Backends); err != nil {
 			klog.Errorf("Failed to update lb group for servicePort %+v of service: %s, err: %s", servicePort, svcID, err)
 			return err
 		}
@@ -754,7 +815,45 @@ func (r *Reconciler) deleteServicePortForBackend(svcPort *proxycache.SvcPort) er
 func (r *Reconciler) replay() error {
 	dpNatBrs := r.DpMgr.GetNatBridges()
 
+	var err1, err2, err3 error
+	var wg sync.WaitGroup
+	wg.Add(3)
+
 	// replay groups
+	go func(dpNatBrs []*datapath.NatBridge) {
+		defer wg.Done()
+		if err1 = r.replayGroup(dpNatBrs); err1 != nil {
+			klog.Errorf("Failed to replay group for nat bridge, err: %s", err1)
+		}
+	}(dpNatBrs)
+
+	// replay service lb flows
+	go func() {
+		defer wg.Done()
+		if err2 = r.replayLBFlows(); err2 != nil {
+			klog.Errorf("Failed to replay lb flows for nat bridge, err: %s", err2)
+		}
+	}()
+
+	// replay dnat flows
+	go func(dpNatBrs []*datapath.NatBridge) {
+		defer wg.Done()
+		if err3 = r.replayDnatFlows(dpNatBrs); err3 != nil {
+			klog.Errorf("Failed to replay dnat flows for nat bridge, err: %s", err3)
+		}
+	}(dpNatBrs)
+
+	wg.Wait()
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		return fmt.Errorf("failed to replay proxy flows and groups")
+	}
+
+	klog.Info("Success replay proxy flows and groups")
+	return nil
+}
+
+func (r *Reconciler) replayGroup(dpNatBrs []*datapath.NatBridge) error {
 	svcPortObjList := r.svcPortCache.List()
 	for i := range svcPortObjList {
 		if svcPortObjList[i] == nil {
@@ -787,8 +886,10 @@ func (r *Reconciler) replay() error {
 			}
 		}
 	}
+	return nil
+}
 
-	// replay service lb flows
+func (r *Reconciler) replayLBFlows() error {
 	svcObjList := r.baseSvcCache.List()
 	for i := range svcObjList {
 		if svcObjList[i] == nil {
@@ -802,8 +903,10 @@ func (r *Reconciler) replay() error {
 			}
 		}
 	}
+	return nil
+}
 
-	// replay dnat flows
+func (r *Reconciler) replayDnatFlows(dpNatBrs []*datapath.NatBridge) error {
 	bkObjList := r.backendCache.List()
 	for i := range bkObjList {
 		if bkObjList[i] == nil {
@@ -817,9 +920,34 @@ func (r *Reconciler) replay() error {
 			}
 		}
 	}
-
-	klog.Infof("Success replay proxy flows and groups")
 	return nil
+}
+
+func (r *Reconciler) isLocalInternalTrafficPolicy(svcID string) (bool, error) {
+	obj, exists, err := r.baseSvcCache.GetByKey(svcID)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, fmt.Errorf("can't find svc %s info from cache", svcID)
+	}
+	svc := obj.(*proxycache.BaseSvc)
+	return svc.IsLocalInternalTrafficPolicy(), nil
+}
+
+func (r *Reconciler) filterServicePortBackends(servicePort *everoutesvc.ServicePort, isLocalTrafficPolicy bool) *everoutesvc.ServicePort {
+	if !isLocalTrafficPolicy {
+		return servicePort
+	}
+	res := servicePort.DeepCopy()
+	res.Spec.Backends = make([]everoutesvc.Backend, 0)
+	for _, b := range servicePort.Spec.Backends {
+		if b.Node != r.LocalNode {
+			continue
+		}
+		res.Spec.Backends = append(res.Spec.Backends, b)
+	}
+	return res
 }
 
 func servicePortBackendToCacheBackend(svcBackend everoutesvc.Backend) proxycache.Backend {

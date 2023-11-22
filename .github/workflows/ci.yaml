@@ -180,7 +180,7 @@ jobs:
       - name: run ServiceProxy cases
         if: env.runservice == 'true'
         timeout-minutes: 20
-        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="NodePort|SCTP|hairpin|ProxyTerminatingEndpoints|rejected|IPv6|ServiceInternalTrafficPolicy|Networking" --focus="Services" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="NodePort|SCTP|hairpin|ProxyTerminatingEndpoints|rejected|IPv6|Networking" --focus="Services" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: run NetworkPolicy case
         timeout-minutes: 25

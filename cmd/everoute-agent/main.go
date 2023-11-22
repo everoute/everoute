@@ -238,10 +238,11 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	var proxyCache *ctrlProxy.Cache
 	if opts.IsEnableProxy() {
 		proxyReconciler := &ctrlProxy.Reconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			DpMgr:    datapathManager,
-			SyncChan: proxySyncChan,
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			DpMgr:     datapathManager,
+			LocalNode: datapathManager.Info.NodeName,
+			SyncChan:  proxySyncChan,
 		}
 		if err = proxyReconciler.SetupWithManager(mgr); err != nil {
 			klog.Errorf("unable to create proxy controller: %s", err.Error())

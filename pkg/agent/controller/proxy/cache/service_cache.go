@@ -2,6 +2,7 @@ package cache
 
 import (
 	"net"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -45,7 +46,7 @@ type TrafficPolicyType string
 
 const (
 	TrafficPolicyCluster TrafficPolicyType = "Cluster"
-	TrafficPOlicyLocal   TrafficPolicyType = "Local"
+	TrafficPolicyLocal   TrafficPolicyType = "Local"
 
 	DefaultSessionAffinityTimeout int32 = 10800
 )
@@ -58,6 +59,17 @@ func GenSvcID(svcNS string, svcName string) string {
 	return svcNS + "/" + svcName
 }
 
+func GetNsAndNameFromSvcID(svcID string) (string, string) {
+	strs := strings.Split(svcID, "/")
+	if len(strs) == 0 {
+		return "", ""
+	}
+	if len(strs) == 1 {
+		return strs[0], ""
+	}
+	return strs[0], strs[1]
+}
+
 func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
 	if svc == nil {
 		return nil
@@ -68,10 +80,12 @@ func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
 		SvcType:               svc.Spec.Type,
 		ClusterIPs:            GetClusterIPs(svc.Spec),
 		ExternalTrafficPolicy: TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
-		// todo upgrade k8s.io/api version
 		InternalTrafficPolicy: TrafficPolicyCluster,
 		SessionAffinity:       svc.Spec.SessionAffinity,
 		Ports:                 make(map[string]*Port),
+	}
+	if svc.Spec.InternalTrafficPolicy != nil {
+		baseSvc.InternalTrafficPolicy = TrafficPolicyType(*svc.Spec.InternalTrafficPolicy)
 	}
 
 	if baseSvc.SessionAffinity == corev1.ServiceAffinityClientIP {
@@ -171,6 +185,10 @@ func (b *BaseSvc) DiffPorts(new *BaseSvc) (add, update, del []*Port) {
 	}
 
 	return
+}
+
+func (b *BaseSvc) IsLocalInternalTrafficPolicy() bool {
+	return b.InternalTrafficPolicy == TrafficPolicyLocal
 }
 
 func (p *Port) validUpdate(new *Port) bool {
