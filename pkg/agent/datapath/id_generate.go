@@ -19,38 +19,40 @@ type idGenerate struct {
 }
 
 //nolint
-func (i *idGenerate) ascendUint32() {
+func (i *idGenerate) ascendUint32() uint32 {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.idUint32++
+	return i.idUint32
 }
 
-func (i *idGenerate) ascendUint64() {
+func (i *idGenerate) ascendUint64() uint64 {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 
 	i.idUint64++
+	return i.idUint64
 }
 
 var learnCookieID = &idGenerate{}
 var groupID = &idGenerate{}
 
 func getLearnCookieID() (uint64, error) {
-	learnCookieID.ascendUint64()
-	if learnCookieID.idUint64 >= (uint64(1) << cookie.BitWidthFlowId) {
+	id := learnCookieID.ascendUint64()
+	if id >= (uint64(1) << cookie.BitWidthFlowId) {
 		log.Error("No enough avalible cookie id")
 		return 0, errors.New("no enough avalible cookie id")
 	}
-	return learnCookieID.idUint64, nil
+	return id, nil
 }
 
 func getGroupID() (uint32, error) {
-	groupID.ascendUint32()
-	if groupID.idUint32 > openflow13.OFPG_MAX {
+	id := groupID.ascendUint32()
+	if id > openflow13.OFPG_MAX {
 		log.Error("No enough avalible group id")
 		return InvalidGroupID, errors.New("no enough avalible group id")
 	}
 
-	return groupID.idUint32, nil
+	return id, nil
 }

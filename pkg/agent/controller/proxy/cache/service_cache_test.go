@@ -13,7 +13,7 @@ func TestDeepCopy(t *testing.T) {
 		SvcType:                corev1.ServiceTypeClusterIP,
 		ClusterIPs:             []string{"1.1.1.1"},
 		Ports:                  make(map[string]*Port),
-		ExternalTrafficPolicy:  TrafficPOlicyLocal,
+		ExternalTrafficPolicy:  TrafficPolicyLocal,
 		InternalTrafficPolicy:  TrafficPolicyCluster,
 		SessionAffinity:        corev1.ServiceAffinityClientIP,
 		SessionAffinityTimeout: 100000,

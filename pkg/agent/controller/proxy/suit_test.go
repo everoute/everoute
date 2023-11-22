@@ -25,6 +25,7 @@ const (
 	BrName                     = "proxybrUT"
 	Interval                   = time.Second
 	Timeout                    = time.Minute
+	localNode                  = "nodelocal"
 )
 
 var (
@@ -88,10 +89,11 @@ var _ = BeforeSuite(func() {
 
 	syncChan = make(chan event.GenericEvent)
 	proxyController = Reconciler{
-		Client:   k8sManager.GetClient(),
-		Scheme:   k8sManager.GetScheme(),
-		DpMgr:    dpMgr,
-		SyncChan: syncChan,
+		Client:    k8sManager.GetClient(),
+		Scheme:    k8sManager.GetScheme(),
+		DpMgr:     dpMgr,
+		LocalNode: localNode,
+		SyncChan:  syncChan,
 	}
 	err = proxyController.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())

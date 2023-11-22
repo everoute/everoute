@@ -6,10 +6,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
-// SyncEvent is struct of sync dp event
-type SyncEvent struct {
+type Event struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
+}
+
+// DeepCopyObject is deep copy method for a event
+func (e *Event) DeepCopyObject() runtime.Object {
+	res := new(Event)
+	res.Name = e.Name
+	res.Namespace = e.Namespace
+
+	return res
 }
 
 type SyncType string
@@ -19,19 +27,18 @@ const (
 	ReplayType SyncType = "replay"
 )
 
-// DeepCopyObject is deep copy method for a event
-func (e *SyncEvent) DeepCopyObject() runtime.Object {
-	res := new(SyncEvent)
-	res.Name = e.Name
-	res.Namespace = e.Namespace
-
-	return res
-}
-
 // NewReplayEvent returns a replay flow event
 func NewReplayEvent() event.GenericEvent {
-	e := SyncEvent{}
+	e := Event{}
 	e.Namespace = string(ReplayType)
+
+	return event.GenericEvent{Object: &e}
+}
+
+func NewResourceEvent(name, ns string) event.GenericEvent {
+	e := Event{}
+	e.Namespace = ns
+	e.Name = name
 
 	return event.GenericEvent{Object: &e}
 }
