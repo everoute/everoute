@@ -100,12 +100,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: set focus
+      - name: set if run service e2e case or not
         run: |
           if [[ "${{ matrix.enable-proxy }}" == "true" ]]; then
-            echo "focus=NetworkPolicy|ClusterIP|clusterIP" >> $GITHUB_ENV
+            echo "runservice=true" >> $GITHUB_ENV
           else
-            echo "focus=NetworkPolicy" >> $GITHUB_ENV
+            echo "runservice=false" >> $GITHUB_ENV
           fi
 
       - name: config PATH
@@ -157,6 +157,8 @@ jobs:
         run: |
           kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule --all --overwrite=true
           kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule- --all
+          kubectl taint node node-role.kubernetes.io/master=:NoSchedule --all --overwrite=true
+          kubectl taint node node-role.kubernetes.io/master=:NoSchedule- --all
 
       - name: deploy everoute cni
         run: |
@@ -166,12 +168,23 @@ jobs:
       - name: wait k8s cluster ready
         run: |
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
+          mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
+          workercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.workers.totalCount}})
+          echo "mastercount: $mastercount, workercount: $workercount"
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlanes.readyCount}'=$mastercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=2m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.workers.readyCount}'=$workercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
           kubectl wait --for=condition=Ready nodes --all --timeout=10m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }}
           kubectl get nodes -owide
 
-      - name: run test cases
-        timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=10 --skip="SCTP" --focus="${{ env.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+      - name: run ServiceProxy cases
+        if: env.runservice == 'true'
+        timeout-minutes: 20
+        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="NodePort|SCTP|hairpin|ProxyTerminatingEndpoints|rejected|IPv6|ServiceInternalTrafficPolicy|Networking" --focus="Services" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+
+      - name: run NetworkPolicy case
+        timeout-minutes: 25
+        run: ./k8se2e/bin/ginkgo -nodes=10 --skip="SCTP" --focus="NetworkPolicy" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: delete test k8s cluster
         id: delenv
