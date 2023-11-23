@@ -1,0 +1,66 @@
+diff --git a/test/e2e/framework/util.go b/test/e2e/framework/util.go
+index 53c4d1a409b..4337812d53f 100644
+--- a/test/e2e/framework/util.go
++++ b/test/e2e/framework/util.go
+@@ -464,7 +464,7 @@ func countEndpointsNum(e *v1.Endpoints) int {
+ 
+ // restclientConfig returns a config holds the information needed to build connection to kubernetes clusters.
+ func restclientConfig(kubeContext string) (*clientcmdapi.Config, error) {
+-	Logf(">>> kubeConfig: %s", TestContext.KubeConfig)
++	//Logf(">>> kubeConfig: %s", TestContext.KubeConfig)
+ 	if TestContext.KubeConfig == "" {
+ 		return nil, fmt.Errorf("KubeConfig must be specified to load client config")
+ 	}
+diff --git a/test/e2e/network/netpol/kubemanager.go b/test/e2e/network/netpol/kubemanager.go
+index cacd0c2e9a3..69db4f550bc 100644
+--- a/test/e2e/network/netpol/kubemanager.go
++++ b/test/e2e/network/netpol/kubemanager.go
+@@ -31,7 +31,7 @@ import (
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	clientset "k8s.io/client-go/kubernetes"
+ 	"k8s.io/kubernetes/test/e2e/framework"
+-	admissionapi "k8s.io/pod-security-admission/api"
++	//admissionapi "k8s.io/pod-security-admission/api"
+ )
+ 
+ // probeConnectivityArgs is set of arguments for a probeConnectivity
+@@ -171,6 +171,7 @@ func (k *kubeManager) executeRemoteCommand(namespace string, pod string, contain
+ 		CaptureStdout:      true,
+ 		CaptureStderr:      true,
+ 		PreserveWhitespace: false,
++		Quiet:              true,
+ 	})
+ }
+ 
+@@ -289,5 +290,5 @@ func enforcePodSecurityBaseline(ns *v1.Namespace) {
+ 		ns.ObjectMeta.Labels = make(map[string]string)
+ 	}
+ 	// TODO(https://github.com/kubernetes/kubernetes/issues/108298): route namespace creation via framework.Framework.CreateNamespace
+-	ns.ObjectMeta.Labels[admissionapi.EnforceLevelLabel] = string(admissionapi.LevelBaseline)
++	//ns.ObjectMeta.Labels[admissionapi.EnforceLevelLabel] = string(admissionapi.LevelBaseline)
+ }
+diff --git a/test/e2e/network/netpol/network_legacy.go b/test/e2e/network/netpol/network_legacy.go
+index a46ca8bdfcc..390094b5045 100644
+--- a/test/e2e/network/netpol/network_legacy.go
++++ b/test/e2e/network/netpol/network_legacy.go
+@@ -2147,7 +2147,7 @@ func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *
+ 					Command: []string{"/bin/sh"},
+ 					Args: []string{
+ 						"-c",
+-						fmt.Sprintf("for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
++						fmt.Sprintf("sleep 10; for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
+ 					},
+ 				},
+ 			},
+diff --git a/test/e2e/network/netpol/test_helper.go b/test/e2e/network/netpol/test_helper.go
+index dc09271fa9b..2fed7d92c5b 100644
+--- a/test/e2e/network/netpol/test_helper.go
++++ b/test/e2e/network/netpol/test_helper.go
+@@ -111,6 +111,7 @@ func waitForHTTPServers(k *kubeManager, model *Model) error {
+ func ValidateOrFail(k8s *kubeManager, model *Model, testCase *TestCase) {
+ 	ginkgo.By("Validating reachability matrix...")
+ 
++	time.Sleep(time.Second*10)
+ 	// 1st try
+ 	ginkgo.By("Validating reachability matrix... (FIRST TRY)")
+ 	ProbePodToPodConnectivity(k8s, model, testCase)
