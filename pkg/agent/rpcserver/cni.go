@@ -29,7 +29,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend/allocator"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
@@ -39,28 +38,22 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
+	eripam "github.com/everoute/everoute/pkg/ipam"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
 type CNIServer struct {
 	k8sClient client.Client
 	ovsDriver *ovsdbDriver.OvsDriver
-	gwName    string
+	ipam      eripam.IPAM
 	brName    string
-	podCIDR   []cnitypes.IPNet
 	podMTU    int
 
 	mutex sync.Mutex
 }
 
-type CNIArgs struct {
-	cnitypes.CommonArgs
-	K8S_POD_NAME               cnitypes.UnmarshallableString //nolint
-	K8S_POD_NAMESPACE          cnitypes.UnmarshallableString //nolint
-	K8S_POD_INFRA_CONTAINER_ID cnitypes.UnmarshallableString //nolint
-}
-
-func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *CNIArgs, error) {
+func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *utils.CNIArgs, error) {
 	// parse request Stdin
 	conf := &cnitypes.NetConf{}
 	err := json.Unmarshal(request.Stdin, &conf)
@@ -69,7 +62,7 @@ func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *CN
 	}
 
 	// parse request Args
-	args := &CNIArgs{}
+	args := &utils.CNIArgs{}
 	err = cnitypes.LoadArgs(request.Args, args)
 	if err != nil {
 		return nil, nil, err
@@ -112,15 +105,10 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 	// require ipam for a new ip address
 	SetEnv(request)
-	r, err := ipam.ExecAdd("host-local", s.GetIpamConfByte(conf))
+	ipamResult, err := s.ipam.ExecAdd(ctx, conf, args)
 	if err != nil {
 		klog.Errorf("could not allocate ip address, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_INVALID_NETWORK_CONFIG, "could not allocate ip address", err)
-	}
-	ipamResult, err := cniv1.NewResultFromResult(r)
-	if err != nil {
-		klog.Errorf("could not convert result, err: %s", err)
-		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "could not convert result", err)
 	}
 
 	// create cni result structure
@@ -203,7 +191,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	conf, _, err := s.ParseConf(request)
+	conf, args, err := s.ParseConf(request)
 	if err != nil {
 		klog.Errorf("failed to decode request, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "failed to decode request", err)
@@ -219,7 +207,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 
 	// require ipam for a new ip address
 	SetEnv(request)
-	err = ipam.ExecCheck("host-local", s.GetIpamConfByte(conf))
+	err = s.ipam.ExecCheck(ctx, conf, args)
 	if err != nil {
 		klog.Errorf("ipam check error, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "ipam check error", err)
@@ -234,7 +222,7 @@ func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cni
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	conf, _, err := s.ParseConf(request)
+	conf, args, err := s.ParseConf(request)
 	if err != nil {
 		klog.Errorf("Parse request conf error, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "Parse request conf error", err)
@@ -252,7 +240,7 @@ func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 	// release allocated IP
 	SetEnv(request)
-	if err = ipam.ExecDel("host-local", s.GetIpamConfByte(conf)); err != nil {
+	if err = s.ipam.ExecDel(ctx, conf, args); err != nil {
 		klog.Errorf("release ip error, ipam conf: %s, err: %s", conf.IPAM, err)
 		return s.RetError(cnipb.ErrorCode_IO_FAILURE, "release ip error", err)
 	}
@@ -270,26 +258,6 @@ func (s *CNIServer) RetError(code cnipb.ErrorCode, msg string, err error) (*cnip
 		},
 	}
 	return resp, err
-}
-
-func (s *CNIServer) GetIpamConfByte(conf *cnitypes.NetConf) []byte {
-	var ipamRanges allocator.RangeSet
-	for _, item := range s.podCIDR {
-		ipamRanges = append(ipamRanges, allocator.Range{Subnet: item})
-	}
-
-	ipamConf := allocator.Net{
-		Name:       conf.Name,
-		CNIVersion: conf.CNIVersion,
-		IPAM: &allocator.IPAMConfig{
-			Type:   "host-local",
-			Ranges: []allocator.RangeSet{ipamRanges},
-		},
-		Args: nil,
-	}
-	ipamByte, _ := json.Marshal(ipamConf)
-
-	return ipamByte
 }
 
 func SetEnv(request *cnipb.CniRequest) {
@@ -322,17 +290,21 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
-		gwName:    datapathManager.Info.GatewayName,
 		ovsDriver: datapathManager.OvsdbDriverMap[datapathManager.Info.BridgeName][datapath.LOCAL_BRIDGE_KEYWORD],
-		podCIDR:   append([]cnitypes.IPNet{}, datapathManager.Info.PodCIDR...),
 		podMTU:    datapathManager.Config.CNIConfig.MTU,
 	}
 
+	if datapathManager.Config.CNIConfig.IPAMType == constants.EverouteIPAM {
+		s.ipam = eripam.NewEverouteIPAM(k8sClient, datapathManager.Info.Namespace, datapathManager.Info.GatewayIP)
+	} else {
+		s.ipam = eripam.NewHostLocalIPAM(datapathManager.Info.PodCIDR)
+	}
+
 	// set gateway ip address, first ip in first CIDR
-	if err := SetLinkAddr(s.gwName,
+	if err := SetLinkAddr(datapathManager.Info.GatewayName,
 		&net.IPNet{
 			IP:   datapathManager.Info.GatewayIP,
-			Mask: s.podCIDR[0].Mask}); err != nil {
+			Mask: datapathManager.Info.GatewayMask}); err != nil {
 		klog.Errorf("set gateway ip address error, err:%s", err)
 	}
 

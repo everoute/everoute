@@ -238,10 +238,13 @@ type DpManagerInfo struct {
 
 	GatewayName   string
 	GatewayIP     net.IP
+	GatewayMask   net.IPMask
 	GatewayMac    net.HardwareAddr
 	GatewayOfPort uint32
 
 	TunnelOfPort uint32
+
+	Namespace string
 }
 
 type DpManagerConfig struct {
@@ -256,6 +259,7 @@ type DpManagerCNIConfig struct {
 	EnableProxy bool // enable proxy
 	EncapMode   string
 	MTU         int // pod mtu
+	IPAMType    string
 }
 
 type Endpoint struct {

@@ -25,6 +25,8 @@ import (
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
+	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
+	"github.com/everoute/ipam/pkg/ipam"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
@@ -41,12 +43,14 @@ type Options struct {
 	Config *agentConfig
 
 	metricsAddr string
+	namespace   string
 }
 
 type CNIConf struct {
 	EnableProxy bool   `yaml:"enableProxy,omitempty"`
 	EncapMode   string `yaml:"encapMode,omitempty"`
 	MTU         int    `yaml:"mtu,omitempty"`
+	IPAM        string `yaml:"ipam,omitempty"`
 }
 
 type agentConfig struct {
@@ -86,12 +90,34 @@ func (o *Options) IsEnableOverlay() bool {
 	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
 }
 
+func (o *Options) UseEverouteIPAM() bool {
+	if !o.IsEnableOverlay() {
+		return false
+	}
+
+	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
+}
+
 func (o *Options) complete() error {
 	agentConfig, err := getAgentConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
 	o.Config = agentConfig
+
+	if o.IsEnableCNI() {
+		ns := os.Getenv(constants.NamespaceNameENV)
+		if ns == "" {
+			return fmt.Errorf("can't get agent namespace from env to create gw-ep endpoint in overlay mode")
+		}
+		o.namespace = ns
+		if !o.IsEnableOverlay() {
+			if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
+				return fmt.Errorf("everoute ipam can only used in overlay mode")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -119,6 +145,7 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 			EnableProxy: agentConfig.CNIConf.EnableProxy,
 			EncapMode:   agentConfig.CNIConf.EncapMode,
 			MTU:         agentConfig.CNIConf.MTU,
+			IPAMType:    agentConfig.CNIConf.IPAM,
 		}
 		dpConfig.CNIConfig = cniConfig
 	}
@@ -126,10 +153,9 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	return dpConfig
 }
 
-func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) {
+func setAgentConf(datapathManager *datapath.DpManager, k8sClient client.Client) {
 	var err error
 
-	k8sClient := k8sReader.(client.Client)
 	agentInfo := datapathManager.Info
 	agentInfo.NodeName = os.Getenv(constants.AgentNodeNameENV)
 
@@ -145,7 +171,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		cidr, _ := cnitypes.ParseCIDR(cidrString)
 		agentInfo.PodCIDR = append(agentInfo.PodCIDR, cnitypes.IPNet(*cidr))
 	}
-	if len(agentInfo.PodCIDR) == 0 {
+	if !opts.UseEverouteIPAM() && len(agentInfo.PodCIDR) == 0 {
 		klog.Fatalf("PodCIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --pod-network-cidr 10.0.0.0/16`")
 	}
 
@@ -158,9 +184,16 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		datapathManager.Config.CNIConfig.MTU = podMTU
 	}
 
-	// get cluster CIDR
+	// get cluster CIDR and cluster pod cidr
+	setClusterCIDR(agentInfo, k8sClient)
+	setOfPort(datapathManager)
+	setLocalGwInfo(agentInfo)
+	setGwInfo(agentInfo, k8sClient)
+}
+
+func setClusterCIDR(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) {
 	pods := corev1.PodList{}
-	if err = k8sClient.List(context.Background(), &pods, client.InNamespace("kube-system")); err != nil {
+	if err := k8sClient.List(context.Background(), &pods, client.InNamespace("kube-system")); err != nil {
 		klog.Fatalf("get pod info error, err:%s", err)
 	}
 
@@ -187,9 +220,14 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 	if agentInfo.ClusterCIDR == nil {
 		klog.Fatalf("Service cluster CIDR should be specified when setup kubernetes cluster. E.g. `kubeadm init --service-cidr 10.244.0.0/16`")
 	}
-	if opts.IsEnableOverlay() && agentInfo.ClusterPodCIDR == nil {
+	if opts.IsEnableOverlay() && !opts.UseEverouteIPAM() && agentInfo.ClusterPodCIDR == nil {
 		klog.Fatalf("Cluster pod CIDR should be specified when setup kubernetes cluster, E.g. `kubeadm init --pod-cidr 10.0.0.0/16`")
 	}
+}
+
+func setOfPort(datapathManager *datapath.DpManager) {
+	agentInfo := datapathManager.Info
+	var err error
 
 	for bridge := range datapathManager.OvsdbDriverMap {
 		agentInfo.BridgeName = datapathManager.OvsdbDriverMap[bridge][datapath.LOCAL_BRIDGE_KEYWORD].OvsBridgeName
@@ -213,9 +251,11 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 				klog.Fatalf("fetch tunnel ofport error, err: %v", err)
 			}
 		}
-		break // only one VDS in CNI scene
+		return // only one VDS in CNI scene
 	}
+}
 
+func setLocalGwInfo(agentInfo *datapath.DpManagerInfo) {
 	if !opts.IsEnableProxy() {
 		// get gateway ip and mac
 		localGwIP, err := utils.GetIfaceIP(agentInfo.LocalGwName)
@@ -229,13 +269,42 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sReader client.Reader) 
 		agentInfo.LocalGwIP = localGwIP
 		agentInfo.LocalGwMac = localGwMac
 	}
+}
 
+func setGwInfo(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) {
 	GwMac, err := utils.GetIfaceMAC(agentInfo.GatewayName)
 	if err != nil {
 		klog.Fatalf("Failed to get gateway mac address, error:%s", err)
 	}
-	agentInfo.GatewayIP = ip.NextIP(agentInfo.PodCIDR[0].IP)
 	agentInfo.GatewayMac = GwMac
+	if err := getGatewayIP(agentInfo, k8sClient); err != nil {
+		klog.Fatalf("Failed to get gateway ip, err: %v", err)
+	}
+
+	if opts.UseEverouteIPAM() {
+		agentInfo.Namespace = opts.namespace
+	}
+}
+
+func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) error {
+	if !opts.UseEverouteIPAM() {
+		agentInfo.GatewayIP = ip.NextIP(agentInfo.PodCIDR[0].IP)
+		agentInfo.GatewayMask = agentInfo.PodCIDR[0].Mask
+		return nil
+	}
+
+	// get from ipam
+	netconf := &ipam.NetConf{
+		AllocateIdentify: agentInfo.NodeName,
+		Type:             ipamv1alpha1.AllocateTypeCNIUsed,
+	}
+	ipInfo, err := ipam.InitIpam(k8sClient, opts.namespace).ExecAdd(context.Background(), netconf)
+	if err != nil {
+		return err
+	}
+	agentInfo.GatewayIP = ipInfo.IPs[0].Address.IP
+	agentInfo.GatewayMask = ipInfo.IPs[0].Address.Mask
+	return nil
 }
 
 func getAgentConfig() (*agentConfig, error) {
