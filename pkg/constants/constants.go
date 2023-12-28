@@ -67,6 +67,8 @@ const (
 	GeneveHeaderLen = 50
 
 	GwEndpointName = "gw-ep"
+
+	EverouteIPAM = "everoute"
 )
 
 const (

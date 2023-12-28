@@ -9,15 +9,18 @@ data:
       localGwIP: {{ .Values.CNIConf.localGwIP }}
       # enable everoute proxy
       enableProxy: {{ .Values.CNIConf.enableProxy }}
-      # use overlay mode
-      # encapMode: geneve
-      {{- if ne .Values.CNIConf.encapMode "" }}
+      # encapMode: geneve # use overlay mode
+      {{- if ne (.Values.CNIConf.encapMode | default "") "" }}
       encapMode: {{ .Values.CNIConf.encapMode }}
       {{- end}}
       # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
       mtu: {{ .Values.CNIConf.mtu }}
       # specified encap vni, only valid when encapMode isn't empty, default is 5000 
       vni: {{ .Values.CNIConf.vni }}
+      # ipam: everoute # use everoute ipam
+      {{- if ne (.Values.CNIConf.ipam | default "") "" }}
+      ipam: {{ .Values.CNIConf.ipam }}
+      {{- end}}
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -37,9 +40,8 @@ data:
     CNIConf:
       # enable everoute proxy
       enableProxy: {{ .Values.CNIConf.enableProxy }}
-      # use overlay mode
-      # encapMode: geneve
-      {{- if ne .Values.CNIConf.encapMode "" }}
+      # encapMode: geneve # use overlay mode
+      {{- if ne (.Values.CNIConf.encapMode | default "") "" }}
       encapMode: {{ .Values.CNIConf.encapMode }}
       {{- end}}
 kind: ConfigMap

@@ -14,6 +14,7 @@ CNIConf:
   encapMode: ""
   mtu: 0
   vni: 5000
+  ipam: ""
 
 webhook:
   type: Service # enum: Service, URL

@@ -1,0 +1,102 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: ippools.ipam.everoute.io
+spec:
+  group: ipam.everoute.io
+  names:
+    kind: IPPool
+    listKind: IPPoolList
+    plural: ippools
+    singular: ippool
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec contains description of the IPPool
+            properties:
+              cidr:
+                description: 'CIDR is an IP net string, e.g. 192.168.1.0/24 IP will
+                  allocated from CIDR nolint: lll'
+                pattern: ^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2]\d|3[0-2])$
+                type: string
+              gateway:
+                description: 'Gateway must a valid IP in Subnet nolint: lll'
+                pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                type: string
+              subnet:
+                description: 'Subnet is the total L2 network, nolint: lll'
+                pattern: ^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2]\d|3[0-2])$
+                type: string
+            required:
+            - cidr
+            - gateway
+            - subnet
+            type: object
+          status:
+            description: Status is the current state of the IPPool
+            properties:
+              allocatedips:
+                additionalProperties:
+                  properties:
+                    cid:
+                      description: Type=pod, CID=containerID
+                      type: string
+                    id:
+                      description: Type=pod, ID=podns/name
+                      type: string
+                    owner:
+                      description: Type=statefulset, owner=statefulsetns/name
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - id
+                  - type
+                  type: object
+                description: AllocatedIPs is ip and allocated infos
+                type: object
+              offset:
+                description: Offset stores the current read pointer -1 means this
+                  pool is full
+                format: int64
+                type: integer
+              usedips:
+                additionalProperties:
+                  type: string
+                description: UsedIps can't delete to compatible with upgrade scenarios
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
