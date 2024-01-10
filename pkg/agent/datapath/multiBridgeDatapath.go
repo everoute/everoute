@@ -1240,6 +1240,14 @@ func (datapathManager *DpManager) IsEnableOverlay() bool {
 	return datapathManager.Config.CNIConfig.EncapMode == constants.EncapModeGeneve
 }
 
+func (datapathManager *DpManager) UseEverouteIPAM() bool {
+	if !datapathManager.IsEnableOverlay() {
+		return false
+	}
+
+	return datapathManager.Config.CNIConfig.IPAMType == constants.EverouteIPAM
+}
+
 func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {
 	var ruleList EveroutePolicyRuleList
 

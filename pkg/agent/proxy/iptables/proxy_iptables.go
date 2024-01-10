@@ -40,7 +40,7 @@ func (k *kubeProxy) forward(ipt *iptables.IPTables) {
 func (k *kubeProxy) prerouting(ipt *iptables.IPTables) {
 	var err error
 	// check and add CT zone for gw-local
-	if err = ipt.Insert("raw", "PREROUTING", 1, "-i", k.localGwName, "-j", "CT", "--zone", "65510"); err != nil {
+	if err = ipt.InsertUnique("raw", "PREROUTING", 1, "-i", k.localGwName, "-j", "CT", "--zone", "65510"); err != nil {
 		klog.Errorf("Append %s into raw PREROUTING error, err: %s", k.localGwName, err)
 	}
 }
