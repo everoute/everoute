@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	ctrlPool "github.com/everoute/everoute/pkg/agent/controller/ippool"
 	"github.com/everoute/everoute/pkg/agent/controller/overlay"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
@@ -223,39 +224,56 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
 
-	if opts.IsEnableCNI() {
-		if err = proxy.SetupRouteAndIPtables(mgr, datapathManager, ctx.Done()); err != nil {
-			klog.Fatalf("unable to setup route and iptables controller: %v", err)
-		}
-	}
-
-	if opts.IsEnableOverlay() {
-		uplinkBridgeOverlay := datapathManager.GetUplinkBridgeOverlay()
-		if err = (&overlay.Reconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			UplinkBr:  uplinkBridgeOverlay,
-			LocalNode: datapathManager.Info.NodeName,
-			SyncChan:  overlaySyncChan,
-		}).SetupWithManager(mgr); err != nil {
-			klog.Fatalf("unable to create overlay related controller: %v", err)
-		}
-	}
-
 	var proxyCache *ctrlProxy.Cache
-	if opts.IsEnableProxy() {
-		proxyReconciler := &ctrlProxy.Reconciler{
-			Client:    mgr.GetClient(),
-			Scheme:    mgr.GetScheme(),
-			DpMgr:     datapathManager,
-			LocalNode: datapathManager.Info.NodeName,
-			SyncChan:  proxySyncChan,
+	if opts.IsEnableCNI() {
+		if opts.IsEnableOverlay() {
+			iptCtrl, rCtrl := proxy.SetupRouteAndIPtables(datapathManager, ctx.Done())
+
+			uplinkBridgeOverlay := datapathManager.GetUplinkBridgeOverlay()
+			if err = (&overlay.Reconciler{
+				Client:    mgr.GetClient(),
+				Scheme:    mgr.GetScheme(),
+				UplinkBr:  uplinkBridgeOverlay,
+				LocalNode: datapathManager.Info.NodeName,
+				SyncChan:  overlaySyncChan,
+			}).SetupWithManager(mgr); err != nil {
+				klog.Fatalf("unable to create overlay related controller: %v", err)
+			}
+
+			if opts.UseEverouteIPAM() {
+				if err = (&ctrlPool.Reconciler{
+					Client:    mgr.GetClient(),
+					IptCtrl:   iptCtrl,
+					RouteCtrl: rCtrl,
+				}).SetupWithManager(mgr); err != nil {
+					klog.Fatalf("unable to create ippool related controller: %v", err)
+				}
+			}
+		} else {
+			// setup route and iptables for route mode
+			if err := (&proxy.NodeReconciler{
+				Client:          mgr.GetClient(),
+				Scheme:          mgr.GetScheme(),
+				DatapathManager: datapathManager,
+				StopChan:        ctx.Done(),
+			}).SetupWithManager(mgr); err != nil {
+				klog.Fatalf("unable to setup route and iptables controller: %v", err)
+			}
 		}
-		if err = proxyReconciler.SetupWithManager(mgr); err != nil {
-			klog.Errorf("unable to create proxy controller: %s", err.Error())
-			return nil, err
+		if opts.IsEnableProxy() {
+			proxyReconciler := &ctrlProxy.Reconciler{
+				Client:    mgr.GetClient(),
+				Scheme:    mgr.GetScheme(),
+				DpMgr:     datapathManager,
+				LocalNode: datapathManager.Info.NodeName,
+				SyncChan:  proxySyncChan,
+			}
+			if err = proxyReconciler.SetupWithManager(mgr); err != nil {
+				klog.Errorf("unable to create proxy controller: %s", err.Error())
+				return nil, err
+			}
+			proxyCache = proxyReconciler.GetCache()
 		}
-		proxyCache = proxyReconciler.GetCache()
 	}
 
 	klog.Info("starting manager")

@@ -2,8 +2,10 @@ package iptables
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/coreos/go-iptables/iptables"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
 )
 
@@ -11,29 +13,33 @@ type OverlayIPtables struct {
 	baseIPtables
 	proxy proxyIPtables
 
-	clusterPodCIDR string
+	lock     sync.RWMutex
+	podCIDRs sets.Set[string]
 }
 
 func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) *OverlayIPtables {
-	if opt == nil || opt.ClusterPodCIDR == "" {
-		klog.Fatal("New overlay mode iptables controller failed, missing param ClusterPodCIDR")
-	}
-	if enableEverouteProxy {
-		return &OverlayIPtables{
-			baseIPtables:   baseIPtables{},
-			proxy:          &everouteProxy{},
-			clusterPodCIDR: opt.ClusterPodCIDR,
-		}
+	if opt == nil {
+		klog.Fatal("New overlay mode iptables controller failed, param opt can't be nil")
 	}
 
-	if opt.LocalGwName == "" {
-		klog.Fatal("New overlay mode iptables controller with kube-proxy failed, missing param local gw nic name")
+	o := &OverlayIPtables{
+		baseIPtables: baseIPtables{},
+		podCIDRs:     sets.New[string](),
 	}
-	return &OverlayIPtables{
-		baseIPtables:   baseIPtables{},
-		proxy:          &kubeProxy{localGwName: opt.LocalGwName},
-		clusterPodCIDR: opt.ClusterPodCIDR,
+
+	if enableEverouteProxy {
+		o.proxy = &everouteProxy{}
+	} else {
+		if opt.LocalGwName == "" {
+			klog.Fatal("New overlay mode iptables controller with kube-proxy failed, missing param local gw nic name")
+		}
+		o.proxy = &kubeProxy{localGwName: opt.LocalGwName}
 	}
+
+	if opt.ClusterPodCIDR != "" {
+		o.podCIDRs.Insert(opt.ClusterPodCIDR)
+	}
+	return o
 }
 
 func (o *OverlayIPtables) Update() {
@@ -42,7 +48,6 @@ func (o *OverlayIPtables) Update() {
 		klog.Errorf("init iptables error, err: %s", err)
 		return
 	}
-
 	o.acceptForward(ipt)
 
 	everouteOutputChainErr := o.createEverouteOutputChain(ipt)
@@ -58,14 +63,19 @@ func (o *OverlayIPtables) Update() {
 }
 
 func (o *OverlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
-	var err error
+	o.lock.RLock()
+	defer o.lock.RUnlock()
+
 	newRules := make(map[string]struct{})
 
-	ruleSpec := []string{"-s", o.clusterPodCIDR, "-j", "MASQUERADE"}
-	newRules[strings.Join(ruleSpec, " ")] = struct{}{}
-	err = ipt.AppendUnique("nat", "EVEROUTE-OUTPUT", ruleSpec...)
-	if err != nil {
-		klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+	cidrs := o.podCIDRs.UnsortedList()
+	for _, c := range cidrs {
+		ruleSpec := []string{"-s", c, "-j", "MASQUERADE"}
+		newRules[strings.Join(ruleSpec, " ")] = struct{}{}
+		err := ipt.AppendUnique("nat", "EVEROUTE-OUTPUT", ruleSpec...)
+		if err != nil {
+			klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+		}
 	}
 
 	expectRules := o.proxy.everouteOutput(ipt)
@@ -74,4 +84,50 @@ func (o *OverlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
 	}
 
 	o.deleteUnexpectRuleInEverouteOutput(ipt, newRules)
+}
+
+func (o *OverlayIPtables) AddRuleByCIDR(cidr string) error {
+	ipt, err := iptables.New()
+	if err != nil {
+		klog.Errorf("init iptables error, err: %s", err)
+		return err
+	}
+
+	ruleSpec := []string{"-s", cidr, "-j", "MASQUERADE"}
+	err = ipt.AppendUnique("nat", "EVEROUTE-OUTPUT", ruleSpec...)
+	if err != nil {
+		klog.Errorf("Add MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+		return err
+	}
+	return nil
+}
+
+func (o *OverlayIPtables) DelRuleByCIDR(cidr string) error {
+	ipt, err := iptables.New()
+	if err != nil {
+		klog.Errorf("init iptables error, err: %s", err)
+		return err
+	}
+
+	ruleSpec := []string{"-s", cidr, "-j", "MASQUERADE"}
+	err = ipt.DeleteIfExists("nat", "EVEROUTE-OUTPUT", ruleSpec...)
+	if err != nil {
+		klog.Errorf("Delete MASQUERADE rule in nat EVEROUTE-OUTPUT error, rule: %s, err: %s", ruleSpec, err)
+		return err
+	}
+	return nil
+}
+
+func (o *OverlayIPtables) InsertPodCIDRs(cidrs ...string) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	o.podCIDRs.Insert(cidrs...)
+}
+
+func (o *OverlayIPtables) DelPodCIDRs(cidrs ...string) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	o.podCIDRs.Delete(cidrs...)
 }
