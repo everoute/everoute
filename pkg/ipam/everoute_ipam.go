@@ -2,7 +2,6 @@ package ipam
 
 import (
 	"context"
-	"net"
 
 	"github.com/containernetworking/cni/pkg/types"
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
@@ -16,14 +15,12 @@ import (
 
 type EverouteIPAM struct {
 	ipam      *ipam.Ipam
-	gateway   net.IP
 	k8sClient client.Client
 }
 
-func NewEverouteIPAM(k8sclient client.Client, ippoolNs string, gateway net.IP) IPAM {
+func NewEverouteIPAM(k8sclient client.Client, ippoolNs string) IPAM {
 	return &EverouteIPAM{
 		ipam:      ipam.InitIpam(k8sclient, ippoolNs),
-		gateway:   gateway,
 		k8sClient: k8sclient,
 	}
 }
@@ -45,7 +42,6 @@ func (i *EverouteIPAM) ExecAdd(ctx context.Context, _ *types.NetConf, args *util
 		klog.Errorf("Failed to allocate ip, err: %v", err)
 		return nil, err
 	}
-	r.IPs[0].Gateway = i.gateway
 	return r, nil
 }
 

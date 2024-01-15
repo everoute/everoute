@@ -1,0 +1,12 @@
+{{- if eq .Values.CNIConf.ipam "everoute" }}
+---
+apiVersion: ipam.everoute.io/v1alpha1
+kind: IPPool
+metadata:
+  name: everoute-built-in
+  namespace: kube-system
+spec:
+  cidr: {{ .Values.CNIConf.gwIPPool.cidr }}
+  subnet: {{ .Values.CNIConf.gwIPPool.cidr }}
+  gateway: {{ .Values.CNIConf.gwIPPool.gateway }}
+{{- end }}
