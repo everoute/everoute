@@ -295,7 +295,7 @@ func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) 
 	}
 
 	if datapathManager.Config.CNIConfig.IPAMType == constants.EverouteIPAM {
-		s.ipam = eripam.NewEverouteIPAM(k8sClient, datapathManager.Info.Namespace, datapathManager.Info.GatewayIP)
+		s.ipam = eripam.NewEverouteIPAM(k8sClient, datapathManager.Info.Namespace)
 	} else {
 		s.ipam = eripam.NewHostLocalIPAM(datapathManager.Info.PodCIDR)
 	}

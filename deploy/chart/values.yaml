@@ -15,6 +15,9 @@ CNIConf:
   mtu: 0
   vni: 5000
   ipam: ""
+  gwIPPool:
+    gateway: 200.254.0.0
+    cidr: 200.254.0.0/16
 
 webhook:
   type: Service # enum: Service, URL

@@ -297,6 +297,7 @@ func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) er
 	netconf := &ipam.NetConf{
 		AllocateIdentify: agentInfo.NodeName,
 		Type:             ipamv1alpha1.AllocateTypeCNIUsed,
+		Pool:             constants.GwIPPoolName,
 	}
 	ipInfo, err := ipam.InitIpam(k8sClient, opts.namespace).ExecAdd(context.Background(), netconf)
 	if err != nil {

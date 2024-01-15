@@ -69,6 +69,8 @@ const (
 	GwEndpointName = "gw-ep"
 
 	EverouteIPAM = "everoute"
+
+	GwIPPoolName = "everoute-built-in"
 )
 
 const (
