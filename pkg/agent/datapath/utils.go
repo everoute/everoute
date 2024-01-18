@@ -472,3 +472,59 @@ func setupArpProxyFlowAction(arpProxyFlow *ofctrl.Flow, proxyMac net.HardwareAdd
 	}
 	return arpProxyFlow.MoveField(IPv4Lenth, 0, 0, "nxm_of_arp_tpa", "nxm_of_arp_spa", false)
 }
+
+func setupArpProxyFlow(t *ofctrl.Table, cidr *net.IPNet, next ofctrl.FgraphElem) (*ofctrl.Flow, error) {
+	f, _ := t.NewFlow(ofctrl.FlowMatch{
+		Ethertype:  PROTOCOL_ARP,
+		ArpTpa:     &cidr.IP,
+		ArpTpaMask: (*net.IP)(&cidr.Mask),
+		ArpOper:    ArpOperRequest,
+		Priority:   MID_MATCH_FLOW_PRIORITY,
+	})
+	fakeMac, _ := net.ParseMAC(FACK_MAC)
+	if err := setupArpProxyFlowAction(f, fakeMac); err != nil {
+		return nil, fmt.Errorf("failed to setup arp proxy table pod cidr arp proxy flow action, err: %v", err)
+	}
+	if err := f.Next(next); err != nil {
+		return nil, fmt.Errorf("failed to install arp proxy table pod cidr arp proxy flow, err: %v", err)
+	}
+	return f, nil
+}
+
+func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*ofctrl.Flow, error) {
+	ipStr := ip.String()
+	f, _ := t.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		IpProto:   PROTOCOL_ICMP,
+		IcmpType:  IcmpTypeRequest,
+		IpDa:      ip,
+	})
+	if err := f.SetMacSa(net.HardwareAddr(FACK_MAC)); err != nil {
+		log.Errorf("Failed to add the action that set src mac for icmp proxy ip %s: %v", ipStr, err)
+		return nil, err
+	}
+	if err := f.SetIPField(*ip, "Src"); err != nil {
+		log.Errorf("Failed to add the action that set src ip for icmp proxy ip %s: %v", ipStr, err)
+		return nil, err
+	}
+	if err := f.LoadField("nxm_of_icmp_type", uint64(IcmpTypeReply), IcmpTypeRange); err != nil {
+		log.Errorf("Failed to add load field: icmp type action for icmp proxy ip %s: %v", ipStr, err)
+		return nil, err
+	}
+	if err := f.MoveField(IPv4Lenth, 0, 0, "nxm_of_ip_src", "nxm_of_ip_dst", false); err != nil {
+		log.Errorf("Failed to add the action that move src ip to dst ip for icmp proxy ip %s: %v", ipStr, err)
+		return nil, err
+	}
+	if err := f.MoveField(MacLength, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
+		log.Errorf("Failed to add the action that move src mac to dst mac for icmp proxy ip %s: %v", ipStr, err)
+		return nil, err
+	}
+
+	if err := f.Next(next); err != nil {
+		log.Errorf("Failed to install icmp reply flow for ip %s: %v", ipStr, err)
+		return nil, err
+	}
+
+	return f, nil
+}

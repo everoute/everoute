@@ -245,6 +245,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 					Client:    mgr.GetClient(),
 					IptCtrl:   iptCtrl,
 					RouteCtrl: rCtrl,
+					DpMgr:     datapathManager,
 				}).SetupWithManager(mgr); err != nil {
 					klog.Fatalf("unable to create ippool related controller: %v", err)
 				}

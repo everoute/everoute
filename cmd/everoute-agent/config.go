@@ -305,6 +305,7 @@ func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) er
 	}
 	agentInfo.GatewayIP = ipInfo.IPs[0].Address.IP
 	agentInfo.GatewayMask = ipInfo.IPs[0].Address.Mask
+	agentInfo.ClusterPodGw = &ipInfo.IPs[0].Gateway
 	return nil
 }
 

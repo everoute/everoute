@@ -109,3 +109,19 @@ func (b *BaseBridge) RemoveLocalEndpoint(*Endpoint) error {
 }
 
 func (b *BaseBridge) BridgeReset() {}
+
+func (b *BaseBridge) AddIPPoolSubnet(string) error {
+	return nil
+}
+
+func (b *BaseBridge) DelIPPoolSubnet(string) error {
+	return nil
+}
+
+func (b *BaseBridge) AddIPPoolGW(string) error {
+	return nil
+}
+
+func (b *BaseBridge) DelIPPoolGW(string) error {
+	return nil
+}
