@@ -17,7 +17,6 @@ limitations under the License.
 package policy_test
 
 import (
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,6 +32,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
@@ -113,7 +113,7 @@ var _ = BeforeSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, brName)).ToNot(HaveOccurred())
 
 	stopCh := ctrl.SetupSignalHandler()
-	updateChan := make(chan map[string]net.IP, 10)
+	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			brName: brName,

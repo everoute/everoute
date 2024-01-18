@@ -20,6 +20,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	dpcache "github.com/everoute/everoute/pkg/agent/datapath/cache"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -118,7 +119,7 @@ var _ = AfterSuite(func() {
 
 func initDpMgr(stopCh <-chan struct{}) *datapath.DpManager {
 	var err error
-	updateChan := make(chan map[string]net.IP, 10)
+	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{BrName: BrName},
 		EnableCNI:     true,
