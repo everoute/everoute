@@ -82,8 +82,16 @@ spec:
                                   type: object
                                 ipmap:
                                   additionalProperties:
-                                    format: date-time
-                                    type: string
+                                    properties:
+                                      updateTime:
+                                        format: date-time
+                                        type: string
+                                      vlanTag:
+                                        type: integer
+                                    required:
+                                    - updateTime
+                                    - vlanTag
+                                    type: object
                                   type: object
                                 mac:
                                   type: string
