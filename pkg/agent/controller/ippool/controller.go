@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	eproxy "github.com/everoute/everoute/pkg/agent/proxy"
 	eipt "github.com/everoute/everoute/pkg/agent/proxy/iptables"
 	"github.com/everoute/everoute/pkg/constants"
@@ -30,6 +31,7 @@ type Reconciler struct {
 	client.Client
 	IptCtrl   *eipt.OverlayIPtables
 	RouteCtrl *eproxy.OverlayRoute
+	DpMgr     *datapath.DpManager
 
 	subnets map[string]sets.Set[types.NamespacedName]
 	gws     map[string]sets.Set[types.NamespacedName]
@@ -45,6 +47,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.RouteCtrl == nil {
 		return fmt.Errorf("param RouteCtrl can't be nil")
+	}
+	if r.DpMgr == nil {
+		return fmt.Errorf("param DpMgr can't be nil")
 	}
 
 	r.subnets = make(map[string]sets.Set[types.NamespacedName])
@@ -137,11 +142,19 @@ func (r *Reconciler) deleteIPPool(n types.NamespacedName) error {
 			errs = append(errs, err)
 		}
 
-		// todo ovsflow for arp and ip
+		if err := r.DpMgr.DelIPPoolSubnet(subnet); err != nil {
+			klog.Errorf("Failed to del ovs flow for ippool %v subnet %s: %v", n, subnet, err)
+			errs = append(errs, err)
+		}
 	}
 
 	gw := r.getGwByIPPool(n)
-	// todo ovsflow for icmp reply
+	if gw != "" {
+		if err := r.DpMgr.DelIPPoolGW(gw); err != nil {
+			klog.Errorf("Failed to del ovs flow for ippool %v gateway %s: %v", n, subnet, err)
+			errs = append(errs, err)
+		}
+	}
 
 	if len(errs) > 0 {
 		return uerr.NewAggregate(errs)
@@ -182,14 +195,20 @@ func (r *Reconciler) addIPPool(ippool *ipamv1alpha1.IPPool) error {
 		klog.Errorf("Failed to add route to node for ippool %v subnet %s: %v", n, subnet, err)
 		errs = append(errs, err)
 	}
-	// todo add ovsdp flows
+	if err := r.DpMgr.AddIPPoolSubnet(subnet); err != nil {
+		klog.Errorf("Failed to add ovsflow for ippool %v subnet %s: %v", n, subnet, err)
+		errs = append(errs, err)
+	}
 
 	if _, ok := r.gws[gw]; !ok {
 		r.gws[gw] = sets.New[types.NamespacedName](n)
 	} else {
 		r.gws[gw].Insert(n)
 	}
-	// todo ovsdp flow
+	if err := r.DpMgr.AddIPPoolGW(gw); err != nil {
+		klog.Errorf("Failed to add ovsflow for ippool %v gateway %s: %v", n, gw, err)
+		errs = append(errs, err)
+	}
 
 	if len(errs) > 0 {
 		return uerr.NewAggregate(errs)

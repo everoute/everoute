@@ -90,10 +90,11 @@ const (
 
 //nolint
 const (
-	PROTOCOL_ARP = 0x0806
-	PROTOCOL_IP  = 0x0800
-	PROTOCOL_UDP = 0x11
-	PROTOCOL_TCP = 0x06
+	PROTOCOL_ARP  = 0x0806
+	PROTOCOL_IP   = 0x0800
+	PROTOCOL_UDP  = 0x11
+	PROTOCOL_TCP  = 0x06
+	PROTOCOL_ICMP = 0x01
 )
 
 //nolint
@@ -152,6 +153,9 @@ var (
 
 	ArpOperRequest uint16 = 1
 	ArpOperReply   uint64 = 2
+
+	IcmpTypeRequest uint8 = 8
+	IcmpTypeReply   uint8
 )
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
@@ -194,6 +198,12 @@ type Bridge interface {
 	// Controller received a multi-part reply from the switch
 	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
 
+	// Everoute IPAM
+	AddIPPoolSubnet(string) error
+	DelIPPoolSubnet(string) error
+	AddIPPoolGW(string) error
+	DelIPPoolGW(string) error
+
 	GetName() string
 	getOfSwitch() *ofctrl.OFSwitch
 }
@@ -221,6 +231,10 @@ type DpManager struct {
 
 	proxyReplayFunc   func()
 	overlayReplayFunc func()
+
+	// everoute ipam
+	ippoolSubnets sets.Set[string]
+	ippoolGWs     sets.Set[string]
 }
 
 type DpManagerInfo struct {
@@ -230,6 +244,7 @@ type DpManagerInfo struct {
 
 	ClusterCIDR    *cnitypes.IPNet
 	ClusterPodCIDR *net.IPNet
+	ClusterPodGw   *net.IP
 
 	LocalGwName   string
 	LocalGwIP     net.IP
@@ -352,6 +367,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 	datapathManager.proxyReplayFunc = func() {}
 	datapathManager.overlayReplayFunc = func() {}
+	datapathManager.ippoolSubnets = sets.New[string]()
+	datapathManager.ippoolGWs = sets.New[string]()
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -755,6 +772,14 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 		datapathManager.overlayReplayFunc()
 	}
 
+	// replay everoute ipam flow
+	if datapathManager.UseEverouteIPAM() {
+		if err := datapathManager.ReplayEverouteIPAMFlow(vdsID, bridgeKeyword); err != nil {
+			klog.Errorf("Failed to replay everoute ipam flow: %v", err)
+			return err
+		}
+	}
+
 	// reset port no flood
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[vdsName][portSuffix] == 0 {
@@ -804,6 +829,116 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 	// TODO: clear except table if we support helpers
 	netlink.ConntrackTableFlush(netlink.ConntrackTable)
 
+	return nil
+}
+
+func (datapathManager *DpManager) ReplayEverouteIPAMFlow(vdsID string, brKey string) error {
+	if brKey == LOCAL_BRIDGE_KEYWORD {
+		// replay icmp reply flow
+		gws := datapathManager.ippoolGWs.UnsortedList()
+		for _, gw := range gws {
+			if err := datapathManager.BridgeChainMap[vdsID][brKey].AddIPPoolGW(gw); err != nil {
+				return err
+			}
+		}
+	}
+
+	if brKey == UPLINK_BRIDGE_KEYWORD || brKey == LOCAL_BRIDGE_KEYWORD {
+		// replay arp and ip reply flow
+		subnets := datapathManager.ippoolSubnets.UnsortedList()
+		for _, subnet := range subnets {
+			if err := datapathManager.BridgeChainMap[vdsID][brKey].AddIPPoolSubnet(subnet); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (datapathManager *DpManager) AddIPPoolSubnet(subnet string) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+	if datapathManager.ippoolSubnets.Has(subnet) {
+		return nil
+	}
+
+	for vdsID := range datapathManager.BridgeChainMap {
+		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddIPPoolSubnet(subnet); err != nil {
+			klog.Errorf("Failed to add IPPool subnet %s flow in uplink bridge: %v", subnet, err)
+			return err
+		}
+		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddIPPoolSubnet(subnet); err != nil {
+			klog.Errorf("Failed to add IPPool subnet %s flow in local bridge: %v", subnet, err)
+			return err
+		}
+	}
+
+	datapathManager.ippoolSubnets.Insert(subnet)
+	return nil
+}
+
+func (datapathManager *DpManager) DelIPPoolSubnet(subnet string) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.ippoolSubnets.Has(subnet) {
+		return nil
+	}
+
+	for vdsID := range datapathManager.BridgeChainMap {
+		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].DelIPPoolSubnet(subnet); err != nil {
+			klog.Errorf("Failed to delete IPPool subnet %s flow in uplink bridge: %v", subnet, err)
+			return err
+		}
+		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].DelIPPoolSubnet(subnet); err != nil {
+			klog.Errorf("Failed to delete IPPool subnet %s flow in local bridge: %v", subnet, err)
+			return err
+		}
+	}
+	datapathManager.ippoolSubnets.Delete(subnet)
+	return nil
+}
+
+func (datapathManager *DpManager) AddIPPoolGW(gw string) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+	if datapathManager.ippoolGWs.Has(gw) {
+		return nil
+	}
+
+	for vdsID := range datapathManager.BridgeChainMap {
+		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddIPPoolGW(gw); err != nil {
+			klog.Errorf("Failed to add IPPool gw %s flow in uplink bridge: %v", gw, err)
+			return err
+		}
+		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddIPPoolGW(gw); err != nil {
+			klog.Errorf("Failed to add IPPool gw %s flow in local bridge: %v", gw, err)
+			return err
+		}
+	}
+
+	datapathManager.ippoolGWs.Insert(gw)
+	return nil
+}
+
+func (datapathManager *DpManager) DelIPPoolGW(gw string) error {
+	datapathManager.flowReplayMutex.Lock()
+	defer datapathManager.flowReplayMutex.Unlock()
+	if !datapathManager.ippoolGWs.Has(gw) {
+		return nil
+	}
+
+	for vdsID := range datapathManager.BridgeChainMap {
+		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].DelIPPoolGW(gw); err != nil {
+			klog.Errorf("Failed to delete IPPool gw %s flow in uplink bridge: %v", gw, err)
+			return err
+		}
+		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].DelIPPoolGW(gw); err != nil {
+			klog.Errorf("Failed to delete IPPool gw %s flow in local bridge: %v", gw, err)
+			return err
+		}
+	}
+	datapathManager.ippoolGWs.Delete(gw)
 	return nil
 }
 

@@ -312,6 +312,7 @@ func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan 
 	gatewayIP := datapathManager.Info.GatewayIP
 	if datapathManager.UseEverouteIPAM() {
 		clusterPodCIDRString = ""
+		gatewayIP = *datapathManager.Info.ClusterPodGw
 	}
 	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.Config.CNIConfig.EnableProxy, &eriptables.Options{
 		LocalGwName:    datapathManager.Info.LocalGwName,

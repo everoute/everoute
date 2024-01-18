@@ -26,6 +26,8 @@ var (
 	LBOOutputPortReg                     = "nxm_nx_reg2"
 	LBOOutputPortStart                   = 0
 	LBOOutputPortRange *openflow.NXRange = openflow.NewNXRange(LBOOutputPortStart, 15)
+
+	IcmpTypeRange *openflow.NXRange = openflow.NewNXRange(0, 7)
 )
 
 type LocalBridgeOverlay struct {
@@ -41,9 +43,12 @@ type LocalBridgeOverlay struct {
 	paddingL2Table      *ofctrl.Table
 	outputTable         *ofctrl.Table
 
+	enableERIPAM   bool
 	enableProxy    bool
 	natPort        uint32
 	localEpFlowMap map[string]*ofctrl.Flow
+	arpFlowMap     map[string]*ofctrl.Flow
+	icmpFlowMap    map[string]*ofctrl.Flow
 }
 
 func newLocalBridgeOverlay(brName string, datapathManager *DpManager) *LocalBridgeOverlay {
@@ -60,12 +65,17 @@ func newLocalBridgeOverlay(brName string, datapathManager *DpManager) *LocalBrid
 
 func (l *LocalBridgeOverlay) BridgeInitCNI() {
 	l.enableProxy = l.datapathManager.IsEnableProxy()
+	l.enableERIPAM = l.datapathManager.UseEverouteIPAM()
 	if l.enableProxy {
 		l.natPort = l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix]
 	} else {
 		l.natPort = l.datapathManager.Info.LocalGwOfPort
 	}
 	l.localEpFlowMap = make(map[string]*ofctrl.Flow)
+	if l.enableERIPAM {
+		l.arpFlowMap = make(map[string]*ofctrl.Flow)
+		l.icmpFlowMap = make(map[string]*ofctrl.Flow)
+	}
 
 	sw := l.OfSwitch
 
@@ -175,6 +185,83 @@ func (l *LocalBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
+func (l *LocalBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
+	if _, ok := l.arpFlowMap[subnetStr]; ok {
+		return nil
+	}
+
+	_, subnet, err := net.ParseCIDR(subnetStr)
+	if err != nil {
+		log.Errorf("Parse subnet %s failed: %v", subnetStr, err)
+		return err
+	}
+
+	inportOutput, _ := l.OfSwitch.OutputPort(openflow.P_IN_PORT)
+	f, err := setupArpProxyFlow(l.arpProxyTable, subnet, inportOutput)
+	if err != nil {
+		log.Errorf("Failed to setup arp proxy flow for subnet %v, err: %v", *subnet, err)
+		return err
+	}
+	l.arpFlowMap[subnetStr] = f
+
+	return nil
+}
+
+func (l *LocalBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
+	f, ok := l.arpFlowMap[subnetStr]
+	if !ok {
+		return nil
+	}
+
+	if f != nil {
+		if err := f.Delete(); err != nil {
+			log.Errorf("Failed to delete arp proxy flow for subnet %v, err: %v", subnetStr, err)
+			return err
+		}
+	}
+	delete(l.arpFlowMap, subnetStr)
+	return nil
+}
+
+func (l *LocalBridgeOverlay) AddIPPoolGW(gw string) error {
+	if _, ok := l.icmpFlowMap[gw]; ok {
+		return nil
+	}
+
+	ip := net.ParseIP(gw)
+	if ip == nil {
+		log.Errorf("Failed to parse ippool gateway ip %s", gw)
+		return fmt.Errorf("invalid ippool gateway ip %s", gw)
+	}
+
+	inportOutput, _ := l.OfSwitch.OutputPort(openflow.P_IN_PORT)
+	f, err := setupIcmpProxyFlow(l.inPortTable, &ip, inportOutput)
+	if err != nil {
+		log.Errorf("Failed to setup icmp reply flow for ippool gateway %s: %v", gw, err)
+		return err
+	}
+
+	l.icmpFlowMap[gw] = f
+	return nil
+}
+
+func (l *LocalBridgeOverlay) DelIPPoolGW(gw string) error {
+	f, ok := l.icmpFlowMap[gw]
+	if !ok {
+		return nil
+	}
+
+	if f != nil {
+		if err := f.Delete(); err != nil {
+			log.Errorf("Failed to delete icmp reply flow for ippool gateway %s: %v", gw, err)
+			return err
+		}
+	}
+
+	delete(l.icmpFlowMap, gw)
+	return nil
+}
+
 //nolint
 func (l *LocalBridgeOverlay) initInputTable() error {
 	sw := l.OfSwitch
@@ -216,19 +303,10 @@ func (l *LocalBridgeOverlay) initArpProxytable() error {
 	sw := l.OfSwitch
 	inportOutput, _ := sw.OutputPort(openflow.P_IN_PORT)
 
-	arpProxyFlow, _ := l.arpProxyTable.NewFlow(ofctrl.FlowMatch{
-		Ethertype:  PROTOCOL_ARP,
-		ArpTpa:     &l.datapathManager.Info.ClusterPodCIDR.IP,
-		ArpTpaMask: (*net.IP)(&l.datapathManager.Info.ClusterPodCIDR.Mask),
-		ArpOper:    ArpOperRequest,
-		Priority:   MID_MATCH_FLOW_PRIORITY,
-	})
-	fakeMac, _ := net.ParseMAC(FACK_MAC)
-	if err := setupArpProxyFlowAction(arpProxyFlow, fakeMac); err != nil {
-		return fmt.Errorf("failed to setup arp proxy table pod cidr arp proxy flow action, err: %v", err)
-	}
-	if err := arpProxyFlow.Next(inportOutput); err != nil {
-		return fmt.Errorf("failed to install arp proxy table pod cidr arp proxy flow, err: %v", err)
+	if !l.enableERIPAM {
+		if _, err := setupArpProxyFlow(l.arpProxyTable, l.datapathManager.Info.ClusterPodCIDR, inportOutput); err != nil {
+			return err
+		}
 	}
 
 	if !l.enableProxy {

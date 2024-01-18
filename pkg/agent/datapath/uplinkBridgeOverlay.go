@@ -46,6 +46,9 @@ type UplinkBridgeOverlay struct {
 	ovsBrName       string
 	localEpFlowMap  map[string]*ofctrl.Flow
 	remoteEpFlowMap map[string]*ofctrl.Flow
+
+	enableERIPAM     bool
+	ipForwardFlowMap map[string]*ofctrl.Flow
 }
 
 func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBridgeOverlay {
@@ -62,6 +65,10 @@ func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBr
 func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	u.localEpFlowMap = make(map[string]*ofctrl.Flow)
 	u.remoteEpFlowMap = make(map[string]*ofctrl.Flow)
+	u.enableERIPAM = u.datapathManager.UseEverouteIPAM()
+	if u.enableERIPAM {
+		u.ipForwardFlowMap = make(map[string]*ofctrl.Flow)
+	}
 
 	sw := u.OfSwitch
 	u.inputTable = sw.DefaultTable()
@@ -207,6 +214,41 @@ func (u *UplinkBridgeOverlay) RemoveRemoteEndpoint(epIPStr string) error {
 	return nil
 }
 
+func (u *UplinkBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
+	_, subnet, err := net.ParseCIDR(subnetStr)
+	if err != nil {
+		log.Errorf("Parse subnet %s failed: %v", subnetStr, err)
+		return err
+	}
+
+	if _, ok := u.ipForwardFlowMap[subnetStr]; !ok {
+		f, err := u.setupForwardToPodFlow(subnet)
+		if err != nil {
+			log.Errorf("Failed to setup forward to pod flow for ippool subnet %s: %v", subnetStr, err)
+			return err
+		}
+		u.ipForwardFlowMap[subnetStr] = f
+	}
+
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
+	ipf, ok := u.ipForwardFlowMap[subnetStr]
+	if !ok {
+		return nil
+	}
+	if ipf != nil {
+		if err := ipf.Delete(); err != nil {
+			log.Errorf("Failed to delete forward to pod flow for ippool subnet %s: %v", subnetStr, err)
+			return err
+		}
+	}
+	delete(u.ipForwardFlowMap, subnetStr)
+
+	return nil
+}
+
 //nolint
 func (u *UplinkBridgeOverlay) initInputTable() error {
 	sw := u.OfSwitch
@@ -261,19 +303,18 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 		return fmt.Errorf("failed to install arp proxy table gateway ip arp proxy flow, err: %v", err)
 	}
 
-	podProxyFlow, _ := u.arpProxyTable.NewFlow(ofctrl.FlowMatch{
-		Ethertype:  PROTOCOL_ARP,
-		ArpTpa:     &u.datapathManager.Info.ClusterPodCIDR.IP,
-		ArpTpaMask: (*net.IP)(&u.datapathManager.Info.ClusterPodCIDR.Mask),
-		ArpOper:    ArpOperRequest,
-		Priority:   MID_MATCH_FLOW_PRIORITY,
-	})
-	fakeMac, _ := net.ParseMAC(FACK_MAC)
-	if err := setupArpProxyFlowAction(podProxyFlow, fakeMac); err != nil {
-		return fmt.Errorf("failed to setup arp proxy table pod cidr arp proxy flow action, err: %v", err)
-	}
-	if err := podProxyFlow.Next(inportOutput); err != nil {
-		return fmt.Errorf("failed to install arp proxy table pod cidr arp proxy flow, err: %v", err)
+	if u.enableERIPAM {
+		gwSubnet := u.getGwIPPoolSubnet()
+		if gwSubnet == nil {
+			return fmt.Errorf("failed to get gateway ippool subnet")
+		}
+		if _, err := setupArpProxyFlow(u.arpProxyTable, gwSubnet, inportOutput); err != nil {
+			return err
+		}
+	} else {
+		if _, err := setupArpProxyFlow(u.arpProxyTable, u.datapathManager.Info.ClusterPodCIDR, inportOutput); err != nil {
+			return err
+		}
 	}
 
 	defaultFlow, _ := u.arpProxyTable.NewFlow(ofctrl.FlowMatch{
@@ -303,17 +344,22 @@ func (u *UplinkBridgeOverlay) initForwardToLocalTable() error {
 		return fmt.Errorf("failed to install forward to local table to gw ip flow, err: %v", err)
 	}
 
-	toRemotePodFlow, _ := u.forwardToLocalTable.NewFlow(ofctrl.FlowMatch{
-		Ethertype: PROTOCOL_IP,
-		IpDa:      &u.datapathManager.Info.ClusterPodCIDR.IP,
-		IpDaMask:  (*net.IP)(&u.datapathManager.Info.ClusterPodCIDR.Mask),
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-	})
-	if err := toRemotePodFlow.Resubmit(nil, &UBOForwardToTunnelTable); err != nil {
-		return fmt.Errorf("failed to setup forward to local table to remote pod flow resubmit action, err: %v", err)
-	}
-	if err := toRemotePodFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install forward to local table to remote pod flow, err: %v", err)
+	if u.enableERIPAM {
+		gwSubnet := u.getGwIPPoolSubnet()
+		if gwSubnet == nil {
+			return fmt.Errorf("failed to get gateway ippool subnet")
+		}
+		if _, err := u.setupForwardToPodFlow(gwSubnet); err != nil {
+			return err
+		}
+		inportOutput, _ := u.OfSwitch.OutputPort(openflow.P_IN_PORT)
+		if _, err := setupIcmpProxyFlow(u.forwardToLocalTable, u.datapathManager.Info.ClusterPodGw, inportOutput); err != nil {
+			return err
+		}
+	} else {
+		if _, err := u.setupForwardToPodFlow(u.datapathManager.Info.ClusterPodCIDR); err != nil {
+			return err
+		}
 	}
 
 	toGwFlow, _ := u.forwardToLocalTable.NewFlow(ofctrl.FlowMatch{
@@ -478,4 +524,37 @@ func (u *UplinkBridgeOverlay) initOutputTable() error {
 	}
 
 	return nil
+}
+
+func (u *UplinkBridgeOverlay) setupForwardToPodFlow(subnet *net.IPNet) (*ofctrl.Flow, error) {
+	f, _ := u.forwardToLocalTable.NewFlow(ofctrl.FlowMatch{
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &subnet.IP,
+		IpDaMask:  (*net.IP)(&subnet.Mask),
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+	})
+	if err := f.Resubmit(nil, &UBOForwardToTunnelTable); err != nil {
+		return nil, fmt.Errorf("failed to setup forward to local table to remote pod flow resubmit action, err: %v", err)
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return nil, fmt.Errorf("failed to install forward to local table to remote pod flow, err: %v", err)
+	}
+
+	return f, nil
+}
+
+func (u *UplinkBridgeOverlay) getGwIPPoolSubnet() *net.IPNet {
+	if !u.enableERIPAM {
+		return nil
+	}
+	gwIPNet := &net.IPNet{
+		IP:   u.datapathManager.Info.GatewayIP,
+		Mask: u.datapathManager.Info.GatewayMask,
+	}
+	_, gwSubnet, err := net.ParseCIDR(gwIPNet.String())
+	if err != nil {
+		log.Errorf("Failed to parse gateway ippool subnet %v: %v", gwIPNet, err)
+		return nil
+	}
+	return gwSubnet
 }
