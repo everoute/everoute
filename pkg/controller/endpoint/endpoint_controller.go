@@ -61,7 +61,6 @@ const (
 	agentIndex                   = "agentIndex"
 	endpointExternalIDKey        = "iface-id"
 	k8sEndpointExternalIDKey     = "pod-uuid"
-	ifaceIPAddrTimeout       int = 1800
 	IfaceIPAddrCleanInterval int = 5
 )
 
@@ -156,7 +155,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	err = mgr.Add(manager.RunnableFunc(func(stopChan <-chan struct{}) error {
-		r.agentInfoCleaner(ifaceIPAddrTimeout, stopChan)
+		r.agentInfoCleaner(constants.IfaceIPTimeoutDuration, stopChan)
 		return nil
 	}))
 	if err != nil {
@@ -214,7 +213,7 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: ovsIface.IPMap,
+					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -250,7 +249,7 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: ovsIface.IPMap,
+					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -367,7 +366,7 @@ func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alph
 	}
 }
 
-func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout int, stopChan <-chan struct{}) {
+func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopChan <-chan struct{}) {
 	timer := time.NewTicker(time.Duration(IfaceIPAddrCleanInterval) * time.Second)
 
 	for {
@@ -380,7 +379,7 @@ func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout int, stopChan <-chan
 	}
 }
 
-func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout int) {
+func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Duration) {
 	r.ifaceCacheLock.RLock()
 
 	expiredIPMap := make(map[string][]string)
@@ -513,10 +512,10 @@ func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 	}
 }
 
-func computeInterfaceExpiredIPs(timeout int, iface *iface) []string {
+func computeInterfaceExpiredIPs(timeout time.Duration, iface *iface) []string {
 	var expiredIPs []string
 	for ip, t := range iface.ipLastUpdateTimeMap {
-		expireTime := t.Add(time.Duration(timeout) * time.Second)
+		expireTime := t.Add(timeout)
 		if iface.agentTime.After(expireTime) {
 			expiredIPs = append(expiredIPs, ip.String())
 		}
@@ -600,11 +599,19 @@ func ipAddrIndexFunc(obj interface{}) ([]string, error) {
 	return ipAddr, nil
 }
 
-func toIPStringSet(ipMap map[types.IPAddress]metav1.Time) sets.String {
+func toIPStringSet(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) sets.String {
 	ipStringSet := sets.NewString()
 	for ip := range ipMap {
 		ipStringSet.Insert(ip.String())
 	}
 
 	return ipStringSet
+}
+
+func toIPTimeMap(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) map[types.IPAddress]metav1.Time {
+	ipTimeMap := make(map[types.IPAddress]metav1.Time, len(ipMap))
+	for ip, info := range ipMap {
+		ipTimeMap[ip] = info.UpdateTime
+	}
+	return ipTimeMap
 }

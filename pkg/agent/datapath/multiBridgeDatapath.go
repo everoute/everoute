@@ -18,6 +18,7 @@ package datapath
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -45,6 +46,7 @@ import (
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -195,7 +197,7 @@ type DpManager struct {
 	BridgeChainPortMap map[string]map[string]uint32 // map vds to patch port to ofport-num map
 
 	localEndpointDB           cmap.ConcurrentMap     // list of local endpoint map
-	ofPortIPAddressUpdateChan chan map[string]net.IP // map bridgename-ofport to endpoint ips
+	ofPortIPAddressUpdateChan chan *types.EndpointIP // map bridgename-ofport to endpoint ips
 	Config                    *DpManagerConfig
 	Info                      *DpManagerInfo
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
@@ -314,7 +316,7 @@ type ArpInfo struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
+func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateChan chan *types.EndpointIP) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
@@ -371,16 +373,20 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 
 	go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
 
-	for vdsID, vdsName := range datapathManager.Config.ManagedVDSMap {
+	for vdsID, bridgeName := range datapathManager.Config.ManagedVDSMap {
 		for bridgeKeyword := range datapathManager.ControllerMap[vdsID] {
-			go func(vdsID, bridgeKeyword string) {
+			bridgeName := bridgeName
+			vdsID := vdsID
+			bridgeKeyword := bridgeKeyword
+
+			go func() {
 				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
-					if err := datapathManager.replayVDSFlow(vdsID, vdsName, bridgeKeyword); err != nil {
+					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
 				}
-			}(vdsID, bridgeKeyword)
+			}()
 		}
 	}
 
@@ -697,7 +703,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 	}(vdsID)
 }
 
-func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword string) error {
+func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword string) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 
@@ -738,12 +744,12 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 
 	// reset port no flood
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
-		if datapathManager.BridgeChainPortMap[vdsName][portSuffix] == 0 {
+		if datapathManager.BridgeChainPortMap[bridgeName][portSuffix] == 0 {
 			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
-			int(datapathManager.BridgeChainPortMap[vdsName][portSuffix])); err != nil {
+			int(datapathManager.BridgeChainPortMap[bridgeName][portSuffix])); err != nil {
 			return fmt.Errorf("failed to set %s port with no flood port mode, %v", portSuffix, err)
 		}
 	}
@@ -1176,6 +1182,46 @@ func (datapathManager *DpManager) IsEnableProxy() bool {
 	}
 
 	return datapathManager.Config.CNIConfig.EnableProxy
+}
+
+func (datapathManager *DpManager) HandleEndpointIPTimeout(ctx context.Context, endpointIP *types.EndpointIP) error {
+	ofSwitch := datapathManager.getOfSwitchByBridge(endpointIP.BridgeName, LOCAL_BRIDGE_KEYWORD)
+	if ofSwitch == nil {
+		return fmt.Errorf("connect to bridge %s break", endpointIP.BridgeName)
+	}
+	setARPRequest(ofSwitch, endpointIP.OfPort, endpointIP.VlanID, endpointIP.Mac, endpointIP.IP)
+	return nil
+}
+
+func (datapathManager *DpManager) getOfSwitchByBridge(bridgeName, bridgeKeyword string) *ofctrl.OFSwitch {
+	datapathManager.DpManagerMutex.Lock()
+	defer datapathManager.DpManagerMutex.Unlock()
+
+	for _, bridgeChain := range datapathManager.BridgeChainMap {
+		if bridgeChain[bridgeKeyword].GetName() == bridgeName {
+			return bridgeChain[bridgeKeyword].getOfSwitch()
+		}
+	}
+	return nil
+}
+
+func setARPRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) {
+	arp, _ := protocol.NewARP(protocol.Type_Request)
+	arp.IPDst = dstIP
+	arp.HWSrc = srcMac
+
+	arpReqPkt := protocol.NewEthernet()
+	arpReqPkt.HWSrc = srcMac
+	arpReqPkt.HWDst = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	arpReqPkt.VLANID.VID = vlanID
+	arpReqPkt.Ethertype = protocol.ARP_MSG
+	arpReqPkt.Data = arp
+
+	ofPacketOut := openflow13.NewPacketOut()
+	ofPacketOut.AddAction(openflow13.NewActionOutput(ofPort))
+	ofPacketOut.Data = arpReqPkt
+
+	ofSwitch.Send(ofPacketOut)
 }
 
 func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {

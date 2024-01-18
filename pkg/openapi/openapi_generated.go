@@ -36,6 +36,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.AgentInfo":             schema_pkg_apis_agent_v1alpha1_AgentInfo(ref),
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.AgentInfoList":         schema_pkg_apis_agent_v1alpha1_AgentInfoList(ref),
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.BondConfig":            schema_pkg_apis_agent_v1alpha1_BondConfig(ref),
+		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.IPInfo":                schema_pkg_apis_agent_v1alpha1_IPInfo(ref),
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.OVSBridge":             schema_pkg_apis_agent_v1alpha1_OVSBridge(ref),
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.OVSInfo":               schema_pkg_apis_agent_v1alpha1_OVSInfo(ref),
 		"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.OVSInterface":          schema_pkg_apis_agent_v1alpha1_OVSInterface(ref),
@@ -530,6 +531,32 @@ func schema_pkg_apis_agent_v1alpha1_BondConfig(ref common.ReferenceCallback) com
 	}
 }
 
+func schema_pkg_apis_agent_v1alpha1_IPInfo(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"vlanTag": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"updateTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+				Required: []string{"vlanTag", "updateTime"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_pkg_apis_agent_v1alpha1_OVSBridge(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -645,7 +672,7 @@ func schema_pkg_apis_agent_v1alpha1_OVSInterface(ref common.ReferenceCallback) c
 								Allows: true,
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+										Ref: ref("github.com/everoute/everoute/pkg/apis/agent/v1alpha1.IPInfo"),
 									},
 								},
 							},
@@ -655,7 +682,7 @@ func schema_pkg_apis_agent_v1alpha1_OVSInterface(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"github.com/everoute/everoute/pkg/apis/agent/v1alpha1.IPInfo"},
 	}
 }
 

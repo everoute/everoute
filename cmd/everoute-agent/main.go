@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"net"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +42,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/monitor"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 var (
@@ -59,13 +59,14 @@ func main() {
 
 	// parse cmd param
 	flag.StringVar(&opts.metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
+	flag.BoolVar(&opts.disableProbeTimeoutIP, "disable-probe-timeout-ip", false, "Disable probe timeout ip with arp.")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
 
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopChan := ctrl.SetupSignalHandler()
-	ofportIPMonitorChan := make(chan map[string]net.IP, 1024)
+	ofportIPMonitorChan := make(chan *types.EndpointIP, 1024)
 	proxySyncChan := make(chan event.GenericEvent)
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
@@ -147,7 +148,7 @@ func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.M
 	return mgr
 }
 
-func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan map[string]net.IP, stopChan <-chan struct{}) {
+func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan *types.EndpointIP, stopChan <-chan struct{}) {
 	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
@@ -173,8 +174,13 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 		},
 	})
 
-	clientset := clientset.NewForConfigOrDie(config)
-	agentmonitor := monitor.NewAgentMonitor(clientset, ovsdbMonitor, ofportIPMonitorChan)
+	agentmonitor := monitor.NewAgentMonitor(&monitor.NewAgentMonitorOptions{
+		DisableProbeTimeoutIP:  opts.disableProbeTimeoutIP,
+		ProbeTimeoutIPCallback: datapathManager.HandleEndpointIPTimeout,
+		Clientset:              clientset.NewForConfigOrDie(config),
+		OVSDBMonitor:           ovsdbMonitor,
+		OFPortIPMonitorChan:    ofportIPMonitorChan,
+	})
 
 	go ovsdbMonitor.Run(stopChan)
 	go agentmonitor.Run(stopChan)

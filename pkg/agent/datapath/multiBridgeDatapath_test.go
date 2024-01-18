@@ -17,6 +17,8 @@ limitations under the License.
 package datapath
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -28,8 +30,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -50,7 +54,19 @@ var (
 		ManagedVDSMap: map[string]string{
 			"ovsbr0": "ovsbr0",
 		},
+		EnableIPLearning: true,
 	}
+
+	endpointIPChan = make(chan *types.EndpointIP, 1000)
+
+	_ = func() string {
+		go func() {
+			for endpointIP := range endpointIPChan {
+				fmt.Println(endpointIP)
+			}
+		}()
+		return ""
+	}()
 
 	ovsBridgeList   = []string{"ovsbr0", "ovsbr0-policy", "ovsbr0-cls", "ovsbr0-uplink"}
 	defaultFlowList []string
@@ -137,13 +153,12 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	ipAddressChan := make(chan map[string]net.IP, 100)
 	if err := ExcuteCommand(SetupBridgeChain, "ovsbr0"); err != nil {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
 	stopChan := make(<-chan struct{})
-	datapathManager = NewDatapathManager(&datapathConfig, ipAddressChan)
+	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan)
 	datapathManager.InitializeDatapath(stopChan)
 
 	exitCode := m.Run()
@@ -169,6 +184,7 @@ func TestDpManager(t *testing.T) {
 	testMonitorRule(t)
 	testFlowReplay(t)
 	testRoundNumFlip(t)
+	testHandleEndpointIPTimeout(t)
 }
 
 func testLocalEndpoint(t *testing.T) {
@@ -362,6 +378,61 @@ func testRoundNumFlip(t *testing.T) {
 			return round.curRoundNum == 1
 		}, timeout, interval).Should(BeTrue())
 	})
+}
+
+func testHandleEndpointIPTimeout(t *testing.T) {
+	RegisterTestingT(t)
+
+	endpointIP := mustAddEndpoint(rand.String(20), net.ParseIP("10.10.200.24"))
+	endpointIP.Mac, _ = net.ParseMAC(FACK_MAC)
+	Expect(datapathManager.HandleEndpointIPTimeout(context.Background(), endpointIP)).ShouldNot(HaveOccurred())
+
+	Eventually(func() bool {
+		for {
+			select {
+			case learnEndpointIP := <-endpointIPChan:
+				if learnEndpointIP.IP.Equal(endpointIP.IP) &&
+					learnEndpointIP.BridgeName == endpointIP.BridgeName &&
+					learnEndpointIP.OfPort == endpointIP.OfPort {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, timeout, interval).Should(BeTrue())
+}
+
+func mustAddEndpoint(name string, ip net.IP) *types.EndpointIP {
+	_, err := excuteCommand(fmt.Sprintf("ovs-vsctl add-port ovsbr0 %s -- set interface %s type=internal", name, name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	_, err = excuteCommand(fmt.Sprintf("ip link set %s up", name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	_, err = excuteCommand(fmt.Sprintf("ip a add dev %s %s/32", name, ip))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	raw, err := excuteCommand(fmt.Sprintf("ovs-vsctl --columns=_uuid,ofport,mac_in_use -f json list interface %s", name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	response := make(map[string]interface{})
+	Expect(json.Unmarshal(raw, &response)).ShouldNot(HaveOccurred())
+
+	uuid := response["data"].([]interface{})[0].([]interface{})[0].([]interface{})[1].(string)
+	ofport := uint32(response["data"].([]interface{})[0].([]interface{})[1].(float64))
+	mac := response["data"].([]interface{})[0].([]interface{})[2].(string)
+
+	Expect(datapathManager.AddLocalEndpoint(&Endpoint{
+		InterfaceUUID: uuid,
+		InterfaceName: name,
+		PortNo:        ofport,
+		MacAddrStr:    mac,
+		BridgeName:    "ovsbr0",
+	})).ShouldNot(HaveOccurred())
+
+	hw, _ := net.ParseMAC(mac)
+	return &types.EndpointIP{BridgeName: "ovsbr0", OfPort: ofport, IP: ip, Mac: hw}
 }
 
 func flowValidator(expectedFlows []string) error {
