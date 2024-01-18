@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
+	"github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/types"
@@ -150,26 +151,106 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	}, timeout, interval).ShouldNot(HaveOccurred())
 
 	t.Logf("Add OfPort %d, IpAddress %v.", ofPort1, ipAddr1)
-	Expect(addOfPortIPAddress(brName, ofPort1, ipAddr1, ofPortIPAddressMonitorChan)).Should(Succeed())
+	endpointIPChan <- &types.EndpointIP{BridgeName: brName, OfPort: ofPort1, IP: ipAddr1}
 
 	t.Run("Monitor should learning ofPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() bool {
 			iface, err := getIface(k8sClient, brName, portName, iface.IfaceName)
 			Expect(err).ShouldNot(HaveOccurred())
-			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ipAddr1.String())] != metav1.Time{}
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ipAddr1.String())] != nil
 			return hasIPAddr && iface.Ofport == int32(ofPort1)
 		}, timeout, interval).Should(BeTrue())
 	})
 
 	t.Logf("Add another ovsPort related IpAddress %v.", ipAddr2)
-	Expect(updateIPAddress(brName, ofPort1, ipAddr2, ofPortIPAddressMonitorChan)).Should(Succeed())
+	endpointIPChan <- &types.EndpointIP{BridgeName: brName, OfPort: ofPort1, IP: ipAddr2}
 
 	t.Run("Monitor should update learned OfPort to IpAddress mapping.", func(t *testing.T) {
 		Eventually(func() bool {
 			iface, err := getIface(k8sClient, brName, portName, iface.IfaceName)
 			Expect(err).ShouldNot(HaveOccurred())
-			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ipAddr2.String())] != metav1.Time{}
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ipAddr2.String())] != nil
 			return hasIPAddr && iface.Ofport == int32(ofPort1)
 		}, timeout, interval).Should(BeTrue())
+	})
+}
+
+func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
+	RegisterTestingT(t)
+
+	patch := gomonkey.ApplyFuncReturn(getBridgeInternalMac, net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
+	defer patch.Reset()
+
+	bridgeName := rand.String(10)
+	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
+
+	t.Run("should probe timeout access iface ip", func(t *testing.T) {
+		portName, peerName := rand.String(10), rand.String(10)
+		ip := net.ParseIP("10.10.10.1")
+		ofPort := uint32(rand.IntnRange(10, 100))
+
+		Expect(createVethPair(portName, peerName)).Should(Succeed())
+		Expect(createPort(ovsClient, bridgeName, portName, &Iface{VlanID: 201, OfPort: ofPort})).Should(Succeed())
+		Eventually(func() error {
+			_, err := getIface(k8sClient, bridgeName, portName, portName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
+
+		endpointIPChan <- &types.EndpointIP{BridgeName: bridgeName, OfPort: ofPort, IP: ip, VlanID: 201, UpdateTime: time.Now().Add(-1 * time.Hour)}
+		Eventually(func() bool {
+			iface, err := getIface(k8sClient, bridgeName, portName, portName)
+			Expect(err).ShouldNot(HaveOccurred())
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ip.String())] != nil
+			return hasIPAddr && iface.Ofport == int32(ofPort)
+		}, timeout, interval).Should(BeTrue())
+
+		fakeClock.Step(probeIPInterval * 2)
+		Eventually(func() int32 {
+			for {
+				select {
+				case endpointIP := <-probeEndpointIPChan:
+					if endpointIP.BridgeName == bridgeName && endpointIP.OfPort == ofPort {
+						return int32(endpointIP.VlanID)
+					}
+				default:
+					return -1
+				}
+			}
+		}, timeout, interval).Should(BeZero())
+	})
+
+	t.Run("should probe timeout trunk iface ip", func(t *testing.T) {
+		portName, peerName := rand.String(10), rand.String(10)
+		ip := net.ParseIP("10.10.10.1")
+		ofPort := uint32(rand.IntnRange(10, 100))
+
+		Expect(createVethPair(portName, peerName)).Should(Succeed())
+		Expect(createPort(ovsClient, bridgeName, portName, &Iface{Trunk: []int{100, 120}, OfPort: ofPort})).Should(Succeed())
+		Eventually(func() error {
+			_, err := getIface(k8sClient, bridgeName, portName, portName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
+
+		endpointIPChan <- &types.EndpointIP{BridgeName: bridgeName, OfPort: ofPort, IP: ip, VlanID: 120, UpdateTime: time.Now().Add(-1 * time.Hour)}
+		Eventually(func() bool {
+			iface, err := getIface(k8sClient, bridgeName, portName, portName)
+			Expect(err).ShouldNot(HaveOccurred())
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ip.String())] != nil
+			return hasIPAddr && iface.Ofport == int32(ofPort)
+		}, timeout, interval).Should(BeTrue())
+
+		fakeClock.Step(probeIPTimeout * 2)
+		Eventually(func() int32 {
+			for {
+				select {
+				case endpointIP := <-probeEndpointIPChan:
+					if endpointIP.BridgeName == bridgeName && endpointIP.OfPort == ofPort {
+						return int32(endpointIP.VlanID)
+					}
+				default:
+					return -1
+				}
+			}
+		}, timeout, interval).Should(Equal(int32(120)))
 	})
 }

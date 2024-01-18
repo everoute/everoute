@@ -80,7 +80,7 @@ var (
 										endpointExternalIDKey: "ep01",
 									},
 									Mac: ovsPortStatusA.MacAddress,
-									IPMap: map[types.IPAddress]v1.Time{
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 										ovsPortStatusA.IPs[0]: {},
 									},
 								},
@@ -90,7 +90,7 @@ var (
 										endpointExternalIDKey: "ep04",
 									},
 									Mac: ovsPortStatusB.MacAddress,
-									IPMap: map[types.IPAddress]v1.Time{
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 										ovsPortStatusB.IPs[0]: {},
 									},
 								},
@@ -135,7 +135,7 @@ var (
 										endpointExternalIDKey: "ep01",
 									},
 									Mac: ovsPortStatusB.MacAddress,
-									IPMap: map[types.IPAddress]v1.Time{
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 										ovsPortStatusB.IPs[0]: {},
 									},
 								},
@@ -180,7 +180,7 @@ var (
 										endpointExternalIDKey: "ep01",
 									},
 									Mac:   ovsPortStatusA.MacAddress,
-									IPMap: map[types.IPAddress]v1.Time{},
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{},
 								},
 							},
 						},
@@ -223,7 +223,7 @@ var (
 										endpointExternalIDKey: "ep01",
 									},
 									Mac: ovsPortStatusA.MacAddress,
-									IPMap: map[types.IPAddress]v1.Time{
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 										ovsPortStatusA.IPs[0]: {},
 									},
 								},

@@ -17,6 +17,8 @@ limitations under the License.
 package datapath
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -28,8 +30,10 @@ import (
 
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -50,10 +54,13 @@ var (
 		ManagedVDSMap: map[string]string{
 			"ovsbr0": "ovsbr0",
 		},
+		EnableIPLearning: true,
 	}
 
-	cniDpMgr *DpManager
+	cniDpMgr  *DpManager
 	cniBrName = "cnibr0"
+
+	endpointIPChan = make(chan *types.EndpointIP, 1000)
 
 	ovsBridgeList   = []string{"ovsbr0", "ovsbr0-policy", "ovsbr0-cls", "ovsbr0-uplink"}
 	defaultFlowList []string
@@ -152,13 +159,12 @@ func TestMain(m *testing.M) {
 }
 
 func setupEverouteDp() {
-	ipAddressChan := make(chan map[string]net.IP, 100)
 	if err := ExcuteCommand(SetupBridgeChain, "ovsbr0"); err != nil {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
 	stopChan := make(<-chan struct{})
-	datapathManager = NewDatapathManager(&datapathConfig, ipAddressChan)
+	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan)
 	datapathManager.InitializeDatapath(stopChan)
 }
 
@@ -193,7 +199,7 @@ func TestOverlayDp(t *testing.T) {
 	testLocalEndpointOverlay(t)
 }
 
-func testEverouteDp(t *testing.T) {
+func TestEverouteDp(t *testing.T) {
 	var err error
 	if defaultFlowList, err = dumpAllFlows(); err != nil {
 		log.Fatalf("Failed to dump default flow while test env setup")
@@ -211,6 +217,7 @@ func testEverouteDp(t *testing.T) {
 	testMonitorRule(t)
 	testFlowReplay(t)
 	testRoundNumFlip(t)
+	testHandleEndpointIPTimeout(t)
 }
 
 func testLocalEndpoint(t *testing.T) {
@@ -406,6 +413,61 @@ func testRoundNumFlip(t *testing.T) {
 	})
 }
 
+func testHandleEndpointIPTimeout(t *testing.T) {
+	RegisterTestingT(t)
+
+	endpointIP := mustAddEndpoint(rand.String(10), net.ParseIP("10.10.200.24"))
+	endpointIP.Mac, _ = net.ParseMAC(FACK_MAC)
+	Expect(datapathManager.HandleEndpointIPTimeout(context.Background(), endpointIP)).ShouldNot(HaveOccurred())
+
+	Eventually(func() bool {
+		for {
+			select {
+			case learnEndpointIP := <-endpointIPChan:
+				if learnEndpointIP.IP.Equal(endpointIP.IP) &&
+					learnEndpointIP.BridgeName == endpointIP.BridgeName &&
+					learnEndpointIP.OfPort == endpointIP.OfPort {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}, timeout, interval).Should(BeTrue())
+}
+
+func mustAddEndpoint(name string, ip net.IP) *types.EndpointIP {
+	_, err := excuteCommand(fmt.Sprintf("ovs-vsctl add-port ovsbr0 %s -- set interface %s type=internal", name, name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	_, err = excuteCommand(fmt.Sprintf("ip link set %s up", name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	_, err = excuteCommand(fmt.Sprintf("ip a add dev %s %s/32", name, ip))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	raw, err := excuteCommand(fmt.Sprintf("ovs-vsctl --columns=_uuid,ofport,mac_in_use -f json list interface %s", name))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	response := make(map[string]interface{})
+	Expect(json.Unmarshal(raw, &response)).ShouldNot(HaveOccurred())
+
+	uuid := response["data"].([]interface{})[0].([]interface{})[0].([]interface{})[1].(string)
+	ofport := uint32(response["data"].([]interface{})[0].([]interface{})[1].(float64))
+	mac := response["data"].([]interface{})[0].([]interface{})[2].(string)
+
+	Expect(datapathManager.AddLocalEndpoint(&Endpoint{
+		InterfaceUUID: uuid,
+		InterfaceName: name,
+		PortNo:        ofport,
+		MacAddrStr:    mac,
+		BridgeName:    "ovsbr0",
+	})).ShouldNot(HaveOccurred())
+
+	hw, _ := net.ParseMAC(mac)
+	return &types.EndpointIP{BridgeName: "ovsbr0", OfPort: ofport, IP: ip, Mac: hw}
+}
+
 func flowValidator(expectedFlows []string) error {
 	var currentFlowList []string
 	var err error
@@ -496,11 +558,11 @@ func testLocalEndpointOverlay(t *testing.T) {
 	newEp2Copy := copyEp(newep2)
 	newEp2Copy.BridgeName = cniBrName
 
-	t.Run("test add and remove local endpoint normal", func (t *testing.T) {
+	t.Run("test add and remove local endpoint normal", func(t *testing.T) {
 		if err := cniDpMgr.AddLocalEndpoint(ep1Copy); err != nil {
 			t.Errorf("Failed to add local endpoint %+v, err: %v", ep1Copy, err)
 		}
-		
+
 		Eventually(func() bool {
 			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep1Copy)
 			if err != nil {
@@ -521,7 +583,7 @@ func testLocalEndpointOverlay(t *testing.T) {
 		}, timeout, interval).Should(BeFalse())
 	})
 
-	t.Run("test add local endpoint without ip", func (t *testing.T) {
+	t.Run("test add local endpoint without ip", func(t *testing.T) {
 		if err := cniDpMgr.AddLocalEndpoint(ep2Copy); err != nil {
 			t.Errorf("Failed to add local endpoint %+v, err: %v", ep2Copy, err)
 		}
@@ -533,14 +595,14 @@ func testLocalEndpointOverlay(t *testing.T) {
 		Expect(validate).Should(BeFalse())
 	})
 
-	t.Run("test update local endpoint exists flow", func (t *testing.T) {
+	t.Run("test update local endpoint exists flow", func(t *testing.T) {
 		if err := cniDpMgr.AddLocalEndpoint(ep1Copy); err != nil {
 			t.Errorf("Failed to add local endpoint %+v, err: %v", ep1Copy, err)
 		}
 		if err := cniDpMgr.UpdateLocalEndpoint(newEp1Copy, ep1Copy); err != nil {
 			t.Errorf("Failed to update local endpoint %+v, err: %v", newEp1Copy, err)
 		}
-		
+
 		Eventually(func() error {
 			validate, err := validateLocalEndpointFlowForOverlay(cniBrName, ep1Copy)
 			if err != nil {
@@ -551,13 +613,13 @@ func testLocalEndpointOverlay(t *testing.T) {
 			}
 			return nil
 		}, timeout, interval).Should(Succeed())
-		
+
 		if err := cniDpMgr.RemoveLocalEndpoint(newEp1Copy); err != nil {
 			t.Errorf("Failed to delete local endpoint : %+v, err: %v", newEp1Copy, err)
 		}
 	})
 
-	t.Run("test update local endpoint without exists flow", func (t *testing.T) {
+	t.Run("test update local endpoint without exists flow", func(t *testing.T) {
 		if err := cniDpMgr.AddLocalEndpoint(ep2Copy); err != nil {
 			t.Errorf("Failed to add local endpoint %+v, err: %v", ep2Copy, err)
 		}
@@ -604,7 +666,7 @@ func validateLocalEndpointFlowForOverlay(brName string, ep *Endpoint) (bool, err
 	}
 
 	validate = false
-	uplinkBrFlows, err := dumpAllFlows(brName+"-uplink")
+	uplinkBrFlows, err := dumpAllFlows(brName + "-uplink")
 	if err != nil {
 		return false, err
 	}

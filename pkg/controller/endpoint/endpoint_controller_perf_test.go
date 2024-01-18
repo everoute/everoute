@@ -52,7 +52,7 @@ func getAgentInfos() []*agentv1alpha1.AgentInfo {
 				Interfaces: []agentv1alpha1.OVSInterface{{
 					ExternalIDs: map[string]string{id: id},
 					Mac:         "mac:address",
-					IPMap: map[types.IPAddress]metav1.Time{
+					IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 						types.IPAddress("192.168.2.2"): {},
 						types.IPAddress("192.168.1.1"): {},
 					},

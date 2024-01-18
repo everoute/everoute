@@ -33,6 +33,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -166,7 +167,7 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 	if enableOverlay {
 		dpConfig.CNIConfig.EncapMode = constants.EncapModeGeneve
 	}
-	updateChan := make(chan map[string]net.IP, 10)
+	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := NewDatapathManager(dpConfig, updateChan)
 	datapathManager.InitializeDatapath(stopCh)
 
