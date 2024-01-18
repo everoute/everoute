@@ -26,15 +26,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agiledragon/gomonkey/v2"
 	ovsdb "github.com/contiv/libovsdb"
 	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
+	testclocks "k8s.io/utils/clock/testing"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
 	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -61,15 +65,17 @@ type Ep struct {
 }
 
 var (
-	k8sClient                  clientset.AgentInfoInterface
-	ovsClient                  *ovsdb.OvsdbClient
-	agentName                  string
-	ovsdbMonitor               *OVSDBMonitor
-	monitor                    *AgentMonitor
-	localEndpointLock          sync.RWMutex
-	localEndpointMap           = make(map[uint32]Ep)
-	stopChan                   = make(chan struct{})
-	ofPortIPAddressMonitorChan = make(chan map[string]net.IP, 1024)
+	k8sClient           clientset.AgentInfoInterface
+	ovsClient           *ovsdb.OvsdbClient
+	agentName           string
+	ovsdbMonitor        *OVSDBMonitor
+	monitor             *AgentMonitor
+	localEndpointLock   sync.RWMutex
+	localEndpointMap    = make(map[uint32]Ep)
+	stopChan            = make(chan struct{})
+	endpointIPChan      = make(chan *types.EndpointIP, 1024)
+	probeEndpointIPChan = make(chan *types.EndpointIP, 1024)
+	fakeClock           = testclocks.NewFakeClock(time.Now())
 )
 
 func TestMain(m *testing.M) {
@@ -77,6 +83,9 @@ func TestMain(m *testing.M) {
 	k8sClient = clientset.AgentV1alpha1().AgentInfos()
 
 	var err error
+
+	patch := gomonkey.ApplyFunc(wait.NonSlidingUntil, nonSlidingUntilWithFakeClock)
+	defer patch.Reset()
 
 	ovsClient, err = ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
 	if err != nil {
@@ -87,7 +96,13 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		klog.Fatalf("fail to create ovsdb monitor: %s", err)
 	}
-	monitor = NewAgentMonitor(clientset, ovsdbMonitor, ofPortIPAddressMonitorChan)
+
+	monitor = NewAgentMonitor(&NewAgentMonitorOptions{
+		ProbeTimeoutIPCallback: probeTimeoutIPCallback,
+		Clientset:              clientset,
+		OVSDBMonitor:           ovsdbMonitor,
+		OFPortIPMonitorChan:    endpointIPChan,
+	})
 
 	ovsdbMonitor.RegisterOvsdbEventHandler(OvsdbEventHandlerFuncs{
 		LocalEndpointAddFunc: func(endpoint *datapath.Endpoint) {
@@ -157,37 +172,6 @@ func updateInterface(client *ovsdb.OvsdbClient, ifaceName string, externalIDs ma
 
 	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
 	return err
-}
-
-func updateInterfaceOfPort(client *ovsdb.OvsdbClient, ifaceName string, ofport uint32) error {
-	portOperation := ovsdb.Operation{
-		Op:    "update",
-		Table: "Interface",
-		Row: map[string]interface{}{
-			"ofport": ofport,
-		},
-		Where: []interface{}{[]interface{}{"name", "==", ifaceName}},
-	}
-
-	_, err := ovsdbTransact(client, "Open_vSwitch", portOperation)
-	return err
-}
-
-func addOfPortIPAddress(brName string, ofPort uint32, ipAddr net.IP, ofPortIPAddressMonitorChan chan map[string]net.IP) error {
-	ofPortInfo := map[string]net.IP{fmt.Sprintf("%s-%d", brName, ofPort): ipAddr}
-	ofPortIPAddressMonitorChan <- ofPortInfo
-	return nil
-}
-
-func updateIPAddress(brName string, ofPort uint32, newIPAddr net.IP, ofPortIPAddressMonitorChan chan map[string]net.IP) error {
-	monitor.ipCacheLock.RLock()
-	defer monitor.ipCacheLock.RUnlock()
-
-	ofPortInfo := map[string]net.IP{
-		fmt.Sprintf("%s-%d", brName, ofPort): newIPAddr,
-	}
-	ofPortIPAddressMonitorChan <- ofPortInfo
-	return nil
 }
 
 func createBridge(client *ovsdb.OvsdbClient, brName string) error {
@@ -271,7 +255,7 @@ func createPort(client *ovsdb.OvsdbClient, brName, portName string, iface *Iface
 		portOperation.Row["tag"] = iface.VlanID
 	} else {
 		trunkSet, _ := ovsdb.NewOvsSet(iface.Trunk)
-		portOperation.Row["trunk"] = trunkSet
+		portOperation.Row["trunks"] = trunkSet
 	}
 
 	mutateOperation := ovsdb.Operation{
@@ -527,6 +511,15 @@ func getIface(client clientset.AgentInfoInterface, brName, portName, ifaceName s
 	}
 
 	return nil, notFoundError(fmt.Errorf("port %s not found in agentInfo", ifaceName))
+}
+
+func nonSlidingUntilWithFakeClock(f func(), period time.Duration, stopCh <-chan struct{}) {
+	wait.BackoffUntil(f, wait.NewJitteredBackoffManager(period, 0.0, fakeClock), false, stopCh)
+}
+
+func probeTimeoutIPCallback(ctx context.Context, endpointIP *types.EndpointIP) error {
+	probeEndpointIPChan <- endpointIP
+	return ctx.Err()
 }
 
 type notFoundError error

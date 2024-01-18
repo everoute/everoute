@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 //nolint
@@ -140,9 +141,9 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 		l.setLocalEndpointIPAddr(arpIn, inPort)
 		ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
 		if !ok {
-			l.processLocalEndpointUpdate(arpIn, inPort)
+			l.processLocalEndpointUpdate(arpIn, pkt.VLANID.VID, inPort)
 		} else if ok && ipReference.updateTimes > 0 {
-			l.processLocalEndpointUpdate(arpIn, inPort)
+			l.processLocalEndpointUpdate(arpIn, pkt.VLANID.VID, inPort)
 		}
 
 		select {
@@ -218,7 +219,7 @@ func (l *LocalBridge) setLocalEndpointIPAddr(arpIn protocol.ARP, inPort uint32) 
 	}
 }
 
-func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint32) {
+func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, vlanID uint16, inPort uint32) {
 	endpoint, isExist := l.getEndpointByPort(inPort)
 	if !isExist {
 		return
@@ -228,7 +229,8 @@ func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, inPort uint
 		return
 	}
 
-	l.notifyLocalEndpointUpdate(arpIn, inPort)
+	l.notifyLocalEndpointUpdate(arpIn, vlanID, inPort)
+
 	ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
 	if !ok {
 		l.learnedIPAddressMap[arpIn.IPSrc.String()] = IPAddressReference{
@@ -254,10 +256,15 @@ func (l *LocalBridge) getEndpointByPort(inPort uint32) (*Endpoint, bool) {
 	return nil, false
 }
 
-func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, ofPort uint32) {
-	updatedOfPortInfo := make(map[string]net.IP)
-	updatedOfPortInfo[fmt.Sprintf("%s-%d", l.name, ofPort)] = arpIn.IPSrc
-	l.datapathManager.ofPortIPAddressUpdateChan <- updatedOfPortInfo
+func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, vlanID uint16, ofPort uint32) {
+	l.datapathManager.ofPortIPAddressUpdateChan <- &types.EndpointIP{
+		BridgeName: l.name,
+		OfPort:     ofPort,
+		VlanID:     vlanID,
+		IP:         arpIn.IPSrc,
+		Mac:        arpIn.HWSrc,
+		UpdateTime: time.Now(),
+	}
 }
 
 // specific type Bridge interface

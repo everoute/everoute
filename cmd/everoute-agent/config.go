@@ -42,8 +42,9 @@ const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 type Options struct {
 	Config *agentConfig
 
-	metricsAddr string
-	namespace   string
+	metricsAddr           string
+	namespace             string
+	disableProbeTimeoutIP bool
 }
 
 type CNIConf struct {

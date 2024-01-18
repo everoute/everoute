@@ -61,7 +61,6 @@ const (
 	agentIndex                   = "agentIndex"
 	endpointExternalIDKey        = "iface-id"
 	k8sEndpointExternalIDKey     = "pod-uuid"
-	ifaceIPAddrTimeout       int = 1800
 	IfaceIPAddrCleanInterval int = 5
 )
 
@@ -155,7 +154,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		r.agentInfoCleaner(ifaceIPAddrTimeout, ctx.Done())
+		r.agentInfoCleaner(constants.IfaceIPTimeoutDuration, ctx.Done())
 		return nil
 	}))
 }
@@ -208,7 +207,7 @@ func (r *EndpointReconciler) addAgentInfo(_ context.Context, e event.CreateEvent
 					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: ovsIface.IPMap,
+					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -244,7 +243,7 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 					agentTime:           t,
 					externalIDs:         ovsIface.ExternalIDs,
 					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: ovsIface.IPMap,
+					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -319,7 +318,7 @@ func (r *EndpointReconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.Agen
 	return updatedAgentInfoes
 }
 
-func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.String {
+func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.Set[string] {
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
@@ -334,7 +333,7 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 		}
 	}
 
-	return sets.String{}
+	return sets.Set[string]{}
 }
 
 // If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
@@ -361,7 +360,7 @@ func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alph
 	}
 }
 
-func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout int, stopChan <-chan struct{}) {
+func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopChan <-chan struct{}) {
 	timer := time.NewTicker(time.Duration(IfaceIPAddrCleanInterval) * time.Second)
 
 	for {
@@ -374,7 +373,7 @@ func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout int, stopChan <-chan
 	}
 }
 
-func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout int) {
+func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Duration) {
 	r.ifaceCacheLock.RLock()
 
 	expiredIPMap := make(map[string][]string)
@@ -507,10 +506,10 @@ func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 	}
 }
 
-func computeInterfaceExpiredIPs(timeout int, iface *iface) []string {
+func computeInterfaceExpiredIPs(timeout time.Duration, iface *iface) []string {
 	var expiredIPs []string
 	for ip, t := range iface.ipLastUpdateTimeMap {
-		expireTime := t.Add(time.Duration(timeout) * time.Second)
+		expireTime := t.Add(timeout)
 		if iface.agentTime.After(expireTime) {
 			expiredIPs = append(expiredIPs, ip.String())
 		}
@@ -594,11 +593,19 @@ func ipAddrIndexFunc(obj interface{}) ([]string, error) {
 	return ipAddr, nil
 }
 
-func toIPStringSet(ipMap map[types.IPAddress]metav1.Time) sets.String {
-	ipStringSet := sets.NewString()
+func toIPStringSet(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) sets.Set[string] {
+	ipStringSet := sets.New[string]()
 	for ip := range ipMap {
 		ipStringSet.Insert(ip.String())
 	}
 
 	return ipStringSet
+}
+
+func toIPTimeMap(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) map[types.IPAddress]metav1.Time {
+	ipTimeMap := make(map[types.IPAddress]metav1.Time, len(ipMap))
+	for ip, info := range ipMap {
+		ipTimeMap[ip] = info.UpdateTime
+	}
+	return ipTimeMap
 }

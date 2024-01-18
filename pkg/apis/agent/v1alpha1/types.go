@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -88,12 +90,26 @@ type BondConfig struct {
 }
 
 type OVSInterface struct {
-	Name        string                          `json:"name,omitempty"`
-	ExternalIDs map[string]string               `json:"externalIDs,omitempty"`
-	Type        string                          `json:"type,omitempty"`
-	Ofport      int32                           `json:"ofport,omitempty"`
-	Mac         string                          `json:"mac,omitempty"`
-	IPMap       map[types.IPAddress]metav1.Time `json:"ipmap,omitempty"`
+	Name        string                      `json:"name,omitempty"`
+	ExternalIDs map[string]string           `json:"externalIDs,omitempty"`
+	Type        string                      `json:"type,omitempty"`
+	Ofport      int32                       `json:"ofport,omitempty"`
+	Mac         string                      `json:"mac,omitempty"`
+	IPMap       map[types.IPAddress]*IPInfo `json:"ipmap,omitempty"`
+}
+
+type IPInfo struct {
+	VlanTag    uint16      `json:"vlanTag"`
+	UpdateTime metav1.Time `json:"updateTime"`
+}
+
+func (in *IPInfo) UnmarshalJSON(data []byte) error {
+	err := json.Unmarshal(data, &in.UpdateTime)
+	if err == nil {
+		return nil
+	}
+	type ipInfoAlias *IPInfo
+	return json.Unmarshal(data, ipInfoAlias(in))
 }
 
 type AgentConditionType string

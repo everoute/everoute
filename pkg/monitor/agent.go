@@ -26,6 +26,7 @@ import (
 	"time"
 
 	ovsdb "github.com/contiv/libovsdb"
+	usync "github.com/everoute/container/sync"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	client "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	informer "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -49,6 +51,10 @@ const (
 	InterfaceStatus       = "status"
 	AgentInfoSyncInterval = 60
 
+	// with these parameters, at least 5 arp request would be sent before ip timeout
+	probeIPInterval = constants.IfaceIPTimeoutDuration / 10
+	probeIPTimeout  = constants.IfaceIPTimeoutDuration / 2
+
 	VMNicDriver  = "tun"
 	PodNicDriver = "veth"
 )
@@ -59,27 +65,41 @@ type AgentMonitor struct {
 	agentInformer cache.SharedIndexInformer // agentInformer used to speedup query
 	ovsdbMonitor  *OVSDBMonitor             // ovsdbMonitor used to access ovsdb cache
 
+	// periodically check timeout ip and call handle function
+	disableProbeTimeoutIP  bool
+	probeTimeoutIPCallback func(ctx context.Context, endpointIP *types.EndpointIP) error
+
 	// agentName is the name and uuid of this agent
 	agentName           string
 	ipCacheLock         sync.RWMutex
-	ipCache             map[string]map[types.IPAddress]metav1.Time
-	ofportIPMonitorChan chan map[string]net.IP
+	ipCache             map[string]map[types.IPAddress]*types.EndpointIP
+	ofportIPMonitorChan chan *types.EndpointIP
 
 	// syncQueue used to notify agentMonitor synchronize AgentInfo
 	syncQueue workqueue.RateLimitingInterface
 }
 
+type NewAgentMonitorOptions struct {
+	DisableProbeTimeoutIP  bool
+	ProbeTimeoutIPCallback func(ctx context.Context, endpointIP *types.EndpointIP) error
+	Clientset              clientset.Interface
+	OVSDBMonitor           *OVSDBMonitor
+	OFPortIPMonitorChan    chan *types.EndpointIP
+}
+
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
-func NewAgentMonitor(clientset clientset.Interface, ovsdbMonitor *OVSDBMonitor, ofportIPMonitorChan chan map[string]net.IP) *AgentMonitor {
+func NewAgentMonitor(opts *NewAgentMonitorOptions) *AgentMonitor {
 	return &AgentMonitor{
-		k8sClient:           clientset.AgentV1alpha1().AgentInfos(),
-		agentInformer:       informer.NewAgentInfoInformer(clientset, 0, cache.Indexers{}),
-		agentName:           utils.CurrentAgentName(),
-		ipCacheLock:         sync.RWMutex{},
-		ipCache:             make(map[string]map[types.IPAddress]metav1.Time),
-		ofportIPMonitorChan: ofportIPMonitorChan,
-		ovsdbMonitor:        ovsdbMonitor,
-		syncQueue:           ovsdbMonitor.GetSyncQueue(),
+		k8sClient:              opts.Clientset.AgentV1alpha1().AgentInfos(),
+		agentInformer:          informer.NewAgentInfoInformer(opts.Clientset, 0, cache.Indexers{}),
+		agentName:              utils.CurrentAgentName(),
+		ipCacheLock:            sync.RWMutex{},
+		ipCache:                make(map[string]map[types.IPAddress]*types.EndpointIP),
+		ofportIPMonitorChan:    opts.OFPortIPMonitorChan,
+		ovsdbMonitor:           opts.OVSDBMonitor,
+		syncQueue:              opts.OVSDBMonitor.GetSyncQueue(),
+		disableProbeTimeoutIP:  opts.DisableProbeTimeoutIP,
+		probeTimeoutIPCallback: opts.ProbeTimeoutIPCallback,
 	}
 }
 
@@ -93,10 +113,13 @@ func (monitor *AgentMonitor) Run(stopChan <-chan struct{}) {
 	go monitor.handleOfPortIPAddressUpdate(monitor.ofportIPMonitorChan, stopChan)
 	go wait.Until(monitor.syncAgentInfoWorker, 0, stopChan)
 	go monitor.periodicallySyncAgentInfo(AgentInfoSyncInterval, stopChan)
+	if !monitor.disableProbeTimeoutIP {
+		go monitor.periodicallyProbeTimeoutIP(probeIPInterval, probeIPTimeout, stopChan)
+	}
 	<-stopChan
 }
 
-func (monitor *AgentMonitor) handleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan map[string]net.IP, stopChan <-chan struct{}) {
+func (monitor *AgentMonitor) handleOfPortIPAddressUpdate(ofPortIPAddressMonitorChan <-chan *types.EndpointIP, stopChan <-chan struct{}) {
 	for {
 		select {
 		case localEndpointInfo := <-ofPortIPAddressMonitorChan:
@@ -107,21 +130,21 @@ func (monitor *AgentMonitor) handleOfPortIPAddressUpdate(ofPortIPAddressMonitorC
 	}
 }
 
-func (monitor *AgentMonitor) updateOfPortIPAddress(localEndpointInfo map[string]net.IP) {
+func (monitor *AgentMonitor) updateOfPortIPAddress(endpointInfo *types.EndpointIP) {
 	monitor.ipCacheLock.Lock()
 	defer monitor.ipCacheLock.Unlock()
 
-	for bridgePort, ip := range localEndpointInfo {
-		if !ip.IsGlobalUnicast() {
-			continue
-		}
-		if _, ok := monitor.ipCache[bridgePort]; !ok {
-			monitor.ipCache[bridgePort] = make(map[types.IPAddress]metav1.Time)
-		}
-		monitor.ipCache[bridgePort] = map[types.IPAddress]metav1.Time{
-			types.IPAddress(ip.String()): metav1.NewTime(time.Now()),
-		}
+	klog.V(10).Infof("receive endpoint %s from %s(%d) vlan %d", endpointInfo.IP, endpointInfo.BridgeName, endpointInfo.OfPort, endpointInfo.VlanID)
+
+	if !endpointInfo.IP.IsGlobalUnicast() {
+		return
 	}
+
+	bridgePort := fmt.Sprintf("%s-%d", endpointInfo.BridgeName, endpointInfo.OfPort)
+	if _, ok := monitor.ipCache[bridgePort]; !ok {
+		monitor.ipCache[bridgePort] = make(map[types.IPAddress]*types.EndpointIP)
+	}
+	monitor.ipCache[bridgePort][types.IPAddress(endpointInfo.IP.String())] = endpointInfo
 
 	// only notify sync agentinfo on new address
 	if monitor.shouldSyncOnLearnIPLocked() {
@@ -161,6 +184,8 @@ func (monitor *AgentMonitor) shouldSyncOnLearnIPLocked() bool {
 
 func (monitor *AgentMonitor) periodicallySyncAgentInfo(cycle int, stopChan <-chan struct{}) {
 	ticker := time.NewTicker(time.Duration(cycle) * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
@@ -169,6 +194,62 @@ func (monitor *AgentMonitor) periodicallySyncAgentInfo(cycle int, stopChan <-cha
 			return
 		}
 	}
+}
+
+func (monitor *AgentMonitor) periodicallyProbeTimeoutIP(probeIPInterval, probeIPTimeout time.Duration, stopChan <-chan struct{}) {
+	probeTimeoutIPFunc := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), probeIPInterval)
+		defer cancel()
+
+		err := monitor.probeTimeoutIP(ctx, probeIPTimeout)
+		if err != nil {
+			klog.Errorf("unable probe timeout ip: %s", err)
+		}
+	}
+
+	wait.NonSlidingUntil(probeTimeoutIPFunc, probeIPInterval, stopChan)
+}
+
+func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout time.Duration) error {
+	agentInfo, err := monitor.k8sClientGet(ctx, monitor.Name(), metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("unable dump agentinfo: %s", err)
+	}
+
+	wg := usync.NewGroup(0)
+
+	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		for _, port := range bridge.Ports {
+			for _, iface := range port.Interfaces {
+				if iface.Ofport <= 0 || iface.Type == "internal" || iface.Type == "patch" {
+					continue
+				}
+				for ip, info := range iface.IPMap {
+					if time.Since(info.UpdateTime.Time) <= probeIPTimeout {
+						continue
+					}
+					endpointIP := &types.EndpointIP{
+						BridgeName: bridge.Name,
+						OfPort:     uint32(iface.Ofport),
+						VlanID:     getPacketOutVlanTag(port, info.VlanTag),
+						IP:         net.ParseIP(string(ip)),
+						Mac:        getBridgeInternalMac(bridge),
+					}
+					if endpointIP.Mac == nil || !endpointIP.IP.IsGlobalUnicast() {
+						klog.Warningf("skip probe with invalid endpoint info: %v", endpointIP)
+						continue
+					}
+					klog.Infof("probe endpoint %s from %s(%d) vlan %d", endpointIP.IP, endpointIP.BridgeName, endpointIP.OfPort, endpointIP.VlanID)
+					wg.Go(func() error { return monitor.probeTimeoutIPCallback(ctx, endpointIP) })
+				}
+			}
+		}
+	}
+
+	return wg.WaitResult()
 }
 
 func (monitor *AgentMonitor) syncAgentInfoWorker() {
@@ -217,7 +298,7 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 	if err != nil {
 		return err
 	}
-	monitor.ipCache = make(map[string]map[types.IPAddress]metav1.Time)
+	monitor.ipCache = make(map[string]map[types.IPAddress]*types.EndpointIP)
 
 	return nil
 }
@@ -246,7 +327,7 @@ func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1
 				}
 				for key, value := range matchIntf.IPMap {
 					if localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap == nil {
-						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap = make(map[types.IPAddress]metav1.Time)
+						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap = make(map[types.IPAddress]*agentv1alpha1.IPInfo)
 					}
 					if _, ok := intf.IPMap[key]; !ok {
 						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap[key] = value
@@ -401,7 +482,7 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(ovsdbCache OVSDBCache, uuid ov
 	ofport, ok := ovsIface.Fields["ofport"].(float64)
 	if ok && ofport >= 0 {
 		iface.Ofport = int32(ofport)
-		iface.IPMap = monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)]
+		iface.IPMap = convertToIPMap(monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)])
 	}
 
 	return &iface
@@ -471,5 +552,40 @@ func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAge
 		}
 	}
 
+	return nil
+}
+
+func convertToIPMap(endpointMap map[types.IPAddress]*types.EndpointIP) map[types.IPAddress]*agentv1alpha1.IPInfo {
+	ipMap := make(map[types.IPAddress]*agentv1alpha1.IPInfo)
+	for ip, endpoint := range endpointMap {
+		ipMap[ip] = &agentv1alpha1.IPInfo{
+			VlanTag:    endpoint.VlanID,
+			UpdateTime: metav1.NewTime(endpoint.UpdateTime),
+		}
+	}
+	return ipMap
+}
+
+func getPacketOutVlanTag(port agentv1alpha1.OVSPort, vlanTag uint16) uint16 {
+	// todo: handle vlan mode // vlan mode alway be empty under smartxos
+	if port.VlanConfig.Trunk == "" {
+		return 0
+	}
+	return vlanTag
+}
+
+func getBridgeInternalMac(bridge agentv1alpha1.OVSBridge) net.HardwareAddr {
+	for _, port := range bridge.Ports {
+		if port.Name != bridge.Name {
+			continue
+		}
+		for _, iface := range port.Interfaces {
+			if iface.Name != bridge.Name {
+				continue
+			}
+			mac, _ := net.ParseMAC(iface.Mac)
+			return mac
+		}
+	}
 	return nil
 }

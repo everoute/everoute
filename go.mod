@@ -4,8 +4,8 @@ go 1.19
 
 require (
 	github.com/99designs/gqlgen v0.17.16
-	github.com/agiledragon/gomonkey/v2 v2.8.0
-	github.com/alessio/shellescape v1.4.1
+	github.com/agiledragon/gomonkey/v2 v2.10.1
+	github.com/alessio/shellescape v1.4.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
@@ -13,6 +13,7 @@ require (
 	github.com/contiv/libovsdb v0.0.0-20160406174930-bbc744d8ddc8
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
+	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
 	github.com/everoute/ipam v1.1.0
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.1.7
@@ -57,7 +58,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
+	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
