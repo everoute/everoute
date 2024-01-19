@@ -6,7 +6,8 @@ metadata:
   name: everoute-built-in
   namespace: kube-system
 spec:
+  private: true
   cidr: {{ .Values.CNIConf.gwIPPool.cidr }}
-  subnet: {{ .Values.CNIConf.gwIPPool.cidr }}
+  subnet: {{ .Values.CNIConf.gwIPPool.subnet }}
   gateway: {{ .Values.CNIConf.gwIPPool.gateway }}
 {{- end }}
