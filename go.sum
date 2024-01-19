@@ -285,8 +285,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch v4.12.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/evanphx/json-patch/v5 v5.6.0 h1:b91NhWfaz02IuVxO9faSllyAtNXHMPkC5J8sJCLunww=
 github.com/evanphx/json-patch/v5 v5.6.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2VvlbKOFpnXhI9Bw4=
-github.com/everoute/ipam v1.1.0 h1:ZcgdLqIJAOtx6tIha32b8WCK/LEaJLfqFpYI7xemIt0=
-github.com/everoute/ipam v1.1.0/go.mod h1:p7jCXS1iCfTWEglMdJrh3BsfDD8BvvgA/T/wz+TM8vg=
+github.com/everoute/ipam v1.1.1-0.20240118021612-1cef479f6551 h1:5ThRS6GF5aERO8dncq+X70TvjZC34xZCf6xOLE0LPKA=
+github.com/everoute/ipam v1.1.1-0.20240118021612-1cef479f6551/go.mod h1:p7jCXS1iCfTWEglMdJrh3BsfDD8BvvgA/T/wz+TM8vg=
 github.com/everoute/libOpenflow v1.0.0 h1:3xxCS3Fjo44NvP6jpD9zuPSHEe8AxvfQzOjbCJn0GXM=
 github.com/everoute/libOpenflow v1.0.0/go.mod h1:Glli90eKTMhkETRmgjf2DgHTf+PDCQUv6nZvubrLuuA=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155 h1:JwthEk9kaDQF2W1R5PVR19Unwj3e55FUVG3YM6409Dw=

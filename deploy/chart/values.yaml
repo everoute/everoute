@@ -16,8 +16,9 @@ CNIConf:
   vni: 5000
   ipam: ""
   gwIPPool:
-    gateway: 240.100.224.0
-    cidr: 240.100.224.0/19
+    gateway: 240.100.0.1
+    subnet: 240.100.0.0/16
+    cidr: 240.100.0.0/24
 
 webhook:
   type: Service # enum: Service, URL
