@@ -371,16 +371,20 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 
 	go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
 
-	for vdsID, vdsName := range datapathManager.Config.ManagedVDSMap {
+	for vdsID, bridgeName := range datapathManager.Config.ManagedVDSMap {
 		for bridgeKeyword := range datapathManager.ControllerMap[vdsID] {
-			go func(vdsID, bridgeKeyword string) {
+			bridgeName := bridgeName
+			vdsID := vdsID
+			bridgeKeyword := bridgeKeyword
+
+			go func() {
 				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
-					if err := datapathManager.replayVDSFlow(vdsID, vdsName, bridgeKeyword); err != nil {
+					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
 				}
-			}(vdsID, bridgeKeyword)
+			}()
 		}
 	}
 
@@ -697,7 +701,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 	}(vdsID)
 }
 
-func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword string) error {
+func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword string) error {
 	datapathManager.flowReplayMutex.Lock()
 	defer datapathManager.flowReplayMutex.Unlock()
 
@@ -738,12 +742,12 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, vdsName, bridgeKeyword st
 
 	// reset port no flood
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
-		if datapathManager.BridgeChainPortMap[vdsName][portSuffix] == 0 {
+		if datapathManager.BridgeChainPortMap[bridgeName][portSuffix] == 0 {
 			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).name,
-			int(datapathManager.BridgeChainPortMap[vdsName][portSuffix])); err != nil {
+			int(datapathManager.BridgeChainPortMap[bridgeName][portSuffix])); err != nil {
 			return fmt.Errorf("failed to set %s port with no flood port mode, %v", portSuffix, err)
 		}
 	}
