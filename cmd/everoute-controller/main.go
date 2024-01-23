@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
 	admv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +61,8 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(admv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(networkingv1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(appsv1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(ipamv1alpha1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
@@ -175,6 +179,12 @@ func main() {
 				klog.Fatalf("unable to create node controller: %v", err)
 			}
 			klog.Info("start node controller")
+		}
+
+		if opts.useEverouteIPAM() {
+			if err = (&ipamv1alpha1.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
+				klog.Fatalf("unable to create ippool webhook %v", err)
+			}
 		}
 	}
 

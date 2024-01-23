@@ -44,6 +44,9 @@ data:
       {{- if ne (.Values.CNIConf.encapMode | default "") "" }}
       encapMode: {{ .Values.CNIConf.encapMode }}
       {{- end}}
+      {{- if ne (.Values.CNIConf.ipam | default "") "" }}
+      ipam: {{ .Values.CNIConf.ipam }}
+      {{- end}}
 kind: ConfigMap
 metadata:
   annotations: {}

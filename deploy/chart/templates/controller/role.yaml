@@ -109,3 +109,14 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ipam.everoute.io
+  resources:
+  - ippools
+  - ippools/status
+  verbs:
+  - patch
+  - update
+  - get
+  - list
+  - watch
