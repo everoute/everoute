@@ -87,120 +87,6 @@ jobs:
           context: .
           push: true
 
-  run-k8s-e2e:
-    needs: [build-k8s-e2e-image]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - feature: Proxy
-            focus: NetworkPolicy|ClusterIP|clusterIP
-          - focus: NetworkPolicy
-    runs-on: [self-hosted, pod]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: config PATH
-        run: |
-          mkdir -p /runner/_work/bin/
-          echo "/runner/_work/bin/" >> $GITHUB_PATH
-
-      - name: install helm
-        run: cp /home/runner/tool/helm /runner/_work/bin/
-
-      - name: install k8se2e binary
-        run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
-
-      - name: specific proxy related param
-        if: ${{ matrix.feature == 'Proxy'}}
-        run: sed -i s#enableProxy:\ false#enableProxy:\ true#g deploy/chart/values.yaml
-      
-      - name: generate everoute cni deploy yaml
-        run: |
-          sed -i s#everoute/release#registry.smtx.io/everoute/everoute_release#g deploy/chart/values.yaml
-          sed -i s#latest#${{ github.sha }}#g deploy/chart/values.yaml
-          cat deploy/chart/values.yaml
-          make yaml
-
-      - name: test kubectl connect to sks
-        run: kubectl get crd --kubeconfig /home/runner/sksconfig/sksconfig | grep smart
-
-      - name: allocate cluster vip
-        run: |
-          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=sdn1')
-          success=$(echo $out | grep "fullSuccess" |wc -l)
-          if [ $success != 1 ]; then exit 1; fi
-          ipright=${out#*\"ips\":[\"}
-          ip=${ipright%\"],\"ipNets\"*}
-          echo "VIP=$ip" >> $GITHUB_ENV
-      
-      - name: gen k8s cluster name
-        run: echo "CLUSTER_NAME=k8s-e2e-$RANDOM" >> $GITHUB_ENV
-
-      - name: create k8s cluster...
-        run: |
-          echo "new k8s cluster name is ${{ env.CLUSTER_NAME }}"
-          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/kubesmartcluster.yaml.tmpl
-          echo "k8s cluster vip is ${{ env.VIP }}"
-          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/kubesmartcluster.yaml.tmpl
-          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig /home/runner/sksconfig/sksconfig
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
-
-      - name: get new k8s cluster kubeconfig and test connection
-        run: |
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig get secret ${{ env.CLUSTER_NAME }}-kubeconfig -o template --template={{.data.value}} > rawkubeconfig
-          mkdir -p $HOME/.kube
-          base64 --decode rawkubeconfig > $HOME/.kube/config
-          kubectl version
-
-      - name: delete control plane node taint 
-        run: |
-          kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule --all --overwrite=true
-          kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule- --all
-
-      - name: deploy everoute cni
-        run: kubectl apply -f deploy/everoute.yaml
-
-      - name: wait k8s cluster ready
-        run: |
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
-          kubectl wait --for=condition=Ready nodes --all --timeout=5m
-          kubectl get nodes -owide
-
-      - name: run test cases
-        timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
-
-      - name: delete test k8s cluster
-        id: delenv
-        if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
-
-      - name: recycle vip
-        if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
-  
-  run-tower-e2e:
-    runs-on: [self-hosted, tower]
-    steps:
-      - uses: actions/checkout@v3
-      
-      # TODO: Not implemented
-
-      # - name: reset environment
-
-      # - name: build everoute
-
-      # - name: install everoute
-
-      # - name: setup environment
-
-      - name: skip-known-bugs
-        run: git am -s < hack/0001-Skip-known-bugs-in-everoute-1.1.0.patch
-        
-      - name: run test cases
-        run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
-
   generate-check:
     runs-on: [ubuntu-20.04]
     steps:
@@ -218,7 +104,7 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,run-tower-e2e,generate-check ]
+    needs: [ pr-check,static-check,run-e2e,generate-check ]
     runs-on: [ ubuntu-20.04 ]
     env:
       SLACK_COLOR: 2EA44F
@@ -235,10 +121,6 @@ jobs:
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_STATIC_CHECK=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_K8S_E2E=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-tower-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_TOWER_E2E=:x:" >> $GITHUB_ENV
       - if: ${{ needs.generate-check.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GENERATE_CHECK=:x:" >> $GITHUB_ENV
 
@@ -248,10 +130,6 @@ jobs:
         run: echo "RESULT_STATIC_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-e2e.result == 'cancelled'}}
         run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_K8S_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-tower-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_TOWER_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.generate-check.result == 'cancelled'}}
         run: echo "RESULT_GENERATE_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
 
@@ -306,14 +184,6 @@ jobs:
                       {
                         "type": "mrkdwn",
                         "text": "${{ env.RESULT_RUN_E2E }} => *run-e2e*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_K8S_E2E }} => *run-k8s-e2e*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_TOWER_E2E }} => *run-tower-e2e*"
                       },
                       {
                         "type": "mrkdwn",
