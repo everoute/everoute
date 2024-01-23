@@ -306,7 +306,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // SetupRouteAndIPtables setup route and iptables for overlay mode
-func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan struct{}) (*eriptables.OverlayIPtables, *OverlayRoute) {
+func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan struct{}) (eriptables.OverlayIPtables, OverlayRoute) {
 	clusterPodCIDR := datapathManager.Info.ClusterPodCIDR
 	clusterPodCIDRString := clusterPodCIDR.String()
 	gatewayIP := datapathManager.Info.GatewayIP

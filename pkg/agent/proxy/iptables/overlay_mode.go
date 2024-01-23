@@ -9,7 +9,15 @@ import (
 	"k8s.io/klog"
 )
 
-type OverlayIPtables struct {
+type OverlayIPtables interface {
+	Update()
+	AddRuleByCIDR(cidr string) error
+	DelRuleByCIDR(cidr string) error
+	InsertPodCIDRs(cidrs ...string)
+	DelPodCIDRs(cidrs ...string)
+}
+
+type overlayIPtables struct {
 	baseIPtables
 	proxy proxyIPtables
 
@@ -17,12 +25,12 @@ type OverlayIPtables struct {
 	podCIDRs sets.Set[string]
 }
 
-func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) *OverlayIPtables {
+func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) OverlayIPtables {
 	if opt == nil {
 		klog.Fatal("New overlay mode iptables controller failed, param opt can't be nil")
 	}
 
-	o := &OverlayIPtables{
+	o := &overlayIPtables{
 		baseIPtables: baseIPtables{},
 		podCIDRs:     sets.New[string](),
 	}
@@ -42,7 +50,7 @@ func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) *OverlayIPtables
 	return o
 }
 
-func (o *OverlayIPtables) Update() {
+func (o *overlayIPtables) Update() {
 	ipt, err := iptables.New()
 	if err != nil {
 		klog.Errorf("init iptables error, err: %s", err)
@@ -62,7 +70,7 @@ func (o *OverlayIPtables) Update() {
 	o.proxy.forward(ipt)
 }
 
-func (o *OverlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
+func (o *overlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
 	o.lock.RLock()
 	defer o.lock.RUnlock()
 
@@ -86,7 +94,7 @@ func (o *OverlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {
 	o.deleteUnexpectRuleInEverouteOutput(ipt, newRules)
 }
 
-func (o *OverlayIPtables) AddRuleByCIDR(cidr string) error {
+func (o *overlayIPtables) AddRuleByCIDR(cidr string) error {
 	ipt, err := iptables.New()
 	if err != nil {
 		klog.Errorf("init iptables error, err: %s", err)
@@ -102,7 +110,7 @@ func (o *OverlayIPtables) AddRuleByCIDR(cidr string) error {
 	return nil
 }
 
-func (o *OverlayIPtables) DelRuleByCIDR(cidr string) error {
+func (o *overlayIPtables) DelRuleByCIDR(cidr string) error {
 	ipt, err := iptables.New()
 	if err != nil {
 		klog.Errorf("init iptables error, err: %s", err)
@@ -118,14 +126,14 @@ func (o *OverlayIPtables) DelRuleByCIDR(cidr string) error {
 	return nil
 }
 
-func (o *OverlayIPtables) InsertPodCIDRs(cidrs ...string) {
+func (o *overlayIPtables) InsertPodCIDRs(cidrs ...string) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 
 	o.podCIDRs.Insert(cidrs...)
 }
 
-func (o *OverlayIPtables) DelPodCIDRs(cidrs ...string) {
+func (o *overlayIPtables) DelPodCIDRs(cidrs ...string) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 

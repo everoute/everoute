@@ -154,7 +154,7 @@ func ExcuteCommand(cmdStr, arg string) error {
 	return nil
 }
 
-func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, enableOverlay bool) (*DpManager, error) {
+func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, enableOverlay bool, enableIPAM bool) (*DpManager, error) {
 	var err error
 	dpConfig := &DpManagerConfig{
 		ManagedVDSMap: map[string]string{brName: brName},
@@ -167,6 +167,10 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 	if enableOverlay {
 		dpConfig.CNIConfig.EncapMode = constants.EncapModeGeneve
 	}
+	if enableIPAM {
+		dpConfig.CNIConfig.IPAMType = constants.EverouteIPAM
+	}
+
 	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := NewDatapathManager(dpConfig, updateChan)
 	datapathManager.InitializeDatapath(stopCh)
@@ -200,6 +204,13 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if enableIPAM {
+		agentInfo.GatewayIP = net.ParseIP("240.100.0.2")
+		agentInfo.GatewayMask = net.IPMask(net.ParseIP("255.255.0.0"))
+		clusterPodGw := net.ParseIP("240.100.0.1")
+		agentInfo.ClusterPodGw = &clusterPodGw
 	}
 
 	datapathManager.InitializeCNI()

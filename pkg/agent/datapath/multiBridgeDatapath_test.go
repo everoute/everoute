@@ -181,7 +181,7 @@ func setupOverlayDp() {
 
 	stopChan := make(<-chan struct{})
 	var err error
-	cniDpMgr, err = InitCNIDpMgrUT(stopChan, cniBrName, false, true)
+	cniDpMgr, err = InitCNIDpMgrUT(stopChan, cniBrName, false, true, false)
 	if err != nil || cniDpMgr == nil {
 		log.Fatalf("Failed to init cni dp mgr, err: %v", err)
 	}

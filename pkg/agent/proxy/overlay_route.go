@@ -9,14 +9,22 @@ import (
 	"k8s.io/klog"
 )
 
-type OverlayRoute struct {
+type OverlayRoute interface {
+	Update()
+	AddRouteByDst(dstCIDR string) error
+	DelRouteByDst(dstCIDR string) error
+	InsertPodCIDRs(cidrs ...string)
+	DelPodCIDRs(cidrs ...string)
+}
+
+type overlayRoute struct {
 	lock      sync.RWMutex
 	podCIDRs  sets.Set[string]
 	gatewayIP net.IP
 }
 
-func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string) *OverlayRoute {
-	o := &OverlayRoute{
+func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string) OverlayRoute {
+	o := &overlayRoute{
 		gatewayIP: gatewayIP,
 		podCIDRs:  sets.New[string](),
 	}
@@ -26,7 +34,7 @@ func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string) *OverlayRoute {
 	return o
 }
 
-func (o *OverlayRoute) Update() {
+func (o *overlayRoute) Update() {
 	o.lock.RLock()
 	defer o.lock.RUnlock()
 
@@ -54,7 +62,7 @@ func (o *OverlayRoute) Update() {
 	}
 }
 
-func (o *OverlayRoute) AddRouteByDst(dstCIDR string) error {
+func (o *overlayRoute) AddRouteByDst(dstCIDR string) error {
 	_, dst, err := net.ParseCIDR(dstCIDR)
 	if err != nil {
 		klog.Errorf("Parse cidr %s failed: %v", dstCIDR, err)
@@ -83,7 +91,7 @@ func (o *OverlayRoute) AddRouteByDst(dstCIDR string) error {
 	return nil
 }
 
-func (o *OverlayRoute) DelRouteByDst(dstCIDR string) error {
+func (o *overlayRoute) DelRouteByDst(dstCIDR string) error {
 	_, dst, err := net.ParseCIDR(dstCIDR)
 	if err != nil {
 		klog.Errorf("Parse cidr %s failed: %v", dstCIDR, err)
@@ -112,14 +120,14 @@ func (o *OverlayRoute) DelRouteByDst(dstCIDR string) error {
 	return nil
 }
 
-func (o *OverlayRoute) InsertPodCIDRs(cidrs ...string) {
+func (o *overlayRoute) InsertPodCIDRs(cidrs ...string) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 
 	o.podCIDRs.Insert(cidrs...)
 }
 
-func (o *OverlayRoute) DelPodCIDRs(cidrs ...string) {
+func (o *overlayRoute) DelPodCIDRs(cidrs ...string) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 

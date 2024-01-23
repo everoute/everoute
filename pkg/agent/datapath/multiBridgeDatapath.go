@@ -913,10 +913,6 @@ func (datapathManager *DpManager) AddIPPoolGW(gw string) error {
 	}
 
 	for vdsID := range datapathManager.BridgeChainMap {
-		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].AddIPPoolGW(gw); err != nil {
-			klog.Errorf("Failed to add IPPool gw %s flow in uplink bridge: %v", gw, err)
-			return err
-		}
 		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddIPPoolGW(gw); err != nil {
 			klog.Errorf("Failed to add IPPool gw %s flow in local bridge: %v", gw, err)
 			return err
@@ -935,10 +931,6 @@ func (datapathManager *DpManager) DelIPPoolGW(gw string) error {
 	}
 
 	for vdsID := range datapathManager.BridgeChainMap {
-		if err := datapathManager.BridgeChainMap[vdsID][UPLINK_BRIDGE_KEYWORD].DelIPPoolGW(gw); err != nil {
-			klog.Errorf("Failed to delete IPPool gw %s flow in uplink bridge: %v", gw, err)
-			return err
-		}
 		if err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].DelIPPoolGW(gw); err != nil {
 			klog.Errorf("Failed to delete IPPool gw %s flow in local bridge: %v", gw, err)
 			return err
