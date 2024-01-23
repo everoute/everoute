@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 
 	stopCh := ctrl.SetupSignalHandler()
 
-	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh.Done(), BrName, true, true)
+	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh.Done(), BrName, true, true, false)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(dpMgr).ShouldNot(BeNil())
 
@@ -109,6 +109,8 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, BrName)).NotTo(HaveOccurred())
+	Expect(datapath.ExcuteCommand(datapath.CleanProxyBridgeChain, BrName)).NotTo(HaveOccurred())
 })
 
 func excuteCommand(commandStr string) ([]byte, error) {

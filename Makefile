@@ -53,6 +53,10 @@ agent-uuid:
 test: agent-uuid
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
 
+debug-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test bash
+
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test

@@ -29,8 +29,8 @@ import (
 
 type Reconciler struct {
 	client.Client
-	IptCtrl   *eipt.OverlayIPtables
-	RouteCtrl *eproxy.OverlayRoute
+	IptCtrl   eipt.OverlayIPtables
+	RouteCtrl eproxy.OverlayRoute
 	DpMgr     *datapath.DpManager
 
 	subnets map[string]sets.Set[types.NamespacedName]
@@ -129,7 +129,7 @@ func (r *Reconciler) deleteIPPool(n types.NamespacedName) error {
 	var errs []error
 
 	subnet := r.getSubnetByIPPool(n)
-	if subnet != "" {
+	if subnet != "" && r.subnets[subnet].Len() == 1 {
 		r.IptCtrl.DelPodCIDRs(subnet)
 		if err := r.IptCtrl.DelRuleByCIDR(subnet); err != nil {
 			klog.Errorf("Failed to del iptables rule for ippool %v subnet %s: %v", n, subnet, err)
@@ -149,7 +149,7 @@ func (r *Reconciler) deleteIPPool(n types.NamespacedName) error {
 	}
 
 	gw := r.getGwByIPPool(n)
-	if gw != "" {
+	if gw != "" && r.gws[gw].Len() == 1 {
 		if err := r.DpMgr.DelIPPoolGW(gw); err != nil {
 			klog.Errorf("Failed to del ovs flow for ippool %v gateway %s: %v", n, subnet, err)
 			errs = append(errs, err)
