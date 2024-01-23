@@ -47,6 +47,7 @@ const (
 	SecurityPolicyByEndpointGroupIndex = "SecurityPolicyByEndpointGroupIndex"
 
 	EverouteWebhookName     = "validator.everoute.io"
+	EverouteIPAMWebhookName = "vipam.everoute.io"
 	EverouteSecretName      = "everoute-controller-tls"
 	EverouteSecretNamespace = "kube-system"
 

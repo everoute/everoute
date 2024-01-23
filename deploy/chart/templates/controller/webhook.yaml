@@ -62,3 +62,34 @@ spec:
     app: everoute
     component: everoute-controller
 {{ end }}
+{{- if eq .Values.CNIConf.ipam "everoute" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: vipam.everoute.io
+webhooks:
+  - admissionReviewVersions: ["v1beta1"]
+    sideEffects: None
+    clientConfig:
+      # CaBundle must set as the ca for secret everoute-controller-tls.
+      caBundle:
+      service:
+        name: everoute-validator-webhook
+        path: /validate-ipam-everoute-io-v1alpha1-ippool
+        port: {{ .Values.webhook.port }}
+        namespace: kube-system
+    failurePolicy: Fail
+    name: vipam.everoute.io
+    rules:
+      - apiGroups:
+          - ipam.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - ippools
+{{- end }}

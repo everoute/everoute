@@ -31,6 +31,7 @@ type controllerConfig struct {
 type CNIConf struct {
 	EnableProxy bool   `yaml:"enableProxy,omitempty"`
 	EncapMode   string `yaml:"encapMode,omitempty"`
+	IPAM        string `yaml:"ipam,omitempty"`
 }
 
 func NewOptions() *Options {
@@ -57,6 +58,14 @@ func (o *Options) IsEnableOverlay() bool {
 	}
 
 	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
+}
+
+func (o *Options) useEverouteIPAM() bool {
+	if !o.IsEnableOverlay() {
+		return false
+	}
+
+	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
 }
 
 func (o *Options) complete() error {

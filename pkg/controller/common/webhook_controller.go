@@ -101,7 +101,7 @@ func (r *WebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				klog.Errorf("receive create event with no object %v", e)
 				return
 			}
-			if e.Object.GetName() == constants.EverouteWebhookName {
+			if e.Object.GetName() == constants.EverouteWebhookName || e.Object.GetName() == constants.EverouteIPAMWebhookName {
 				q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
 					Name: e.Object.GetName(),
 				}})
@@ -109,7 +109,7 @@ func (r *WebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		UpdateFunc: func(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 			newWebhook := e.ObjectNew.(*admv1.ValidatingWebhookConfiguration)
-			if newWebhook.GetName() == constants.EverouteWebhookName {
+			if newWebhook.GetName() == constants.EverouteWebhookName || newWebhook.GetName() == constants.EverouteIPAMWebhookName {
 				q.Add(ctrl.Request{NamespacedName: types.NamespacedName{
 					Name: newWebhook.GetName(),
 				}})

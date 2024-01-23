@@ -2350,6 +2350,17 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ipam.everoute.io
+  resources:
+  - ippools
+  - ippools/status
+  verbs:
+  - patch
+  - update
+  - get
+  - list
+  - watch
 ---
 # Source: everoute/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
