@@ -64,7 +64,7 @@ func TestDeepCopy(t *testing.T) {
 	}
 }
 
-func TestservicePortToPort(t *testing.T) {
+func TestServicePortToPort(t *testing.T) {
 	tests := []struct {
 		name string
 		arg  *corev1.ServicePort
