@@ -51,7 +51,7 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
-	go test --gcflags=all=-l ./plugin/... ./pkg/...
+	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
 
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
@@ -62,7 +62,7 @@ docker-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
 cover-test: agent-uuid
-	go test --gcflags=all=-l ./plugin/... ./pkg/... -coverprofile=coverage.out \
+	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 
 docker-cover-test: image-test
@@ -74,7 +74,7 @@ docker-cover-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
 
 race-test: agent-uuid
-	go test --gcflags=all=-l ./plugin/... ./pkg/... -race
+	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
 
 docker-race-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
