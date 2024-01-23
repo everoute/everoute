@@ -12,6 +12,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -34,7 +35,7 @@ var _ = Describe("node controller test", func() {
 	})
 
 	Context("delete node", func() {
-		BeforeEach(func() {	
+		BeforeEach(func() {
 			Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
 		})
 
@@ -42,8 +43,14 @@ var _ = Describe("node controller test", func() {
 			BeforeEach(func() {
 				ep := v1alpha1.Endpoint{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: utils.GetGwEndpointName(nodeName),
+						Name:      utils.GetGwEndpointName(nodeName),
 						Namespace: GwEpNs,
+					},
+					Spec: v1alpha1.EndpointSpec{
+						Reference: v1alpha1.EndpointReference{
+							ExternalIDName:  constants.GwEpExternalIDName,
+							ExternalIDValue: nodeName,
+						},
 					},
 				}
 				Expect(k8sClient.Create(ctx, &ep)).Should(Succeed())
@@ -53,15 +60,15 @@ var _ = Describe("node controller test", func() {
 				Expect(k8sClient.Delete(ctx, &node)).Should(Succeed())
 				epKey := k8stypes.NamespacedName{
 					Namespace: GwEpNs,
-					Name: utils.GetGwEndpointName(nodeName),
+					Name:      utils.GetGwEndpointName(nodeName),
 				}
-				
+
 				Eventually(func(g Gomega) {
 					ep := v1alpha1.Endpoint{}
 					err2 := k8sClient.Get(ctx, epKey, &ep)
 					g.Expect(err2).ShouldNot(BeNil())
 					g.Expect(errors.IsNotFound(err2)).Should(BeTrue())
-				}, 5*time.Minute, interval).Should(Succeed())
+				}, time.Minute, interval).Should(Succeed())
 			})
 		})
 	})

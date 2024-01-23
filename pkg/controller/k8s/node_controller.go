@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -73,7 +75,25 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate())
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate()); err != nil {
+		return err
+	}
+	return c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Endpoint{}), &handler.Funcs{
+		CreateFunc: func(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			o, ok := e.Object.(*v1alpha1.Endpoint)
+			if !ok {
+				klog.Errorf("Failed to parse endpoint %s/%s", e.Object.GetNamespace(), e.Object.GetName())
+				return
+			}
+			if o.Spec.Reference.ExternalIDName != constants.GwEpExternalIDName {
+				return
+			}
+
+			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+				Name: o.Spec.Reference.ExternalIDValue,
+			}})
+		},
+	})
 }
 
 func nodePredicate() predicate.Predicate {
