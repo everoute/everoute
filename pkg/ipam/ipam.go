@@ -6,11 +6,11 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 
-	"github.com/everoute/everoute/pkg/utils"
+	etypes "github.com/everoute/everoute/pkg/types"
 )
 
 type IPAM interface {
-	ExecAdd(context.Context, *types.NetConf, *utils.CNIArgs) (*cnitypes.Result, error)
-	ExecDel(context.Context, *types.NetConf, *utils.CNIArgs) error
-	ExecCheck(context.Context, *types.NetConf, *utils.CNIArgs) error
+	ExecAdd(context.Context, *types.NetConf, *etypes.CNIArgs) (*cnitypes.Result, error)
+	ExecDel(context.Context, *types.NetConf, *etypes.CNIArgs) error
+	ExecCheck(context.Context, *types.NetConf, *etypes.CNIArgs) error
 }

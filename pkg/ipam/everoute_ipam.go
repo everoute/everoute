@@ -10,7 +10,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/everoute/everoute/pkg/utils"
+	etypes "github.com/everoute/everoute/pkg/types"
 )
 
 type EverouteIPAM struct {
@@ -25,7 +25,7 @@ func NewEverouteIPAM(k8sclient client.Client, ippoolNs string) IPAM {
 	}
 }
 
-func (i *EverouteIPAM) ExecAdd(ctx context.Context, _ *types.NetConf, args *utils.CNIArgs) (*cnitypes.Result, error) {
+func (i *EverouteIPAM) ExecAdd(ctx context.Context, _ *types.NetConf, args *etypes.CNIArgs) (*cnitypes.Result, error) {
 	ipamConf := &ipam.NetConf{
 		Type:             ipamv1alpha1.AllocateTypePod,
 		AllocateIdentify: string(args.K8S_POD_INFRA_CONTAINER_ID),
@@ -45,7 +45,7 @@ func (i *EverouteIPAM) ExecAdd(ctx context.Context, _ *types.NetConf, args *util
 	return r, nil
 }
 
-func (i *EverouteIPAM) ExecDel(ctx context.Context, _ *types.NetConf, args *utils.CNIArgs) error {
+func (i *EverouteIPAM) ExecDel(ctx context.Context, _ *types.NetConf, args *etypes.CNIArgs) error {
 	// release ips
 	ipamConf := &ipam.NetConf{
 		Type:             ipamv1alpha1.AllocateTypePod,
@@ -60,4 +60,4 @@ func (i *EverouteIPAM) ExecDel(ctx context.Context, _ *types.NetConf, args *util
 	return nil
 }
 
-func (*EverouteIPAM) ExecCheck(context.Context, *types.NetConf, *utils.CNIArgs) error { return nil }
+func (*EverouteIPAM) ExecCheck(context.Context, *types.NetConf, *etypes.CNIArgs) error { return nil }
