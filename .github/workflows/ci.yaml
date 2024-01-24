@@ -96,7 +96,7 @@ jobs:
       matrix:
         enable-proxy: [true, false]
         encap-mode: ["", geneve]
-    runs-on: [self-hosted, pod-k8s-e2e]
+    runs-on: [self-hosted, pod-k8s-e2e-v2]
     steps:
       - uses: actions/checkout@v2
 
@@ -113,6 +113,11 @@ jobs:
           mkdir -p /runner/_work/bin/
           echo "/runner/_work/bin/" >> $GITHUB_PATH
 
+      - name: set env
+        run: |
+          echo "PoolName=$PoolName" >> $GITHUB_ENV
+          echo "Tmpl=$Tmpl" >> $GITHUB_ENV
+
       - name: install helm
         run: cp /home/runner/tool/helm /runner/_work/bin/
 
@@ -127,7 +132,7 @@ jobs:
 
       - name: allocate cluster vip
         run: |
-          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=sdn1')
+          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=${{ env.PoolName }}')
           success=$(echo $out | grep "fullSuccess" |wc -l)
           if [ $success != 1 ]; then exit 1; fi
           ipright=${out#*\"ips\":[\"}
@@ -140,10 +145,10 @@ jobs:
       - name: create k8s cluster...
         run: |
           echo "new k8s cluster name is ${{ env.CLUSTER_NAME }}"
-          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/kubesmartcluster.yaml.tmpl
+          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/${{ env.Tmpl }}
           echo "k8s cluster vip is ${{ env.VIP }}"
-          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/kubesmartcluster.yaml.tmpl
-          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig /home/runner/sksconfig/sksconfig
+          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/${{ env.Tmpl }}
+          kubectl --v=9 apply -f hack/${{ env.Tmpl }} --kubeconfig /home/runner/sksconfig/sksconfig
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
 
       - name: get new k8s cluster kubeconfig and test connection
@@ -166,6 +171,7 @@ jobs:
           kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
+        timeout-minutes: 10
         run: |
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
           mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
@@ -189,11 +195,11 @@ jobs:
       - name: delete test k8s cluster
         id: delenv
         if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
 
       - name: recycle vip
         if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
+        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
   
   # run-tower-e2e:
   #   runs-on: [self-hosted, tower]
