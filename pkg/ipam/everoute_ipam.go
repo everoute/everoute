@@ -6,7 +6,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
-	ipam "github.com/everoute/ipam/pkg/ipam"
+	"github.com/everoute/ipam/pkg/ipam"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 

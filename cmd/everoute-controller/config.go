@@ -29,9 +29,10 @@ type controllerConfig struct {
 }
 
 type CNIConf struct {
-	EnableProxy bool   `yaml:"enableProxy,omitempty"`
-	EncapMode   string `yaml:"encapMode,omitempty"`
-	IPAM        string `yaml:"ipam,omitempty"`
+	EnableProxy     bool   `yaml:"enableProxy,omitempty"`
+	EncapMode       string `yaml:"encapMode,omitempty"`
+	IPAM            string `yaml:"ipam,omitempty"`
+	IPAMCleanPeriod int    `yaml:"ipamCleanPeriod,omitempty"`
 }
 
 func NewOptions() *Options {
@@ -66,6 +67,14 @@ func (o *Options) useEverouteIPAM() bool {
 	}
 
 	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
+}
+
+func (o *Options) getIPAMCleanPeriod() int {
+	if !o.useEverouteIPAM() {
+		return 0
+	}
+
+	return o.Config.CNIConf.IPAMCleanPeriod
 }
 
 func (o *Options) complete() error {

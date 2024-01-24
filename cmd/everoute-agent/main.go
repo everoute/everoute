@@ -328,7 +328,7 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 				Spec: v1alpha1.EndpointSpec{
 					Type: v1alpha1.EndpointStatic,
 					Reference: v1alpha1.EndpointReference{
-						ExternalIDName:  "gw-ep",
+						ExternalIDName:  constants.GwEpExternalIDName,
 						ExternalIDValue: datapathManager.Info.NodeName,
 					},
 				},

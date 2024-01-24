@@ -46,6 +46,7 @@ data:
       {{- end}}
       {{- if ne (.Values.CNIConf.ipam | default "") "" }}
       ipam: {{ .Values.CNIConf.ipam }}
+      ipamCleanPeriod: {{ .Values.CNIConf.ipamCleanPeriod | default 30 }}
       {{- end}}
 kind: ConfigMap
 metadata:

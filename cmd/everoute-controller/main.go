@@ -28,6 +28,8 @@ import (
 
 	"github.com/cenkalti/backoff"
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
+	ipamctrl "github.com/everoute/ipam/pkg/controller"
+	ipamcron "github.com/everoute/ipam/pkg/cron"
 	admv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,9 +49,11 @@ import (
 	"github.com/everoute/everoute/pkg/controller/common"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
+	ctrlipam "github.com/everoute/everoute/pkg/controller/ipam"
 	"github.com/everoute/everoute/pkg/controller/k8s"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/healthz"
+	"github.com/everoute/everoute/pkg/ipam"
 	"github.com/everoute/everoute/pkg/webhook"
 	towerplugin "github.com/everoute/everoute/plugin/tower/pkg/register"
 	"github.com/everoute/everoute/third_party/cert"
@@ -83,6 +87,7 @@ func main() {
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
 
+	stopCtx := ctrl.SetupSignalHandler()
 	if err := opts.complete(); err != nil {
 		klog.Fatalf("Failed to complete Options, err: %v", err)
 	}
@@ -182,9 +187,7 @@ func main() {
 		}
 
 		if opts.useEverouteIPAM() {
-			if err = (&ipamv1alpha1.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
-				klog.Fatalf("unable to create ippool webhook %v", err)
-			}
+			startIPAM(stopCtx, mgr)
 		}
 	}
 
@@ -213,7 +216,7 @@ func main() {
 	)
 
 	klog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(stopCtx); err != nil {
 		klog.Fatalf("error while running manager: %s", err.Error())
 	}
 }
@@ -300,4 +303,33 @@ func genSecret(secretReq types.NamespacedName) *corev1.Secret {
 		Data: data,
 		Type: "kubernetes.io/tls",
 	}
+}
+
+func startIPAM(ctx context.Context, mgr ctrl.Manager) {
+	var err error
+	if err = (&ipamv1alpha1.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create ippool webhook %v", err)
+	}
+
+	selfNs := os.Getenv(constants.NamespaceNameENV)
+	if err = (&ctrlipam.Reconciler{
+		Client:       mgr.GetClient(),
+		GWIPPoolNs:   selfNs,
+		GWIPPoolName: constants.GwIPPoolName,
+	}).SetupWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create ipam controller %v", err)
+	}
+
+	if err = (&ipamctrl.STSReconciler{
+		Client: mgr.GetClient(),
+	}).SetUpWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create ipam statefulset controller %v", err)
+	}
+
+	if opts.getIPAMCleanPeriod() <= 0 {
+		klog.Fatalf("invalid ipam stale ip clean period %d", opts.getIPAMCleanPeriod())
+	}
+	cleanStaleIP := ipamcron.NewCleanStaleIP(time.Duration(opts.getIPAMCleanPeriod())*time.Minute, mgr.GetClient(), mgr.GetAPIReader())
+	cleanStaleIP.RegistryCleanFunc(ipam.NewCleanStaleIP(selfNs, constants.GwIPPoolName, selfNs).Process)
+	cleanStaleIP.Run(ctx)
 }
