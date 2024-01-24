@@ -2,7 +2,6 @@ package k8s
 
 import (
 	"context"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -61,7 +60,7 @@ var _ = Describe("node controller test", func() {
 					err2 := k8sClient.Get(ctx, epKey, &ep)
 					g.Expect(err2).ShouldNot(BeNil())
 					g.Expect(errors.IsNotFound(err2)).Should(BeTrue())
-				}, 5*time.Minute, interval).Should(Succeed())
+				}, timeout, interval).Should(Succeed())
 			})
 		})
 	})
