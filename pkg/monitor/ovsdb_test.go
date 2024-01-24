@@ -21,7 +21,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/klog"
 )
 
 // nolint: funlen
@@ -29,88 +28,88 @@ func TestOvsDbEventHandler(t *testing.T) {
 	RegisterTestingT(t)
 
 	bridgeName := rand.String(10)
-	ep1PortName := rand.String(10)
-	ep1Iface := Iface{
-		IfaceName: ep1PortName,
+	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
+
+	testEventHandlerWithLocalEndpoint(bridgeName, t)
+	testEventHandlerWithVethPair(bridgeName, t)
+	testEventHandlerWithInternalPort(bridgeName, t)
+}
+
+func testEventHandlerWithLocalEndpoint(bridgeName string, t *testing.T) {
+	portName := rand.String(10)
+	iface := Iface{
+		IfaceName: portName,
 		IfaceType: "internal",
 		OfPort:    uint32(11),
 		VlanID:    uint16(1),
 	}
-	ep1 := Ep{
-		VlanID: uint16(1),
-	}
-	newep1 := Ep{
-		Trunk: "0,1",
-	}
-
-	t.Logf("create new bridge %s", bridgeName)
-	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
 
 	// Add local endpoint, set attached interface externalIDs
-	Expect(createPort(ovsClient, bridgeName, ep1PortName, &ep1Iface)).Should(Succeed())
-	ep1OfPort, _ := getOfpPortNo(ovsClient, ep1PortName)
+	Expect(createPort(ovsClient, bridgeName, portName, &iface)).Should(Succeed())
 
-	t.Run("Add local endpoint ep1", func(t *testing.T) {
+	t.Run("should handle local endpoint add event", func(t *testing.T) {
 		Eventually(func() bool {
-			localEndpointLock.Lock()
-			_, ok := localEndpointMap[ep1OfPort]
-			localEndpointLock.Unlock()
+			_, ok := localEndpointCache.Get(iface.IfaceName)
 			return ok
 		}, timeout, interval).Should(BeTrue())
 	})
 
-	Expect(updatePortToTrunk(ovsClient, ep1PortName, []int{0, 1}, ep1Iface.VlanID)).Should(Succeed())
-	t.Run("Update local endpoint ep1, access port to trunk port", func(t *testing.T) {
+	Expect(updatePortToTrunk(ovsClient, portName, []int{0, 1}, iface.VlanID)).Should(Succeed())
+	t.Run("should handle local endpoint update event", func(t *testing.T) {
 		Eventually(func() string {
-			localEndpointLock.Lock()
-			trunks := localEndpointMap[ep1OfPort].Trunk
-			localEndpointLock.Unlock()
-			return trunks
-		}, timeout, interval).Should(Equal(newep1.Trunk))
+			ep, ok := localEndpointCache.Get(iface.IfaceName)
+			if !ok {
+				return ""
+			}
+			return ep.(*LocalEndpoint).Trunk
+		}, timeout, interval).Should(Equal("0,1"))
 	})
 
-	Expect(updatePortTrunk(ovsClient, ep1PortName, []int{1, 2})).Should(Succeed())
-	t.Run("Update local endpoint ep1 trunk list", func(t *testing.T) {
+	Expect(updatePortTrunk(ovsClient, portName, []int{1, 2})).Should(Succeed())
+	t.Run("should handle local endpoint update event", func(t *testing.T) {
 		Eventually(func() string {
-			localEndpointLock.Lock()
-			trunks := localEndpointMap[ep1OfPort].Trunk
-			localEndpointLock.Unlock()
-			return trunks
+			ep, ok := localEndpointCache.Get(iface.IfaceName)
+			if !ok {
+				return ""
+			}
+			return ep.(*LocalEndpoint).Trunk
 		}, timeout, interval).Should(Equal("0,1,2"))
 	})
 
-	Expect(updatePortToAccess(ovsClient, ep1PortName, []int{0, 1, 2}, ep1Iface.VlanID)).Should(Succeed())
-	t.Run("Update local endpoint ep1, trunk port to access port", func(t *testing.T) {
+	Expect(updatePortToAccess(ovsClient, portName, []int{0, 1, 2}, iface.VlanID)).Should(Succeed())
+	t.Run("should handle local endpoint update event", func(t *testing.T) {
 		Eventually(func() uint16 {
-			localEndpointLock.Lock()
-			vlan := localEndpointMap[ep1OfPort].VlanID
-			localEndpointLock.Unlock()
-			return vlan
-		}, timeout, interval).Should(Equal(ep1.VlanID))
+			ep, ok := localEndpointCache.Get(iface.IfaceName)
+			if !ok {
+				return 0
+			}
+			return ep.(*LocalEndpoint).Tag
+		}, timeout, interval).Should(Equal(uint16(1)))
 	})
 
-	Expect(updatePortVlanTag(ovsClient, ep1PortName, ep1Iface.VlanID, uint16(2))).Should(Succeed())
-	t.Run("Update local endpoint ep1 trunk list", func(t *testing.T) {
+	Expect(updatePortVlanTag(ovsClient, portName, iface.VlanID, uint16(2))).Should(Succeed())
+	t.Run("should handle local endpoint update event", func(t *testing.T) {
 		Eventually(func() uint16 {
-			localEndpointLock.Lock()
-			vlanID := localEndpointMap[ep1OfPort].VlanID
-			localEndpointLock.Unlock()
-			return vlanID
+			ep, ok := localEndpointCache.Get(iface.IfaceName)
+			if !ok {
+				return 0
+			}
+			return ep.(*LocalEndpoint).Tag
 		}, timeout, interval).Should(Equal(uint16(2)))
 	})
 
 	// Delete local endpoint
-	Expect(deletePort(ovsClient, bridgeName, ep1PortName, ep1Iface.IfaceName)).Should(Succeed())
+	Expect(deletePort(ovsClient, bridgeName, portName, iface.IfaceName)).Should(Succeed())
 
-	t.Run("Delete local endpoint ep1", func(t *testing.T) {
+	t.Run("should handle local endpoint delete event", func(t *testing.T) {
 		Eventually(func() bool {
-			localEndpointLock.Lock()
-			_, ok := localEndpointMap[ep1Iface.OfPort]
-			localEndpointLock.Unlock()
+			_, ok := localEndpointCache.Get(iface.IfaceName)
 			return ok
 		}, timeout, interval).Should(BeFalse())
 	})
+}
 
+func testEventHandlerWithVethPair(bridgeName string, t *testing.T) {
 	// Add vethpair type interface, convert to endpoint, update interface MacAddr
 	vethPortName, vethPortPeerName := rand.String(10), rand.String(10)
 	vethIfaceName := vethPortName
@@ -134,28 +133,19 @@ func TestOvsDbEventHandler(t *testing.T) {
 		}, timeout, interval).Should(Succeed())
 
 		Eventually(func() string {
-			vethport, err := getOfpPortNo(ovsClient, vethPortName)
-			if err != nil {
+			ep, ok := localEndpointCache.Get(vethIfaceName)
+			if !ok {
 				return ""
 			}
-			localEndpointLock.Lock()
-			macStr := localEndpointMap[vethport].MacAddrStr
-			localEndpointLock.Unlock()
-			return macStr
+			return ep.(*LocalEndpoint).Mac
 		}, timeout, interval).Should(Equal(vethMacAddrStr))
 
 		Eventually(func() string {
-			vethport, err := getOfpPortNo(ovsClient, vethPortName)
-			if err != nil {
+			ep, ok := localEndpointCache.Get(vethIfaceName)
+			if !ok {
 				return ""
 			}
-			localEndpointLock.Lock()
-			ip := localEndpointMap[vethport].IPAddr
-			localEndpointLock.Unlock()
-			if ip == nil {
-				return ""
-			}
-			return ip.String()
+			return ep.(*LocalEndpoint).IP.String()
 		}, timeout, interval).Should(Equal(vethIPStr))
 	})
 
@@ -165,10 +155,11 @@ func TestOvsDbEventHandler(t *testing.T) {
 			if isNotFoundError(err) {
 				return false
 			}
-			localEndpointLock.Lock()
-			defer localEndpointLock.Unlock()
-			klog.Infof("endpoint map  %v", localEndpointMap)
-			return localEndpointMap[uint32(iface.Ofport)].MacAddrStr == iface.Mac
+			ep, ok := localEndpointCache.Get(vethIfaceName)
+			if !ok {
+				return false
+			}
+			return ep.(*LocalEndpoint).Mac == iface.Mac
 		}, timeout, interval).Should(Equal(true))
 	})
 
@@ -181,7 +172,9 @@ func TestOvsDbEventHandler(t *testing.T) {
 			return isNotFoundError(err)
 		}, timeout, interval).Should(BeTrue())
 	})
+}
 
+func testEventHandlerWithInternalPort(bridgeName string, t *testing.T) {
 	internalPortName := rand.String(10)
 	internalIfaceName := internalPortName
 
@@ -195,14 +188,16 @@ func TestOvsDbEventHandler(t *testing.T) {
 
 	t.Run("Add internal endpoint", func(t *testing.T) {
 		Eventually(func() bool {
-			iface, err := getIface(k8sClient, bridgeName, internalPortName, internalPortName)
+			iface, err := getIface(k8sClient, bridgeName, internalPortName, internalIfaceName)
 			if isNotFoundError(err) {
 				return false
 			}
-			localEndpointLock.Lock()
-			defer localEndpointLock.Unlock()
-			return localEndpointMap[internalIface.OfPort].MacAddrStr == iface.Mac
-		}, timeout, interval).Should(BeTrue())
+			ep, ok := localEndpointCache.Get(internalIfaceName)
+			if !ok {
+				return false
+			}
+			return ep.(*LocalEndpoint).Mac == iface.Mac
+		}, timeout, interval).Should(Equal(true))
 	})
 
 	t.Logf("delete port %s on bridge %s", internalPortName, bridgeName)
