@@ -11,7 +11,7 @@ import (
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend/allocator"
 	"k8s.io/klog"
 
-	"github.com/everoute/everoute/pkg/utils"
+	etypes "github.com/everoute/everoute/pkg/types"
 )
 
 type HostLocalIPAM struct {
@@ -24,7 +24,7 @@ func NewHostLocalIPAM(cidrs []types.IPNet) IPAM {
 	}
 }
 
-func (i *HostLocalIPAM) ExecAdd(_ context.Context, conf *types.NetConf, _ *utils.CNIArgs) (*cnitypes.Result, error) {
+func (i *HostLocalIPAM) ExecAdd(_ context.Context, conf *types.NetConf, _ *etypes.CNIArgs) (*cnitypes.Result, error) {
 	r, err := ipam.ExecAdd("host-local", i.GetIpamConfByte(conf))
 	if err != nil {
 		return nil, err
@@ -37,11 +37,11 @@ func (i *HostLocalIPAM) ExecAdd(_ context.Context, conf *types.NetConf, _ *utils
 	return ipamResult, nil
 }
 
-func (i *HostLocalIPAM) ExecDel(_ context.Context, conf *types.NetConf, _ *utils.CNIArgs) error {
+func (i *HostLocalIPAM) ExecDel(_ context.Context, conf *types.NetConf, _ *etypes.CNIArgs) error {
 	return ipam.ExecDel("host-local", i.GetIpamConfByte(conf))
 }
 
-func (i *HostLocalIPAM) ExecCheck(_ context.Context, conf *types.NetConf, _ *utils.CNIArgs) error {
+func (i *HostLocalIPAM) ExecCheck(_ context.Context, conf *types.NetConf, _ *etypes.CNIArgs) error {
 	return ipam.ExecCheck("host-local", i.GetIpamConfByte(conf))
 }
 

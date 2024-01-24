@@ -40,6 +40,7 @@ import (
 	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	eripam "github.com/everoute/everoute/pkg/ipam"
+	etypes "github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -53,7 +54,7 @@ type CNIServer struct {
 	mutex sync.Mutex
 }
 
-func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *utils.CNIArgs, error) {
+func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *etypes.CNIArgs, error) {
 	// parse request Stdin
 	conf := &cnitypes.NetConf{}
 	err := json.Unmarshal(request.Stdin, &conf)
@@ -62,7 +63,7 @@ func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *ut
 	}
 
 	// parse request Args
-	args := &utils.CNIArgs{}
+	args := &etypes.CNIArgs{}
 	err = cnitypes.LoadArgs(request.Args, args)
 	if err != nil {
 		return nil, nil, err
