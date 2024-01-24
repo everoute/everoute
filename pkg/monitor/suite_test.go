@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -31,6 +29,7 @@ import (
 	"github.com/vishvananda/netlink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	testclocks "k8s.io/utils/clock/testing"
 
@@ -56,12 +55,12 @@ type Iface struct {
 	externalID map[string]string
 }
 
-type Ep struct {
-	IPAddr     net.IP
-	MacAddrStr string
-	OfPort     uint32
-	VlanID     uint16
-	Trunk      string
+type LocalEndpoint struct {
+	Name  string
+	IP    net.IP
+	Mac   string
+	Tag   uint16
+	Trunk string
 }
 
 var (
@@ -70,8 +69,7 @@ var (
 	agentName           string
 	ovsdbMonitor        *OVSDBMonitor
 	monitor             *AgentMonitor
-	localEndpointLock   sync.RWMutex
-	localEndpointMap    = make(map[uint32]Ep)
+	localEndpointCache  = cache.NewThreadSafeStore(cache.Indexers{}, cache.Indices{})
 	stopChan            = make(chan struct{})
 	endpointIPChan      = make(chan *types.EndpointIP, 1024)
 	probeEndpointIPChan = make(chan *types.EndpointIP, 1024)
@@ -105,41 +103,18 @@ func TestMain(m *testing.M) {
 	})
 
 	ovsdbMonitor.RegisterOvsdbEventHandler(OvsdbEventHandlerFuncs{
-		LocalEndpointAddFunc: func(endpoint *datapath.Endpoint) {
-			localEndpointLock.Lock()
-			defer localEndpointLock.Unlock()
-
-			localEndpointMap[endpoint.PortNo] = Ep{
-				IPAddr:     endpoint.IPAddr,
-				MacAddrStr: endpoint.MacAddrStr,
-				VlanID:     endpoint.VlanID,
-				Trunk:      endpoint.Trunk,
-			}
-		},
-		LocalEndpointDeleteFunc: func(endpoint *datapath.Endpoint) {
-			klog.Errorf("------del ep: %+v", endpoint)
-			localEndpointLock.Lock()
-			defer localEndpointLock.Unlock()
-
-			delete(localEndpointMap, endpoint.PortNo)
-		},
-		LocalEndpointUpdateFunc: func(newEndpoint, oldEndpoint *datapath.Endpoint) {
-			localEndpointLock.Lock()
-			defer localEndpointLock.Unlock()
-
-			delete(localEndpointMap, oldEndpoint.PortNo)
-			localEndpointMap[newEndpoint.PortNo] = Ep{
-				IPAddr:     newEndpoint.IPAddr,
-				MacAddrStr: newEndpoint.MacAddrStr,
-				VlanID:     newEndpoint.VlanID,
-				Trunk:      newEndpoint.Trunk,
-			}
-		},
+		LocalEndpointAddFunc:    func(ep *datapath.Endpoint) { localEndpointCache.Add(ep.InterfaceName, toLocalEndpoint(ep)) },
+		LocalEndpointDeleteFunc: func(ep *datapath.Endpoint) { localEndpointCache.Delete(ep.InterfaceName) },
+		LocalEndpointUpdateFunc: func(ep, _ *datapath.Endpoint) { localEndpointCache.Update(ep.InterfaceName, toLocalEndpoint(ep)) },
 	})
 
 	agentName = monitor.Name()
 	go ovsdbMonitor.Run(stopChan)
 	go monitor.Run(stopChan)
+
+	// fix: create event lost when reflector list and watch with fake client
+	// the agent monitor loops infinitely to create agentinfo when agentinfo not in informer cache
+	cache.WaitForCacheSync(stopChan, monitor.agentInformer.HasSynced)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
@@ -267,37 +242,6 @@ func createPort(client *ovsdb.OvsdbClient, brName, portName string, iface *Iface
 
 	_, err := ovsdbTransact(client, "Open_vSwitch", ifaceOperation, portOperation, mutateOperation)
 	return err
-}
-
-func getOfpPortNo(client *ovsdb.OvsdbClient, intfName string) (uint32, error) {
-	retryNo := 0
-	condition := ovsdb.NewCondition("name", "==", intfName)
-	selectOp := ovsdb.Operation{
-		Op:    "select",
-		Table: "Interface",
-		Where: []interface{}{condition},
-	}
-
-	for {
-		row, err := client.Transact("Open_vSwitch", selectOp)
-
-		if err == nil && len(row) > 0 && len(row[0].Rows) > 0 {
-			value := row[0].Rows[0]["ofport"]
-			if reflect.TypeOf(value).Kind() == reflect.Float64 {
-				//retry few more time. Due to asynchronous call between
-				//port creation and populating ovsdb entry for the interface
-				//may not be populated instantly.
-				var ofpPort uint32 = uint32(reflect.ValueOf(value).Float())
-				return ofpPort, nil
-			}
-		}
-		time.Sleep(200 * time.Millisecond)
-
-		if retryNo == 5 {
-			return 0, fmt.Errorf("ofPort not found")
-		}
-		retryNo++
-	}
 }
 
 func updatePortToTrunk(client *ovsdb.OvsdbClient, portName string, trunk []int, tag uint16) error {
@@ -530,5 +474,15 @@ func isNotFoundError(err error) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func toLocalEndpoint(ep *datapath.Endpoint) *LocalEndpoint {
+	return &LocalEndpoint{
+		Name:  ep.InterfaceName,
+		IP:    ep.IPAddr,
+		Mac:   ep.MacAddrStr,
+		Tag:   ep.VlanID,
+		Trunk: ep.Trunk,
 	}
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package monitor
 
 import (
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -72,21 +71,10 @@ func TestAgentMonitor(t *testing.T) {
 	})
 
 	t.Run("interface with error should not appear in agentInfo", func(t *testing.T) {
-		Eventually(func() error {
-			monitor.ipCacheLock.RLock()
-			defer monitor.ipCacheLock.RUnlock()
-			agentInfo, _ := monitor.getAgentInfo()
-			for _, br := range agentInfo.OVSInfo.Bridges {
-				for _, port := range br.Ports {
-					for _, iface := range port.Interfaces {
-						if iface.Name == fakeportName {
-							return fmt.Errorf("error")
-						}
-					}
-				}
-			}
-			return nil
-		}, timeout, interval).Should(Succeed())
+		Eventually(func() bool {
+			_, err := getIface(k8sClient, brName, fakeportName, fakeportName)
+			return isNotFoundError(err)
+		}, timeout, interval).Should(BeTrue())
 	})
 
 	t.Logf("update port %s externalIDs to %+v", portName, externalIDs)
@@ -187,7 +175,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 	t.Run("should probe timeout access iface ip", func(t *testing.T) {
 		portName, peerName := rand.String(10), rand.String(10)
 		ip := net.ParseIP("10.10.10.1")
-		ofPort := uint32(rand.IntnRange(10, 100))
+		ofPort := uint32(rand.IntnRange(100, 200))
 
 		Expect(createVethPair(portName, peerName)).Should(Succeed())
 		Expect(createPort(ovsClient, bridgeName, portName, &Iface{VlanID: 201, OfPort: ofPort})).Should(Succeed())
@@ -222,7 +210,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 	t.Run("should probe timeout trunk iface ip", func(t *testing.T) {
 		portName, peerName := rand.String(10), rand.String(10)
 		ip := net.ParseIP("10.10.10.1")
-		ofPort := uint32(rand.IntnRange(10, 100))
+		ofPort := uint32(rand.IntnRange(200, 300))
 
 		Expect(createVethPair(portName, peerName)).Should(Succeed())
 		Expect(createPort(ovsClient, bridgeName, portName, &Iface{Trunk: []int{100, 120}, OfPort: ofPort})).Should(Succeed())
@@ -239,7 +227,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 			return hasIPAddr && iface.Ofport == int32(ofPort)
 		}, timeout, interval).Should(BeTrue())
 
-		fakeClock.Step(probeIPTimeout * 2)
+		fakeClock.Step(probeIPInterval * 2)
 		Eventually(func() int32 {
 			for {
 				select {
