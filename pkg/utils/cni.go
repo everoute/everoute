@@ -7,7 +7,7 @@ import (
 )
 
 func GetGwEndpointName(nodeName string) string {
-	return constants.GwEndpointName + "-" + nodeName
+	return constants.GwEpNamePrefix + "-" + nodeName
 }
 
 func GetNodeInternalIP(node *corev1.Node) string {

@@ -15,6 +15,7 @@ CNIConf:
   mtu: 0
   vni: 5000
   ipam: ""
+  ipamCleanPeriod: 30
   gwIPPool:
     gateway: 240.100.0.1
     subnet: 240.100.0.0/16

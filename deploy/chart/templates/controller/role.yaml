@@ -120,3 +120,12 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - update
+  - get
+  - watch
+  - list

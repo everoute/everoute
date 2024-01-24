@@ -2361,6 +2361,15 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - update
+  - get
+  - watch
+  - list
 ---
 # Source: everoute/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1

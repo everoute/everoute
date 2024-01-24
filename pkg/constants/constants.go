@@ -71,7 +71,8 @@ const (
 	EncapModeGeneve = "geneve"
 	GeneveHeaderLen = 50
 
-	GwEndpointName = "gw-ep"
+	GwEpNamePrefix     = "gw-ep"
+	GwEpExternalIDName = "gw-ep"
 
 	EverouteIPAM = "everoute"
 
