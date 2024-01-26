@@ -308,8 +308,8 @@ github.com/evanphx/json-patch v4.2.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLi
 github.com/evanphx/json-patch v4.5.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQobrkAqrL+WFZwQses=
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
-github.com/everoute/libOpenflow v0.0.0-20230222045938-9822f4844059 h1:YnUCxOM7aG1nU3ubplOQQqB5Q54gE4lA5O5xmYqIQIk=
-github.com/everoute/libOpenflow v0.0.0-20230222045938-9822f4844059/go.mod h1:xsbTUkWYuDqVv4jMxwinRGdjlYwj0aZS8Rzf6HoNLdg=
+github.com/everoute/libOpenflow v0.0.0-20240126065010-bb3667928a99 h1:Jn7jix1tFAPtJ2dLQoJIWtn3XSoolgM6nJ7FsU3j/Rg=
+github.com/everoute/libOpenflow v0.0.0-20240126065010-bb3667928a99/go.mod h1:xsbTUkWYuDqVv4jMxwinRGdjlYwj0aZS8Rzf6HoNLdg=
 github.com/everoute/libovsdb v0.0.0-20230109020235-5be40f26b455 h1:x6peVyYZSmva1OJJZ2CCNPs4m+tvWEHJ1s5tX5j629s=
 github.com/everoute/libovsdb v0.0.0-20230109020235-5be40f26b455/go.mod h1:qV7bn/XogGqNiuk52aU4x8WqOb2JEU1CYDpf8D1jkRg=
 github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66 h1:/QretgciXKji8tf5ZqaqHL17hkAk+EiNmwc3nnrB5ok=
