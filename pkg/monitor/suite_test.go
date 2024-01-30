@@ -109,12 +109,14 @@ func TestMain(m *testing.M) {
 	})
 
 	agentName = monitor.Name()
-	go ovsdbMonitor.Run(stopChan)
-	go monitor.Run(stopChan)
 
 	// fix: create event lost when reflector list and watch with fake client
 	// the agent monitor loops infinitely to create agentinfo when agentinfo not in informer cache
+	go monitor.agentInformer.Run(stopChan)
 	cache.WaitForCacheSync(stopChan, monitor.agentInformer.HasSynced)
+
+	go ovsdbMonitor.Run(stopChan)
+	go monitor.Run(stopChan)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
