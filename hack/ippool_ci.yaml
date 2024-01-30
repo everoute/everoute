@@ -1,0 +1,19 @@
+apiVersion: ipam.everoute.io/v1alpha1
+kind: IPPool
+metadata:
+  name: ippool-ci0
+  namespace: kube-system
+spec:
+  cidr: 16.16.0.0/29
+  subnet: 16.16.0.0/24
+  gateway: 16.16.0.1
+---
+apiVersion: ipam.everoute.io/v1alpha1
+kind: IPPool
+metadata:
+  name: ippool-ci1
+  namespace: kube-system
+spec:
+  cidr: 15.15.0.0/24
+  subnet: 15.15.0.0/24
+  gateway: 15.15.0.1
