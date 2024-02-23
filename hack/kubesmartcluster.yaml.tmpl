@@ -158,6 +158,8 @@ spec:
     host: {{k8s-e2e-cluster-vip}}
     port: 6443
   network:
+    cni:
+      name: stub-cni
     managementNetworkInterface: ens4
     pods:
       cidrBlocks:
