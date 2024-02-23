@@ -165,6 +165,7 @@ jobs:
         run: |
           cat deploy/everoute.yaml
           kubectl apply -f deploy/chart/templates/crds/ipam.everoute.io_ippools.yaml
+          kubectl apply -f hack/ippool_ci.yaml
           kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
@@ -179,11 +180,6 @@ jobs:
           kubectl wait --for=condition=Ready nodes --all --timeout=10m
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }}
           kubectl get nodes -owide
-
-      - name: create ippool
-        if: matrix.ipam == 'everoute'
-        run: |
-          kubectl apply -f hack/ippool_ci.yaml
 
       - name: run ServiceProxy cases
         if: matrix.enable-proxy == true
