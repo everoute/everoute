@@ -80,6 +80,9 @@ const (
 
 	LocalRulePriority        = 200
 	FromGwLocalRulePriority  = 100
+	SvcRulePriority          = 110
+	ClusterIPSvcRulePriority = 111
+	SvcLocalIPRulePriority   = 120
 
 	FromGwLocalRouteTable = 100
 )
