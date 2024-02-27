@@ -31,7 +31,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/j-keck/arping"
-	"github.com/vishvananda/netlink"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -268,26 +267,6 @@ func SetEnv(request *cnipb.CniRequest) {
 	os.Setenv("CNI_IFNAME", request.Ifname)
 }
 
-func SetLinkAddr(ifname string, inet *net.IPNet) error {
-	link, err := netlink.LinkByName(ifname)
-	if err != nil {
-		klog.Errorf("failed to lookup %q: %v", ifname, err)
-		return err
-	}
-	if err = netlink.LinkSetUp(link); err != nil {
-		klog.Errorf("failed to set %q UP: %v", ifname, err)
-		return err
-	}
-	addr := &netlink.Addr{
-		IPNet: inet,
-		Label: ""}
-	if err = netlink.AddrAdd(link, addr); err != nil {
-		klog.Errorf("failed to add IP addr to %s: %v", ifname, err)
-		return err
-	}
-	return nil
-}
-
 func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) *CNIServer {
 	s := &CNIServer{
 		k8sClient: k8sClient,
@@ -299,14 +278,6 @@ func NewCNIServer(k8sClient client.Client, datapathManager *datapath.DpManager) 
 		s.ipam = eripam.NewEverouteIPAM(k8sClient, datapathManager.Info.Namespace)
 	} else {
 		s.ipam = eripam.NewHostLocalIPAM(datapathManager.Info.PodCIDR)
-	}
-
-	// set gateway ip address, first ip in first CIDR
-	if err := SetLinkAddr(datapathManager.Info.GatewayName,
-		&net.IPNet{
-			IP:   datapathManager.Info.GatewayIP,
-			Mask: datapathManager.Info.GatewayMask}); err != nil {
-		klog.Errorf("set gateway ip address error, err:%s", err)
 	}
 
 	return s
