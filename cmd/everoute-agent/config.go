@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"strings"
 
@@ -52,6 +53,7 @@ type CNIConf struct {
 	EncapMode   string `yaml:"encapMode,omitempty"`
 	MTU         int    `yaml:"mtu,omitempty"`
 	IPAM        string `yaml:"ipam,omitempty"`
+	LocalGwIP   string `yaml:"localGwIP,omitempty"`
 }
 
 type agentConfig struct {
@@ -126,6 +128,13 @@ func (o *Options) cniConfigCheck() error {
 	if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
 		if !o.IsEnableOverlay() || !o.IsEnableProxy() {
 			return fmt.Errorf("everoute ipam can only used in overlay mode with everoute proxy")
+		}
+	}
+
+	if !o.IsEnableProxy() {
+		localGwIP := net.ParseIP(o.Config.CNIConf.LocalGwIP)
+		if localGwIP == nil {
+			return fmt.Errorf("must set valid localGwIP %s when disable everoute proxy", o.Config.CNIConf.LocalGwIP)
 		}
 	}
 
@@ -267,19 +276,21 @@ func setOfPort(datapathManager *datapath.DpManager) {
 }
 
 func setLocalGwInfo(agentInfo *datapath.DpManagerInfo) {
-	if !opts.IsEnableProxy() {
-		// get gateway ip and mac
-		localGwIP, err := utils.GetIfaceIP(agentInfo.LocalGwName)
-		if err != nil {
-			klog.Fatalf("Failed to get local gateway ip address, error:%s", err)
-		}
-		localGwMac, err := utils.GetIfaceMAC(agentInfo.LocalGwName)
-		if err != nil {
-			klog.Fatalf("Failed to get local gateway mac address, error:%s", err)
-		}
-		agentInfo.LocalGwIP = localGwIP
-		agentInfo.LocalGwMac = localGwMac
+	if opts.IsEnableProxy() {
+		return
 	}
+
+	// get local gateway ip and mac
+	localGwIP := net.ParseIP(opts.Config.CNIConf.LocalGwIP)
+	if localGwIP == nil {
+		klog.Fatalf("Failed to parse local gateway ip address %s", opts.Config.CNIConf.LocalGwIP)
+	}
+	localGwMac, err := utils.GetIfaceMAC(agentInfo.LocalGwName)
+	if err != nil {
+		klog.Fatalf("Failed to get local gateway mac address, error:%s", err)
+	}
+	agentInfo.LocalGwIP = localGwIP
+	agentInfo.LocalGwMac = localGwMac
 }
 
 func setGwInfo(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) {

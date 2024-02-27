@@ -77,6 +77,11 @@ const (
 	EverouteIPAM = "everoute"
 
 	GwIPPoolName = "everoute-built-in"
+
+	LocalRulePriority       = 200
+	FromGwLocalRulePriority = 100
+
+	FromGwLocalRouteTable = 100
 )
 
 const (

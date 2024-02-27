@@ -7,6 +7,8 @@ import (
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
+
+	"github.com/everoute/everoute/pkg/agent/datapath"
 )
 
 type OverlayRoute interface {
@@ -21,12 +23,14 @@ type overlayRoute struct {
 	lock      sync.RWMutex
 	podCIDRs  sets.Set[string]
 	gatewayIP net.IP
+	dpManger  *datapath.DpManager
 }
 
-func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string) OverlayRoute {
+func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string, dpManager *datapath.DpManager) OverlayRoute {
 	o := &overlayRoute{
 		gatewayIP: gatewayIP,
 		podCIDRs:  sets.New[string](),
+		dpManger:  dpManager,
 	}
 	if clusterPodCIDR != "" {
 		o.podCIDRs.Insert(clusterPodCIDR)
@@ -35,6 +39,8 @@ func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string) OverlayRoute {
 }
 
 func (o *overlayRoute) Update() {
+	o.setFixRoute()
+
 	o.lock.RLock()
 	defer o.lock.RUnlock()
 
@@ -132,4 +138,10 @@ func (o *overlayRoute) DelPodCIDRs(cidrs ...string) {
 	defer o.lock.Unlock()
 
 	o.podCIDRs.Delete(cidrs...)
+}
+
+func (o *overlayRoute) setFixRoute() {
+	if !o.dpManger.IsEnableProxy() {
+		SetFixRouteWhenDisableERProxy(o.dpManger.Info)
+	}
 }
