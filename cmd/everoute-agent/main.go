@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"net"
 	"time"
 
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
@@ -151,6 +152,7 @@ func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySync
 		klog.Fatalf("Failed to new a client, err: %v", err)
 	}
 	setAgentConf(datapathManager, c)
+	setLinkAddr(datapathManager.Info)
 	datapathManager.InitializeCNI()
 }
 
@@ -232,7 +234,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	var proxyCache *ctrlProxy.Cache
 	if opts.IsEnableCNI() {
 		if opts.IsEnableOverlay() {
-			iptCtrl, rCtrl := proxy.SetupRouteAndIPtables(datapathManager, ctx.Done())
+			iptCtrl, rCtrl := proxy.SetupRouteAndIPtables(ctx, datapathManager)
 
 			uplinkBridgeOverlay := datapathManager.GetUplinkBridgeOverlay()
 			if err = (&overlay.Reconciler{
@@ -261,7 +263,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				Client:          mgr.GetClient(),
 				Scheme:          mgr.GetScheme(),
 				DatapathManager: datapathManager,
-				StopChan:        ctx.Done(),
+				StopCtx:         ctx,
 			}).SetupWithManager(mgr); err != nil {
 				klog.Fatalf("unable to setup route and iptables controller: %v", err)
 			}
@@ -362,4 +364,25 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 	}
 
 	return nil
+}
+
+func setLinkAddr(agentInfo *datapath.DpManagerInfo) {
+	// set gateway ip address
+	if err := utils.SetLinkAddr(agentInfo.GatewayName,
+		&net.IPNet{
+			IP:   agentInfo.GatewayIP,
+			Mask: agentInfo.GatewayMask}); err != nil {
+		klog.Fatalf("Set gateway ip address error, err:%s", err)
+	}
+
+	if opts.IsEnableProxy() {
+		return
+	}
+	// set local gateway ip address
+	if err := utils.SetLinkAddr(agentInfo.LocalGwName, &net.IPNet{
+		IP:   agentInfo.LocalGwIP,
+		Mask: net.CIDRMask(32, 32),
+	}); err != nil {
+		klog.Fatalf("Set local gateway ip address error, err: %s", err)
+	}
 }

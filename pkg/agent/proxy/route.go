@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,7 +55,7 @@ type NodeReconciler struct {
 
 	DatapathManager *datapath.DpManager
 
-	StopChan    <-chan struct{}
+	StopCtx     context.Context
 	updateMutex sync.Mutex
 
 	iptCtrl *eriptables.RouteIPtables
@@ -114,6 +115,70 @@ func RouteEqual(r1, r2 netlink.Route) bool {
 		(r1.Dst != nil && r2.Dst != nil && r1.Dst.String() == r2.Dst.String())) &&
 		r1.Src.Equal(r2.Src) &&
 		r1.Gw.Equal(r2.Gw)
+}
+
+func ChangeLocalRulePriority() error {
+	newLocalRule := netlink.NewRule()
+	newLocalRule.Table = unix.RT_TABLE_LOCAL
+	newLocalRule.Priority = constants.LocalRulePriority
+	if err := utils.RuleAdd(newLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", newLocalRule, err)
+		return err
+	}
+
+	oldLocalRule := netlink.NewRule()
+	oldLocalRule.Table = unix.RT_TABLE_LOCAL
+	// netlink lib default priority is -1, priority 0 won't reassign to rule.Priority when list rule
+	oldLocalRule.Priority = -1
+	if err := utils.RuleDel(oldLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to find rule %s, err: %s", oldLocalRule, err)
+		return err
+	}
+	return nil
+}
+
+func AddRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
+	route := &netlink.Route{
+		Table: constants.FromGwLocalRouteTable,
+		Gw:    agentInfo.LocalGwIP,
+		Dst: &net.IPNet{
+			IP:   net.IPv4(0, 0, 0, 0),
+			Mask: net.CIDRMask(0, 32),
+		},
+	}
+
+	if err := netlink.RouteReplace(route); err != nil {
+		klog.Errorf("Failed to add route %s, err: %s", route, err)
+		return err
+	}
+
+	rule := netlink.NewRule()
+	rule.IifName = agentInfo.LocalGwName
+	rule.Table = constants.FromGwLocalRouteTable
+	rule.Priority = constants.FromGwLocalRulePriority
+	if err := utils.RuleAdd(rule, netlink.RT_FILTER_IIF|netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", rule, err)
+		return err
+	}
+	return nil
+}
+
+func SetFixRouteWhenDisableERProxy(agentInfo *datapath.DpManagerInfo) {
+	if err := ChangeLocalRulePriority(); err != nil {
+		klog.Errorf("Failed to change local rule priority: %s", err)
+	}
+
+	if err := AddRouteForTableLocalGw(agentInfo); err != nil {
+		klog.Errorf("Failed to add route and rule for witch from local gw: %s", err)
+	}
+}
+
+func (r *NodeReconciler) SetFixRoute() {
+	if r.DatapathManager.IsEnableProxy() {
+		return
+	}
+
+	SetFixRouteWhenDisableERProxy(r.DatapathManager.Info)
 }
 
 // UpdateRoute will be called when Node has been updated, or every 100 seconds.
@@ -290,23 +355,16 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// update network config every 100 seconds
-	ticker := time.NewTicker(100 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				r.UpdateNetwork()
-			case <-r.StopChan:
-				return
-			}
-		}
-	}()
+	go wait.NonSlidingUntilWithContext(r.StopCtx, func(context.Context) {
+		r.SetFixRoute()
+		r.UpdateNetwork()
+	}, 100*time.Second)
 
 	return nil
 }
 
 // SetupRouteAndIPtables setup route and iptables for overlay mode
-func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan struct{}) (eriptables.OverlayIPtables, OverlayRoute) {
+func SetupRouteAndIPtables(ctx context.Context, datapathManager *datapath.DpManager) (eriptables.OverlayIPtables, OverlayRoute) {
 	clusterPodCIDR := datapathManager.Info.ClusterPodCIDR
 	clusterPodCIDRString := clusterPodCIDR.String()
 	gatewayIP := datapathManager.Info.GatewayIP
@@ -318,19 +376,13 @@ func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan 
 		LocalGwName:    datapathManager.Info.LocalGwName,
 		ClusterPodCIDR: clusterPodCIDRString,
 	})
-	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString)
+	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString, datapathManager)
+
 	// update network config every 100 seconds
-	ticker := time.NewTicker(100 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				routeCtrl.Update()
-				iptCtrl.Update()
-			case <-stopChan:
-				return
-			}
-		}
-	}()
+	go wait.NonSlidingUntilWithContext(ctx, func(context.Context) {
+		routeCtrl.Update()
+		iptCtrl.Update()
+	}, 100*time.Second)
+
 	return iptCtrl, routeCtrl
 }

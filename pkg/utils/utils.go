@@ -7,14 +7,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 	coretypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 
@@ -39,49 +36,6 @@ func Base64AndSha256(input string) string {
 	b := Base64Encode([]byte(input))
 	hash := sha256.Sum256(b)
 	return fmt.Sprintf("%x", hash)
-}
-
-func GetIfaceIP(name string) (net.IP, error) {
-	link, err := netlink.LinkByName(name)
-	if err != nil {
-		return nil, err
-	}
-	list, err := netlink.AddrList(link, unix.AF_INET)
-	if err != nil {
-		return nil, err
-	}
-	return list[0].IP, nil
-}
-
-func GetIfaceMAC(name string) (net.HardwareAddr, error) {
-	link, err := netlink.LinkByName(name)
-	if err != nil {
-		return nil, err
-	}
-	return link.Attrs().HardwareAddr, nil
-}
-
-func GetLinkByIP(ip string) (netlink.Link, error) {
-	allAddrs, err := netlink.AddrList(nil, unix.AF_INET)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range allAddrs {
-		if allAddrs[i].IP.String() == ip {
-			return netlink.LinkByIndex(allAddrs[i].LinkIndex)
-		}
-	}
-
-	return nil, fmt.Errorf("can't find link by ip %s", ip)
-}
-
-func GetIfaceMTUByIP(ip string) (int, error) {
-	link, err := GetLinkByIP(ip)
-	if err != nil {
-		return 0, err
-	}
-	return link.Attrs().MTU, nil
 }
 
 // EqualStringSlice return true when two unordered string slice have same items.
