@@ -112,10 +112,20 @@ func (o *Options) complete() error {
 			return fmt.Errorf("can't get agent namespace from env to create gw-ep endpoint in overlay mode")
 		}
 		o.namespace = ns
-		if !o.IsEnableOverlay() {
-			if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
-				return fmt.Errorf("everoute ipam can only used in overlay mode")
-			}
+		return o.cniConfigCheck()
+	}
+
+	return nil
+}
+
+func (o *Options) cniConfigCheck() error {
+	if !o.IsEnableCNI() {
+		return nil
+	}
+
+	if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
+		if !o.IsEnableOverlay() || !o.IsEnableProxy() {
+			return fmt.Errorf("everoute ipam can only used in overlay mode with everoute proxy")
 		}
 	}
 
