@@ -116,6 +116,70 @@ func RouteEqual(r1, r2 netlink.Route) bool {
 		r1.Gw.Equal(r2.Gw)
 }
 
+func changeLocalRulePriority() error {
+	newLocalRule := netlink.NewRule()
+	newLocalRule.Table = unix.RT_TABLE_LOCAL
+	newLocalRule.Priority = constants.LocalRulePriority
+	if err := utils.RuleAdd(newLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", newLocalRule, err)
+		return err
+	}
+
+	oldLocalRule := netlink.NewRule()
+	oldLocalRule.Table = unix.RT_TABLE_LOCAL
+	// netlink lib default priority is -1, priority 0 won't reassign to rule.Priority when list rule
+	oldLocalRule.Priority = -1
+	if err := utils.RuleDel(oldLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to find rule %s, err: %s", oldLocalRule, err)
+		return err
+	}
+	return nil
+}
+
+func addRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
+	route := &netlink.Route{
+		Table: constants.FromGwLocalRouteTable,
+		Gw:    agentInfo.LocalGwIP,
+		Dst: &net.IPNet{
+			IP:   net.IPv4(0, 0, 0, 0),
+			Mask: net.CIDRMask(0, 32),
+		},
+	}
+
+	if err := netlink.RouteReplace(route); err != nil {
+		klog.Errorf("Failed to add route %s, err: %s", route, err)
+		return err
+	}
+
+	rule := netlink.NewRule()
+	rule.IifName = agentInfo.LocalGwName
+	rule.Table = constants.FromGwLocalRouteTable
+	rule.Priority = constants.FromGwLocalRulePriority
+	if err := utils.RuleAdd(rule, netlink.RT_FILTER_IIF|netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", rule, err)
+		return err
+	}
+	return nil
+}
+
+func SetFixRouteWhenDisableERProxy(agentInfo *datapath.DpManagerInfo) {
+	if err := changeLocalRulePriority(); err != nil {
+		klog.Errorf("Failed to change local rule priority: %s", err)
+	}
+
+	if err := addRouteForTableLocalGw(agentInfo); err != nil {
+		klog.Errorf("Failed to add route and rule for witch from local gw: %s", err)
+	}
+}
+
+func (r *NodeReconciler) SetFixRoute() {
+	if r.DatapathManager.IsEnableProxy() {
+		return
+	}
+
+	SetFixRouteWhenDisableERProxy(r.DatapathManager.Info)
+}
+
 // UpdateRoute will be called when Node has been updated, or every 100 seconds.
 // This function will update route table in linux kernel. Old related route items which are useless will be deleted,
 // and new route item will be added.
@@ -295,6 +359,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		for {
 			select {
 			case <-ticker.C:
+				r.SetFixRoute()
 				r.UpdateNetwork()
 			case <-r.StopChan:
 				return
@@ -318,7 +383,7 @@ func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan 
 		LocalGwName:    datapathManager.Info.LocalGwName,
 		ClusterPodCIDR: clusterPodCIDRString,
 	})
-	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString)
+	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString, datapathManager)
 	// update network config every 100 seconds
 	ticker := time.NewTicker(100 * time.Second)
 	go func() {
