@@ -83,6 +83,25 @@ func (o *Options) complete() error {
 		return err
 	}
 	o.Config = config
+
+	return o.cniConfigCheck()
+}
+
+func (o *Options) cniConfigCheck() error {
+	if !o.IsEnableCNI() {
+		return nil
+	}
+
+	if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
+		if !o.IsEnableOverlay() || !o.IsEnableProxy() {
+			return fmt.Errorf("everoute ipam can only used in overlay mode with everoute proxy")
+		}
+
+		if o.Config.CNIConf.IPAMCleanPeriod <= 0 {
+			return fmt.Errorf("everoute ipam must set config ipamCleanPeriod and ipamCleanPeriod >= 0")
+		}
+	}
+
 	return nil
 }
 
