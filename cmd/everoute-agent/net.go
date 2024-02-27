@@ -75,7 +75,6 @@ func addRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
 			Mask: net.CIDRMask(0, 32),
 		},
 	}
-
 	if err := netlink.RouteReplace(route); err != nil {
 		klog.Errorf("Failed to add route %s, err: %s", route, err)
 		return err
