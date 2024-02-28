@@ -36,7 +36,10 @@ func NewOverlayIPtables(enableEverouteProxy bool, opt *Options) OverlayIPtables 
 	}
 
 	if enableEverouteProxy {
-		o.proxy = &everouteProxy{}
+		o.proxy = &everouteProxy{
+			kubeProxyReplace: opt.KubeProxyReplace,
+			svcInternalIP:    opt.SvcInternalIP,
+		}
 	} else {
 		if opt.LocalGwName == "" {
 			klog.Fatal("New overlay mode iptables controller with kube-proxy failed, missing param local gw nic name")

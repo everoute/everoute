@@ -378,9 +378,11 @@ func SetupRouteAndIPtables(ctx context.Context, datapathManager *datapath.DpMana
 		clusterPodCIDRString = ""
 		gatewayIP = *datapathManager.Info.ClusterPodGw
 	}
-	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.Config.CNIConfig.EnableProxy, &eriptables.Options{
-		LocalGwName:    datapathManager.Info.LocalGwName,
-		ClusterPodCIDR: clusterPodCIDRString,
+	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.IsEnableProxy(), &eriptables.Options{
+		LocalGwName:      datapathManager.Info.LocalGwName,
+		ClusterPodCIDR:   clusterPodCIDRString,
+		KubeProxyReplace: datapathManager.IsEnableKubeProxyReplace(),
+		SvcInternalIP:    datapathManager.Config.CNIConfig.SvcInternalIP.String(),
 	})
 	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString, datapathManager)
 

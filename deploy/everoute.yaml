@@ -36,6 +36,13 @@ data:
 
       # use everoute ipam
       # ipam: everoute
+
+      # enable kube-proxy replace, if enable kubeProxyReplace, must set svcInternalIP and apiServer
+      kubeProxyReplace: false
+      svcInternalIP: 169.254.0.254
+
+    # when set apiServer, use it to connect kube-apiserver. It must be a valid url. And if enable cni kubeProxyReplace, must set apiServer
+    # apiServer: "https://192.168.7.1:6443"
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -62,6 +69,9 @@ data:
       # use everoute ipam, and when use everoute ipam, must set ipamCleanPeriod, unit is second
       # ipam: everoute
       # ipamCleanPeriod: 30
+
+    # when set apiServer, use it to connect kube-apiserver. It must be a valid url. And if enable cni kubeProxyReplace, must set apiServer
+    # apiServer: "https://192.168.7.1:6443"
 kind: ConfigMap
 metadata:
   annotations: {}

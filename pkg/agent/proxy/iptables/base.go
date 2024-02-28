@@ -8,8 +8,10 @@ import (
 )
 
 type Options struct {
-	LocalGwName    string
-	ClusterPodCIDR string
+	LocalGwName      string
+	ClusterPodCIDR   string
+	KubeProxyReplace bool
+	SvcInternalIP    string
 }
 
 type baseIPtables struct{}

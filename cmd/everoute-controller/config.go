@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -26,6 +27,9 @@ type Options struct {
 type controllerConfig struct {
 	EnableCNI bool    `yaml:"enableCNI,omitempty"`
 	CNIConf   CNIConf `yaml:"CNIConf,omitempty"`
+
+	// use it to connect kube-apiServer
+	APIServer string `yaml:"apiServer,omitempty"`
 }
 
 type CNIConf struct {
@@ -61,6 +65,10 @@ func (o *Options) IsEnableOverlay() bool {
 	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
 }
 
+func (o *Options) getAPIServer() string {
+	return o.Config.APIServer
+}
+
 func (o *Options) useEverouteIPAM() bool {
 	if !o.IsEnableOverlay() {
 		return false
@@ -90,6 +98,12 @@ func (o *Options) complete() error {
 			return fmt.Errorf("can't get controller namespace from env")
 		}
 		o.namespace = ns
+	}
+
+	if o.Config.APIServer != "" {
+		if _, err := url.Parse(o.Config.APIServer); err != nil {
+			return fmt.Errorf("can't set invalid apiServer %s, err: %s", o.Config.APIServer, err)
+		}
 	}
 
 	return o.cniConfigCheck()

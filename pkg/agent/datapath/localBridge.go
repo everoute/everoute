@@ -32,7 +32,7 @@ import (
 	"github.com/everoute/everoute/pkg/types"
 )
 
-//nolint
+//nolint:all
 const (
 	VLAN_INPUT_TABLE                   = 0
 	VLAN_FILTER_TABLE                  = 1
@@ -47,16 +47,15 @@ const (
 	P_NONE                             = 0xffff
 	CNI_CONNTRACK_ZONE                 = 65510
 
-	SvcPktMark = 0x20000000
+	InternalSvcPktMark uint32 = 1 << constants.InternalSvcPktMarkBit
 )
 
 var (
-	vlanIDAndFlagMask uint16 = 0x1fff
-	VlanFlagMask      uint16 = 0x1000
-	SvcPktMarkMask    uint32 = 0x20000000
+	vlanIDAndFlagMask      uint16 = 0x1fff
+	VlanFlagMask           uint16 = 0x1000
+	InternalSvcPktMarkMask uint32 = 1 << constants.InternalSvcPktMarkBit
 
-	SvcPktMarkValue uint64              = 0x1
-	SvcPktMarkRange *openflow13.NXRange = openflow13.NewNXRange(29, 29)
+	InternalSvcPktMarkRange *openflow13.NXRange = openflow13.NewNXRange(constants.InternalSvcPktMarkBit, constants.InternalSvcPktMarkBit)
 )
 
 type LocalBridge struct {
@@ -415,7 +414,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	})
 	_ = localToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47))
-	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", SvcPktMarkValue, SvcPktMarkRange)
+	_ = localToLocalGw.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, InternalSvcPktMarkRange)
 	outputPortLocalGateWay, _ := sw.OutputPort(l.datapathManager.Info.LocalGwOfPort)
 	if err := localToLocalGw.Next(outputPortLocalGateWay); err != nil {
 		return fmt.Errorf("failed to install from localToLocalGw flow, error: %v", err)
@@ -425,8 +424,8 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 	})
 	if err := outToLocalGwBypassLocal.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
 		return fmt.Errorf("failed to install outToLocalGwBypassLocal flow, error: %v", err)
@@ -495,8 +494,8 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   l.datapathManager.Info.LocalGwOfPort,
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 	})
 	if err := localGwToPolicy.LoadField("nxm_of_eth_src", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
@@ -561,7 +560,7 @@ func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		log.Errorf("Failed to new a flow in table %d, err: %s", FROM_LOCAL_REDIRECT_TABLE, err)
 		return err
 	}
-	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", SvcPktMarkValue, SvcPktMarkRange)
+	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, InternalSvcPktMarkRange)
 	if err != nil {
 		log.Errorf("Failed to add a load pkt mark action to flow, err: %s", err)
 		return err
@@ -594,8 +593,8 @@ func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix],
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 	})
 	if err != nil {
 		log.Errorf("Failed to new from natbridge to policy bridge flow: %s", err)
@@ -638,8 +637,8 @@ func (l *LocalBridge) initFromPolicyMarkedFlow(sw *ofctrl.OFSwitch) error {
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
 		Ethertype:   PROTOCOL_IP,
 		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 	})
 	l2Forward := uint8(L2_FORWARDING_TABLE)
 	if err := fromPolicyFlow.Resubmit(nil, &l2Forward); err != nil {
