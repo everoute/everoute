@@ -286,6 +286,18 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				return nil, err
 			}
 			proxyCache = proxyReconciler.GetCache()
+
+			if opts.IsEnableKubeProxyReplace() {
+				if err := (&ctrlProxy.IPSetCtrl{
+					Client: mgr.GetClient(),
+					TCPSet: opts.svcTCPSet,
+					UDPSet: opts.svcUDPSet,
+					LBSet:  opts.lbSvcSet,
+				}).SetupWithManager(mgr); err != nil {
+					klog.Errorf("unable to create ipset proxy controller: %s", err.Error())
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -405,14 +417,23 @@ func initIPSet() {
 	if err != nil {
 		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcTCP, err)
 	}
+	if err := opts.svcTCPSet.Flush(); err != nil {
+		klog.Fatalf("Failed to flush ipset %s, err: %s", constants.IPSetNameNPSvcTCP, err)
+	}
 
 	opts.svcUDPSet, err = ipset.New(constants.IPSetNameNPSvcUDP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
 	if err != nil {
 		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcUDP, err)
 	}
+	if err := opts.svcUDPSet.Flush(); err != nil {
+		klog.Fatalf("Failed to flush ipset %s, err: %s", constants.IPSetNameNPSvcUDP, err)
+	}
 
 	opts.lbSvcSet, err = ipset.New(constants.IPSetNameLBSvc, ipset.HashIpPort, ipset.Exist(true), ipset.Comment(true))
 	if err != nil {
 		klog.Fatalf("Failed to crate ipset %s, err: %s", constants.IPSetNameLBSvc, err)
+	}
+	if err := opts.lbSvcSet.Flush(); err != nil {
+		klog.Fatalf("Failed to flush ipset %s, err: %s", constants.IPSetNameLBSvc, err)
 	}
 }

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"time"
 
 	"github.com/contiv/ofnet/ofctrl"
@@ -20,7 +19,6 @@ import (
 )
 
 var _ = Describe("proxy controller", func() {
-	ctx := context.Background()
 	var (
 		svcNs    = "default"
 		svcName  = "svc1"
