@@ -77,10 +77,27 @@ const (
 
 	GwIPPoolName = "everoute-built-in"
 
-	LocalRulePriority       = 200
-	FromGwLocalRulePriority = 100
+	LocalRulePriority        = 200
+	FromGwLocalRulePriority  = 100
+	SvcRulePriority          = 110
+	ClusterIPSvcRulePriority = 111
+	SvcLocalIPRulePriority   = 120
 
 	FromGwLocalRouteTable = 100
+	SvcToGWRouteTable     = 110
+
+	// InternalSvcPktMarkBit pod request clusterIP svc, used in local bridge
+	InternalSvcPktMarkBit = 29
+	// ExternalSvcPktMarkBit nodeport/lb/clusterIP svc mark, used in uplink bridge and kernel route
+	ExternalSvcPktMarkBit = 28
+
+	PktMarkSetValue uint64 = 0x1
+
+	IPSetNameNPSvcTCP = "er-npsvc-tcp"
+	IPSetNameNPSvcUDP = "er-npsvc-udp"
+	IPSetNameLBSvc    = "er-lbsvc"
+
+	SvcChain = "EVEROUTE-SVC"
 )
 
 const (

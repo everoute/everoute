@@ -20,6 +20,10 @@ CNIConf:
     gateway: 240.100.0.1
     subnet: 240.100.0.0/16
     cidr: 240.100.0.0/24
+  kubeProxyReplace: false
+  svcInternalIP: 169.254.0.254
+
+apiServer: ""
 
 webhook:
   type: Service # enum: Service, URL

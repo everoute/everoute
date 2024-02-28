@@ -30,7 +30,7 @@ ARG TARGETARCH
 RUN echo "platform $TARGETOS $TARGETARCH"
 
 RUN apt update && apt install -y openvswitch-switch=2.17.* iptables \
-    iproute2 tcpdump wget && rm -rf /var/lib/apt/lists/*
+    iproute2 tcpdump wget ipset && rm -rf /var/lib/apt/lists/*
 
 #RUN install yq
 RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_${TARGETOS}_${TARGETARCH} && chmod a+x /usr/local/bin/yq

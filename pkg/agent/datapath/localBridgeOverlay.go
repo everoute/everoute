@@ -262,7 +262,7 @@ func (l *LocalBridgeOverlay) DelIPPoolGW(gw string) error {
 	return nil
 }
 
-//nolint
+//nolint:all
 func (l *LocalBridgeOverlay) initInputTable() error {
 	sw := l.OfSwitch
 
@@ -298,7 +298,6 @@ func (l *LocalBridgeOverlay) initInputTable() error {
 	return nil
 }
 
-//nolint
 func (l *LocalBridgeOverlay) initArpProxytable() error {
 	sw := l.OfSwitch
 	inportOutput, _ := sw.OutputPort(openflow.P_IN_PORT)
@@ -400,8 +399,8 @@ func (l *LocalBridgeOverlay) initInPortTable() error {
 
 func (l *LocalBridgeOverlay) initFromNatTable() error {
 	toPolicyFlow, _ := l.fromNatTable.NewFlow(ofctrl.FlowMatch{
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 	})
 	if err := toPolicyFlow.LoadField(LBOOutputPortReg, uint64(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]), LBOOutputPortRange); err != nil {
@@ -428,8 +427,8 @@ func (l *LocalBridgeOverlay) initFromNatTable() error {
 
 func (l *LocalBridgeOverlay) initFromPolicyTable() error {
 	toLocalFlow, _ := l.fromPolicyTable.NewFlow(ofctrl.FlowMatch{
-		PktMark:     SvcPktMark,
-		PktMarkMask: &SvcPktMarkMask,
+		PktMark:     InternalSvcPktMark,
+		PktMarkMask: &InternalSvcPktMarkMask,
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 	})
 	if err := toLocalFlow.Resubmit(nil, &LBOForwardToLocalTable); err != nil {
@@ -462,7 +461,7 @@ func (l *LocalBridgeOverlay) initFromLocalTable() error {
 		IpDaMask:  (*net.IP)(&l.datapathManager.Info.ClusterCIDR.Mask),
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 	})
-	if err := svcFlow.LoadField("nxm_nx_pkt_mark", SvcPktMarkValue, SvcPktMarkRange); err != nil {
+	if err := svcFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, InternalSvcPktMarkRange); err != nil {
 		return fmt.Errorf("failed to setup from local table svc flow set svc mark action, err: %v", err)
 	}
 	if err := svcFlow.LoadField(LBOOutputPortReg, uint64(l.natPort), LBOOutputPortRange); err != nil {

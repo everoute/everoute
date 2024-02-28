@@ -94,6 +94,9 @@ func main() {
 
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
+	if opts.getAPIServer() != "" {
+		config.Host = opts.getAPIServer()
+	}
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                  clientsetscheme.Scheme,
 		MetricsBindAddress:      opts.metricsAddr,
