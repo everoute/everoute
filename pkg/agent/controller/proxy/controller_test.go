@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -19,7 +18,6 @@ import (
 )
 
 var _ = Describe("proxy controller", func() {
-	ctx := context.Background()
 	var (
 		svcNs    = "default"
 		svcName  = "svc1"
@@ -1040,8 +1038,7 @@ var _ = Describe("proxy controller", func() {
 
 				Expect(svcIndex.GetSvcOvsInfo(svcID)).ToNot(BeNil())
 				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName2][ertype.TrafficPolicyCluster]))
-				// todo fix ut
-				// Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
+				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 				Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
 				Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
 			})

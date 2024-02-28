@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +11,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +32,8 @@ const (
 	Interval                   = time.Second
 	Timeout                    = time.Minute
 	localNode                  = "nodelocal"
+
+	ipsetNs = "test-ipset"
 )
 
 var (
@@ -38,6 +44,8 @@ var (
 	svcIndex           *dpcache.SvcIndex
 	syncChan           chan event.GenericEvent
 	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
+
+	ipsetCtrl IPSetCtrl
 )
 
 func TestProxyController(t *testing.T) {
@@ -100,6 +108,14 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(proxyController.baseSvcCache).ToNot(BeNil())
 
+	ipsetCtrl = IPSetCtrl{
+		Client: k8sManager.GetClient(),
+		LBSet:  newTestIPSet("lbsvc"),
+		TCPSet: newTestIPSet("npsvc-tcp"),
+		UDPSet: newTestIPSet("npsvc-udp"),
+	}
+	Expect(ipsetCtrl.SetupWithManager(k8sManager)).ToNot(HaveOccurred())
+
 	go func() {
 		defer GinkgoRecover()
 		err := k8sManager.Start(ctx)
@@ -109,7 +125,7 @@ var _ = BeforeSuite(func() {
 	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
 	Expect(k8sManager.GetCache().WaitForCacheSync(ctx)).Should(BeTrue())
-
+	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ipsetNs}})).ShouldNot(HaveOccurred())
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -227,4 +243,46 @@ func equalBackend(b1 *cache.Backend, b2 *cache.Backend) bool {
 	}
 
 	return b1.ServicePortRefs.Equal(b2.ServicePortRefs)
+}
+
+func genName() string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyz-")
+	b := make([]rune, 7)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	if b[6] == '-' {
+		b[6] = rune('a')
+	}
+	return string(b)
+}
+
+func genSvcName() string {
+	return "svc-" + genName()
+}
+
+func genPortName() string {
+	return "port-" + genName()
+}
+
+func genPortNumber() int32 {
+	return rand.Int31n(10000) + 1
+}
+
+func genNodePortNumber() int32 {
+	return rand.Int31n(2767) + 30000
+}
+
+func genPortProto() corev1.Protocol {
+	protos := []corev1.Protocol{corev1.ProtocolTCP, corev1.ProtocolSCTP, corev1.ProtocolUDP}
+	i := rand.Intn(3)
+	return protos[i]
+}
+
+func genIP() string {
+	ipv6 := (rand.Intn(8) == 0)
+	if ipv6 {
+		return "fc:99::44"
+	}
+	return fmt.Sprintf("%d.%d.%d.%d", rand.Intn(255)+1, rand.Intn(255), rand.Intn(255), rand.Intn(255))
 }

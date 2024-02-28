@@ -286,6 +286,18 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				return nil, err
 			}
 			proxyCache = proxyReconciler.GetCache()
+
+			if opts.IsEnableKubeProxyReplace() {
+				if err := (&ctrlProxy.IPSetCtrl{
+					Client: mgr.GetClient(),
+					TCPSet: opts.svcTCPSet,
+					UDPSet: opts.svcUDPSet,
+					LBSet:  opts.lbSvcSet,
+				}).SetupWithManager(mgr); err != nil {
+					klog.Errorf("unable to create ipset proxy controller: %s", err.Error())
+					return nil, err
+				}
+			}
 		}
 	}
 
