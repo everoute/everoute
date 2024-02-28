@@ -85,6 +85,16 @@ const (
 	SvcLocalIPRulePriority   = 120
 
 	FromGwLocalRouteTable = 100
+	SvcToGWRouteTable     = 110
+
+	SvcPktMarkBit    = 28
+	SvcPktMarkString = "0x10000000/0x10000000"
+
+	IPSetNameNPSvcTCP = "er-npsvc-tcp"
+	IPSetNameNPSvcUDP = "er-npsvc-udp"
+	IPSetNameLBSvc    = "er-lbsvc"
+
+	SvcChain = "EVEROUTE-SVC"
 )
 
 const (

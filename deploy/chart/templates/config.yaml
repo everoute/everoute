@@ -21,6 +21,17 @@ data:
       {{- if ne (.Values.CNIConf.ipam | default "") "" }}
       ipam: {{ .Values.CNIConf.ipam }}
       {{- end}}
+      {{- if ne (.Values.CNIConf.kubeProxyReplace | default "") "" }}
+      kubeProxyReplace: {{ .Values.CNIConf.kubeProxyReplace }}
+      {{- end}}
+      # if enable kubeProxyReplace, must set apiServer
+      {{- if ne (.Values.CNIConf.apiServer | default "") "" }}
+      apiServer: {{ .Values.CNIConf.apiServer }}
+      {{- end}}
+      # if enable kubeProxyReplace, must set svcInternalIP
+      {{- if ne (.Values.CNIConf.apiServer | default "") "" }}
+      svcInternalIP: {{ .Values.CNIConf.svcInternalIP }}
+      {{- end}}
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -47,6 +58,9 @@ data:
       {{- if ne (.Values.CNIConf.ipam | default "") "" }}
       ipam: {{ .Values.CNIConf.ipam }}
       ipamCleanPeriod: {{ .Values.CNIConf.ipamCleanPeriod | default 30 }}
+      {{- end}}
+      {{- if ne (.Values.CNIConf.apiServer | default "") "" }}
+      apiServer: {{ .Values.CNIConf.apiServer }}
       {{- end}}
 kind: ConfigMap
 metadata:

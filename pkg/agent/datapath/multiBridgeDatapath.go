@@ -44,13 +44,14 @@ import (
 	"k8s.io/klog"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-//nolint
+// nolint
 const (
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
@@ -61,7 +62,7 @@ const (
 	FLOW_MATCH_OFFSET                   = 3
 )
 
-//nolint
+// nolint
 const (
 	POLICY_TIER1    = 50
 	POLICY_TIER2    = 100
@@ -69,19 +70,19 @@ const (
 	POLICY_TIER3    = 150
 )
 
-//nolint
+// nolint
 const (
 	POLICY_DIRECTION_OUT = 0
 	POLICY_DIRECTION_IN  = 1
 )
 
-//nolint
+// nolint
 const (
 	IP_BROADCAST_ADDR = "255.255.255.255"
 	LOOP_BACK_ADDR    = "127.0.0.1"
 )
 
-//nolint
+// nolint
 const (
 	FLOW_ROUND_NUM_LENGTH           = 4
 	FLOW_SEQ_NUM_LENGTH             = 28
@@ -90,7 +91,7 @@ const (
 	DEFAULT_POLICY_ENFORCEMENT_MODE = "work"
 )
 
-//nolint
+// nolint
 const (
 	PROTOCOL_ARP  = 0x0806
 	PROTOCOL_IP   = 0x0800
@@ -99,7 +100,7 @@ const (
 	PROTOCOL_ICMP = 0x01
 )
 
-//nolint
+// nolint
 const (
 	LOCAL_BRIDGE_KEYWORD  = "local"
 	POLICY_BRIDGE_KEYWORD = "policy"
@@ -273,10 +274,12 @@ type DpManagerConfig struct {
 }
 
 type DpManagerCNIConfig struct {
-	EnableProxy bool // enable proxy
-	EncapMode   string
-	MTU         int // pod mtu
-	IPAMType    string
+	EnableProxy      bool // enable proxy
+	EncapMode        string
+	MTU              int // pod mtu
+	IPAMType         string
+	KubeProxyReplace bool
+	SvcInternalIP    net.IP // kube-proxy replace need it
 }
 
 type Endpoint struct {
@@ -572,7 +575,7 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
-//nolint
+// nolint
 func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -1360,6 +1363,14 @@ func (datapathManager *DpManager) IsEnableProxy() bool {
 	}
 
 	return datapathManager.Config.CNIConfig.EnableProxy
+}
+
+func (datapathManager *DpManager) IsEnableKubeProxyReplace() bool {
+	if !datapathManager.IsEnableProxy() {
+		return false
+	}
+
+	return datapathManager.Config.CNIConfig.KubeProxyReplace
 }
 
 func (datapathManager *DpManager) IsEnableOverlay() bool {

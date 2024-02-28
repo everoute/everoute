@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
@@ -9,6 +10,8 @@ import (
 	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 type OverlayRoute interface {
@@ -39,7 +42,7 @@ func NewOverlayRoute(gatewayIP net.IP, clusterPodCIDR string, dpManager *datapat
 }
 
 func (o *overlayRoute) Update() {
-	o.SetFixRoute()
+	o.setFixRoute()
 
 	o.lock.RLock()
 	defer o.lock.RUnlock()
@@ -140,8 +143,63 @@ func (o *overlayRoute) DelPodCIDRs(cidrs ...string) {
 	o.podCIDRs.Delete(cidrs...)
 }
 
-func (o *overlayRoute) SetFixRoute() {
+func (o *overlayRoute) setFixRoute() {
 	if !o.dpManger.IsEnableProxy() {
-		SetFixRouteWhenDisableERProxy(o.dpManger.Info)
+		setFixRouteWhenDisableERProxy(o.dpManger.Info)
 	}
+
+	if o.dpManger.IsEnableKubeProxyReplace() {
+		if err := changeLocalRulePriority(); err != nil {
+			klog.Errorf("Failed to change local rule priority: %s", err)
+		}
+		if err := o.addRouteForSvc(); err != nil {
+			klog.Errorf("Failed to add route and rule for svc: %s", err)
+		}
+	}
+
+}
+
+func (o *overlayRoute) addRouteForSvc() error {
+	route := &netlink.Route{
+		Table: constants.SvcToGWRouteTable,
+		Gw:    o.dpManger.Info.GatewayIP,
+		Dst: &net.IPNet{
+			IP:   net.IPv4(0, 0, 0, 0),
+			Mask: net.CIDRMask(0, 32),
+		},
+	}
+	if err := netlink.RouteReplace(route); err != nil {
+		klog.Errorf("Failed to add route %s, err: %s", route, err)
+		return err
+	}
+
+	svcRule := netlink.NewRule()
+	svcRule.Mark = 1 << constants.SvcPktMarkBit
+	svcRule.Mask = 1 << constants.SvcPktMarkBit
+	svcRule.Table = constants.SvcToGWRouteTable
+	svcRule.Priority = constants.SvcRulePriority
+	if err := utils.RuleAdd(svcRule, netlink.RT_FILTER_MARK|netlink.RT_FILTER_MASK|netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", svcRule, err)
+		return err
+	}
+	clusterIPRule := netlink.NewRule()
+	clusterIPRule.Dst = (*net.IPNet)(o.dpManger.Info.ClusterCIDR)
+	clusterIPRule.Table = constants.SvcToGWRouteTable
+	clusterIPRule.Priority = constants.ClusterIPSvcRulePriority
+	if err := utils.RuleAdd(clusterIPRule, netlink.RT_FILTER_DST|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PRIORITY); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", clusterIPRule, err)
+		return err
+	}
+	svcLocalIPRule := netlink.NewRule()
+	svcLocalIPRule.Dst = &net.IPNet{
+		IP:   o.dpManger.Config.CNIConfig.SvcInternalIP,
+		Mask: net.CIDRMask(32, 32),
+	}
+	svcLocalIPRule.Table = constants.SvcToGWRouteTable
+	svcLocalIPRule.Priority = constants.SvcLocalIPRulePriority
+	if err := utils.RuleAdd(svcLocalIPRule, netlink.RT_FILTER_DST|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PRIORITY); err != nil {
+		klog.Errorf("Failed to add rule %s, err: %s", svcLocalIPRule, err)
+		return err
+	}
+	return nil
 }

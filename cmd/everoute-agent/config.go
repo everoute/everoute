@@ -28,6 +28,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
 	"github.com/everoute/ipam/pkg/ipam"
+	"github.com/gonetx/ipset"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
@@ -46,14 +47,21 @@ type Options struct {
 	metricsAddr           string
 	namespace             string
 	disableProbeTimeoutIP bool
+
+	svcTCPSet ipset.IPSet
+	svcUDPSet ipset.IPSet
+	lbSvcSet  ipset.IPSet
 }
 
 type CNIConf struct {
-	EnableProxy bool   `yaml:"enableProxy,omitempty"`
-	EncapMode   string `yaml:"encapMode,omitempty"`
-	MTU         int    `yaml:"mtu,omitempty"`
-	IPAM        string `yaml:"ipam,omitempty"`
-	LocalGwIP   string `yaml:"localGwIP,omitempty"`
+	EnableProxy      bool   `yaml:"enableProxy,omitempty"`
+	EncapMode        string `yaml:"encapMode,omitempty"`
+	MTU              int    `yaml:"mtu,omitempty"`
+	IPAM             string `yaml:"ipam,omitempty"`
+	LocalGwIP        string `yaml:"localGwIP,omitempty"`
+	KubeProxyReplace bool   `yaml:"kubeProxyReplace,omitempty"`
+	APIServer        string `yaml:"apiServer,omitempty"`
+	SvcInternalIP    string `yaml:"svcInternalIP,omitempty"`
 }
 
 type agentConfig struct {
@@ -85,6 +93,14 @@ func (o *Options) IsEnableProxy() bool {
 	return o.Config.CNIConf.EnableProxy
 }
 
+func (o *Options) IsEnableKubeProxyReplace() bool {
+	if !o.IsEnableProxy() {
+		return false
+	}
+
+	return o.Config.CNIConf.KubeProxyReplace
+}
+
 func (o *Options) IsEnableOverlay() bool {
 	if !o.Config.EnableCNI {
 		return false
@@ -99,6 +115,13 @@ func (o *Options) UseEverouteIPAM() bool {
 	}
 
 	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
+}
+
+func (o *Options) getAPIServer() string {
+	if !o.IsEnableCNI() {
+		return ""
+	}
+	return o.Config.CNIConf.APIServer
 }
 
 func (o *Options) complete() error {
@@ -138,6 +161,22 @@ func (o *Options) cniConfigCheck() error {
 		}
 	}
 
+	if o.Config.CNIConf.KubeProxyReplace {
+		if !o.IsEnableOverlay() {
+			return fmt.Errorf("kubeProxyReplace feature must enable overlay mode")
+		}
+		if !o.IsEnableProxy() {
+			return fmt.Errorf("kubeProxyReplace feature must enable everoute proxy")
+		}
+		if o.Config.CNIConf.APIServer == "" {
+			return fmt.Errorf("kubeProxyReplace feature must set apiServer")
+		}
+		svcInternalIP := net.ParseIP(o.Config.CNIConf.SvcInternalIP)
+		if svcInternalIP == nil {
+			return fmt.Errorf("set invalid svcInternalIP %s, when kubeProxyReplace feature enable", o.Config.CNIConf.SvcInternalIP)
+		}
+	}
+
 	return nil
 }
 
@@ -162,10 +201,12 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 
 		// cni config
 		cniConfig := &datapath.DpManagerCNIConfig{
-			EnableProxy: agentConfig.CNIConf.EnableProxy,
-			EncapMode:   agentConfig.CNIConf.EncapMode,
-			MTU:         agentConfig.CNIConf.MTU,
-			IPAMType:    agentConfig.CNIConf.IPAM,
+			EnableProxy:      agentConfig.CNIConf.EnableProxy,
+			EncapMode:        agentConfig.CNIConf.EncapMode,
+			MTU:              agentConfig.CNIConf.MTU,
+			IPAMType:         agentConfig.CNIConf.IPAM,
+			KubeProxyReplace: agentConfig.CNIConf.KubeProxyReplace,
+			SvcInternalIP:    net.ParseIP(agentConfig.CNIConf.SvcInternalIP),
 		}
 		dpConfig.CNIConfig = cniConfig
 	}

@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"github.com/gonetx/ipset"
 
 	ctrlPool "github.com/everoute/everoute/pkg/agent/controller/ippool"
 	"github.com/everoute/everoute/pkg/agent/controller/overlay"
@@ -79,6 +80,12 @@ func main() {
 	flag.Parse()
 	defer klog.Flush()
 
+	// complete options
+	err := opts.complete()
+	if err != nil {
+		klog.Fatalf("Failed to complete options. error: %v. ", err)
+	}
+
 	// Init everoute datapathManager: init bridge chain config and default flow
 	stopCtx := ctrl.SetupSignalHandler()
 	ofportIPMonitorChan := make(chan *types.EndpointIP, 1024)
@@ -86,11 +93,8 @@ func main() {
 	overlaySyncChan := make(chan event.GenericEvent)
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
-
-	// complete options
-	err := opts.complete()
-	if err != nil {
-		klog.Fatalf("Failed to complete options. error: %v. ", err)
+	if opts.getAPIServer() != "" {
+		config.Host = "https://" + opts.getAPIServer()
 	}
 
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
@@ -153,6 +157,7 @@ func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySync
 	}
 	setAgentConf(datapathManager, c)
 	setLinkAddr(datapathManager.Info)
+	initIPSet()
 	datapathManager.InitializeCNI()
 }
 
@@ -384,5 +389,30 @@ func setLinkAddr(agentInfo *datapath.DpManagerInfo) {
 		Mask: net.CIDRMask(32, 32),
 	}); err != nil {
 		klog.Fatalf("Set local gateway ip address error, err: %s", err)
+	}
+}
+
+func initIPSet() {
+	if !opts.IsEnableKubeProxyReplace() {
+		return
+	}
+	var err error
+	if err = ipset.Check(); err != nil {
+		klog.Fatalf("IPSet check failed: %s", err)
+	}
+
+	opts.svcTCPSet, err = ipset.New(constants.IPSetNameNPSvcTCP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
+	if err != nil {
+		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcTCP, err)
+	}
+
+	opts.svcUDPSet, err = ipset.New(constants.IPSetNameNPSvcUDP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
+	if err != nil {
+		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcUDP, err)
+	}
+
+	opts.lbSvcSet, err = ipset.New(constants.IPSetNameLBSvc, ipset.HashIpPort, ipset.Exist(true), ipset.Comment(true))
+	if err != nil {
+		klog.Fatalf("Failed to crate ipset %s, err: %s", constants.IPSetNameLBSvc, err)
 	}
 }

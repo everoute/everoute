@@ -162,7 +162,7 @@ func addRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
 	return nil
 }
 
-func SetFixRouteWhenDisableERProxy(agentInfo *datapath.DpManagerInfo) {
+func setFixRouteWhenDisableERProxy(agentInfo *datapath.DpManagerInfo) {
 	if err := changeLocalRulePriority(); err != nil {
 		klog.Errorf("Failed to change local rule priority: %s", err)
 	}
@@ -177,7 +177,7 @@ func (r *NodeReconciler) SetFixRoute() {
 		return
 	}
 
-	SetFixRouteWhenDisableERProxy(r.DatapathManager.Info)
+	setFixRouteWhenDisableERProxy(r.DatapathManager.Info)
 }
 
 // UpdateRoute will be called when Node has been updated, or every 100 seconds.
@@ -379,9 +379,11 @@ func SetupRouteAndIPtables(datapathManager *datapath.DpManager, stopChan <-chan 
 		clusterPodCIDRString = ""
 		gatewayIP = *datapathManager.Info.ClusterPodGw
 	}
-	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.Config.CNIConfig.EnableProxy, &eriptables.Options{
-		LocalGwName:    datapathManager.Info.LocalGwName,
-		ClusterPodCIDR: clusterPodCIDRString,
+	iptCtrl := eriptables.NewOverlayIPtables(datapathManager.IsEnableProxy(), &eriptables.Options{
+		LocalGwName:      datapathManager.Info.LocalGwName,
+		ClusterPodCIDR:   clusterPodCIDRString,
+		KubeProxyReplace: datapathManager.IsEnableKubeProxyReplace(),
+		SvcInternalIP:    datapathManager.Config.CNIConfig.SvcInternalIP.String(),
 	})
 	routeCtrl := NewOverlayRoute(gatewayIP, clusterPodCIDRString, datapathManager)
 	// update network config every 100 seconds

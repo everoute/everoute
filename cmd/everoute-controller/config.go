@@ -33,6 +33,7 @@ type CNIConf struct {
 	EncapMode       string `yaml:"encapMode,omitempty"`
 	IPAM            string `yaml:"ipam,omitempty"`
 	IPAMCleanPeriod int    `yaml:"ipamCleanPeriod,omitempty"`
+	APIServer       string `yaml:"apiServer,omitempty"`
 }
 
 func NewOptions() *Options {
@@ -59,6 +60,14 @@ func (o *Options) IsEnableOverlay() bool {
 	}
 
 	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
+}
+
+func (o *Options) getAPIServer() string {
+	if !o.IsEnableCNI() {
+		return ""
+	}
+
+	return o.Config.CNIConf.APIServer
 }
 
 func (o *Options) useEverouteIPAM() bool {
