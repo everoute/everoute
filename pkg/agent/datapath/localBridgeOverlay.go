@@ -262,7 +262,6 @@ func (l *LocalBridgeOverlay) DelIPPoolGW(gw string) error {
 	return nil
 }
 
-//nolint:all
 func (l *LocalBridgeOverlay) initInputTable() error {
 	sw := l.OfSwitch
 
@@ -486,7 +485,7 @@ func (l *LocalBridgeOverlay) initFromLocalTable() error {
 			return fmt.Errorf("failed to setup from local table pod flow resubmit action, err: %v", err)
 		}
 	} else {
-		var cniConntrackZone uint16 = CNI_CONNTRACK_ZONE
+		var cniConntrackZone uint16 = constants.CTZoneLocalBr
 		ctAction := ofctrl.NewConntrackAction(true, false, &LBOOutputTable, &cniConntrackZone)
 		_ = podFlow.SetConntrack(ctAction)
 	}

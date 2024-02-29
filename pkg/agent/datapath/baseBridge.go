@@ -10,8 +10,9 @@ import (
 )
 
 type BaseBridge struct {
-	name     string
-	OfSwitch *ofctrl.OFSwitch
+	name      string
+	ovsBrName string
+	OfSwitch  *ofctrl.OFSwitch
 	//nolint: structcheck
 	datapathManager *DpManager
 

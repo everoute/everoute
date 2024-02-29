@@ -36,15 +36,16 @@ func (k *kubeProxy) forward(ipt *iptables.IPTables) {
 	// allow ct invalid from gw-local
 	if err = ipt.InsertUnique("filter", "FORWARD", 1, "-i", k.localGwName,
 		"-m", "conntrack", "--ctstate", "INVALID", "-j", "ACCEPT"); err != nil {
-		klog.Errorf("Append filter FORWARD error, err: %s", err)
+		klog.Errorf("Insert filter FORWARD error, err: %s", err)
 	}
 }
 
 func (k *kubeProxy) prerouting(ipt *iptables.IPTables) {
 	var err error
 	// check and add CT zone for gw-local
-	if err = ipt.InsertUnique("raw", "PREROUTING", 1, "-i", k.localGwName, "-j", "CT", "--zone", "65510"); err != nil {
-		klog.Errorf("Append %s into raw PREROUTING error, err: %s", k.localGwName, err)
+	ctZoneStr := fmt.Sprintf("%d", constants.CTZoneLocalBr)
+	if err = ipt.InsertUnique("raw", "PREROUTING", 1, "-i", k.localGwName, "-j", "CT", "--zone", ctZoneStr); err != nil {
+		klog.Errorf("Insert %s into raw PREROUTING error, err: %s", k.localGwName, err)
 	}
 }
 
