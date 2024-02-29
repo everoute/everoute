@@ -495,10 +495,10 @@ func setupArpProxyFlow(t *ofctrl.Table, cidr *net.IPNet, next ofctrl.FgraphElem)
 	})
 	fakeMac, _ := net.ParseMAC(FACK_MAC)
 	if err := setupArpProxyFlowAction(f, fakeMac); err != nil {
-		return nil, fmt.Errorf("failed to setup arp proxy table pod cidr arp proxy flow action, err: %v", err)
+		return nil, fmt.Errorf("failed to setup arp proxy table cidr %s arp proxy flow action, err: %v", cidr, err)
 	}
 	if err := f.Next(next); err != nil {
-		return nil, fmt.Errorf("failed to install arp proxy table pod cidr arp proxy flow, err: %v", err)
+		return nil, fmt.Errorf("failed to install arp proxy table cidr %s arp proxy flow, err: %v", cidr, err)
 	}
 	return f, nil
 }

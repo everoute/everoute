@@ -34,8 +34,6 @@ const (
 	CT_DROP_TABLE               = 71
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
-
-	CTZoneForPolicy uint16 = 65520
 )
 
 type PolicyBridge struct {
@@ -140,7 +138,7 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 
 func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 	var ctStateTableID uint8 = CT_STATE_TABLE
-	var policyConntrackZone = CTZoneForPolicy
+	var policyConntrackZone = constants.CTZoneForPolicy
 	localBrName := strings.TrimSuffix(p.name, "-policy")
 	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
@@ -184,7 +182,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
-	var policyConntrackZone = CTZoneForPolicy
+	var policyConntrackZone = constants.CTZoneForPolicy
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -468,7 +466,7 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	ctTrkState := openflow13.NewCTStates()
 	ctTrkState.SetNew()
 	ctTrkState.SetTrk()
-	var policyConntrackZone = CTZoneForPolicy
+	var policyConntrackZone = constants.CTZoneForPolicy
 	var ctDropTable uint8 = CT_DROP_TABLE
 	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
 	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)

@@ -90,14 +90,25 @@ const (
 	InternalSvcPktMarkBit = 29
 	// ExternalSvcPktMarkBit nodeport/lb/clusterIP svc mark, used in uplink bridge and kernel route
 	ExternalSvcPktMarkBit = 28
+	// SvcLocalPktMarkBit set when ExternalTrafficPolicy=local
+	SvcLocalPktMarkBit = 30
 
-	PktMarkSetValue uint64 = 0x1
+	PktMarkSetValue   uint64 = 0x1
+	PktMarkResetValue uint64 = 0x0
 
 	IPSetNameNPSvcTCP = "er-npsvc-tcp"
 	IPSetNameNPSvcUDP = "er-npsvc-udp"
 	IPSetNameLBSvc    = "er-lbsvc"
 
 	SvcChain = "EVEROUTE-SVC"
+
+	// ct zone used by cni
+	CTZoneNatBrFromLocal  = 65505
+	CTZoneNatBrFromUplink = 65506
+	CTZoneLocalBr         = 65510
+	CTZoneUplinkBr        = 65503
+	// ct zone used by securitypolicy
+	CTZoneForPolicy uint16 = 65520
 )
 
 const (

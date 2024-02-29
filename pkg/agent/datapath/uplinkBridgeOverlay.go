@@ -13,11 +13,16 @@ import (
 
 var (
 	UBOArpProxyTable         uint8 = 10
+	UBOSvcForwardTable       uint8 = 15
+	UBOSvcMatchTable         uint8 = 20
+	UBOResetSvcMarkTable     uint8 = 24
+	UBOSvcSnatTable          uint8 = 25
 	UBOForwardToLocalTable   uint8 = 30
 	UBOForwardToGwTable      uint8 = 40
 	UBOForwardToTunnelTable  uint8 = 35
 	UBOSetRemoteIPTable      uint8 = 70
 	UBOSetTunnelOutPortTable uint8 = 75
+	UBOSetSvcMarkTable       uint8 = 90
 	UBOPaddingL2Table        uint8 = 100
 	UBOOutputTable           uint8 = 110
 )
@@ -35,19 +40,24 @@ type UplinkBridgeOverlay struct {
 
 	inputTable            *ofctrl.Table
 	arpProxyTable         *ofctrl.Table
+	svcForwardTable       *ofctrl.Table
+	svcMatchTable         *ofctrl.Table
+	resetSvcMarkTable     *ofctrl.Table
+	svcSnatTable          *ofctrl.Table
 	forwardToLocalTable   *ofctrl.Table
 	forwardToGwTable      *ofctrl.Table
 	forwardToTunnelTable  *ofctrl.Table
 	setRemoteIPTable      *ofctrl.Table
 	setTunnelOutPortTable *ofctrl.Table
+	setSvcMarkTable       *ofctrl.Table
 	paddingL2Table        *ofctrl.Table
 	outputTable           *ofctrl.Table
 
-	ovsBrName       string
 	localEpFlowMap  map[string]*ofctrl.Flow
 	remoteEpFlowMap map[string]*ofctrl.Flow
 
 	enableERIPAM     bool
+	kubeProxyReplace bool
 	ipForwardFlowMap map[string]*ofctrl.Flow
 }
 
@@ -69,6 +79,7 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	if u.enableERIPAM {
 		u.ipForwardFlowMap = make(map[string]*ofctrl.Flow)
 	}
+	u.kubeProxyReplace = u.datapathManager.IsEnableKubeProxyReplace()
 
 	sw := u.OfSwitch
 	u.inputTable = sw.DefaultTable()
@@ -80,6 +91,13 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	u.setTunnelOutPortTable, _ = sw.NewTable(UBOSetTunnelOutPortTable)
 	u.paddingL2Table, _ = sw.NewTable(UBOPaddingL2Table)
 	u.outputTable, _ = sw.NewTable(UBOOutputTable)
+	if u.kubeProxyReplace {
+		u.svcForwardTable, _ = sw.NewTable(UBOSvcForwardTable)
+		u.svcMatchTable, _ = sw.NewTable(UBOSvcMatchTable)
+		u.resetSvcMarkTable, _ = sw.NewTable(UBOResetSvcMarkTable)
+		u.svcSnatTable, _ = sw.NewTable(UBOSvcSnatTable)
+		u.setSvcMarkTable, _ = sw.NewTable(UBOSetSvcMarkTable)
+	}
 
 	if err := u.initInputTable(); err != nil {
 		log.Fatalf("Failed to init input table of uplink bridge overlay, err: %v", err)
@@ -107,6 +125,23 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	}
 	if err := u.initOutputTable(); err != nil {
 		log.Fatalf("Failed to init output table of uplink bridge overlay, err: %v", err)
+	}
+	if u.kubeProxyReplace {
+		if err := u.initSvcForwardTable(); err != nil {
+			log.Fatalf("Failed to init svc forward table of uplink bridge overlay, err: %s", err)
+		}
+		if err := u.initSvcMatchTable(); err != nil {
+			log.Fatalf("Failed to init svc match table of uplink bridge overlay, err: %s", err)
+		}
+		if err := u.initResetSvcMarkTable(); err != nil {
+			log.Fatalf("Failed to init reset svc mark table of uplink bridge overlay, err: %s", err)
+		}
+		if err := u.initSvcSnatTable(); err != nil {
+			log.Fatalf("Failed to init svc snat table of uplink bridge overlay, err: %s", err)
+		}
+		if err := u.initSetSvcMarkTable(); err != nil {
+			log.Fatalf("Failed to init set svc mark table of uplink bridge overlay, err: %s", err)
+		}
 	}
 }
 
@@ -249,7 +284,6 @@ func (u *UplinkBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
 	return nil
 }
 
-//nolint
 func (u *UplinkBridgeOverlay) initInputTable() error {
 	sw := u.OfSwitch
 
@@ -264,11 +298,15 @@ func (u *UplinkBridgeOverlay) initInputTable() error {
 		return fmt.Errorf("faile to install input table arp flow, err: %v", err)
 	}
 
+	nextIPTable := UBOForwardToLocalTable
+	if u.kubeProxyReplace {
+		nextIPTable = UBOSvcForwardTable
+	}
 	ipFlow, _ := u.inputTable.NewFlow(ofctrl.FlowMatch{
 		Ethertype: PROTOCOL_IP,
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 	})
-	if err := ipFlow.Resubmit(nil, &UBOForwardToLocalTable); err != nil {
+	if err := ipFlow.Resubmit(nil, &nextIPTable); err != nil {
 		return fmt.Errorf("failed to setup input table ip flow resubmit to forward to local table action, err: %v", err)
 	}
 	if err := ipFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -317,11 +355,208 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 		}
 	}
 
+	if u.kubeProxyReplace {
+		f, _ := u.arpProxyTable.NewFlow(ofctrl.FlowMatch{
+			Ethertype: PROTOCOL_ARP,
+			InputPort: u.datapathManager.Info.GatewayOfPort,
+			ArpOper:   ArpOperRequest,
+			Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		})
+		fakeMac, _ := net.ParseMAC(FACK_MAC)
+		if err := setupArpProxyFlowAction(f, fakeMac); err != nil {
+			return fmt.Errorf("failed to setup arp proxy table from gateway port arp proxy flow action, err: %v", err)
+		}
+		if err := f.Next(inportOutput); err != nil {
+			return fmt.Errorf("failed to install arp proxy table from gateway port arp proxy flow, err: %v", err)
+		}
+	}
+
 	defaultFlow, _ := u.arpProxyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := defaultFlow.Next(sw.DropAction()); err != nil {
 		return fmt.Errorf("failed to install arp proxy table default flow, err: %v", err)
+	}
+
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) initSvcForwardTable() error {
+	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	svcFromNat, _ := u.svcForwardTable.NewFlow(ofctrl.FlowMatch{
+		InputPort:   u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToNatSuffix],
+		PktMark:     1 << constants.ExternalSvcPktMarkBit,
+		PktMarkMask: &pktMask,
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+	})
+	if err := svcFromNat.Resubmit(nil, &UBOResetSvcMarkTable); err != nil {
+		return fmt.Errorf("failed to setup svc from nat flow resubmit action, err: %s", err)
+	}
+	if err := svcFromNat.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install svc from nat flow, err: %s", err)
+	}
+
+	otherFromNat, _ := u.svcForwardTable.NewFlow(ofctrl.FlowMatch{
+		InputPort: u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToNatSuffix],
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+	})
+	if err := otherFromNat.Resubmit(nil, &UBOForwardToLocalTable); err != nil {
+		return fmt.Errorf("failed to setup other pkts from nat flow resubmit action, err: %s", err)
+	}
+	if err := otherFromNat.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install other pkts from nat flow, err: %s", err)
+	}
+
+	defaultFlow, _ := u.svcForwardTable.NewFlow(ofctrl.FlowMatch{
+		Ethertype: PROTOCOL_IP,
+		Priority:  DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	var zone uint16 = constants.CTZoneUplinkBr
+	ctAct := ofctrl.NewConntrackAction(false, false, &UBOSvcMatchTable, &zone)
+	_ = defaultFlow.SetConntrack(ctAct)
+	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install default trace ct flow: %s", err)
+	}
+
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) initSvcMatchTable() error {
+	// -new+trk flow commit immediately, and do dnat or snat according to conntrack table
+	ctState := openflow.NewCTStates()
+	ctState.UnsetNew()
+	ctState.SetTrk()
+	matchCTFlow, _ := u.svcMatchTable.NewFlow(ofctrl.FlowMatch{
+		Ethertype: PROTOCOL_IP,
+		CtStates:  ctState,
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+	})
+	toNatPort := uint64(u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToNatSuffix])
+	if err := matchCTFlow.LoadField(UBOOutputPortReg, toNatPort, UBOOutputPortRange); err != nil {
+		return fmt.Errorf("failed to setup loadfield action for match ct flow, err: %s", err)
+	}
+	var zone uint16 = constants.CTZoneUplinkBr
+	natAct, _ := ofctrl.NewNatAction().ToOfAction()
+	ctAct := ofctrl.NewConntrackAction(true, false, &UBOOutputTable, &zone, natAct)
+	_ = matchCTFlow.SetConntrack(ctAct)
+	if err := matchCTFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install match ct flow, err: %s", err)
+	}
+
+	svcIP := u.datapathManager.Info.ClusterCIDR.IP
+	svcMask := (net.IP)(u.datapathManager.Info.ClusterCIDR.Mask)
+	clusterIPFlow, _ := u.svcMatchTable.NewFlow(ofctrl.FlowMatch{
+		InputPort: u.datapathManager.Info.GatewayOfPort,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &svcIP,
+		IpDaMask:  &svcMask,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+	})
+	if err := clusterIPFlow.Resubmit(nil, &UBOSetSvcMarkTable); err != nil {
+		return fmt.Errorf("failed to setup clusterIP svc flow resubmit action, err: %s", err)
+	}
+	if err := clusterIPFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install clusterIP svc flow, err: %s", err)
+	}
+
+	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	svcFlow, _ := u.svcMatchTable.NewFlow(ofctrl.FlowMatch{
+		InputPort:   u.datapathManager.Info.GatewayOfPort,
+		PktMark:     1 << constants.ExternalSvcPktMarkBit,
+		PktMarkMask: &pktMask,
+		Priority:    MID_MATCH_FLOW_PRIORITY,
+	})
+	if err := svcFlow.Resubmit(nil, &UBOSetSvcMarkTable); err != nil {
+		return fmt.Errorf("failed to setup nodeport/lb svc flow resubmit action, err: %s", err)
+	}
+	if err := svcFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install nodeport/lb svc flow, err: %s", err)
+	}
+
+	defaultFlow, _ := u.svcMatchTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := defaultFlow.Resubmit(nil, &UBOForwardToLocalTable); err != nil {
+		return fmt.Errorf("failed to setup nomatch svc flow resubmit action, err: %s", err)
+	}
+	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install nomatch svc flow, err: %s", err)
+	}
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) initResetSvcMarkTable() error {
+	flow, _ := u.resetSvcMarkTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	ofRange := openflow.NewNXRange(constants.ExternalSvcPktMarkBit, constants.ExternalSvcPktMarkBit)
+	if err := flow.LoadField("nxm_nx_pkt_mark", constants.PktMarkResetValue, ofRange); err != nil {
+		return fmt.Errorf("failed to setup reset pkt mark svc flow load field action: %s", err)
+	}
+	if err := flow.Resubmit(nil, &UBOSvcSnatTable); err != nil {
+		return fmt.Errorf("failed to setup reset pkt mark  svc flow resubmit action, err: %s", err)
+	}
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install reset pkt mark svc flow, err: %s", err)
+	}
+
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) addSnatToGwFlow(podCIDR *net.IPNet) error {
+	var zone uint16 = constants.CTZoneUplinkBr
+	cidrMask := (net.IP)(podCIDR.Mask)
+	flow, _ := u.svcSnatTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  MID_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+		IpDa:      &podCIDR.IP,
+		IpDaMask:  &cidrMask,
+	})
+	natOfAct, _ := ofctrl.NewSNatAction(ofctrl.NewIPRange(u.datapathManager.Info.GatewayIP), nil).ToOfAction()
+	ctAct := ofctrl.NewConntrackAction(true, false, &UBOForwardToLocalTable, &zone, natOfAct)
+	_ = flow.SetConntrack(ctAct)
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install snat to gateway for podcidr %s flow, err: %s", podCIDR, err)
+	}
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) initSvcSnatTable() error {
+	var zone uint16 = constants.CTZoneUplinkBr
+
+	var pktMask uint32 = 1 << constants.SvcLocalPktMarkBit
+	noSnat, _ := u.svcSnatTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype:   PROTOCOL_IP,
+		PktMark:     1 << constants.SvcLocalPktMarkBit,
+		PktMarkMask: &pktMask,
+	})
+	ofRange := openflow.NewNXRange(constants.SvcLocalPktMarkBit, constants.SvcLocalPktMarkBit)
+	if err := noSnat.LoadField("nxm_nx_pkt_mark", constants.PktMarkResetValue, ofRange); err != nil {
+		return fmt.Errorf("failed to setup reset pkt mark for svc with ExternalTrafficPolicy=Local flow load field action: %s", err)
+	}
+	ctAct := ofctrl.NewConntrackAction(true, false, &UBOForwardToLocalTable, &zone)
+	_ = noSnat.SetConntrack(ctAct)
+	if err := noSnat.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install nosnat flow, err: %s", err)
+	}
+
+	if !u.enableERIPAM {
+		if err := u.addSnatToGwFlow(u.datapathManager.Info.ClusterPodCIDR); err != nil {
+			return err
+		}
+	}
+
+	snatToLocal, _ := u.svcSnatTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		Ethertype: PROTOCOL_IP,
+	})
+	internalIP := u.datapathManager.Config.CNIConfig.SvcInternalIP
+	natOfAct, _ := ofctrl.NewSNatAction(ofctrl.NewIPRange(internalIP), nil).ToOfAction()
+	ctAct = ofctrl.NewConntrackAction(true, false, &UBOForwardToLocalTable, &zone, natOfAct)
+	_ = snatToLocal.SetConntrack(ctAct)
+	if err := snatToLocal.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install snat to svcInternalIP %s flow, err: %s", internalIP, err)
 	}
 
 	return nil
@@ -452,6 +687,27 @@ func (u *UplinkBridgeOverlay) initSetTunnelOutPortTable() error {
 	}
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install set tunnel out port table flow, err: %v", err)
+	}
+	return nil
+}
+
+func (u *UplinkBridgeOverlay) initSetSvcMarkTable() error {
+	flow, _ := u.setSvcMarkTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
+	})
+	pktRange := openflow.NewNXRange(constants.ExternalSvcPktMarkBit, constants.ExternalSvcPktMarkBit)
+	if err := flow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktRange); err != nil {
+		return fmt.Errorf("failed to setup svc flow set pkt mark action: %s", err)
+	}
+	toNatOfPort := u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToNatSuffix]
+	if err := flow.LoadField(UBOOutputPortReg, uint64(toNatOfPort), UBOOutputPortRange); err != nil {
+		return fmt.Errorf("failed to setup svc flow load field action: %s", err)
+	}
+	if err := flow.Resubmit(nil, &UBOOutputTable); err != nil {
+		return fmt.Errorf("failed to setup set svc flow resubmit action, err: %s", err)
+	}
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install svc flow in set svc pkt mark, err: %s", err)
 	}
 	return nil
 }

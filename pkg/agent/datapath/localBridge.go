@@ -45,7 +45,6 @@ const (
 	CNI_CT_REDIRECT_TABLE              = 105
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 	P_NONE                             = 0xffff
-	CNI_CONNTRACK_ZONE                 = 65510
 
 	InternalSvcPktMark uint32 = 1 << constants.InternalSvcPktMarkBit
 )
@@ -450,7 +449,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	// Commit CT for traffic from Pod (These traffic will bypass local gateway)
 
 	// Bypass default with higher priority, transmit all ip pkt to ct commit table
-	var cniConntrackZone uint16 = CNI_CONNTRACK_ZONE
+	var cniConntrackZone uint16 = constants.CTZoneLocalBr
 	var cniCommitTalbe uint8 = CNI_CT_COMMIT_TABLE
 	ctAction := ofctrl.NewConntrackAction(false, false, &cniCommitTalbe, &cniConntrackZone)
 	cniDefaultNoraml, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{

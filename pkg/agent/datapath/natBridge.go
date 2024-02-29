@@ -19,7 +19,6 @@ package datapath
 import (
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
@@ -39,6 +38,7 @@ var (
 	NatBrCTStateTable              uint8 = 10
 	NatBrSessionAffinityTable      uint8 = 30
 	NatBrServiceLBTable            uint8 = 35
+	NatBrExternalSvcLBTable        uint8 = 36
 	NatBrSessionAffinityLearnTable uint8 = 40
 	NatBrDnatTable                 uint8 = 50
 	NatBrL3ForwardTable            uint8 = 90
@@ -46,9 +46,8 @@ var (
 )
 
 var (
-	CTZoneReg             string              = "nxm_nx_reg0"
-	CTZoneRange           *openflow13.NXRange = openflow13.NewNXRange(0, 15)
-	CTZoneForPktFromLocal uint16              = 65505
+	CTZoneReg                       = "nxm_nx_reg0"
+	CTZoneRange *openflow13.NXRange = openflow13.NewNXRange(0, 15)
 
 	ChooseBackendFlagReg   string              = "nxm_nx_reg0"
 	ChooseBackendFlagRange *openflow13.NXRange = openflow13.NewNXRange(16, 16)
@@ -79,6 +78,7 @@ type NatBridge struct {
 	ctStateTable              *ofctrl.Table
 	sessionAffinityTable      *ofctrl.Table
 	serviceLBTable            *ofctrl.Table
+	externalSvcLBTable        *ofctrl.Table
 	sessionAffinityLearnTable *ofctrl.Table
 	dnatTable                 *ofctrl.Table
 	l3ForwardTable            *ofctrl.Table
@@ -87,11 +87,14 @@ type NatBridge struct {
 	svcIndexCache *cache.SvcIndex // service flow and group database
 	// l3FlowMap the key is interface uuid, the value is l3ForwardTable flow
 	l3FlowMap map[string]*ofctrl.Flow
+
+	kubeProxyReplace bool
 }
 
 func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 	natBr := new(NatBridge)
 	natBr.name = fmt.Sprintf("%s-nat", brName)
+	natBr.ovsBrName = brName
 	natBr.datapathManager = datapathManager
 
 	return natBr
@@ -105,6 +108,7 @@ func (n *NatBridge) BridgeInitCNI() {
 	}
 	n.svcIndexCache = cache.NewSvcIndex()
 	n.l3FlowMap = make(map[string]*ofctrl.Flow)
+	n.kubeProxyReplace = n.datapathManager.Config.CNIConfig.KubeProxyReplace
 
 	sw := n.OfSwitch
 
@@ -120,6 +124,12 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.dnatTable, _ = sw.NewTable(NatBrDnatTable)
 	n.l3ForwardTable, _ = sw.NewTable(NatBrL3ForwardTable)
 	n.outputTable, _ = sw.NewTable(NatBrOutputTable)
+	if n.kubeProxyReplace {
+		n.externalSvcLBTable, _ = sw.NewTable(NatBrExternalSvcLBTable)
+		if err := n.initExternalSvcLBTable(); err != nil {
+			log.Fatalf("failed to init external svc ln table: %s", err)
+		}
+	}
 
 	if err := n.initInputTable(); err != nil {
 		log.Fatalf("Init Input table %d of nat bridge failed: %s", NatBrInputTable, err)
@@ -829,18 +839,16 @@ func (n *NatBridge) initInputTable() error {
 	return nil
 }
 
-func (n *NatBridge) initInPortTable() error {
-	localBrName := strings.TrimSuffix(n.name, "-nat")
-
+func (n *NatBridge) setCTZone(zone uint64, portType string) error {
 	flow, err := n.inPortTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: n.datapathManager.BridgeChainPortMap[localBrName][NatToLocalSuffix],
+		InputPort: n.datapathManager.BridgeChainPortMap[n.ovsBrName][portType],
 	})
 	if err != nil {
 		log.Errorf("Failed to new a flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
-	if err = flow.LoadField(CTZoneReg, uint64(CTZoneForPktFromLocal), CTZoneRange); err != nil {
+	if err = flow.LoadField(CTZoneReg, zone, CTZoneRange); err != nil {
 		log.Errorf("Failed to add load action to flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
@@ -852,6 +860,20 @@ func (n *NatBridge) initInPortTable() error {
 		log.Errorf("Failed to install flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
+	return nil
+}
+
+func (n *NatBridge) initInPortTable() error {
+	if err := n.setCTZone(constants.CTZoneNatBrFromLocal, NatToLocalSuffix); err != nil {
+		return fmt.Errorf("failed to set from local ct zone: %s", err)
+	}
+
+	if n.kubeProxyReplace {
+		if err := n.setCTZone(constants.CTZoneNatBrFromUplink, NatToUplinkSuffix); err != nil {
+			return fmt.Errorf("failed to set from uplink ct zone: %s", err)
+		}
+	}
+
 	return nil
 }
 
@@ -929,6 +951,28 @@ func (n *NatBridge) initCTStateTable() error {
 		return err
 	}
 
+	if n.kubeProxyReplace {
+		var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+		svcPktFlow, _ := n.ctStateTable.NewFlow(ofctrl.FlowMatch{
+			Priority:    NORMAL_MATCH_FLOW_PRIORITY,
+			InputPort:   n.datapathManager.BridgeChainPortMap[n.ovsBrName][NatToUplinkSuffix],
+			PktMark:     1 << constants.ExternalSvcPktMarkBit,
+			PktMarkMask: &pktMask,
+		})
+		if err := svcPktFlow.Resubmit(nil, &NatBrSessionAffinityTable); err != nil {
+			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
+			return err
+		}
+		if err := svcPktFlow.Resubmit(nil, &NatBrExternalSvcLBTable); err != nil {
+			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
+			return err
+		}
+		if err := svcPktFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+			log.Errorf("Failed to install for svc pkt mark flow in CTState table %d: %s", NatBrCTStateTable, err)
+			return err
+		}
+	}
+
 	// non-service flow, output indirect
 	defaultFlow, err := n.ctStateTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
@@ -968,8 +1012,8 @@ func (n *NatBridge) initSessionAffinityTable() error {
 	return nil
 }
 
-func (n *NatBridge) initServiceLBTable() error {
-	flow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
+func (n *NatBridge) addNoNeedChooseEndpointTable(table *ofctrl.Table) error {
+	flow, _ := table.NewFlow(ofctrl.FlowMatch{
 		Priority: HIGH_MATCH_FLOW_PRIORITY,
 		Regs: []*ofctrl.NXRegister{
 			{
@@ -979,17 +1023,28 @@ func (n *NatBridge) initServiceLBTable() error {
 			},
 		},
 	})
-	if err != nil {
-		log.Errorf("Failed to new a flow in ServiceLB table %d: %s", NatBrServiceLBTable, err)
-		return err
-	}
+	var err error
 	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow in ServiceLB table %d: %s", NatBrServiceLBTable, err)
+		log.Errorf("Failed to add resubmit action to no need choose endpoint flow: %s", err)
 		return err
 	}
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in ServiceLB table %d: %s", NatBrServiceLBTable, err)
+		log.Errorf("Failed to install no need choose endpoint flow: %s", err)
 		return err
+	}
+	return nil
+}
+
+func (n *NatBridge) initServiceLBTable() error {
+	if err := n.addNoNeedChooseEndpointTable(n.serviceLBTable); err != nil {
+		return fmt.Errorf("failed to add no need choose endpoint flow in clusterIP svc lb table: %s", err)
+	}
+	return nil
+}
+
+func (n *NatBridge) initExternalSvcLBTable() error {
+	if err := n.addNoNeedChooseEndpointTable(n.externalSvcLBTable); err != nil {
+		return fmt.Errorf("failed to add no need choose endpoint flow in nodeport/lb svc lb table: %s", err)
 	}
 	return nil
 }

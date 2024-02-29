@@ -9,8 +9,6 @@ import (
 
 type ClsBridgeOverlay struct {
 	BaseBridge
-
-	ovsBrName string
 }
 
 func newClsBridgeOverlay(brName string, datapathManager *DpManager) *ClsBridgeOverlay {

@@ -135,6 +135,8 @@ const (
 	UplinkToClsSuffix   = "uplink-to-cls"
 	LocalToNatSuffix    = "local-to-nat"
 	NatToLocalSuffix    = "nat-to-local"
+	NatToUplinkSuffix   = "nat-to-uplink"
+	UplinkToNatSuffix   = "uplink-to-nat"
 
 	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/internal/ingress/-"
 	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/internal/egress/-"
@@ -571,7 +573,27 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	datapathManager.BridgeChainPortMap[ovsbrname][NatToLocalSuffix] = natToLocalOfPort
 	datapathManager.DpManagerMutex.Unlock()
 
+	if datapathManager.IsEnableKubeProxyReplace() {
+		setPortMapForKubeProxyReplace(datapathManager, vdsID, ovsbrname)
+	}
+
 	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
+}
+
+func setPortMapForKubeProxyReplace(datapathManager *DpManager, vdsID, ovsbrname string) {
+	natToUplinkOfPort, err := datapathManager.OvsdbDriverMap[vdsID][NAT_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToUplinkSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get natToUplinkOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+	}
+	uplinkToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToNatSuffix))
+	if err != nil {
+		log.Fatalf("Failed to get UplinkToNatOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+	}
+
+	datapathManager.DpManagerMutex.Lock()
+	datapathManager.BridgeChainPortMap[ovsbrname][NatToUplinkSuffix] = natToUplinkOfPort
+	datapathManager.BridgeChainPortMap[ovsbrname][UplinkToNatSuffix] = uplinkToNatOfPort
+	datapathManager.DpManagerMutex.Unlock()
 }
 
 //nolint:all
