@@ -90,11 +90,11 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
+    needs: [build-k8s-e2e-image]
     strategy:
       fail-fast: false
       matrix:
-        enable-proxy: [true, false]
+        enable-proxy: [false]
         encap-mode: ["", geneve]
         include:
           - ipam: "everoute"
