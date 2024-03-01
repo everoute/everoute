@@ -142,10 +142,19 @@ spec:
         disabled: true
     ingress:
       contour:
-        disabled: true
+        config:
+          yaml: |
+            envoy:
+              service:
+                type: LoadBalancer
+      enabled: true
     loadbalancer:
+      enabled: true
       metallb:
-        disabled: true
+        config:
+          yaml: |
+            layer2IPAddressPools:
+              - 172.21.253.116-172.21.253.127
     logging:
       elasticcurator: {}
       elasticsearch: {}
