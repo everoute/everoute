@@ -21,15 +21,21 @@ data:
       cnibr0: cnibr0
     enableCNI: true
     CNIConf:
-      localGwIP: 100.64.254.254
       # enable everoute proxy
-      enableProxy: false
-      # encapMode: geneve # use overlay mode
-      # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
-      mtu: 0
+      enableProxy: true
+      # when disable everoute proxy, must set localGwIP
+      localGwIP: 100.64.254.254
+
+      # use overlay mode
+      encapMode: geneve
       # specified encap vni, only valid when encapMode isn't empty, default is 5000 
       vni: 5000
-      # ipam: everoute # use everoute ipam
+
+      # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
+      mtu: 0
+
+      # use everoute ipam
+      # ipam: everoute
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -48,8 +54,14 @@ data:
     enableCNI: true
     CNIConf:
       # enable everoute proxy
-      enableProxy: false
-      # encapMode: geneve # use overlay mode
+      enableProxy: true
+
+      # use overlay mode
+      encapMode: geneve
+
+      # use everoute ipam, and when use everoute ipam, must set ipamCleanPeriod, unit is second
+      # ipam: everoute
+      # ipamCleanPeriod: 30
 kind: ConfigMap
 metadata:
   annotations: {}

@@ -10,8 +10,8 @@ bridgeName: cnibr0
 enableCNI: true
 CNIConf:
   localGwIP: 100.64.254.254
-  enableProxy: false
-  encapMode: ""
+  enableProxy: true
+  encapMode: "geneve"
   mtu: 0
   vni: 5000
   ipam: ""
