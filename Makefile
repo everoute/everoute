@@ -21,7 +21,7 @@ image-test-pull:
 	docker pull registry.smtx.io/everoute/unit-test:latest
 
 yaml:
-	helm template deploy/chart > deploy/everoute.yaml
+	helm template -n kube-system deploy/chart > deploy/everoute.yaml
 
 generate: codegen gqlgen protopb manifests yaml apidocs-gen
 	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +

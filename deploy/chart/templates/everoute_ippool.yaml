@@ -4,7 +4,7 @@ apiVersion: ipam.everoute.io/v1alpha1
 kind: IPPool
 metadata:
   name: everoute-built-in
-  namespace: kube-system
+  namespace: {{ .Release.Namespace }}
 spec:
   private: true
   cidr: {{ .Values.CNIConf.gwIPPool.cidr }}

@@ -80,7 +80,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&opts.tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
-	flag.StringVar(&opts.leaderElectionNamespace, "leader-election-namespace", "", "The namespace in which the leader election configmap will be created.")
+	flag.StringVar(&opts.namespace, "namespace", "", "The namespace which everoute deploy in.")
 	flag.IntVar(&opts.serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
 
 	klog.InitFlags(nil)
@@ -99,7 +99,7 @@ func main() {
 		MetricsBindAddress:      opts.metricsAddr,
 		Port:                    opts.serverPort,
 		LeaderElection:          opts.enableLeaderElection,
-		LeaderElectionNamespace: opts.leaderElectionNamespace,
+		LeaderElectionNamespace: opts.namespace,
 		LeaderElectionID:        "24d5749e.leader-election.everoute.io",
 		CertDir:                 opts.tlsCertDir,
 		TLSOpts: []func(*tls.Config){
@@ -114,8 +114,9 @@ func main() {
 		// set secret and webhook
 		setWebhookCert(mgr.GetAPIReader())
 		if err = (&common.WebhookReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:    mgr.GetClient(),
+			Scheme:    mgr.GetScheme(),
+			Namespace: opts.namespace,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create webhook controller: %s", err.Error())
 		}
@@ -227,7 +228,7 @@ func setWebhookCert(k8sReader client.Reader) {
 
 	secretReq := types.NamespacedName{
 		Name:      constants.EverouteSecretName,
-		Namespace: constants.EverouteSecretNamespace,
+		Namespace: opts.namespace,
 	}
 	secret := &corev1.Secret{}
 
@@ -274,13 +275,14 @@ func genSecret(secretReq types.NamespacedName) *corev1.Secret {
 	}
 	ca, caKey, _ := cert.NewCertificateAuthority(caConf)
 
+	webhookDNS := fmt.Sprintf("everoute-validator-webhook.%s.svc", opts.namespace)
 	// sign a new tls cert
 	tlsConf := &cert.CertConfig{
 		Config: certutil.Config{
 			CommonName:   "everoute",
 			Organization: []string{"Everoute"},
 			AltNames: certutil.AltNames{
-				DNSNames: []string{"everoute-validator-webhook.kube-system.svc"},
+				DNSNames: []string{webhookDNS},
 				IPs:      []net.IP{net.ParseIP("127.0.0.1")},
 			},
 			Usages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},

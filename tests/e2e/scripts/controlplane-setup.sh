@@ -79,7 +79,7 @@ function start_apiserver() {
 }
 
 function start_controller() {
-  everoute_controller_config="--kubeconfig /etc/everoute/kubeconfig/everoute-controller.yaml --leader-election-namespace kube-system --tls-certs-dir /etc/everoute/pki/ -v 10"
+  everoute_controller_config="--kubeconfig /etc/everoute/kubeconfig/everoute-controller.yaml --namespace kube-system --tls-certs-dir /etc/everoute/pki/ -v 10"
   nohup /usr/local/bin/everoute-controller ${everoute_controller_config} > /var/log/everoute-controller.log 2>&1 &
 }
 
@@ -125,8 +125,12 @@ function setup_rbac() {
   kubectl apply -f ${everoute_agent_rbac_path}/role.yaml
   kubectl apply -f ${everoute_controller_rbac_path}/role.yaml
 
+  sed -i 's#{{ .Release.Namespace }}#kube-system#' ${everoute_agent_rbac_path}/rolebinding.yaml
+  sed -i 's#{{ .Release.Namespace }}#kube-system#' ${everoute_controller_rbac_path}/rolebinding.yaml
   kubectl apply -f ${everoute_agent_rbac_path}/rolebinding.yaml
   kubectl apply -f ${everoute_controller_rbac_path}/rolebinding.yaml
+  sed -i 's#kube-system#{{ .Release.Namespace }}#' ${everoute_agent_rbac_path}/rolebinding.yaml
+  sed -i 's#kube-system#{{ .Release.Namespace }}#' ${everoute_controller_rbac_path}/rolebinding.yaml
 }
 
 function generate_kubeconfig() {

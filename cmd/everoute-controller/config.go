@@ -14,11 +14,11 @@ import (
 const configPath = "/var/lib/everoute/controllerconfig.yaml"
 
 type Options struct {
-	metricsAddr             string
-	enableLeaderElection    bool
-	tlsCertDir              string
-	leaderElectionNamespace string
-	serverPort              int
+	metricsAddr          string
+	enableLeaderElection bool
+	tlsCertDir           string
+	namespace            string
+	serverPort           int
 
 	Config *controllerConfig
 }
@@ -83,6 +83,14 @@ func (o *Options) complete() error {
 		return err
 	}
 	o.Config = config
+
+	if o.namespace == "" {
+		ns := os.Getenv(constants.NamespaceNameENV)
+		if ns == "" {
+			return fmt.Errorf("can't get controller namespace from env")
+		}
+		o.namespace = ns
+	}
 
 	return o.cniConfigCheck()
 }
