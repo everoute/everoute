@@ -21,7 +21,7 @@ data:
       {{- else}}
       # encapMode: geneve
       {{- end}}
-      # specified encap vni, only valid when encapMode isn't empty, default is 5000 
+      # specified encap vni, only valid when encapMode isn't empty, default is 5000
       vni: {{ .Values.CNIConf.vni | default 5000 }}
 
       # specified pod mtu, default value is 0, when mtu=0, the pod mtu will set according to node mtu
@@ -74,4 +74,4 @@ metadata:
   labels:
     app: everoute
   name: everoute-config-xu73od84d3
-  namespace: kube-system
+  namespace: {{ .Release.Namespace }}

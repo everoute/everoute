@@ -12,7 +12,7 @@ webhooks:
     {{- if eq .Values.webhook.type "Service" }}
       service:
         name: everoute-validator-webhook
-        namespace: kube-system
+        namespace: {{ .Release.Namespace }}
         path: /validate/crds
         port: {{ .Values.webhook.port }}
     {{- else if eq .Values.webhook.type "URL" }}
@@ -50,7 +50,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: everoute-validator-webhook
-  namespace: kube-system
+  namespace: {{ .Release.Namespace }}
 spec:
   type: ClusterIP
   ports:
@@ -78,7 +78,7 @@ webhooks:
         name: everoute-validator-webhook
         path: /validate-ipam-everoute-io-v1alpha1-ippool
         port: {{ .Values.webhook.port }}
-        namespace: kube-system
+        namespace: {{ .Release.Namespace }}
     failurePolicy: Fail
     name: vipam.everoute.io
     rules:

@@ -42,7 +42,8 @@ import (
 // WebhookReconciler watch webhook
 type WebhookReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	Namespace string
 }
 
 // Reconcile receive webhook from work queue
@@ -52,7 +53,7 @@ func (r *WebhookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	secret := &corev1.Secret{}
 	secretReq := types.NamespacedName{
 		Name:      constants.EverouteSecretName,
-		Namespace: constants.EverouteSecretNamespace,
+		Namespace: r.Namespace,
 	}
 	if err := r.Get(ctx, secretReq, secret); err != nil {
 		klog.Fatalf("could not found secret %s/%s, err: %s", secretReq.Namespace, secretReq.Name, err)
@@ -85,6 +86,9 @@ func (r *WebhookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *WebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
+	}
+	if r.Namespace == "" {
+		return fmt.Errorf("must set namespace")
 	}
 
 	c, err := controller.New("webhook-controller", mgr, controller.Options{

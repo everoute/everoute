@@ -12,7 +12,7 @@ apiVersion: ipam.everoute.io/v1alpha1
 kind: IPPool
 metadata:
   name: ippool-ci1
-  namespace: kube-system
+  namespace: ci-deploy-cni
 spec:
   cidr: 15.15.0.0/24
   subnet: 15.15.0.0/24

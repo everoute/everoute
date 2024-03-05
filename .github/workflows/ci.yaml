@@ -121,7 +121,7 @@ jobs:
         run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
       
       - name: generate everoute cni deploy yaml
-        run: helm template deploy/chart --set CNIConf.encapMode=${{ matrix.encap-mode }},CNIConf.enableProxy=${{ matrix.enable-proxy }},CNIConf.ipam=${{ matrix.ipam }},image.repository=registry.smtx.io/everoute/everoute_release,image.tag=${{ github.sha }} > deploy/everoute.yaml
+        run: helm template deploy/chart -n ci-deploy-cni --set CNIConf.encapMode=${{ matrix.encap-mode }},CNIConf.enableProxy=${{ matrix.enable-proxy }},CNIConf.ipam=${{ matrix.ipam }},image.repository=registry.smtx.io/everoute/everoute_release,image.tag=${{ github.sha }} > deploy/everoute.yaml
 
       - name: test kubectl connect to sks
         run: kubectl get crd --kubeconfig /home/runner/sksconfig/sksconfig | grep smart
@@ -164,6 +164,7 @@ jobs:
       - name: deploy everoute cni
         run: |
           cat deploy/everoute.yaml
+          kubectl create ns ci-deploy-cni
           kubectl apply -f deploy/chart/templates/crds/ipam.everoute.io_ippools.yaml
           kubectl apply -f hack/ippool_ci.yaml
           kubectl apply -f deploy/everoute.yaml

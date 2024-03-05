@@ -10,7 +10,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: everoute-agent
-    namespace: kube-system
+    namespace: {{ .Release.Namespace }}
   - apiGroup: rbac.authorization.k8s.io
     kind: User
     # support use certs authentication
