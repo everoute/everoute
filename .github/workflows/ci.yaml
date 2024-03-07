@@ -163,9 +163,9 @@ jobs:
 
       - name: deploy everoute cni
         run: |
-          cat deploy/everoute.yaml
           kubectl create ns ci-deploy-cni
           kubectl apply -f deploy/chart/templates/crds/ipam.everoute.io_ippools.yaml
+          echo "wait ippool crd install" && sleep 5
           kubectl apply -f hack/ippool_ci.yaml
           kubectl apply -f deploy/everoute.yaml
 
@@ -179,6 +179,7 @@ jobs:
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlanes.readyCount}'=$mastercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=2m
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.workers.readyCount}'=$workercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
           kubectl wait --for=condition=Ready nodes --all --timeout=10m
+          kubectl wait --for=condition=Ready pods --all -A  --timeout=5m
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }}
           kubectl get nodes -owide
 
