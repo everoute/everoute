@@ -17,6 +17,7 @@ limitations under the License.
 package policy_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,6 +40,7 @@ var (
 	k8sClient          client.Client // You'll be using this client in your tests.
 	testEnv            *envtest.Environment
 	useExistingCluster bool
+	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 const (
@@ -110,18 +112,19 @@ var _ = BeforeSuite(func() {
 	err = (policyController).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
 	go func() {
-		err = k8sManager.Start(stopCh)
+		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
 
 	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
-	Expect(k8sManager.GetCache().WaitForCacheSync(stopCh)).Should(BeTrue())
+	Expect(k8sManager.GetCache().WaitForCacheSync(ctx)).Should(BeTrue())
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

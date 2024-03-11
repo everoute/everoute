@@ -17,6 +17,7 @@ limitations under the License.
 package validates_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,7 @@ var (
 	testEnv            *envtest.Environment
 	validate           *validates.CRDValidate
 	useExistingCluster bool
+	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 var (
@@ -122,7 +124,7 @@ var _ = BeforeSuite(func() {
 	Expect(validate).ToNot(BeNil())
 
 	go func() {
-		err = k8sManager.Start(ctrl.SetupSignalHandler())
+		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
 
@@ -140,6 +142,8 @@ var _ = AfterSuite(func() {
 	for _, f := range ObjectsCleanFunc {
 		f()
 	}
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
