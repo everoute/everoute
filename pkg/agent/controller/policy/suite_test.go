@@ -17,6 +17,7 @@ limitations under the License.
 package policy_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,6 +46,7 @@ var (
 	ruleCacheLister       informer.Lister
 	globalRuleCacheLister informer.Lister
 	useExistingCluster    bool
+	ctx, cancel           = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 const (
@@ -112,13 +114,12 @@ var _ = BeforeSuite(func() {
 
 	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, brName)).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
 	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			brName: brName,
 		}}, updateChan)
-	datapathManager.InitializeDatapath(stopCh.Done())
+	datapathManager.InitializeDatapath(ctx.Done())
 
 	policyController := &policy.Reconciler{
 		Client:          k8sManager.GetClient(),
@@ -135,16 +136,18 @@ var _ = BeforeSuite(func() {
 	Expect(globalRuleCacheLister).ShouldNot(BeNil())
 
 	go func() {
-		err = k8sManager.Start(stopCh)
+		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
 
 	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
-	Expect(k8sManager.GetCache().WaitForCacheSync(stopCh)).Should(BeTrue())
+	Expect(k8sManager.GetCache().WaitForCacheSync(ctx)).Should(BeTrue())
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

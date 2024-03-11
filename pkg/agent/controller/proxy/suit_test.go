@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,6 +36,7 @@ var (
 	proxyController    Reconciler
 	svcIndex           *dpcache.SvcIndex
 	syncChan           chan event.GenericEvent
+	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 func TestProxyController(t *testing.T) {
@@ -76,9 +78,7 @@ var _ = BeforeSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.SetupCNIBridgeChain, BrName)).ToNot(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.SetupProxyBridgeChain, BrName)).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
-
-	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh.Done(), BrName, true, false, false)
+	dpMgr, err := datapath.InitCNIDpMgrUT(ctx.Done(), BrName, true, false, false)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(dpMgr).ShouldNot(BeNil())
 
@@ -101,17 +101,19 @@ var _ = BeforeSuite(func() {
 
 	go func() {
 		defer GinkgoRecover()
-		err := k8sManager.Start(stopCh)
+		err := k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
 
 	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
-	Expect(k8sManager.GetCache().WaitForCacheSync(stopCh)).Should(BeTrue())
+	Expect(k8sManager.GetCache().WaitForCacheSync(ctx)).Should(BeTrue())
 
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

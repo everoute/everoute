@@ -17,6 +17,7 @@ limitations under the License.
 package k8s
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,6 +42,7 @@ var (
 	k8sClient          client.Client // You'll be using this client in your tests.
 	testEnv            *envtest.Environment
 	useExistingCluster bool
+	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 const (
@@ -138,7 +140,6 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	ctx := ctrl.SetupSignalHandler()
 	go func() {
 		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
@@ -150,6 +151,8 @@ var _ = BeforeSuite(func() {
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

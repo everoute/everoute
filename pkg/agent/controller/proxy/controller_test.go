@@ -58,7 +58,7 @@ var _ = Describe("proxy controller", func() {
 			Protocol: corev1.ProtocolTCP,
 			Port:     80,
 		}
-		portName3 = port3.Name
+		portName3    = port3.Name
 		svcPortName3 = "svcportname-http"
 	)
 
@@ -204,6 +204,8 @@ var _ = Describe("proxy controller", func() {
 			svcCopy.Spec.ClusterIP = ""
 			svcCopy.Spec.ClusterIPs = []string{}
 			svcCopy.Spec.ExternalName = "test"
+			svcCopy.Spec.IPFamilies = nil
+			svcCopy.Spec.IPFamilyPolicy = nil
 			Expect(k8sClient.Create(ctx, svcCopy)).Should(Succeed())
 			time.Sleep(Timeout)
 			_, exists, _ := proxyController.baseSvcCache.GetByKey(svcID)
@@ -1099,7 +1101,7 @@ var _ = Describe("proxy controller", func() {
 					}
 					return equalBackend(backCache.(*proxycache.Backend), &expBackend)
 				}, Timeout, Interval).Should(BeTrue())
-				
+
 				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 				Expect(dpOvs).ToNot(BeNil())
 				Expect(svcIndex.GetDnatFlow(bk3)).ToNot(BeNil())

@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,6 +36,7 @@ var (
 	k8sClient         client.Client
 	overlayReconciler *Reconciler
 	ReplayChan        = make(chan event.GenericEvent)
+	ctx, cancel       = context.WithCancel(ctrl.SetupSignalHandler())
 )
 
 func TestController(t *testing.T) {
@@ -77,9 +79,7 @@ var _ = BeforeSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.SetupProxyBridgeChain, BrName)).ToNot(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.SetupTunnelBridgeChain, BrName)).ToNot(HaveOccurred())
 
-	stopCh := ctrl.SetupSignalHandler()
-
-	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh.Done(), BrName, true, true, false)
+	dpMgr, err := datapath.InitCNIDpMgrUT(ctx.Done(), BrName, true, true, false)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(dpMgr).ShouldNot(BeNil())
 
@@ -95,17 +95,19 @@ var _ = BeforeSuite(func() {
 
 	go func() {
 		defer GinkgoRecover()
-		err = mgr.Start(stopCh)
+		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
 	}()
 
 	k8sClient = mgr.GetClient()
 	Expect(k8sClient).NotTo(BeNil())
 
-	Expect(mgr.GetCache().WaitForCacheSync(stopCh)).Should(BeTrue())
+	Expect(mgr.GetCache().WaitForCacheSync(ctx)).Should(BeTrue())
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stop controller manager")
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
@@ -159,7 +161,7 @@ func checkRemoteFlow(epIP string, remoteIP ...string) bool {
 		if !strings.Contains(f, fmt.Sprintf("nw_dst=%s", epIP)) {
 			continue
 		}
-		if len(remoteIP) >0 && !strings.Contains(f, fmt.Sprintf("set_field:%s->tun_dst", remoteIP[0])) {
+		if len(remoteIP) > 0 && !strings.Contains(f, fmt.Sprintf("set_field:%s->tun_dst", remoteIP[0])) {
 			continue
 		}
 		return true
