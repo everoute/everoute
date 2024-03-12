@@ -24,6 +24,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 	ersource "github.com/everoute/everoute/pkg/source"
+	ertype "github.com/everoute/everoute/pkg/types"
 )
 
 type Cache struct {
@@ -66,8 +67,6 @@ type Reconciler struct {
 
 	SyncChan chan event.GenericEvent
 	syncLock sync.RWMutex
-
-	svcPortChan chan event.GenericEvent
 
 	Cache
 }
@@ -213,11 +212,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	r.svcPortChan = make(chan event.GenericEvent)
-	if err := svcPortController.Watch(&source.Channel{Source: r.svcPortChan}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
-	}
-
 	syncController, err := controller.New("proxy sync controller", mgr, controller.Options{
 		Reconciler: reconcile.Func(r.ReconcileSync),
 	})
@@ -290,6 +284,11 @@ func (r *Reconciler) processServiceUpdate(ctx context.Context, new *proxycache.B
 			klog.Errorf("Failed to add cluster ip %s for service %s, err: %s", ip, new.SvcID, err)
 			return err
 		}
+	}
+	old.ClusterIPs = append(old.ClusterIPs, addIPs...)
+	if err := r.baseSvcCache.Update(old.DeepCopy()); err != nil {
+		klog.Errorf("Failed to update service %s clusterIPs to baseSvcCache, err: %s", old.SvcID, err)
+		return err
 	}
 	for _, ip := range delIPs {
 		if err := r.delClusterIP(ip, old); err != nil {
@@ -369,7 +368,7 @@ func (r *Reconciler) addClusterIP(ip string, baseSvc *proxycache.BaseSvc) error 
 				ports = append(ports, baseSvc.Ports[pname])
 			}
 		}
-		if err := dpNatBr.AddLBIP(baseSvc.SvcID, ip, ports, baseSvc.SessionAffinityTimeout); err != nil {
+		if err := dpNatBr.AddLBIP(baseSvc.SvcID, ip, ports, baseSvc.SessionAffinityTimeout, baseSvc.InternalTrafficPolicy); err != nil {
 			klog.Errorf("Failed to add service clusterIP related flow, clusterIP: %s, err: %s", ip, err)
 			return err
 		}
@@ -407,7 +406,7 @@ func (r *Reconciler) processUpdatePortOfService(new *proxycache.BaseSvc, old *pr
 			continue
 		}
 		for j := range dpNatBrs {
-			if err := dpNatBrs[j].AddLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout); err != nil {
+			if err := dpNatBrs[j].AddLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout, old.InternalTrafficPolicy); err != nil {
 				klog.Errorf("Failed to add port %+v for service %+v, err: %s", *port, *old, err)
 				return err
 			}
@@ -431,7 +430,7 @@ func (r *Reconciler) processUpdatePortOfService(new *proxycache.BaseSvc, old *pr
 			continue
 		}
 		for j := range dpNatBrs {
-			if err := dpNatBrs[j].UpdateLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout); err != nil {
+			if err := dpNatBrs[j].UpdateLBPort(old.SvcID, port, old.ClusterIPs, old.SessionAffinityTimeout, old.InternalTrafficPolicy); err != nil {
 				klog.Errorf("Failed to update lb flow for service %s port %+v, err: %s", old.SvcID, *port, err)
 				return err
 			}
@@ -501,30 +500,33 @@ func (r *Reconciler) processUpdateTrafficPolicy(ctx context.Context, new *proxyc
 		return nil
 	}
 
-	oldInternalTrafficPolicy := old.InternalTrafficPolicy
+	var ports []*proxycache.Port
+	for pname := range old.Ports {
+		if old.Ports[pname] != nil {
+			ports = append(ports, old.Ports[pname])
+		}
+	}
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range dpNatBrs {
+		if err := dpNatBrs[i].DelSvcLBFlow(old.SvcID); err != nil {
+			klog.Errorf("Failed to delete svc %s lb flows with old internalTrafficPolicy %s, err: %s", old.SvcID, old.InternalTrafficPolicy, err)
+			return err
+		}
+		for i := range old.ClusterIPs {
+			// sessionAffinityTimeout set 0 to doesn't process sessionAffinity flows
+			if err := dpNatBrs[i].AddLBIP(old.SvcID, old.ClusterIPs[i], ports, 0, new.InternalTrafficPolicy); err != nil {
+				klog.Errorf("Failed to add svc %s ip %s lb flows with new internalTrafficPolicy %s, err: %s", old.SvcID, old.ClusterIPs[i], new.InternalTrafficPolicy, err)
+				return err
+			}
+		}
+	}
+
 	old.InternalTrafficPolicy = new.InternalTrafficPolicy
 	if err := r.baseSvcCache.Update(old.DeepCopy()); err != nil {
 		klog.Errorf("Failed to update %+v to baseSvc cache, err: %s", *old, err)
 		return err
 	}
 
-	svcPortList := everoutesvc.ServicePortList{}
-	svcNs, svcName := proxycache.GetNsAndNameFromSvcID(new.SvcID)
-	labels := map[string]string{
-		everoutesvc.LabelRefEndpoints: svcName,
-	}
-	if err := r.List(ctx, &svcPortList, client.InNamespace(svcNs), client.MatchingLabels(labels)); err != nil {
-		klog.Errorf("Failed to list svcPorts for svc %v, err: %s", old.SvcID, err)
-		// rollback, cache update wouldn't failed for keyfunc allways return nil error
-		old.InternalTrafficPolicy = oldInternalTrafficPolicy
-		if err := r.baseSvcCache.Update(old.DeepCopy()); err != nil {
-			klog.Errorf("Failed to update %+v to baseSvc cache, err: %s", *old, err)
-		}
-		return err
-	}
-	for _, svcPort := range svcPortList.Items {
-		r.svcPortChan <- ersource.NewResourceEvent(svcPort.GetName(), svcPort.GetNamespace())
-	}
 	klog.Infof("Success update svc %s traffic policy to %s", old.SvcID, new.InternalTrafficPolicy)
 
 	return nil
@@ -587,19 +589,25 @@ func (r *Reconciler) updateServicePortForGroup(servicePort *everoutesvc.ServiceP
 	}
 
 	svcID := proxycache.GenSvcID(servicePort.GetNamespace(), servicePort.Spec.SvcRef)
-	isLocalInternalTrafficPolicy, err := r.isLocalInternalTrafficPolicy(svcID)
+	_, exists, err := r.baseSvcCache.GetByKey(svcID)
 	if err != nil {
-		klog.Errorf("Can't get svc %s InternalTrafficPolicy", svcID)
+		klog.Errorf("failed to get svc %s from cache, err: %s", svcID, err)
 		return err
 	}
-	svcPortFilter := r.filterServicePortBackends(servicePort, isLocalInternalTrafficPolicy)
-
-	dpNatBrs := r.DpMgr.GetNatBridges()
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.UpdateLBGroup(svcID, svcPortFilter.Spec.PortName, svcPortFilter.Spec.Backends); err != nil {
-			klog.Errorf("Failed to update lb group for servicePort %+v of service: %s, err: %s", servicePort, svcID, err)
-			return err
+	if !exists {
+		// group only be deleted when delete svc, so we must create group after create svc
+		klog.Errorf("Can't create svcport %v group before svc create", *servicePort)
+		return fmt.Errorf("can't create svcport group before svc create")
+	}
+	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
+		bks := r.filterServicePortBackends(servicePort.Spec.Backends, tp)
+		dpNatBrs := r.DpMgr.GetNatBridges()
+		for i := range dpNatBrs {
+			dpNatBr := dpNatBrs[i]
+			if err := dpNatBr.UpdateLBGroup(svcID, servicePort.Spec.PortName, bks, tp); err != nil {
+				klog.Errorf("Failed to update lb group for traffic policy %s servicePort %+v of service: %s, err: %s", tp, servicePort, svcID, err)
+				return err
+			}
 		}
 	}
 
@@ -877,12 +885,15 @@ func (r *Reconciler) replayGroup(dpNatBrs []*datapath.NatBridge) error {
 		if len(svcBackends) == 0 {
 			continue
 		}
-		svcID := proxycache.GenSvcID(svcPort.Namespace, svcPort.SvcName)
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.UpdateLBGroup(svcID, svcPort.PortName, svcBackends); err != nil {
-				klog.Errorf("Failed to replay lb group for servicePort %s, err: %s", svcPortRef, err)
-				return err
+		for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
+			bks := r.filterServicePortBackends(svcBackends, tp)
+			svcID := proxycache.GenSvcID(svcPort.Namespace, svcPort.SvcName)
+			for i := range dpNatBrs {
+				dpNatBr := dpNatBrs[i]
+				if err := dpNatBr.UpdateLBGroup(svcID, svcPort.PortName, bks, tp); err != nil {
+					klog.Errorf("Failed to replay lb group for servicePort %s traffic policy %s, err: %s", svcPortRef, tp, err)
+					return err
+				}
 			}
 		}
 	}
@@ -923,29 +934,17 @@ func (r *Reconciler) replayDnatFlows(dpNatBrs []*datapath.NatBridge) error {
 	return nil
 }
 
-func (r *Reconciler) isLocalInternalTrafficPolicy(svcID string) (bool, error) {
-	obj, exists, err := r.baseSvcCache.GetByKey(svcID)
-	if err != nil {
-		return false, err
+func (r *Reconciler) filterServicePortBackends(bks []everoutesvc.Backend, tp ertype.TrafficPolicyType) []everoutesvc.Backend {
+	if tp == ertype.TrafficPolicyCluster {
+		return bks
 	}
-	if !exists {
-		return false, fmt.Errorf("can't find svc %s info from cache", svcID)
-	}
-	svc := obj.(*proxycache.BaseSvc)
-	return svc.IsLocalInternalTrafficPolicy(), nil
-}
 
-func (r *Reconciler) filterServicePortBackends(servicePort *everoutesvc.ServicePort, isLocalTrafficPolicy bool) *everoutesvc.ServicePort {
-	if !isLocalTrafficPolicy {
-		return servicePort
-	}
-	res := servicePort.DeepCopy()
-	res.Spec.Backends = make([]everoutesvc.Backend, 0)
-	for _, b := range servicePort.Spec.Backends {
+	res := make([]everoutesvc.Backend, 0)
+	for _, b := range bks {
 		if b.Node != r.LocalNode {
 			continue
 		}
-		res.Spec.Backends = append(res.Spec.Backends, b)
+		res = append(res, b)
 	}
 	return res
 }

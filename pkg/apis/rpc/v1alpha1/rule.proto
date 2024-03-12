@@ -100,8 +100,9 @@ message SvcFlow {
 
 message SvcGroup {
   string PortName = 1;
-  uint32 GroupID = 2;
-  string Info = 3;
+  string TrafficPolicy = 2;
+  uint32 GroupID = 3;
+  string Info = 4;
 }
 
 message SvcInfo {

@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
+
+	ertype "github.com/everoute/everoute/pkg/types"
 )
 
 // BaseSvc store a service base info
@@ -21,8 +23,8 @@ type BaseSvc struct {
 	Ports map[string]*Port
 
 	// ExternalTrafficPolicy ClusterIP doesn't use it
-	ExternalTrafficPolicy TrafficPolicyType
-	InternalTrafficPolicy TrafficPolicyType
+	ExternalTrafficPolicy ertype.TrafficPolicyType
+	InternalTrafficPolicy ertype.TrafficPolicyType
 
 	SessionAffinity corev1.ServiceAffinity
 	// SessionAffinityTimeout，the unit is seconds
@@ -41,13 +43,7 @@ type Port struct {
 	NodePort int32
 }
 
-// TrafficPolicyType is service internal or external traffic policy
-type TrafficPolicyType string
-
 const (
-	TrafficPolicyCluster TrafficPolicyType = "Cluster"
-	TrafficPolicyLocal   TrafficPolicyType = "Local"
-
 	DefaultSessionAffinityTimeout int32 = 10800
 )
 
@@ -79,13 +75,13 @@ func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
 		SvcID:                 GenSvcID(svc.Namespace, svc.Name),
 		SvcType:               svc.Spec.Type,
 		ClusterIPs:            GetClusterIPs(svc.Spec),
-		ExternalTrafficPolicy: TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
-		InternalTrafficPolicy: TrafficPolicyCluster,
+		ExternalTrafficPolicy: ertype.TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
+		InternalTrafficPolicy: ertype.TrafficPolicyCluster,
 		SessionAffinity:       svc.Spec.SessionAffinity,
 		Ports:                 make(map[string]*Port),
 	}
 	if svc.Spec.InternalTrafficPolicy != nil {
-		baseSvc.InternalTrafficPolicy = TrafficPolicyType(*svc.Spec.InternalTrafficPolicy)
+		baseSvc.InternalTrafficPolicy = ertype.TrafficPolicyType(*svc.Spec.InternalTrafficPolicy)
 	}
 
 	if baseSvc.SessionAffinity == corev1.ServiceAffinityClientIP {
@@ -185,10 +181,6 @@ func (b *BaseSvc) DiffPorts(new *BaseSvc) (add, update, del []*Port) {
 	}
 
 	return
-}
-
-func (b *BaseSvc) IsLocalInternalTrafficPolicy() bool {
-	return b.InternalTrafficPolicy == TrafficPolicyLocal
 }
 
 func (p *Port) validUpdate(new *Port) bool {

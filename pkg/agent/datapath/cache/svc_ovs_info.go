@@ -4,8 +4,11 @@ import (
 	"sync"
 
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+
+	ertype "github.com/everoute/everoute/pkg/types"
 )
+
+type CreateGroupFunc func() (*ofctrl.Group, error)
 
 type SvcFlowEntry struct {
 	LBIP     string
@@ -14,36 +17,62 @@ type SvcFlowEntry struct {
 }
 
 type SvcGroupEntry struct {
-	PortName string
-	Group    *ofctrl.Group
+	PortName      string
+	TrafficPolicy ertype.TrafficPolicyType
+	Group         *ofctrl.Group
 }
 
 type SvcOvsInfo struct {
 	lock sync.RWMutex
 	// svcID is svcNs/svcName
 	svcID string
-	// groupMap key is portName, value is group
-	groupMap map[string]*ofctrl.Group
-	// lbMap the first key is lbIP, the second key is portName, value is flow in NatBrServiceLBTable
+	// groupMap first key is portName, second key is local/cluster, value is group
+	groupMap map[string]map[ertype.TrafficPolicyType]*ofctrl.Group
+	// lbMap the first key is clusterIP/lbIP/"", the second key is portName, value is flow in NatBrServiceLBTable
 	lbMap map[string]map[string]*ofctrl.Flow
-	// sessionAffinityMap the first key is lbIP, the second key is portName, value is flow in NatBrSessionAffinityLearnTable
+	// sessionAffinityMap the first key is clusterIP/lbIP/"", the second key is portName, value is flow in NatBrSessionAffinityLearnTable
 	sessionAffinityMap map[string]map[string]*ofctrl.Flow
 }
 
 func NewSvcOvsInfo(svcID string) *SvcOvsInfo {
 	return &SvcOvsInfo{
 		svcID:              svcID,
-		groupMap:           make(map[string]*ofctrl.Group),
+		groupMap:           make(map[string]map[ertype.TrafficPolicyType]*ofctrl.Group),
 		lbMap:              make(map[string]map[string]*ofctrl.Flow),
 		sessionAffinityMap: make(map[string]map[string]*ofctrl.Flow),
 	}
 }
 
-func (s *SvcOvsInfo) GetGroup(portName string) *ofctrl.Group {
+func (s *SvcOvsInfo) GetGroup(portName string, groupType ertype.TrafficPolicyType) *ofctrl.Group {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	return s.groupMap[portName]
+	if s.groupMap[portName] != nil {
+		return s.groupMap[portName][groupType]
+	}
+
+	return nil
+}
+
+func (s *SvcOvsInfo) GetGroupAndCreateIfEmpty(portName string, groupType ertype.TrafficPolicyType, f CreateGroupFunc) (*ofctrl.Group, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.groupMap[portName] != nil {
+		if s.groupMap[portName][groupType] != nil {
+			return s.groupMap[portName][groupType], nil
+		}
+	} else {
+		s.groupMap[portName] = make(map[ertype.TrafficPolicyType]*ofctrl.Group)
+	}
+
+	gp, err := f()
+	if err != nil {
+		return nil, err
+	}
+	s.groupMap[portName][groupType] = gp
+
+	return gp, nil
 }
 
 func (s *SvcOvsInfo) GetAllGroups() []SvcGroupEntry {
@@ -53,30 +82,49 @@ func (s *SvcOvsInfo) GetAllGroups() []SvcGroupEntry {
 	var res []SvcGroupEntry
 	for p := range s.groupMap {
 		if s.groupMap[p] != nil {
-			res = append(res, SvcGroupEntry{PortName: p, Group: s.groupMap[p]})
+			for k := range s.groupMap[p] {
+				if s.groupMap[p][k] != nil {
+					res = append(res, SvcGroupEntry{PortName: p, TrafficPolicy: k, Group: s.groupMap[p][k]})
+				}
+			}
 		}
 	}
 	return res
-}
-
-func (s *SvcOvsInfo) SetGroup(portName string, group *ofctrl.Group) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if group == nil {
-		delete(s.groupMap, portName)
-		return
-	}
-
-	s.groupMap[portName] = group
-	log.Debugf("Set the port name %s corresponding group id to %d", portName, group.GroupID)
 }
 
 func (s *SvcOvsInfo) DeleteAllGroup() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.groupMap = make(map[string]*ofctrl.Group)
+	for p := range s.groupMap {
+		if s.groupMap[p] != nil {
+			for k := range s.groupMap[p] {
+				if s.groupMap[p][k] != nil {
+					s.groupMap[p][k].Delete()
+				}
+			}
+		}
+	}
+	s.groupMap = make(map[string]map[ertype.TrafficPolicyType]*ofctrl.Group)
+}
+
+func (s *SvcOvsInfo) DeleteGroupIfExist(portName string, groupType ertype.TrafficPolicyType) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.groupMap[portName] == nil {
+		return
+	}
+
+	if s.groupMap[portName][groupType] == nil {
+		return
+	}
+
+	s.groupMap[portName][groupType].Delete()
+	delete(s.groupMap[portName], groupType)
+	if len(s.groupMap[portName]) == 0 {
+		delete(s.groupMap, portName)
+	}
 }
 
 func (s *SvcOvsInfo) GetLBFlow(lbIP, portName string) *ofctrl.Flow {
