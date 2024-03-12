@@ -72,8 +72,9 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 	groupEntries := svcDpCache.GetAllGroups()
 	for i := range groupEntries {
 		svcInfo.SvcGroup = append(svcInfo.SvcGroup, &v1alpha1.SvcGroup{
-			PortName: groupEntries[i].PortName,
-			GroupID:  groupEntries[i].Group.GroupID,
+			PortName:      groupEntries[i].PortName,
+			TrafficPolicy: string(groupEntries[i].TrafficPolicy),
+			GroupID:       groupEntries[i].Group.GroupID,
 		})
 	}
 

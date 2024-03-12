@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+
+	ertype "github.com/everoute/everoute/pkg/types"
 )
 
 func TestDeepCopy(t *testing.T) {
@@ -13,8 +15,8 @@ func TestDeepCopy(t *testing.T) {
 		SvcType:                corev1.ServiceTypeClusterIP,
 		ClusterIPs:             []string{"1.1.1.1"},
 		Ports:                  make(map[string]*Port),
-		ExternalTrafficPolicy:  TrafficPolicyLocal,
-		InternalTrafficPolicy:  TrafficPolicyCluster,
+		ExternalTrafficPolicy:  ertype.TrafficPolicyLocal,
+		InternalTrafficPolicy:  ertype.TrafficPolicyCluster,
 		SessionAffinity:        corev1.ServiceAffinityClientIP,
 		SessionAffinityTimeout: 100000,
 	}

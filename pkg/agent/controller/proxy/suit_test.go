@@ -19,6 +19,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	dpcache "github.com/everoute/everoute/pkg/agent/datapath/cache"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	ertype "github.com/everoute/everoute/pkg/types"
 )
 
 const (
@@ -121,6 +122,22 @@ var _ = AfterSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.CleanProxyBridgeChain, BrName)).NotTo(HaveOccurred())
 })
 
+func equalTrafficPolicy(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
+	if b1.InternalTrafficPolicy == ertype.TrafficPolicyLocal || b2.InternalTrafficPolicy == ertype.TrafficPolicyLocal {
+		if b1.InternalTrafficPolicy != ertype.TrafficPolicyLocal || b2.InternalTrafficPolicy != ertype.TrafficPolicyLocal {
+			return false
+		}
+	}
+
+	if b1.ExternalTrafficPolicy == ertype.TrafficPolicyLocal || b2.ExternalTrafficPolicy == ertype.TrafficPolicyLocal {
+		if b1.ExternalTrafficPolicy != ertype.TrafficPolicyLocal || b2.ExternalTrafficPolicy != ertype.TrafficPolicyLocal {
+			return false
+		}
+	}
+
+	return true
+}
+
 func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 	if b1 == nil && b2 == nil {
 		return true
@@ -134,6 +151,10 @@ func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 	}
 
 	if b1.SvcType != b2.SvcType {
+		return false
+	}
+
+	if !equalTrafficPolicy(b1, b2) {
 		return false
 	}
 
@@ -154,7 +175,7 @@ func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
 
 type testSvcOvsInfo struct {
 	// key is portname, value is groupid
-	groupMap map[string]uint32
+	groupMap map[string]map[ertype.TrafficPolicyType]uint32
 	// the first key is ip, the second key is portname, the value is flowid
 	lbMap map[string]map[string]uint64
 	// the first key is ip, the second key is portname, the value is flowid
@@ -163,13 +184,16 @@ type testSvcOvsInfo struct {
 
 func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
 	res := &testSvcOvsInfo{
-		groupMap:           make(map[string]uint32),
+		groupMap:           make(map[string]map[ertype.TrafficPolicyType]uint32),
 		lbMap:              make(map[string]map[string]uint64),
 		sessionAffinityMap: make(map[string]map[string]uint64),
 	}
 	gps := dpInfo.GetAllGroups()
 	for i := range gps {
-		res.groupMap[gps[i].PortName] = gps[i].Group.GroupID
+		if res.groupMap[gps[i].PortName] == nil {
+			res.groupMap[gps[i].PortName] = make(map[ertype.TrafficPolicyType]uint32)
+		}
+		res.groupMap[gps[i].PortName][gps[i].TrafficPolicy] = gps[i].Group.GroupID
 	}
 	lbFlows := dpInfo.GetAllLBFlows()
 	for i := range lbFlows {

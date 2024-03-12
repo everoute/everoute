@@ -29,6 +29,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	ertype "github.com/everoute/everoute/pkg/types"
 )
 
 var (
@@ -256,14 +257,6 @@ func (n *NatBridge) DelService(svcID string) error {
 		svcOvsCache.SetLBFlow(curEntry.LBIP, curEntry.PortName, nil)
 	}
 
-	groups := svcOvsCache.GetAllGroups()
-	for i := range groups {
-		curEntry := groups[i]
-		if curEntry.Group == nil {
-			continue
-		}
-		curEntry.Group.Delete()
-	}
 	svcOvsCache.DeleteAllGroup()
 
 	if err := n.DelSessionAffinity(svcID); err != nil {
@@ -276,7 +269,7 @@ func (n *NatBridge) DelService(svcID string) error {
 	return nil
 }
 
-func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port, sessionAffinityTimeout int32) error {
+func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port, sessionAffinityTimeout int32, tp ertype.TrafficPolicyType) error {
 	ipDa := net.ParseIP(ip)
 	if ipDa == nil {
 		log.Errorf("Invalid lb ip %s for service %s", ip, svcID)
@@ -290,21 +283,18 @@ func (n *NatBridge) AddLBIP(svcID, ip string, ports []*proxycache.Port, sessionA
 		}
 		portName := ports[i].Name
 		if svcOvsCache.GetLBFlow(ip, portName) != nil {
-			log.Infof("The lb flow has been installed for service: %s, lbip: %s, portname: %s, skip create it", svcID, ip, portName)
+			log.Infof("The lb flow has been installed for service: %s, lbip: %s, portname: %s, traffic policy: %s, skip create it", svcID, ip, portName, tp)
 			continue
 		}
-		if svcOvsCache.GetGroup(portName) == nil {
-			newGp, err := n.createEmptyGroup()
-			if err != nil {
-				log.Errorf("Failed to create a empty group %s for service %s, lbip: %s, portname: %s", err, svcID, ip, portName)
-				return err
-			}
-			svcOvsCache.SetGroup(portName, newGp)
+		gp, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
+		if err != nil {
+			log.Errorf("Failed to create a empty group %s for service %s, lbip: %s, portname: %s, traffic policy: %s", err, svcID, ip, portName, tp)
+			return err
 		}
-		gpID := svcOvsCache.GetGroup(portName).GroupID
+		gpID := gp.GroupID
 		lbFlow, err := n.addLBFlow(&ipDa, ports[i].Protocol, ports[i].Port, gpID)
 		if err != nil {
-			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, err: %s", svcID, ip, portName, err)
+			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, traffic policy: %s, err: %s", svcID, ip, portName, tp, err)
 			return err
 		}
 		svcOvsCache.SetLBFlow(ip, portName, lbFlow)
@@ -376,7 +366,29 @@ func (n *NatBridge) DelLBIP(svcID, ip string) error {
 	return nil
 }
 
-func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32) error {
+func (n *NatBridge) DelSvcLBFlow(svcID string) error {
+	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
+		log.Infof("Has no lb flow for svcID: %s", svcID)
+		return nil
+	}
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+
+	lbFlows := svcOvsCache.GetAllLBFlows()
+	for i := range lbFlows {
+		curEntry := lbFlows[i]
+		if curEntry.Flow == nil {
+			continue
+		}
+		if err := curEntry.Flow.Delete(); err != nil {
+			log.Errorf("Delete lb flow failed for lb ip: %s, port: %s, svcID: %s, flow: %+v, err: %s", curEntry.LBIP, curEntry.PortName, svcID, curEntry.Flow, err)
+			return err
+		}
+		svcOvsCache.SetLBFlow(curEntry.LBIP, curEntry.PortName, nil)
+	}
+	return nil
+}
+
+func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32, tp ertype.TrafficPolicyType) error {
 	if port == nil {
 		return nil
 	}
@@ -385,14 +397,10 @@ func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string,
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 
 	var err error
-	gp := svcOvsCache.GetGroup(portName)
-	if gp == nil {
-		gp, err = n.createEmptyGroup()
-		if err != nil {
-			log.Errorf("Failed to create empty group for service %s port %+v, err: %s", svcID, *port, err)
-			return err
-		}
-		svcOvsCache.SetGroup(portName, gp)
+	gp, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
+	if err != nil {
+		log.Errorf("Failed to create empty group for service %s port %+v, err: %s", svcID, *port, err)
+		return err
 	}
 	gpID := gp.GroupID
 
@@ -440,7 +448,7 @@ func (n *NatBridge) AddLBPort(svcID string, port *proxycache.Port, ips []string,
 	return nil
 }
 
-func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32) error {
+func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []string, sessionAffinityTimeout int32, tp ertype.TrafficPolicyType) error {
 	if port == nil {
 		return nil
 	}
@@ -461,7 +469,7 @@ func (n *NatBridge) UpdateLBPort(svcID string, port *proxycache.Port, ips []stri
 	}
 
 	// add new flows
-	if err := n.AddLBPort(svcID, port, ips, sessionAffinityTimeout); err != nil {
+	if err := n.AddLBPort(svcID, port, ips, sessionAffinityTimeout, tp); err != nil {
 		log.Errorf("Failed to add new flow for service %s update port %+v, err: %s", svcID, *port, err)
 		return err
 	}
@@ -562,18 +570,13 @@ func (n *NatBridge) UpdateSessionAffinityTimeout(svcID string, ips []string, por
 	return nil
 }
 
-func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend) error {
+func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend, tp ertype.TrafficPolicyType) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	var err error
-	creatGpFlag := false
-	gp := svcOvsCache.GetGroup(portName)
-	if gp == nil {
-		creatGpFlag = true
-		gp, err = n.newEmptyGroup()
-		if err != nil {
-			log.Errorf("Failed to new a empty group, err: %s", err)
-			return err
-		}
+	gp, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
+	if err != nil {
+		log.Errorf("Failed to create a empty group for svc %s portname %s, err: %s", svcID, portName, err)
+		return err
 	}
 
 	buckets := make([]*ofctrl.Bucket, 0, len(backends))
@@ -587,14 +590,6 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 	}
 	gp.ResetBuckets(buckets)
 
-	if creatGpFlag {
-		if err := gp.Install(); err != nil {
-			log.Errorf("Failed to install group %+v for service: %s, err: %s", gp, svcID, err)
-			return err
-		}
-		svcOvsCache.SetGroup(portName, gp)
-	}
-
 	log.Infof("Dp success to update LB group for service %s port %s, backends: %+v", svcID, portName, backends)
 	return nil
 }
@@ -605,12 +600,15 @@ func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
 		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
 		return nil
 	}
-	gp := svcOvsCache.GetGroup(portName)
-	if gp == nil {
-		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
-		return nil
+	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
+		gp := svcOvsCache.GetGroup(portName, tp)
+		if gp == nil {
+			log.Infof("The Service %s has no related ovs group for port %s and traffic policy %s", svcID, portName, tp)
+			return nil
+		}
+		gp.ResetBuckets(make([]*ofctrl.Bucket, 0))
 	}
-	gp.ResetBuckets(make([]*ofctrl.Bucket, 0))
+
 	log.Infof("Dp success clear LB group buckets for service %s port %s", svcID, portName)
 	return nil
 }
@@ -621,10 +619,10 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
 		return nil
 	}
-	if svcOvsCache.GetGroup(portName) != nil {
-		svcOvsCache.GetGroup(portName).Delete()
-		svcOvsCache.SetGroup(portName, nil)
+	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
+		svcOvsCache.DeleteGroupIfExist(portName, tp)
 	}
+
 	// when a group is deleted, the flow referenced it will be deleted automatically
 	svcOvsCache.DeleteLBFlowsByPortName(portName)
 	log.Infof("Success delete service %s ovs group related port %s", svcID, portName)
