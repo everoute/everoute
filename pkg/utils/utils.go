@@ -198,3 +198,20 @@ func CtLabelDecode(label []byte) (uint64, uint64, uint64) {
 	}
 	return flowID1, flowID2, flowID3
 }
+
+func IsK8sLabelDiff(l1, l2 map[string]string) bool {
+	if len(l1) != len(l2) {
+		return true
+	}
+
+	for k, v := range l1 {
+		if _, ok := l2[k]; !ok {
+			return true
+		}
+		if v != l2[k] {
+			return true
+		}
+	}
+
+	return false
+}

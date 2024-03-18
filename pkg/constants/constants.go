@@ -64,6 +64,10 @@ const (
 	AllEpWithNamedPort = "all-endpoints-with-named-port"
 
 	HealthCheckPath = "/healthz"
+
+	// sks related
+	SksManagedLabelKey   = "sks-managed"
+	SksManagedLabelValue = "true"
 )
 
 const (
