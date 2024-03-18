@@ -548,6 +548,13 @@ func schema_pkg_apis_agent_v1alpha1_IPInfo(ref common.ReferenceCallback) common.
 							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
+					"mac": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Mac is src mac of ip pkt, empty means equal to interface mac.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"vlanTag", "updateTime"},
 			},
@@ -1430,6 +1437,13 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 							Format:      "",
 						},
 					},
+					"stictMac": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StrictMac is a ip filter switch true: filter ip which src mac does not equal interface mac false: no action",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"ports": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
@@ -1443,7 +1457,7 @@ func schema_pkg_apis_security_v1alpha1_EndpointSpec(ref common.ReferenceCallback
 						},
 					},
 				},
-				Required: []string{"vid", "reference"},
+				Required: []string{"vid", "reference", "stictMac"},
 			},
 		},
 		Dependencies: []string{

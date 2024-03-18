@@ -129,6 +129,10 @@ spec:
                                 ipmap:
                                   additionalProperties:
                                     properties:
+                                      mac:
+                                        description: Mac is src mac of ip pkt, empty
+                                          means equal to interface mac.
+                                        type: string
                                       updateTime:
                                         format: date-time
                                         type: string
@@ -820,6 +824,10 @@ spec:
                 - externalIDName
                 - externalIDValue
                 type: object
+              stictMac:
+                description: 'StrictMac is a ip filter switch true: filter ip which
+                  src mac does not equal interface mac false: no action'
+                type: boolean
               type:
                 default: dynamic
                 description: Type of this Endpoint
@@ -834,6 +842,7 @@ spec:
                 type: integer
             required:
             - reference
+            - stictMac
             - vid
             type: object
           status:

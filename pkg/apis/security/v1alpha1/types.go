@@ -324,6 +324,11 @@ type EndpointSpec struct {
 	// +kubebuilder:default="dynamic"
 	Type EndpointType `json:"type,omitempty"`
 
+	// StrictMac is a ip filter switch
+	// true: filter ip which src mac does not equal interface mac
+	// false: no action
+	StrictMac bool `json:"stictMac"`
+
 	Ports []NamedPort `json:"ports,omitempty"`
 }
 
