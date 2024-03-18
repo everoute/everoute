@@ -159,6 +159,12 @@ func main() {
 			}
 			klog.Info("start endpoints controller")
 		}
+	} else {
+		if err := (&endpointctrl.StrictMacController{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create strictMac endpoint controller %s", err)
+		}
 	}
 
 	// register validate handle
