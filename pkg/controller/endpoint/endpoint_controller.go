@@ -93,7 +93,7 @@ func (r *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		expectStatus = r.fetchEndpointStatusByIP(endpoint.Status.IPs)
 	default:
 		// Fetch enpoint status from agentinfo.
-		expectStatus, err = r.fetchEndpointStatusFromAgentInfo(GetEndpointID(endpoint))
+		expectStatus, err = r.fetchEndpointStatusFromAgentInfo(endpoint)
 		if err != nil {
 			klog.Errorf("while fetch endpoint status: %s", err.Error())
 			return ctrl.Result{}, err
@@ -208,12 +208,12 @@ func (r *EndpointReconciler) addAgentInfo(e event.CreateEvent, q workqueue.RateL
 				t := metav1.Time{}
 				agentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
 				iface := &iface{
-					agentName:           agentInfo.Name,
-					name:                ovsIface.Name,
-					agentTime:           t,
-					externalIDs:         ovsIface.ExternalIDs,
-					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
+					agentName:   agentInfo.Name,
+					name:        ovsIface.Name,
+					agentTime:   t,
+					externalIDs: ovsIface.ExternalIDs,
+					mac:         ovsIface.Mac,
+					ipMap:       toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -244,12 +244,12 @@ func (r *EndpointReconciler) updateAgentInfo(e event.UpdateEvent, q workqueue.Ra
 				t := metav1.Time{}
 				newAgentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
 				iface := &iface{
-					agentName:           newAgentInfo.Name,
-					name:                ovsIface.Name,
-					agentTime:           t,
-					externalIDs:         ovsIface.ExternalIDs,
-					mac:                 ovsIface.Mac,
-					ipLastUpdateTimeMap: toIPTimeMap(ovsIface.IPMap),
+					agentName:   newAgentInfo.Name,
+					name:        ovsIface.Name,
+					agentTime:   t,
+					externalIDs: ovsIface.ExternalIDs,
+					mac:         ovsIface.Mac,
+					ipMap:       toIPTimeMap(ovsIface.IPMap),
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -443,11 +443,11 @@ func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string
 	}
 }
 
-func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.ExternalID) (*securityv1alpha1.EndpointStatus, error) {
+func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.Endpoint) (*securityv1alpha1.EndpointStatus, error) {
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
 
-	ifaces, err := r.ifaceCache.ByIndex(externalIDIndex, id.String())
+	ifaces, err := r.ifaceCache.ByIndex(externalIDIndex, GetEndpointID(endpoint).String())
 	if err != nil {
 		return nil, err
 	}
@@ -457,13 +457,16 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 		return &securityv1alpha1.EndpointStatus{}, nil
 	default:
 		// combine all ifaces status into endpoint status
-		ipsets := sets.NewString()
+		ipMap := make(map[string]string)
 		agentSets := sets.NewString()
 		for _, item := range ifaces {
-			if len(item.(*iface).ipLastUpdateTimeMap) != 0 {
+			if len(item.(*iface).ipMap) != 0 {
 				agentSets.Insert(item.(*iface).agentName)
-				for ip := range item.(*iface).ipLastUpdateTimeMap {
-					ipsets.Insert(ip.String())
+				for ip := range item.(*iface).ipMap {
+					if v, ok := ipMap[ip.String()]; ok && v == "" {
+						continue
+					}
+					ipMap[ip.String()] = item.(*iface).ipMap[ip].mac
 				}
 			}
 		}
@@ -471,7 +474,10 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(id ctrltypes.Exter
 			MacAddress: ifaces[0].(*iface).mac,
 			Agents:     agentSets.List(),
 		}
-		for _, ip := range ipsets.List() {
+		for ip := range ipMap {
+			if endpoint.Spec.StrictMac && ipMap[ip] != "" {
+				continue
+			}
 			endpointStatus.IPs = append(endpointStatus.IPs, types.IPAddress(ip))
 		}
 		return endpointStatus, nil
@@ -514,8 +520,8 @@ func GetEndpointID(ep securityv1alpha1.Endpoint) ctrltypes.ExternalID {
 
 func computeInterfaceExpiredIPs(timeout time.Duration, iface *iface) []string {
 	var expiredIPs []string
-	for ip, t := range iface.ipLastUpdateTimeMap {
-		expireTime := t.Add(timeout)
+	for ip, t := range iface.ipMap {
+		expireTime := t.lastUpdateTime.Add(timeout)
 		if iface.agentTime.After(expireTime) {
 			expiredIPs = append(expiredIPs, ip.String())
 		}
@@ -559,9 +565,14 @@ type iface struct {
 	name      string
 	agentTime metav1.Time
 
-	externalIDs         map[string]string
-	mac                 string
-	ipLastUpdateTimeMap map[types.IPAddress]metav1.Time
+	externalIDs map[string]string
+	mac         string
+	ipMap       map[types.IPAddress]ifaceIP
+}
+
+type ifaceIP struct {
+	mac            string
+	lastUpdateTime metav1.Time
 }
 
 func (i *iface) String() string {
@@ -593,7 +604,7 @@ func externalIDIndexFunc(obj interface{}) ([]string, error) {
 
 func ipAddrIndexFunc(obj interface{}) ([]string, error) {
 	var ipAddr []string
-	for ip := range obj.(*iface).ipLastUpdateTimeMap {
+	for ip := range obj.(*iface).ipMap {
 		ipAddr = append(ipAddr, ip.String())
 	}
 	return ipAddr, nil
@@ -608,10 +619,13 @@ func toIPStringSet(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) sets.String 
 	return ipStringSet
 }
 
-func toIPTimeMap(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) map[types.IPAddress]metav1.Time {
-	ipTimeMap := make(map[types.IPAddress]metav1.Time, len(ipMap))
+func toIPTimeMap(ipMap map[types.IPAddress]*agentv1alpha1.IPInfo) map[types.IPAddress]ifaceIP {
+	ipTimeMap := make(map[types.IPAddress]ifaceIP, len(ipMap))
 	for ip, info := range ipMap {
-		ipTimeMap[ip] = info.UpdateTime
+		ipTimeMap[ip] = ifaceIP{
+			lastUpdateTime: info.UpdateTime,
+			mac:            info.Mac,
+		}
 	}
 	return ipTimeMap
 }

@@ -482,7 +482,7 @@ func (monitor *AgentMonitor) fetchInterfaceLocked(ovsdbCache OVSDBCache, uuid ov
 	ofport, ok := ovsIface.Fields["ofport"].(float64)
 	if ok && ofport >= 0 {
 		iface.Ofport = int32(ofport)
-		iface.IPMap = convertToIPMap(monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)])
+		iface.IPMap = convertToIPMap(iface.Mac, monitor.ipCache[fmt.Sprintf("%s-%d", bridgeName, iface.Ofport)])
 	}
 
 	return &iface
@@ -555,12 +555,16 @@ func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAge
 	return nil
 }
 
-func convertToIPMap(endpointMap map[types.IPAddress]*types.EndpointIP) map[types.IPAddress]*agentv1alpha1.IPInfo {
+func convertToIPMap(ifaceMac string, endpointMap map[types.IPAddress]*types.EndpointIP) map[types.IPAddress]*agentv1alpha1.IPInfo {
 	ipMap := make(map[types.IPAddress]*agentv1alpha1.IPInfo)
 	for ip, endpoint := range endpointMap {
 		ipMap[ip] = &agentv1alpha1.IPInfo{
 			VlanTag:    endpoint.VlanID,
 			UpdateTime: metav1.NewTime(endpoint.UpdateTime),
+		}
+		epMacStr := endpoint.Mac.String()
+		if ifaceMac != epMacStr {
+			ipMap[ip].Mac = epMacStr
 		}
 	}
 	return ipMap
