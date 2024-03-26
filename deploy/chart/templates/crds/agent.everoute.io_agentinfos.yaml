@@ -83,6 +83,10 @@ spec:
                                 ipmap:
                                   additionalProperties:
                                     properties:
+                                      mac:
+                                        description: Mac is src mac of ip pkt, empty
+                                          means equal to interface mac.
+                                        type: string
                                       updateTime:
                                         format: date-time
                                         type: string

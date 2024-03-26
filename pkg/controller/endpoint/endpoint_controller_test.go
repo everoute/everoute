@@ -53,6 +53,11 @@ var (
 		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
 		Agents:     []string{"fakeAgentInfoA"},
 	}
+	ovsPortStatusC = securityv1alpha1.EndpointStatus{
+		MacAddress: rand.String(10),
+		IPs:        []types.IPAddress{types.IPAddress(rand.String(10))},
+		Agents:     []string{"fakeAgentInfoA"},
+	}
 	fakeAgentInfoA = &agentv1alpha1.AgentInfo{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "AgentInfo",
@@ -81,7 +86,9 @@ var (
 									},
 									Mac: ovsPortStatusA.MacAddress,
 									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
-										ovsPortStatusA.IPs[0]: {},
+										ovsPortStatusA.IPs[0]: {
+											Mac: "aa:aa:aa:aa:aa:aa",
+										},
 									},
 								},
 								{
@@ -92,6 +99,21 @@ var (
 									Mac: ovsPortStatusB.MacAddress,
 									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
 										ovsPortStatusB.IPs[0]: {},
+									},
+								},
+								{
+									Name: "iface3",
+									ExternalIDs: map[string]string{
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep05",
+									},
+									Mac: ovsPortStatusC.MacAddress,
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
+										ovsPortStatusC.IPs[0]: {
+											Mac: "bb:bb:bb:bb:bb:bb",
+										},
 									},
 								},
 							},
@@ -136,7 +158,24 @@ var (
 									},
 									Mac: ovsPortStatusB.MacAddress,
 									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
-										ovsPortStatusB.IPs[0]: {},
+										ovsPortStatusB.IPs[0]: {
+											Mac: "",
+										},
+									},
+								},
+								{
+									Name: "iface3",
+									ExternalIDs: map[string]string{
+										"idk1":                "idv1",
+										"idk2":                "idv2",
+										"idk3":                "idv3",
+										endpointExternalIDKey: "ep05",
+									},
+									Mac: ovsPortStatusC.MacAddress,
+									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
+										ovsPortStatusC.IPs[0]: {
+											Mac: "",
+										},
 									},
 								},
 							},
@@ -254,7 +293,25 @@ var (
 				ExternalIDName:  endpointExternalIDKey,
 				ExternalIDValue: "ep01",
 			},
-			Type: securityv1alpha1.EndpointDynamic,
+			Type:      securityv1alpha1.EndpointDynamic,
+			StrictMac: false,
+		},
+	}
+	fakeEndpointB = &securityv1alpha1.Endpoint{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Endpoint",
+			APIVersion: "security.everoute.io/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name: "fakeEndpointB",
+		},
+		Spec: securityv1alpha1.EndpointSpec{
+			Reference: securityv1alpha1.EndpointReference{
+				ExternalIDName:  endpointExternalIDKey,
+				ExternalIDValue: "ep05",
+			},
+			Type:      securityv1alpha1.EndpointDynamic,
+			StrictMac: true,
 		},
 	}
 	fakeEndpointC = &securityv1alpha1.Endpoint{
@@ -367,13 +424,17 @@ func TestEndpointController(t *testing.T) {
 
 func testProcessAgentinfo(t *testing.T) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointD, fakeEndpointE)
+	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA, fakeEndpointB, fakeEndpointD, fakeEndpointE)
 	ctx := context.Background()
 
 	t.Run("agentinfo-added", func(t *testing.T) {
 		// Fake: endpoint added and agentinfo added event when controller start.
 		r.addEndpoint(ctx, event.CreateEvent{
 			Object: fakeEndpointA,
+		}, queue)
+
+		r.addEndpoint(ctx, event.CreateEvent{
+			Object: fakeEndpointB,
 		}, queue)
 
 		r.addEndpoint(ctx, event.CreateEvent{
@@ -409,12 +470,19 @@ func testProcessAgentinfo(t *testing.T) {
 			t.Errorf("static ip endpoint should update agent, get %v, want fakeAgentInfoA", endpointStatusE)
 		}
 
+		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointB.Name).Status
+		newOvsPortStatusC := ovsPortStatusC.DeepCopy()
+		newOvsPortStatusC.IPs = []types.IPAddress{}
+		if !EqualEndpointStatus(*newOvsPortStatusC, endpointStatus) {
+			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusC)
+		}
+
 		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
 		if !EqualEndpointStatus(ovsPortStatusA, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
 		}
 		ifaces := r.ifaceCache.ListKeys()
-		if len(ifaces) != 2 {
+		if len(ifaces) != 3 {
 			t.Errorf("expect cache should have two iface after add agentinfo %s", fakeAgentInfoA.Name)
 		}
 	})
@@ -449,12 +517,17 @@ func testProcessAgentinfo(t *testing.T) {
 			t.Errorf("static ip endpoint should clean agents, get %v, want null", endpointStatusE.Agents)
 		}
 
+		endpointStatusB := getFakeEndpoint(r.Client, fakeEndpointB.Name).Status
+		if !EqualEndpointStatus(ovsPortStatusC, endpointStatusB) {
+			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatusB, ovsPortStatusC)
+		}
+
 		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
 		if !EqualEndpointStatus(ovsPortStatusB, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusB)
 		}
 		ifaces := r.ifaceCache.ListKeys()
-		if len(ifaces) != 1 {
+		if len(ifaces) != 2 {
 			t.Errorf("expect cache should have one iface after update agentinfo %s", fakeAgentInfoA.Name)
 		}
 	})
