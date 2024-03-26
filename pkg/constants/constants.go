@@ -67,6 +67,10 @@ const (
 
 	HealthCheckPath = "/healthz"
 
+	// sks related
+	SksManagedLabelKey   = "sks-managed"
+	SksManagedLabelValue = "true"
+
 	EncapModeGeneve = "geneve"
 	GeneveHeaderLen = 50
 
