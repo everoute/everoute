@@ -100,6 +100,10 @@ spec:
                 - externalIDName
                 - externalIDValue
                 type: object
+              strictMac:
+                description: 'StrictMac is a ip filter switch true: filter ip which
+                  src mac does not equal interface mac false: no action'
+                type: boolean
               type:
                 default: dynamic
                 description: Type of this Endpoint

@@ -101,6 +101,8 @@ type OVSInterface struct {
 type IPInfo struct {
 	VlanTag    uint16      `json:"vlanTag"`
 	UpdateTime metav1.Time `json:"updateTime"`
+	// Mac is src mac of ip pkt, empty means equal to interface mac.
+	Mac string `json:"mac,omitempty"`
 }
 
 func (in *IPInfo) UnmarshalJSON(data []byte) error {
