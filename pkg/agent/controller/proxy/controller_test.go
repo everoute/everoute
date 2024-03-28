@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -19,7 +18,6 @@ import (
 )
 
 var _ = Describe("proxy controller", func() {
-	ctx := context.Background()
 	var (
 		svcNs    = "default"
 		svcName  = "svc1"
