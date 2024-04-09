@@ -36,6 +36,30 @@ const (
 	POLICY_FORWARDING_TABLE     = 90
 
 	CTZoneForPolicy uint16 = 65520
+
+	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
+	RoundNumXXREG0BitEnd                = 3 // codepoint0 bit end
+	RoundNumXXREG0BitSize               = RoundNumXXREG0BitEnd - RoundNumXXREG0BitStart + 1
+	MonitorTier2FlowSpaceXXREG0BitStart = 4  // codepoint1 bit start
+	MonitorTier2FlowSpaceXXREG0BitEnd   = 31 // codepoint1 bit end
+	MonitorTier3FlowSpaceXXREG0BitStart = 32 // codepoint2 bit start
+	MonitorTier3FlowSpaceXXREG0BitEnd   = 59 // codepoint2 bit end
+	MonitorTier3FlowSpaceXXREG0BitSize  = MonitorTier3FlowSpaceXXREG0BitEnd - MonitorTier3FlowSpaceXXREG0BitStart + 1
+	WorkPolicyActionXXREG0Bit           = 127 // codepoint6
+	MonitorTier3PolicyActionXXREG0Bit   = 126 // codepoint5
+)
+
+var (
+	WorkPolicyActionDenyMatchCTLabel             = [16]byte{0x80} // 1 << WorkPolicyActionXXREG0Bit
+	WorkPolicyActionDenyMatchCTLabelMask         = [16]byte{0x80} // 1 << WorkPolicyActionXXREG0Bit
+	MonitorTier3PolicyActionDenyMatchCTLabel     = [16]byte{0x40} // 1 << MonitorTier3PolicyActionXXREG0Bit
+	MonitorTier3PolicyActionDenyMatchCTLabelMask = [16]byte{0x40} // 1 << MonitorTier3PolicyActionXXREG0Bit
+
+	RoundNumNXRange                 = openflow13.NewNXRange(RoundNumXXREG0BitStart, RoundNumXXREG0BitEnd)
+	MonitorTier2FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier2FlowSpaceXXREG0BitStart, MonitorTier2FlowSpaceXXREG0BitEnd)
+	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
+	WorkPolicyActionNXRange         = openflow13.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
+	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
 )
 
 type PolicyBridge struct {
@@ -248,8 +272,8 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
-		CTLabel:     &[16]byte{0x80},
-		CTLabelMask: &[16]byte{0x80},
+		CTLabel:     &WorkPolicyActionDenyMatchCTLabel,
+		CTLabelMask: &WorkPolicyActionDenyMatchCTLabelMask,
 	})
 	if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 		return err
@@ -383,9 +407,60 @@ func (p *PolicyBridge) initPolicyTable() error {
 	if err := ingressTierECPDefaultFlow.Next(p.ingressTier3PolicyMonitorTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
 	}
+	ingressTier3MonitorDropMatchFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype:   PROTOCOL_IP,
+		CTLabel:     &MonitorTier3PolicyActionDenyMatchCTLabel,
+		CTLabelMask: &MonitorTier3PolicyActionDenyMatchCTLabelMask,
+	})
+	if err := ingressTier3MonitorDropMatchFlow.MoveField(
+		1,
+		MonitorTier3PolicyActionXXREG0Bit,
+		MonitorTier3PolicyActionXXREG0Bit,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table drop match flow, error: %v", err)
+	}
+	if err := ingressTier3MonitorDropMatchFlow.MoveField(
+		MonitorTier3FlowSpaceXXREG0BitSize,
+		MonitorTier3FlowSpaceXXREG0BitStart,
+		MonitorTier3FlowSpaceXXREG0BitStart,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table drop match flow, error: %v", err)
+	}
+	if err := ingressTier3MonitorDropMatchFlow.MoveField(
+		RoundNumXXREG0BitSize,
+		RoundNumXXREG0BitStart,
+		RoundNumXXREG0BitStart,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table drop match flow, error: %v", err)
+	}
+	if err := ingressTier3MonitorDropMatchFlow.Next(p.ingressTier3PolicyTable); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table drop match flow, error: %v", err)
+	}
 	ingressTier3MonitorDefaultFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
+	if err := ingressTier3MonitorDefaultFlow.MoveField(
+		1,
+		MonitorTier3PolicyActionXXREG0Bit,
+		MonitorTier3PolicyActionXXREG0Bit,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table default flow, error: %v", err)
+	}
+	if err := ingressTier3MonitorDefaultFlow.MoveField(
+		MonitorTier3FlowSpaceXXREG0BitSize,
+		MonitorTier3FlowSpaceXXREG0BitStart,
+		MonitorTier3FlowSpaceXXREG0BitStart,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table default flow, error: %v", err)
+	}
+	if err := ingressTier3MonitorDefaultFlow.MoveField(
+		RoundNumXXREG0BitSize,
+		RoundNumXXREG0BitStart,
+		RoundNumXXREG0BitStart,
+		"nxm_nx_ct_label", "nxm_nx_xxreg0", false); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table default flow, error: %v", err)
+	}
 	if err := ingressTier3MonitorDefaultFlow.Next(p.ingressTier3PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier3 monitor table default flow, error: %v", err)
 	}
@@ -556,6 +631,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 		case POLICY_DIRECTION_OUT:
 			switch tier {
 			case POLICY_TIER1:
+				return nil, nil, fmt.Errorf("policy tier1 without monitor mode support")
 			case POLICY_TIER2:
 				policyTable = p.egressTier2PolicyMonitorTable
 				nextTable = p.egressTier2PolicyTable
@@ -570,6 +646,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 		case POLICY_DIRECTION_IN:
 			switch tier {
 			case POLICY_TIER1:
+				return nil, nil, fmt.Errorf("policy tier1 without monitor mode support")
 			case POLICY_TIER2:
 				policyTable = p.ingressTier2PolicyMonitorTable
 				nextTable = p.ingressTier2PolicyTable
@@ -652,15 +729,24 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 
 	switch mode {
 	case "monitor":
-		if tier == POLICY_TIER1 {
-			return nil, fmt.Errorf("policy tier1 without monitor mode support")
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
+			return nil, err
 		}
 
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 3)); err != nil {
-			return nil, err
-		}
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(32, 59)); err != nil {
-			return nil, err
+		switch tier {
+		case POLICY_TIER2:
+			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier2FlowSpaceNXRange); err != nil {
+				return nil, err
+			}
+		case POLICY_TIER3:
+			if rule.Action == "deny" {
+				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, MonitorTier3PolicyActionNXRange); err != nil {
+					return nil, err
+				}
+			}
+			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier3FlowSpaceNXRange); err != nil {
+				return nil, err
+			}
 		}
 
 		if err := ruleFlow.Next(nextTable); err != nil {
@@ -678,14 +764,14 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 				return nil, err
 			}
-			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, openflow13.NewNXRange(127, 127)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, WorkPolicyActionNXRange); err != nil {
 				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf("unknown action")
 		}
 
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, openflow13.NewNXRange(0, 3)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
 			return nil, err
 		}
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(60, 87)); err != nil {
