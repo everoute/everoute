@@ -13,7 +13,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
-//nolint
+// //nolint
 const (
 	INPUT_TABLE                 = 0
 	CT_STATE_TABLE              = 1
@@ -248,8 +248,8 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
-		CTLabel:     &[16]byte{0x8},
-		CTLabelMask: &[16]byte{0x8},
+		CTLabel:     &[16]byte{0x80},
+		CTLabelMask: &[16]byte{0x80},
 	})
 	if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 		return err
