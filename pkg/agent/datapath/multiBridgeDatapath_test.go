@@ -141,7 +141,9 @@ var (
 	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
 	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
-	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],resubmit(,71)"
+	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
+	ingressTier3MonitorDropFlow    = "table=59, priority=300,ct_label=0x40000000000000000000000000000000/0x40000000000000000000000000000000,ip actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
+	ingressTier3MonitorDefaultFlow = "table=59, priority=10 actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
 )
 
 func TestMain(m *testing.M) {
@@ -246,7 +248,7 @@ func testLocalEndpoint(t *testing.T) {
 }
 
 func testERPolicyRule(t *testing.T) {
-	t.Run("test ER policy rule", func(t *testing.T) {
+	t.Run("check policy rule work mode", func(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
@@ -284,12 +286,119 @@ func testERPolicyRule(t *testing.T) {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule3)
 		}
 	})
+
+	t.Run("check policy rule monitor mode", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		t.Run("tier1 without monitor mode support", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:     rand.String(20),
+				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:  randomIP(),
+				DstIPAddr:  randomIP(),
+				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				SrcPort:    uint16(rand.IntnRange(1, 65534)),
+				DstPort:    uint16(rand.IntnRange(1, 65534)),
+				Action:     "allow",
+			}
+			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER1, "monitor")
+			Expect(err).Should(HaveOccurred())
+		})
+
+		t.Run("should add tier2 monitor policy rule", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:     rand.String(20),
+				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:  randomIP(),
+				DstIPAddr:  randomIP(),
+				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				SrcPort:    uint16(rand.IntnRange(1, 65534)),
+				DstPort:    uint16(rand.IntnRange(1, 65534)),
+				Action:     "allow",
+			}
+			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER2, "monitor")
+			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				return flowValidator([]string{
+					fmt.Sprintf("table=54, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+				})
+			}, timeout, interval).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		t.Run("should add tier3 monitor policy rule with allow", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:     rand.String(20),
+				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:  randomIP(),
+				DstIPAddr:  randomIP(),
+				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				SrcPort:    uint16(rand.IntnRange(1, 65534)),
+				DstPort:    uint16(rand.IntnRange(1, 65534)),
+				Action:     "allow",
+			}
+			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
+			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				return flowValidator([]string{
+					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+				})
+			}, timeout, interval).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		t.Run("should add tier3 monitor policy rule with deny on ingress", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:     rand.String(20),
+				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:  randomIP(),
+				DstIPAddr:  randomIP(),
+				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				SrcPort:    uint16(rand.IntnRange(1, 65534)),
+				DstPort:    uint16(rand.IntnRange(1, 65534)),
+				Action:     "deny",
+			}
+			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
+			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				return flowValidator([]string{
+					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+				})
+			}, timeout, interval).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		t.Run("should add tier3 monitor policy rule with deny on egress", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:     rand.String(20),
+				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:  randomIP(),
+				DstIPAddr:  randomIP(),
+				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				SrcPort:    uint16(rand.IntnRange(1, 65534)),
+				DstPort:    uint16(rand.IntnRange(1, 65534)),
+				Action:     "deny",
+			}
+			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_OUT, POLICY_TIER3, "monitor")
+			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				return flowValidator([]string{
+					fmt.Sprintf("table=29, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:30", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+				})
+			}, timeout, interval).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+	})
 }
 
 func testPolicyTableInit(t *testing.T) {
-	t.Run("test policy table init flow", func(t *testing.T) {
+	t.Run("check policy table init flow", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{ctDropMatchFlow})
+			return flowValidator([]string{ctDropMatchFlow, ingressTier3MonitorDropFlow, ingressTier3MonitorDefaultFlow})
 		}, timeout, interval).Should(Succeed())
 	})
 }
@@ -507,4 +616,8 @@ func dumpAllFlows() ([]string, error) {
 	}
 
 	return flowDump, nil
+}
+
+func randomIP() string {
+	return fmt.Sprintf("%d.%d.%d.%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
 }
