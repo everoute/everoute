@@ -147,6 +147,7 @@ var (
 	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
 	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
+	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],resubmit(,71)"
 )
 
 func TestMain(m *testing.M) {
@@ -214,6 +215,7 @@ func TestEverouteDp(t *testing.T) {
 
 	testLocalEndpoint(t)
 	testERPolicyRule(t)
+	testPolicyTableInit(t)
 	testMonitorRule(t)
 	testFlowReplay(t)
 	testRoundNumFlip(t)
@@ -323,6 +325,14 @@ func testERPolicyRule(t *testing.T) {
 		if _, ok := datapathManager.Rules[rule3.RuleID]; ok {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule3)
 		}
+	})
+}
+
+func testPolicyTableInit(t *testing.T) {
+	t.Run("test policy table init flow", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator([]string{ctDropMatchFlow})
+		}, timeout, interval).Should(Succeed())
 	})
 }
 
