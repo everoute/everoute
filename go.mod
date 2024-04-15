@@ -129,5 +129,5 @@ replace (
 	k8s.io/client-go v0.22.2 => k8s.io/client-go v0.20.6
 	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e => k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
 	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a => k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
-	sigs.k8s.io/controller-runtime v0.10.2 => sigs.k8s.io/controller-runtime v0.6.0
+	sigs.k8s.io/controller-runtime v0.10.2 => github.com/everoute/controller-runtime v0.0.0-20240415084044-772221220b15
 )

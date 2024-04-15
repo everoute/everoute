@@ -179,6 +179,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if err = patchController.Watch(&source.Kind{Type: &groupv1alpha1.GroupMembersPatch{}}, &handler.Funcs{
 		CreateFunc: r.addPatch,
+		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			if e.DeleteStateUnknown {
+				klog.Fatalf("groupmemberpatch %s delete state is unknown, fatal agent", e.Meta.GetName())
+			}
+		},
 	}); err != nil {
 		return err
 	}
