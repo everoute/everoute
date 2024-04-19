@@ -328,6 +328,12 @@ func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.Securi
 		return fmt.Errorf("tier %s not in: %s, %s, %s, %s", policy.Spec.Tier, constants.Tier0, constants.Tier1, constants.Tier2, constants.TierECP)
 	}
 
+	if policy.Spec.IsBlocklist {
+		if policy.Spec.SymmetricMode {
+			return fmt.Errorf("blocklist don't support SymmetricMode")
+		}
+	}
+
 	// check validate of spec.appliedTo
 	err := v.validateAppliedTo(policy.Spec.AppliedTo)
 	if err != nil {
