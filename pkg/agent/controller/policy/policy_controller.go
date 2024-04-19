@@ -105,6 +105,7 @@ func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+	klog.Infof("Reconcile group %s patch reversion %s", groupName, patch.Revision)
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
@@ -190,6 +191,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if err = patchController.Watch(&source.Kind{Type: &groupv1alpha1.GroupMembers{}}, &handler.Funcs{
 		CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+			klog.V(2).Infof("Receive create groupmember %s event", e.Meta.GetName())
 			r.groupCache.AddGroupMembership(e.Object.(*groupv1alpha1.GroupMembers))
 			// add into queue to process the group patches.
 			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
@@ -198,6 +200,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}})
 		},
 		DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+			klog.V(2).Infof("Receive delete groupmember %s event", e.Meta.GetName())
 			r.groupCache.DelGroupMembership(e.Meta.GetName())
 		},
 	}); err != nil {
@@ -226,6 +229,7 @@ func (r *Reconciler) addPatch(e event.CreateEvent, q workqueue.RateLimitingInter
 	}
 
 	patch := e.Object.(*groupv1alpha1.GroupMembersPatch)
+	klog.V(2).Infof("Receive create patch %s event", patch.GetName())
 	r.groupCache.AddPatch(patch)
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
