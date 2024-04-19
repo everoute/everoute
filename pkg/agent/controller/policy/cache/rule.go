@@ -60,6 +60,7 @@ type PolicyRule struct {
 	Direction       RuleDirection `json:"direction"`
 	RuleType        RuleType      `json:"ruleType"`
 	Tier            string        `json:"tier,omitempty"`
+	Priority        int32         `json:"priority,omitempty"`
 	EnforcementMode string        `json:"enforcementMode,omitempty"`
 	SrcIPAddr       string        `json:"srcIPAddr,omitempty"`
 	DstIPAddr       string        `json:"dstIPAddr,omitempty"`
@@ -108,6 +109,7 @@ type CompleteRule struct {
 	RuleID string
 
 	Tier            string
+	Priority        int32
 	EnforcementMode string
 	Action          RuleAction
 	Direction       RuleDirection
@@ -166,6 +168,7 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 	return &CompleteRule{
 		RuleID:            rule.RuleID,
 		Tier:              rule.Tier,
+		Priority:          rule.Priority,
 		EnforcementMode:   rule.EnforcementMode,
 		Action:            rule.Action,
 		Direction:         rule.Direction,
@@ -257,6 +260,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Direction:       direction,
 		RuleType:        ruleType,
 		Tier:            rule.Tier,
+		Priority:        rule.Priority,
 		EnforcementMode: rule.EnforcementMode,
 		SrcIPAddr:       srcIPBlock,
 		DstIPAddr:       dstIPBlock,

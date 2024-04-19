@@ -21,7 +21,7 @@ import "time"
 const (
 	// InternalWhitelistPriority is the priority of internal whitelist IP, we set different priorities
 	// with NormalPolicyRulePriority to make sure normal rules won't cover internal whitelist rules
-	InternalWhitelistPriority       = 120
+	InternalWhitelistPriority       = 210
 	NormalPolicyRulePriority        = 100
 	DefaultPolicyRulePriority       = 70
 	GlobalDefaultPolicyRulePriority = 40

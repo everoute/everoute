@@ -315,6 +315,10 @@ func classifyEgressPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]securit
 func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
 	var completeRules []*policycache.CompleteRule
 	var ingressEnabled, egressEnabled = policy.IsEnable()
+	ruleAction := policycache.RuleActionAllow
+	if policy.Spec.IsBlocklist {
+		ruleAction = policycache.RuleActionDrop
+	}
 
 	appliedToPeer := make([]securityv1alpha1.SecurityPolicyPeer, 0, len(policy.Spec.AppliedTo))
 	for _, appliedTo := range policy.Spec.AppliedTo {
@@ -335,8 +339,9 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			ingressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
 				Tier:            policy.Spec.Tier,
+				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
-				Action:          policycache.RuleActionAllow,
+				Action:          ruleAction,
 				Direction:       policycache.RuleDirectionIn,
 				SymmetricMode:   policy.Spec.SymmetricMode,
 				DstGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
@@ -366,6 +371,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			defaultIngressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
 				Tier:              policy.Spec.Tier,
+				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionIn,
@@ -385,8 +391,9 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			egressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
 				Tier:            policy.Spec.Tier,
+				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
-				Action:          policycache.RuleActionAllow,
+				Action:          ruleAction,
 				Direction:       policycache.RuleDirectionOut,
 				SymmetricMode:   policy.Spec.SymmetricMode,
 				SrcGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
@@ -443,6 +450,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			defaultEgressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
 				Tier:              policy.Spec.Tier,
+				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
 				Action:            policycache.RuleActionDrop,
 				Direction:         policycache.RuleDirectionOut,
