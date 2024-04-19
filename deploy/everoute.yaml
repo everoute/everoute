@@ -1119,9 +1119,15 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.isBlocklist
+      name: IsBlocklist
+      type: boolean
     - jsonPath: .spec.tier
       name: Tier
       type: string
+    - jsonPath: .spec.priority
+      name: Priority
+      type: integer
     - jsonPath: .spec.symmetricMode
       name: SymmetricMode
       type: boolean
@@ -2058,6 +2064,10 @@ spec:
                   - name
                   type: object
                 type: array
+              isBlocklist:
+                description: IsBlocklist specify the SecurityPolicy is allowlist or
+                  blocklist Default is false
+                type: boolean
               logging:
                 description: Logging defines the policy logging configuration.
                 properties:
@@ -2094,6 +2104,13 @@ spec:
                     This type is beta-level in 1.8
                   type: string
                 type: array
+              priority:
+                description: Priority Specifies the priority of the SecurityPolicy
+                  on the tier to which it belongs Defaults is 0
+                format: int32
+                maximum: 100
+                minimum: 0
+                type: integer
               securityPolicyEnforcementMode:
                 default: work
                 description: 'Work mode specify the policy enforcement state: monitor

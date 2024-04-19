@@ -39,7 +39,9 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="IsBlocklist",type="boolean",JSONPath=".spec.isBlocklist"
 // +kubebuilder:printcolumn:name="Tier",type="string",JSONPath=".spec.tier"
+// +kubebuilder:printcolumn:name="Priority",type="integer",JSONPath=".spec.priority"
 // +kubebuilder:printcolumn:name="SymmetricMode",type="boolean",JSONPath=".spec.symmetricMode"
 // +kubebuilder:printcolumn:name="PolicyTypes",type="string",JSONPath=".spec.policyTypes"
 // +kubebuilder:printcolumn:name="Enforcement",type="string",JSONPath=".spec.securityPolicyEnforcementMode"
@@ -73,6 +75,12 @@ type SecurityPolicySpec struct {
 	// In v1alpha1, Tier only support tier0, tier1, tier2, tier-ecp.
 	Tier string `json:"tier"`
 
+	// Priority Specifies the priority of the SecurityPolicy on the tier to which it belongs
+	// Defaults is 0
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=100
+	Priority int32 `json:"priority,omitempty"`
+
 	// Work mode specify the policy enforcement state: monitor or work
 	// +kubebuilder:default=work
 	SecurityPolicyEnforcementMode PolicyMode `json:"securityPolicyEnforcementMode,omitempty"`
@@ -103,6 +111,10 @@ type SecurityPolicySpec struct {
 	// Logging defines the policy logging configuration.
 	// +optional
 	Logging *Logging `json:"logging,omitempty"`
+
+	// IsBlocklist specify the SecurityPolicy is allowlist or blocklist
+	// Default is false
+	IsBlocklist bool `json:"isBlocklist,omitempty"`
 
 	// List of rule types that the Security relates to.
 	// Valid options are "Ingress", "Egress", or "Ingress,Egress".
