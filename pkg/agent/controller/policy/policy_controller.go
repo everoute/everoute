@@ -78,6 +78,8 @@ func (r *Reconciler) ReconcilePolicy(req ctrl.Request) (ctrl.Result, error) {
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
+	klog.Infof("Reconcile securitypolicy %s", req.NamespacedName)
+
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
 		klog.Errorf("unable to fetch policy %s: %s", req.Name, err.Error())
@@ -107,6 +109,8 @@ func (r *Reconciler) ReconcilePatch(req ctrl.Request) (ctrl.Result, error) {
 
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
+
+	klog.Infof("Reconcile group %s patch revision %d", groupName, patch.Revision)
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, patch.GroupName)
 
