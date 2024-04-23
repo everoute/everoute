@@ -28,6 +28,7 @@ import (
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
+	"k8s.io/klog"
 
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
@@ -207,6 +208,7 @@ func (l *LocalBridge) setLocalEndpointIPAddr(arpIn protocol.ARP, inPort uint32) 
 	if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.IPAddr == nil {
 		copy(endpoint.IPAddr, arpIn.IPSrc)
 		endpoint.IPAddrLastUpdateTime = time.Now()
+		klog.V(10).Infof("iplearn arpIn %+v, inPort %d, endpoint ip %v, port %d", arpIn, inPort, endpoint.IPAddr, endpoint.PortNo)
 	}
 }
 

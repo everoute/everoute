@@ -134,7 +134,7 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(endpointInfo *types.EndpointI
 	monitor.ipCacheLock.Lock()
 	defer monitor.ipCacheLock.Unlock()
 
-	klog.V(10).Infof("receive endpoint %s from %s(%d) vlan %d", endpointInfo.IP, endpointInfo.BridgeName, endpointInfo.OfPort, endpointInfo.VlanID)
+	klog.V(3).Infof("receive endpoint %s from %s(%d) vlan %d", endpointInfo.IP, endpointInfo.BridgeName, endpointInfo.OfPort, endpointInfo.VlanID)
 
 	if !endpointInfo.IP.IsGlobalUnicast() {
 		return
@@ -330,6 +330,7 @@ func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1
 						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap = make(map[types.IPAddress]*agentv1alpha1.IPInfo)
 					}
 					if _, ok := intf.IPMap[key]; !ok {
+						klog.V(2).Infof("ofport %d merge old ip %s from externalIDs %+v to new with externalIDs %+v", matchIntf.Ofport, key, matchIntf.ExternalIDs, localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].ExternalIDs)
 						localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap[key] = value
 					}
 				}
