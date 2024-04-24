@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 const (
 	RunTestWithExistingCluster = "TESTING_WITH_EXISTING_CLUSTER"
 	strictMacNs                = "strict-mac"
+	endpointExternalIDKey      = constants.EndpointExternalIDKey
 )
 
 func TestStrictMacController(t *testing.T) {
