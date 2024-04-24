@@ -68,6 +68,9 @@ const (
 	// sks related
 	SksManagedLabelKey   = "sks-managed"
 	SksManagedLabelValue = "true"
+
+	// endpoint
+	EndpointExternalIDKey = "iface-id"
 )
 
 const (
