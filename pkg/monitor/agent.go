@@ -538,13 +538,23 @@ func listUUID(uuidList interface{}) []ovsdb.UUID {
 
 func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAgentInfo *agentv1alpha1.AgentInfo) *agentv1alpha1.OVSInterface {
 	var matchInterface agentv1alpha1.OVSInterface
+	newIfaceID := newInterface.ExternalIDs[constants.EndpointExternalIDKey]
+	if newIfaceID == "" {
+		klog.V(4).Infof("The new interface %s with ofport %d iface-id is null, skip process it", newInterface.Name, newInterface.Ofport)
+		return nil
+	}
 	for _, ovsBr := range cpAgentInfo.OVSInfo.Bridges {
 		if ovsBr.Name != bridgeName {
 			continue
 		}
 		for _, port := range ovsBr.Ports {
 			for _, intf := range port.Interfaces {
-				if intf.Ofport == newInterface.Ofport {
+				oldIfaceID := intf.ExternalIDs[constants.EndpointExternalIDKey]
+				if newIfaceID == oldIfaceID {
+					if newInterface.Ofport != intf.Ofport {
+						klog.Infof("The interface %s with iface-id %s, ofport has changed, new ofport is %d, old ofport is %d, merge old ips %v",
+							newInterface.Name, newIfaceID, newInterface.Ofport, intf.Ofport, intf.IPMap)
+					}
 					intf.DeepCopyInto(&matchInterface)
 					return &matchInterface
 				}
