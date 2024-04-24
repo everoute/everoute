@@ -113,6 +113,9 @@ const (
 	CTZoneUplinkBr        = 65503
 	// ct zone used by securitypolicy
 	CTZoneForPolicy uint16 = 65520
+
+	// endpoint
+	EndpointExternalIDKey = "iface-id"
 )
 
 const (

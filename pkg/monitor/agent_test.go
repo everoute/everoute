@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -125,9 +126,11 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	t.Logf("create new bridge %s", brName)
 	Expect(createBridge(ovsClient, brName)).Should(Succeed())
 
+	externalIDs := make(map[string]string)
+	externalIDs[constants.EndpointExternalIDKey] = rand.String(7)
 	var portName = rand.String(10)
 	var ofPort1 = uint32(rand.IntnRange(10, 100))
-	var iface = Iface{IfaceName: rand.String(10), IfaceType: "internal", OfPort: ofPort1}
+	var iface = Iface{IfaceName: rand.String(10), IfaceType: "internal", OfPort: ofPort1, externalID: externalIDs}
 	var ipAddr1 = net.ParseIP("10.10.10.1")
 	var ipAddr2 = net.ParseIP("10.10.10.2")
 
@@ -211,9 +214,11 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 		portName, peerName := rand.String(10), rand.String(10)
 		ip := net.ParseIP("10.10.10.1")
 		ofPort := uint32(rand.IntnRange(200, 300))
+		externalIDs := make(map[string]string)
+		externalIDs[constants.EndpointExternalIDKey] = rand.String(7)
 
 		Expect(createVethPair(portName, peerName)).Should(Succeed())
-		Expect(createPort(ovsClient, bridgeName, portName, &Iface{Trunk: []int{100, 120}, OfPort: ofPort})).Should(Succeed())
+		Expect(createPort(ovsClient, bridgeName, portName, &Iface{Trunk: []int{100, 120}, OfPort: ofPort, externalID: externalIDs})).Should(Succeed())
 		Eventually(func() error {
 			_, err := getIface(k8sClient, bridgeName, portName, portName)
 			return err
