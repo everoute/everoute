@@ -59,7 +59,6 @@ const (
 	externalIDIndex              = "externalIDIndex"
 	ipAddrIndex                  = "ipaddrIndex"
 	agentIndex                   = "agentIndex"
-	endpointExternalIDKey        = "iface-id"
 	k8sEndpointExternalIDKey     = "pod-uuid"
 	IfaceIPAddrCleanInterval int = 5
 )
@@ -527,7 +526,7 @@ func computeInterfaceExpiredIPs(timeout time.Duration, iface *iface) []string {
 func getEndpointIfaceIDFromIfaceCache(iface *iface) string {
 	// if normal vm endpoint attached to interface: endpointId k-v pair is
 	// endpointExternalIDKey : endpointID
-	if ifaceID, ok := iface.externalIDs[endpointExternalIDKey]; ok {
+	if ifaceID, ok := iface.externalIDs[constants.EndpointExternalIDKey]; ok {
 		return ifaceID
 	}
 	// if k8s endpoint attached to interface: endpointID k-v pair is
@@ -542,7 +541,7 @@ func getEndpointIfaceIDFromIfaceCache(iface *iface) string {
 func getEndpointIfaceIDFromOvsIface(ovsIface agentv1alpha1.OVSInterface) string {
 	// if normal vm endpoint attached to interface: endpointID k-v pair is
 	// endpointExternalIDKey: endpointID
-	if ifaceID, ok := ovsIface.ExternalIDs[endpointExternalIDKey]; ok {
+	if ifaceID, ok := ovsIface.ExternalIDs[constants.EndpointExternalIDKey]; ok {
 		return ifaceID
 	}
 	// if k8s endpoint attached to interface: endpointID k-v pair is
