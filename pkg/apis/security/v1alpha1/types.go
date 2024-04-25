@@ -100,6 +100,10 @@ type SecurityPolicySpec struct {
 	// +kubebuilder:default=drop
 	DefaultRule DefaultRuleType `json:"defaultRule,omitempty"`
 
+	// Logging defines the policy logging configuration.
+	// +optional
+	Logging *Logging `json:"logging,omitempty"`
+
 	// List of rule types that the Security relates to.
 	// Valid options are "Ingress", "Egress", or "Ingress,Egress".
 	// If this field is not specified, it will default based on the existence of Ingress or Egress rules;
@@ -111,6 +115,23 @@ type SecurityPolicySpec struct {
 	// an Egress section and would otherwise default to just [ "Ingress" ]).
 	// +optional
 	PolicyTypes []networkingv1.PolicyType `json:"policyTypes,omitempty"`
+}
+
+type Logging struct {
+	// Enabled would log connections when the policy matched.
+	Enabled bool `json:"enabled"`
+
+	// PolicyID is a user defined identity of policy, which would be record
+	// in logs and metrics. Can be repeated between different policies.
+	// Defaults to namespace/name.
+	// +optional
+	PolicyID string `json:"policyID,omitempty"`
+
+	// PolicyName is a user defined name of policy, which would be record
+	// in logs. Can be repeated between different policies.
+	// Defaults to namespace/name.
+	// +optional
+	PolicyName string `json:"policyName,omitempty"`
 }
 
 // ApplyToPeer describes sets of endpoints which this SecurityPolicy object applies
@@ -390,6 +411,10 @@ type GlobalPolicySpec struct {
 	// GlobalPolicy enforcement mode
 	// +kubebuilder:default=work
 	GlobalPolicyEnforcementMode PolicyMode `json:"globalPolicyEnforcementMode,omitempty"`
+
+	// Logging defines the policy logging configuration.
+	// +optional
+	Logging *Logging `json:"logging,omitempty"`
 }
 
 // GlobalDefaultAction defines actions supported for GlobalPolicy.
