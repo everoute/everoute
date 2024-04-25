@@ -245,6 +245,20 @@ PolicyMode
 <p>GlobalPolicy enforcement mode</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>logging</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Logging">
+Logging
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Logging defines the policy logging configuration.</p>
+</td>
+</tr>
 </table>
 </td>
 </tr>
@@ -390,6 +404,20 @@ DefaultRuleType
 </td>
 <td>
 <p>DefaultRule will generate default rule for policy</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>logging</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Logging">
+Logging
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Logging defines the policy logging configuration.</p>
 </td>
 </tr>
 <tr>
@@ -774,6 +802,76 @@ PolicyMode
 </td>
 <td>
 <p>GlobalPolicy enforcement mode</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>logging</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Logging">
+Logging
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Logging defines the policy logging configuration.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security.everoute.io/v1alpha1.Logging">Logging
+</h3>
+<p>
+(<em>Appears in:</em>
+<a href="#security.everoute.io/v1alpha1.GlobalPolicySpec">GlobalPolicySpec</a>, 
+<a href="#security.everoute.io/v1alpha1.SecurityPolicySpec">SecurityPolicySpec</a>)
+</p>
+<table class="table table-striped">
+<thead style="background-color: rgb(160,180,190)">
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>enabled</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>Enabled would log connections when the policy matched.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>policyID</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>PolicyID is a user defined identity of policy, which would be record
+in logs and metrics. Can be repeated between different policies.
+Defaults to namespace/name.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>policyName</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>PolicyName is a user defined name of policy, which would be record
+in logs. Can be repeated between different policies.
+Defaults to namespace/name.</p>
 </td>
 </tr>
 </tbody>
@@ -1296,6 +1394,20 @@ DefaultRuleType
 </td>
 <td>
 <p>DefaultRule will generate default rule for policy</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>logging</code><br/>
+<em>
+<a href="#security.everoute.io/v1alpha1.Logging">
+Logging
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Logging defines the policy logging configuration.</p>
 </td>
 </tr>
 <tr>

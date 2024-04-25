@@ -52,6 +52,25 @@ spec:
                 default: work
                 description: GlobalPolicy enforcement mode
                 type: string
+              logging:
+                description: Logging defines the policy logging configuration.
+                properties:
+                  enabled:
+                    description: Enabled would log connections when the policy matched.
+                    type: boolean
+                  policyID:
+                    description: PolicyID is a user defined identity of policy, which
+                      would be record in logs and metrics. Can be repeated between
+                      different policies. Defaults to namespace/name.
+                    type: string
+                  policyName:
+                    description: PolicyName is a user defined name of policy, which
+                      would be record in logs. Can be repeated between different policies.
+                      Defaults to namespace/name.
+                    type: string
+                required:
+                - enabled
+                type: object
             type: object
         type: object
     served: true
