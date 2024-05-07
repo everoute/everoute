@@ -59,6 +59,9 @@ const (
 	FTPPortRange  = "21"
 	TFTPPortRange = "69"
 
+	BlocklistPriority         = 50
+	InternalAllowlistPriority = 90
+
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
 	securityGroupIndex   = "securityGroupIndex"
@@ -958,6 +961,7 @@ func (c *Controller) parseControllerPolicy(clusters []*schema.EverouteCluster) (
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
 			Tier:         constants.Tier2,
+			Priority:     InternalAllowlistPriority,
 			DefaultRule:  v1alpha1.DefaultRuleNone,
 			IngressRules: []v1alpha1.Rule{{Name: "ingress"}},
 			EgressRules:  []v1alpha1.Rule{{Name: "egress"}},
@@ -988,6 +992,7 @@ func (c *Controller) parseSystemEndpointsPolicy(systemEndpoints *schema.SystemEn
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
 			Tier:         constants.Tier2,
+			Priority:     InternalAllowlistPriority,
 			DefaultRule:  v1alpha1.DefaultRuleNone,
 			IngressRules: []v1alpha1.Rule{{Name: "ingress"}},
 			EgressRules:  []v1alpha1.Rule{{Name: "egress"}},
