@@ -180,8 +180,10 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 		ip := net.ParseIP("10.10.10.1")
 		ofPort := uint32(rand.IntnRange(100, 200))
 
+		externalIDs := make(map[string]string)
+		externalIDs[constants.EndpointExternalIDKey] = rand.String(7)
 		Expect(createVethPair(portName, peerName)).Should(Succeed())
-		Expect(createPort(ovsClient, bridgeName, portName, &Iface{VlanID: 201, OfPort: ofPort})).Should(Succeed())
+		Expect(createPort(ovsClient, bridgeName, portName, &Iface{VlanID: 201, OfPort: ofPort, externalID: externalIDs})).Should(Succeed())
 		Eventually(func() error {
 			_, err := getIface(k8sClient, bridgeName, portName, portName)
 			return err
