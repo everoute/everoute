@@ -203,6 +203,7 @@ type ComplexityRoot struct {
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
+		IsBlocklist     func(childComplexity int) int
 		Name            func(childComplexity int) int
 		PolicyMode      func(childComplexity int) int
 	}
@@ -941,6 +942,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SecurityPolicy.Ingress(childComplexity), true
 
+	case "SecurityPolicy.is_blocklist":
+		if e.complexity.SecurityPolicy.IsBlocklist == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.IsBlocklist(childComplexity), true
+
 	case "SecurityPolicy.name":
 		if e.complexity.SecurityPolicy.Name == nil {
 			break
@@ -1558,6 +1566,7 @@ enum TaskOrderByInput {
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
     policy_mode: PolicyMode
+    is_blocklist: Boolean
 }
 
 type SecurityPolicyApply {
@@ -4926,6 +4935,8 @@ func (ec *executionContext) fieldContext_Query_securityPolicies(ctx context.Cont
 				return ec.fieldContext_SecurityPolicy_egress(ctx, field)
 			case "policy_mode":
 				return ec.fieldContext_SecurityPolicy_policy_mode(ctx, field)
+			case "is_blocklist":
+				return ec.fieldContext_SecurityPolicy_is_blocklist(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityPolicy", field.Name)
 		},
@@ -6131,6 +6142,47 @@ func (ec *executionContext) fieldContext_SecurityPolicy_policy_mode(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _SecurityPolicy_is_blocklist(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityPolicy_is_blocklist(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsBlocklist, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityPolicy_is_blocklist(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SecurityPolicyApply_type(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SecurityPolicyApply_type(ctx, field)
 	if err != nil {
@@ -6409,6 +6461,8 @@ func (ec *executionContext) fieldContext_SecurityPolicyEvent_node(ctx context.Co
 				return ec.fieldContext_SecurityPolicy_egress(ctx, field)
 			case "policy_mode":
 				return ec.fieldContext_SecurityPolicy_policy_mode(ctx, field)
+			case "is_blocklist":
+				return ec.fieldContext_SecurityPolicy_is_blocklist(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityPolicy", field.Name)
 		},
@@ -11918,6 +11972,10 @@ func (ec *executionContext) _SecurityPolicy(ctx context.Context, sel ast.Selecti
 		case "policy_mode":
 
 			out.Values[i] = ec._SecurityPolicy_policy_mode(ctx, field, obj)
+
+		case "is_blocklist":
+
+			out.Values[i] = ec._SecurityPolicy_is_blocklist(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))

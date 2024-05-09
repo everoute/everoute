@@ -90,6 +90,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 
 				When("update SecurityPolicy Selector", func() {
@@ -106,6 +107,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -122,6 +124,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -138,6 +141,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -154,6 +158,7 @@ var _ = Describe("PolicyController", func() {
 							nil,
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -175,6 +180,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -214,6 +220,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"}),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 
 				When("update SecurityPolicy IPBlocks to IPAddress", func() {
@@ -235,6 +242,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: newIP + "/32"}),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -250,6 +258,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"}),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 			})
 
@@ -277,6 +286,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("", "", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 			})
 
@@ -304,6 +314,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 						NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
@@ -344,6 +355,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 
@@ -364,6 +376,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
+						assertAllowlist(ctx)
 					})
 				})
 			})
@@ -392,6 +405,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("", "", nil),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 			})
 
@@ -420,6 +434,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 			})
 			When("create SecurityPolicy with Selector but empty labels", func() {
@@ -451,6 +466,7 @@ var _ = Describe("PolicyController", func() {
 						&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
 						v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
 					)
+					assertAllowlist(ctx)
 				})
 			})
 
@@ -480,6 +496,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyRuleEgress("UDP", "69", nil, labelA, labelC),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
+					assertAllowlist(ctx)
 				})
 			})
 			When("SecurityPolicy with service", func() {
@@ -517,6 +534,7 @@ var _ = Describe("PolicyController", func() {
 					RuleAddPorts(expectEgress, "TCP", "21", "UDP", "12,23")
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
+					assertAllowlist(ctx)
 				})
 
 				It("update service", func() {
@@ -570,6 +588,7 @@ var _ = Describe("PolicyController", func() {
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
+				assertAllowlist(ctx)
 			})
 		})
 
@@ -615,6 +634,7 @@ var _ = Describe("PolicyController", func() {
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
+				assertAllowlist(ctx)
 			})
 		})
 
@@ -640,6 +660,7 @@ var _ = Describe("PolicyController", func() {
 					NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
+				assertAllowlist(ctx)
 			})
 		})
 
@@ -655,6 +676,28 @@ var _ = Describe("PolicyController", func() {
 			It("should create policy with no rules", func() {
 				assertPoliciesNum(ctx, 1)
 				assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					nil,
+					nil,
+					NewSecurityPolicyApplyPeer("", labelA, labelB),
+				)
+				assertAllowlist(ctx)
+			})
+		})
+
+		When("create blocklist SecurityPolicy", func() {
+			var policy *schema.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
+				policy.IsBlocklist = true
+				By(fmt.Sprintf("create SecurityPolicy %+v", policy))
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should create policy for blocklist", func() {
+				assertPoliciesNum(ctx, 1)
+				assertBlocklist(ctx)
+				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 					nil,
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -1347,6 +1390,32 @@ func assertPoliciesNum(ctx context.Context, numOfPolicies int) {
 		Expect(err).ShouldNot(HaveOccurred())
 		return len(policyList.Items)
 	}, timeout, interval).Should(Equal(numOfPolicies))
+}
+
+func assertBlocklist(ctx context.Context) {
+	Eventually(func() bool {
+		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
+		Expect(err).Should(Succeed())
+		for _, item := range policyList.Items {
+			if item.Spec.IsBlocklist && item.Spec.Priority == 50 && item.Spec.DefaultRule == v1alpha1.DefaultRuleNone && !item.Spec.SymmetricMode {
+				return true
+			}
+		}
+		return false
+	}, timeout, interval).Should(BeTrue())
+}
+
+func assertAllowlist(ctx context.Context) {
+	Eventually(func() bool {
+		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
+		Expect(err).Should(Succeed())
+		for _, item := range policyList.Items {
+			if !item.Spec.IsBlocklist && item.Spec.Priority == 0 && item.Spec.DefaultRule == v1alpha1.DefaultRuleDrop && item.Spec.SymmetricMode {
+				return true
+			}
+		}
+		return false
+	}, timeout, interval).Should(BeTrue())
 }
 
 func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, enforceMode v1alpha1.PolicyMode, defaultRule v1alpha1.DefaultRuleType,

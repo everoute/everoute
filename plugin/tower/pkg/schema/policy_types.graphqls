@@ -6,6 +6,7 @@ type SecurityPolicy {
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
     policy_mode: PolicyMode
+    is_blocklist: Boolean
 }
 
 type SecurityPolicyApply {

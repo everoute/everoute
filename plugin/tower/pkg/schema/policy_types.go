@@ -33,6 +33,7 @@ type SecurityPolicy struct {
 	Ingress         []NetworkPolicyRule   `json:"ingress,omitempty"`
 	Egress          []NetworkPolicyRule   `json:"egress,omitempty"`
 	PolicyMode      PolicyMode            `json:"policy_mode,omitempty"`
+	IsBlocklist     bool                  `json:"is_blocklist,omitempty"`
 }
 
 type PolicyMode string
