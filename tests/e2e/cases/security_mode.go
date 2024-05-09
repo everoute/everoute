@@ -158,7 +158,7 @@ func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model
 
 func computePolicyFlow(tier string, mode securityv1alpha1.PolicyMode, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
 	var flows []string
-	priority := constants.NormalPolicyRulePriority
+	priority := constants.NormalPolicyRuleStartPriority
 	ingressTableID, ingressNextTableID, egressTableID, egressNextTableID, err := getTableIds(tier, mode)
 	if err != nil {
 		klog.Infof("Failed to computePolicyFlow, error: %v", err)
