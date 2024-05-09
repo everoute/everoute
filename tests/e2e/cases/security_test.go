@@ -341,6 +341,69 @@ var _ = Describe("SecurityPolicy", func() {
 			})
 
 		})
+
+		Context("blocklist securitypolicy, [Feature:blocklist]", func() {
+			var nginxPolicy, serverPolicy, dbPolicy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				nginxPolicy = newPolicy("nginx-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, nginxSelector)
+				addIngressRule(nginxPolicy, "TCP", nginxPort) // allow all connection with nginx port
+				addEngressRule(nginxPolicy, "TCP", serverPort, serverSelector)
+
+				serverPolicy = newPolicy("server-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, serverSelector)
+				addIngressRule(serverPolicy, "TCP", serverPort, nginxSelector)
+				addEngressRule(serverPolicy, "TCP", dbPort, dbSelector)
+
+				dbPolicy = newPolicy("db-policy", constants.Tier2, securityv1alpha1.DefaultRuleDrop, dbSelector)
+				addIngressRule(dbPolicy, "TCP", dbPort, dbSelector, serverSelector)
+				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
+
+				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01, server02}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{nginx}, "TCP", false)
+			})
+			It("setup blocklist", func() {
+				By("blocklist is workmode")
+				var dbPolicyBlocklist *securityv1alpha1.SecurityPolicy
+				dbPolicyBlocklist = newPolicy("db-policy-blocklist", constants.Tier2, securityv1alpha1.DefaultRuleNone, dbSelector)
+				addIngressRule(dbPolicyBlocklist, "TCP", dbPort, serverSelector)
+				setBlocklistPolicy(dbPolicyBlocklist)
+				Expect(e2eEnv.SetupObjects(ctx, dbPolicyBlocklist)).Should(Succeed())
+
+				By("check reachable for blocklist")
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01, server02}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{db01, db02}, []*model.Endpoint{db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{nginx}, "TCP", false)
+				assertReachable([]*model.Endpoint{server01, server02}, []*model.Endpoint{db01, db02}, "TCP", false)
+
+				By("update blocklist to monitor mode")
+				dbPolicyBlocklist.Spec.SecurityPolicyEnforcementMode = securityv1alpha1.MonitorMode
+				Expect(e2eEnv.UpdateObjects(ctx, dbPolicyBlocklist)).Should(Succeed())
+
+				By("check reachable for blocklist with monitor mode")
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{server01, server02, db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{client}, []*model.Endpoint{nginx}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{db01, db02}, "TCP", false)
+				assertReachable([]*model.Endpoint{nginx}, []*model.Endpoint{server01, server02}, "TCP", true)
+
+				assertReachable([]*model.Endpoint{db01, db02}, []*model.Endpoint{db01, db02}, "TCP", true)
+				assertReachable([]*model.Endpoint{server01, server02, db01, db02}, []*model.Endpoint{nginx}, "TCP", false)
+				assertReachable([]*model.Endpoint{server01, server02}, []*model.Endpoint{db01, db02}, "TCP", true)
+			})
+		})
 	})
 	Context("environment with endpoints provide public ftp service [Feature:FTP]", func() {
 		var ftpServer, client *model.Endpoint
@@ -1177,6 +1240,13 @@ func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, po
 	}
 
 	policy.Spec.IngressRules = append(policy.Spec.IngressRules, *ingressRule)
+}
+
+func setBlocklistPolicy(policy *securityv1alpha1.SecurityPolicy) {
+	policy.Spec.Priority = 50
+	policy.Spec.IsBlocklist = true
+	policy.Spec.SymmetricMode = false
+	policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
 }
 
 func addEngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, policyPeers ...interface{}) {
