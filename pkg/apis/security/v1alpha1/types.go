@@ -75,8 +75,9 @@ type SecurityPolicySpec struct {
 	// In v1alpha1, Tier only support tier0, tier1, tier2, tier-ecp.
 	Tier string `json:"tier"`
 
-	// Priority Specifies the priority of the SecurityPolicy on the tier to which it belongs
+	// Priority Specifies the priority of the SecurityPolicy on the tier to which it belongs (only valid when spec.tier=tier2)
 	// Defaults is 0
+	// Blocklist and Allowlist can't set same priority
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=100
 	Priority int32 `json:"priority,omitempty"`
