@@ -362,11 +362,19 @@ func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) er
 		return nil
 	}
 
-	// get from ipam
+	// try to get gw ip from endpoint
+	ip, err := getGwEndpointIP(k8sClient, agentInfo.NodeName)
+	if err != nil {
+		return err
+	}
+	// allocate from ipam
 	netconf := &ipam.NetConf{
 		AllocateIdentify: agentInfo.NodeName,
 		Type:             ipamv1alpha1.AllocateTypeCNIUsed,
 		Pool:             constants.GwIPPoolName,
+	}
+	if ip != nil {
+		netconf.IP = ip.String()
 	}
 	ipInfo, err := ipam.InitIpam(k8sClient, opts.namespace).ExecAdd(context.Background(), netconf)
 	if err != nil {
