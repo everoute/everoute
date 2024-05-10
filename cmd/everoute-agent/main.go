@@ -315,6 +315,28 @@ func resourceUpdate(ctx context.Context, mgr manager.Manager, datapathManager *d
 	return nil
 }
 
+func getGwEndpointIP(k8sClient client.Client, nodeName string) (net.IP, error) {
+	ctx := context.Background()
+	epName := utils.GetGwEndpointName(nodeName)
+
+	ep := v1alpha1.Endpoint{}
+	epReq := coretypes.NamespacedName{
+		Namespace: opts.namespace,
+		Name:      epName,
+	}
+	err := k8sClient.Get(ctx, epReq, &ep)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(ep.Status.IPs) > 0 {
+		return net.ParseIP(ep.Status.IPs[0].String()), nil
+	}
+	return nil, nil
+}
+
 func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManager) error {
 	ctx := context.Background()
 	epName := utils.GetGwEndpointName(datapathManager.Info.NodeName)
