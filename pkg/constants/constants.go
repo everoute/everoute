@@ -29,7 +29,6 @@ const (
 	IfaceIPTimeoutDuration = 30 * time.Minute
 
 	DefaultMaxConcurrentReconciles   = 4
-	NumOfRetainedGroupMembersPatches = 3
 	DependentsCleanFinalizer         = "finalizer.everoute.io/dependentsclean"
 	OwnerGroupLabelKey               = "label.everoute.io/ownergroup"
 	OwnerPolicyLabelKey              = "label.everoute.io/ownerpolicy"
