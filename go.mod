@@ -14,7 +14,7 @@ require (
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
-	github.com/everoute/ipam v1.1.0
+	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
@@ -114,7 +114,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/component-base v0.27.7 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
+	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
@@ -124,8 +124,6 @@ replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20231031073250-15a479e83363
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20231123100718-d071171cf898
-	github.com/everoute/ipam => github.com/everoute/ipam v1.1.1-0.20240118021612-1cef479f6551
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230227204213-929b88f6cb43
 )
