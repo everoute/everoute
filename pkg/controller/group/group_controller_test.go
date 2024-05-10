@@ -99,9 +99,6 @@ var _ = Describe("GroupController", func() {
 					ep.Status = epStatus
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 				})
-				It("should create patch add the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
@@ -130,9 +127,6 @@ var _ = Describe("GroupController", func() {
 					By(fmt.Sprintf("update endpoint %s ips to %v", ep.Name, ep.Status.IPs))
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 				})
-				It("should create patch update the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{UpdatedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
@@ -143,9 +137,6 @@ var _ = Describe("GroupController", func() {
 
 					By(fmt.Sprintf("update endpoint %s agents to %v", ep.Name, ep.Status.Agents))
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
-				})
-				It("should create patch update the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{UpdatedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
@@ -158,9 +149,6 @@ var _ = Describe("GroupController", func() {
 					By(fmt.Sprintf("update endpoint %s agents to %v", ep.Name, ep.Status.Agents))
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 				})
-				It("should create patch update the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{UpdatedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
@@ -172,9 +160,6 @@ var _ = Describe("GroupController", func() {
 					By(fmt.Sprintf("update endpoint %s labels to %v", ep.Name, ep.Labels))
 					Expect(k8sClient.Update(ctx, ep)).Should(Succeed())
 				})
-				It("should create patch remove the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{RemovedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-				})
 				It("should update groupmembers not contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
 				})
@@ -184,9 +169,6 @@ var _ = Describe("GroupController", func() {
 				BeforeEach(func() {
 					By(fmt.Sprintf("delete endpoint %s", ep.Name))
 					Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
-				})
-				It("should create patch remove the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{RemovedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 				It("should update groupmembers not contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
@@ -200,9 +182,6 @@ var _ = Describe("GroupController", func() {
 
 					By(fmt.Sprintf("change endpointgroup %s selector to %v", epGroup.Name, epGroup.Spec.EndpointSelector))
 					Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
-				})
-				It("should create patch remove the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{RemovedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 				It("should update groupmembers not contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
@@ -220,9 +199,6 @@ var _ = Describe("GroupController", func() {
 						return apierrors.IsNotFound(err)
 					}, timeout, interval).Should(BeTrue())
 				})
-				It("should clean depends patches for the endpointgroup", func() {
-					assertPatchLen(ctx, epGroup.Name, 0)
-				})
 			})
 		})
 		Context("has more than 10 patches for the group", func() {
@@ -238,24 +214,10 @@ var _ = Describe("GroupController", func() {
 				members.Revision = 100
 				Expect(k8sClient.Update(ctx, &members)).Should(Succeed())
 
-				By("create 10 patches for the group")
-				for i := 1; i <= 10; i++ {
-					patch := newTestPatch(members.Name, members.Revision-int32(i))
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				}
-				assertPatchLen(ctx, epGroup.Name, 10)
-
 				By("update the group label to drive reconcile group")
 				updateGroup := epGroup.DeepCopy()
 				updateGroup.Spec.EndpointSelector = nil
 				Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
-			})
-			It("should clean up old patches", func() {
-				Eventually(func() int {
-					patches := groupv1alpha1.GroupMembersPatchList{}
-					Expect(k8sClient.List(ctx, &patches, client.MatchingLabels{constants.OwnerGroupLabelKey: epGroup.Name})).Should(Succeed())
-					return len(patches.Items)
-				}, timeout, interval).Should(Equal(constants.NumOfRetainedGroupMembersPatches))
 			})
 		})
 	})
@@ -321,9 +283,6 @@ var _ = Describe("GroupController", func() {
 				Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
 			})
 
-			It("should create patch add the endpoint", func() {
-				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-			})
 			It("should update groupmembers contains the endpoint", func() {
 				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 			})
@@ -380,9 +339,6 @@ var _ = Describe("GroupController", func() {
 			AfterEach(func() {
 				Expect(k8sClient.Delete(ctx, ep)).Should(Succeed())
 			})
-			It("should create patch add the endpoint", func() {
-				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-			})
 			It("should update groupmembers contains the endpoint", func() {
 				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 			})
@@ -420,9 +376,6 @@ var _ = Describe("GroupController", func() {
 					Expect(k8sClient.Patch(ctx, updateGroup, client.MergeFrom(epGroup))).Should(Succeed())
 				})
 
-				It("should create patch add the endpoint", func() {
-					assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
@@ -460,9 +413,6 @@ var _ = Describe("GroupController", func() {
 				Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
 			})
 
-			It("should create patch add the endpoint", func() {
-				assertHasPatch(epGroup, groupv1alpha1.GroupMembersPatch{AddedGroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
-			})
 			It("should update groupmembers contains the endpoint", func() {
 				assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 			})
@@ -508,22 +458,6 @@ func endpointToGroupMember(ep *securityv1alpha1.Endpoint) groupv1alpha1.GroupMem
 		IPs:           ep.Status.IPs,
 		EndpointAgent: ep.Status.Agents,
 	}
-}
-
-// getLatestPatch return the latest revision of patch
-func getLatestPatch(patchList groupv1alpha1.GroupMembersPatchList) *groupv1alpha1.GroupMembersPatch {
-	var patch *groupv1alpha1.GroupMembersPatch
-	var latestRevision int32
-
-	for index := range patchList.Items {
-		revision := patchList.Items[index].AppliedToGroupMembers.Revision
-		if revision >= latestRevision {
-			latestRevision = revision
-			patch = &patchList.Items[index]
-		}
-	}
-
-	return patch
 }
 
 func newTestEndpoint(namespace, ip, agent string, labels map[string]string, extendLabels map[string][]string) (*securityv1alpha1.Endpoint, securityv1alpha1.EndpointStatus) {
@@ -595,36 +529,9 @@ func newTestEndpointGroup(epSelector map[string]string, extendEpSelector map[str
 	return epGroup
 }
 
-func newTestPatch(groupName string, revision int32) *groupv1alpha1.GroupMembersPatch {
-	name := "patch-test-" + string(uuid.NewUUID())
-
-	return &groupv1alpha1.GroupMembersPatch{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: map[string]string{constants.OwnerGroupLabelKey: groupName},
-		},
-		AppliedToGroupMembers: groupv1alpha1.GroupMembersReference{
-			Name:     groupName,
-			Revision: revision,
-		},
-	}
-}
-
 func equal(a interface{}, b interface{}) bool {
 	equal, err := (&matchers.EqualMatcher{Expected: a}).Match(b)
 	return equal && err == nil
-}
-
-func assertHasPatch(epGroup *groupv1alpha1.EndpointGroup, patch groupv1alpha1.GroupMembersPatch) {
-	Eventually(func() bool {
-		patches := groupv1alpha1.GroupMembersPatchList{}
-		Expect(k8sClient.List(context.Background(), &patches, client.MatchingLabels{constants.OwnerGroupLabelKey: epGroup.Name})).Should(Succeed())
-		latestPatch := getLatestPatch(patches)
-		return latestPatch != nil &&
-			equal(latestPatch.UpdatedGroupMembers, patch.UpdatedGroupMembers) &&
-			equal(latestPatch.AddedGroupMembers, patch.AddedGroupMembers) &&
-			equal(latestPatch.RemovedGroupMembers, patch.RemovedGroupMembers)
-	}, timeout, interval).Should(BeTrue())
 }
 
 func assertHasGroupMembers(epGroup *groupv1alpha1.EndpointGroup, members groupv1alpha1.GroupMembers) {
@@ -642,12 +549,4 @@ func assertHasGroupMembers(epGroup *groupv1alpha1.EndpointGroup, members groupv1
 
 		return members.GroupMembers
 	}, timeout, interval).Should(matcher)
-}
-
-func assertPatchLen(ctx context.Context, groupName string, length int) {
-	Eventually(func() int {
-		patchList := groupv1alpha1.GroupMembersPatchList{}
-		Expect(k8sClient.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: groupName})).Should(Succeed())
-		return len(patchList.Items)
-	}, timeout, interval).Should(Equal(length))
 }

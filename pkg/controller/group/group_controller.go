@@ -41,7 +41,6 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -456,12 +455,6 @@ func (r *GroupReconciler) processEndpointGroupDelete(ctx context.Context, group 
 
 // processEndpointGroupUpdate sync endpointgroup members by CRUD groupmembers and groupmemberspath object.
 func (r *GroupReconciler) processEndpointGroupUpdate(ctx context.Context, group groupv1alpha1.EndpointGroup) (ctrl.Result, error) {
-	prevGroupMembers, err := r.fetchPrevGroupMembers(ctx, &group)
-	if err != nil {
-		klog.Errorf("while process endpointgroup %s update, can't fetch prev groupmembers: %s", group.Name, err)
-		return ctrl.Result{}, err
-	}
-
 	currGroupMembers, err := r.fetchCurrGroupMembers(ctx, &group)
 	if err != nil {
 		klog.Errorf("while process endpointgroup %s update, can't fetch curr groupmembers: %s", group.Name, err)
@@ -472,35 +465,11 @@ func (r *GroupReconciler) processEndpointGroupUpdate(ctx context.Context, group 
 	members.Name = group.Name
 	members.GroupMembers = currGroupMembers.GroupMembers
 
-	patch := ToGroupMembersPatch(prevGroupMembers, currGroupMembers)
-	if IsEmptyPatch(patch) {
-		members.Revision = prevGroupMembers.Revision
-	} else {
-		patch.AppliedToGroupMembers = groupv1alpha1.GroupMembersReference{
-			Name:     group.Name,
-			Revision: prevGroupMembers.Revision,
-		}
-		members.Revision = prevGroupMembers.Revision + 1
-	}
-
-	err = r.syncGroupMembersPatch(ctx, group.Name, patch)
-	if err != nil {
-		klog.Errorf("failed to sync patch of revision %d for group %s: %s", members.Revision, group.Name, err)
-		return ctrl.Result{}, err
-	}
-
 	err = r.syncGroupMembers(ctx, group.Name, members)
 	if err != nil {
-		klog.Errorf("failed to sync groupmembers of revision %d for group %s: %s", members.Revision, group.Name, err)
+		klog.Errorf("failed to sync groupmembers for group %s: %s", group.Name, err)
 		return ctrl.Result{}, err
 	}
-
-	err = r.cleanupOldPatches(ctx, group.Name, members.Revision)
-	if err != nil {
-		klog.Errorf("wile remove old patches of group %s: %s", group.Name, err)
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -602,27 +571,6 @@ func (r *GroupReconciler) fetchCurrGroupMembers(ctx context.Context, group *grou
 	return &groupv1alpha1.GroupMembers{GroupMembers: memberList}, nil
 }
 
-// fetchPrevGroupMembers read groupmembers and groupmemberspatches, calculate
-// latest revision of groupmembers.
-func (r *GroupReconciler) fetchPrevGroupMembers(ctx context.Context, group *groupv1alpha1.EndpointGroup) (*groupv1alpha1.GroupMembers, error) {
-	groupMembers := groupv1alpha1.GroupMembers{}
-	err := r.Get(ctx, k8stypes.NamespacedName{Name: group.Name}, &groupMembers)
-	// Ignore not found error, because groupMembers may haven't create yet.
-	if client.IgnoreNotFound(err) != nil {
-		return nil, err
-	}
-
-	patchList := groupv1alpha1.GroupMembersPatchList{}
-	err = r.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: group.Name})
-	if err != nil {
-		return nil, err
-	}
-
-	ApplyGroupMembersPatches(&groupMembers, patchList.Items)
-
-	return &groupMembers, nil
-}
-
 func (r *GroupReconciler) syncGroupMembers(ctx context.Context, groupName string, members groupv1alpha1.GroupMembers) error {
 	groupMembers := groupv1alpha1.GroupMembers{}
 	err := r.Get(ctx, k8stypes.NamespacedName{Name: groupName}, &groupMembers)
@@ -641,174 +589,11 @@ func (r *GroupReconciler) syncGroupMembers(ctx context.Context, groupName string
 		return fmt.Errorf("fetch groupmembers %s: %s", groupName, err)
 	}
 
-	if groupMembers.Revision >= members.Revision {
-		// GroupMembers has already a high revision, ignore
-		return nil
-	}
-
 	groupMembers.GroupMembers = members.GroupMembers
-	groupMembers.Revision = members.Revision
 	if err := r.Update(ctx, &groupMembers); err != nil {
 		return fmt.Errorf("fetch groupmembers %s: %s", groupName, err)
 	}
-	klog.Infof("updated groupmembers %s to revision %d, numbers of members %d", groupMembers.Name, groupMembers.Revision, len(groupMembers.GroupMembers))
+	klog.Infof("updated groupmembers %s, numbers of members %d", groupMembers.Name, len(groupMembers.GroupMembers))
 
 	return nil
-}
-
-func (r *GroupReconciler) syncGroupMembersPatch(ctx context.Context, groupName string, patch groupv1alpha1.GroupMembersPatch) error {
-	if IsEmptyPatch(patch) {
-		return nil
-	}
-
-	patch.ObjectMeta = metav1.ObjectMeta{
-		Name:      fmt.Sprintf("patch-%s-revision%d", groupName, patch.AppliedToGroupMembers.Revision),
-		Namespace: metav1.NamespaceNone,
-		Labels:    map[string]string{constants.OwnerGroupLabelKey: groupName},
-	}
-	if err := r.Create(ctx, &patch); err != nil {
-		return fmt.Errorf("create patch %s: %s", patch.Name, err)
-	}
-	klog.Infof("create groupmemberspatch %s, %+v", patch.Name, showGroupMembersPatch(patch))
-
-	return nil
-}
-
-// cleanupOldPatches remove pathes which revision under <revision> for group <groupName>, but we will always
-// retained the nearest three groupMembersPatches for debug.
-func (r *GroupReconciler) cleanupOldPatches(ctx context.Context, groupName string, revision int32) error {
-	patchList := groupv1alpha1.GroupMembersPatchList{}
-	if err := r.List(ctx, &patchList, client.MatchingLabels{constants.OwnerGroupLabelKey: groupName}); err != nil {
-		return err
-	}
-
-	for _, patch := range patchList.Items {
-		if patch.AppliedToGroupMembers.Revision >= revision {
-			continue
-		}
-		// Retained the nearest three groupMembersPatches for debug.
-		if (revision - patch.AppliedToGroupMembers.Revision) <= constants.NumOfRetainedGroupMembersPatches {
-			continue
-		}
-
-		if err := r.Delete(ctx, &patch); err != nil {
-			klog.Errorf("unabled to delete old groupmemberspatch %s: %s", patch.Name, err.Error())
-			return err
-		}
-		klog.Infof("deleted old groupmemberspatch %s", patch.Name)
-	}
-
-	return nil
-}
-
-// ToGroupMembersPatch calculate the patch between two groupmembers.
-func ToGroupMembersPatch(prev *groupv1alpha1.GroupMembers, curr *groupv1alpha1.GroupMembers) groupv1alpha1.GroupMembersPatch {
-	prevEpMap := make(map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember)
-	patch := groupv1alpha1.GroupMembersPatch{}
-
-	if prev == nil {
-		prev = new(groupv1alpha1.GroupMembers)
-	}
-	if curr == nil {
-		curr = new(groupv1alpha1.GroupMembers)
-	}
-
-	for _, member := range prev.GroupMembers {
-		prevEpMap[member.EndpointReference] = member
-	}
-
-	for _, member := range curr.GroupMembers {
-		prevEp, ok := prevEpMap[member.EndpointReference]
-		if !ok {
-			// If member not found in prevGroupMebers, it's a new member.
-			patch.AddedGroupMembers = append(patch.AddedGroupMembers, member)
-		} else {
-			if !utils.EqualIPs(prevEp.IPs, member.IPs) ||
-				!utils.EqualStringSlice(prevEp.EndpointAgent, member.EndpointAgent) {
-				// If member changes, it's an update member.
-				patch.UpdatedGroupMembers = append(patch.UpdatedGroupMembers, member)
-			}
-		}
-		// Remove processed endpoint.
-		delete(prevEpMap, member.EndpointReference)
-	}
-
-	for _, member := range prevEpMap {
-		patch.RemovedGroupMembers = append(patch.RemovedGroupMembers, member)
-	}
-
-	return patch
-}
-
-// IsEmptyPatch return true if and only if the patch is empty.
-func IsEmptyPatch(patch groupv1alpha1.GroupMembersPatch) bool {
-	return len(patch.RemovedGroupMembers) == 0 &&
-		len(patch.AddedGroupMembers) == 0 &&
-		len(patch.UpdatedGroupMembers) == 0
-}
-
-// ApplyGroupMembersPatches apply GroupMemberPatches to GroupMembers.
-func ApplyGroupMembersPatches(groupmembers *groupv1alpha1.GroupMembers, patches []groupv1alpha1.GroupMembersPatch) {
-	var patchSet = make(map[int32]groupv1alpha1.GroupMembersPatch, len(patches))
-
-	for _, patch := range patches {
-		patchSet[patch.AppliedToGroupMembers.Revision] = patch
-	}
-
-	for {
-		patch, ok := patchSet[groupmembers.Revision]
-		if !ok {
-			break
-		}
-		applyGroupMembersPatch(groupmembers, patch)
-		groupmembers.Revision++
-	}
-}
-
-func applyGroupMembersPatch(groupmembers *groupv1alpha1.GroupMembers, patch groupv1alpha1.GroupMembersPatch) {
-	var members = make(map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember)
-
-	for _, member := range groupmembers.GroupMembers {
-		members[member.EndpointReference] = member
-	}
-
-	for _, member := range append(patch.AddedGroupMembers, patch.UpdatedGroupMembers...) {
-		members[member.EndpointReference] = member
-	}
-
-	for _, member := range patch.RemovedGroupMembers {
-		delete(members, member.EndpointReference)
-	}
-
-	var memberList []groupv1alpha1.GroupMember
-	for _, member := range members {
-		memberList = append(memberList, member)
-	}
-
-	groupmembers.GroupMembers = memberList
-}
-
-// showGroupMembersPatch show members change info as string.
-// format like:
-// AddMember: {ID:"idk1/idv1", IPs:[192.168.1.1]}, {ID:"idk2/idv2", IPs:[192.168.2.1]} DelMember: {ID:"idk3/idv3"}
-func showGroupMembersPatch(patch groupv1alpha1.GroupMembersPatch) string {
-	toString := func(head string, members []groupv1alpha1.GroupMember) (str string) {
-		for _, member := range members {
-			id := ctrltypes.ExternalID{
-				Name:  member.EndpointReference.ExternalIDName,
-				Value: member.EndpointReference.ExternalIDValue,
-			}
-			str = fmt.Sprintf("{ID:%s%s, IPs:%v, Agents:%v}, ", str, id.String(), member.IPs, member.EndpointAgent)
-		}
-		if str == "" {
-			return ""
-		}
-		return fmt.Sprintf("%s: %s ", head, str[:len(str)-2])
-	}
-
-	return fmt.Sprint(
-		toString("AddMember", patch.AddedGroupMembers),
-		toString("UpdMember", patch.UpdatedGroupMembers),
-		toString("DelMember", patch.RemovedGroupMembers),
-	)
 }
