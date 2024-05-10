@@ -18,6 +18,7 @@ package policy_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,12 +26,15 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
+	gtypes "github.com/onsi/gomega/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
+	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/types"
@@ -47,6 +51,7 @@ var (
 	globalRuleCacheLister informer.Lister
 	useExistingCluster    bool
 	ctx, cancel           = context.WithCancel(ctrl.SetupSignalHandler())
+	pCtrl                 *policy.Reconciler
 )
 
 const (
@@ -121,18 +126,18 @@ var _ = BeforeSuite(func() {
 		}}, updateChan)
 	datapathManager.InitializeDatapath(ctx.Done())
 
-	policyController := &policy.Reconciler{
+	pCtrl = &policy.Reconciler{
 		Client:          k8sManager.GetClient(),
 		Scheme:          k8sManager.GetScheme(),
 		DatapathManager: datapathManager,
 	}
-	err = (policyController).SetupWithManager(k8sManager)
+	err = (pCtrl).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	ruleCacheLister = policyController.GetCompleteRuleLister()
+	ruleCacheLister = pCtrl.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())
 
-	globalRuleCacheLister = policyController.GetGlobalRuleLister()
+	globalRuleCacheLister = pCtrl.GetGlobalRuleLister()
 	Expect(globalRuleCacheLister).ShouldNot(BeNil())
 
 	go func() {
@@ -154,3 +159,41 @@ var _ = AfterSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, brName)).NotTo(HaveOccurred())
 
 })
+
+type PolicyRuleMatcher struct {
+	expRule cache.PolicyRule
+}
+
+func (matcher *PolicyRuleMatcher) Match(actual interface{}) (success bool, err error) {
+	rule, ok := actual.(cache.PolicyRule)
+	if !ok {
+		return false, fmt.Errorf("PolicyRuleMatcher matcher requires PolicyRule.  Got:\n%s", actual)
+	}
+	expRule := matcher.expRule
+	if expRule.Tier == rule.Tier &&
+		expRule.Direction == rule.Direction &&
+		expRule.Action == rule.Action &&
+		expRule.SrcIPAddr == rule.SrcIPAddr &&
+		expRule.DstIPAddr == rule.DstIPAddr &&
+		expRule.DstPort == rule.DstPort &&
+		expRule.DstPortMask == rule.DstPortMask &&
+		expRule.IPProtocol == rule.IPProtocol &&
+		expRule.Priority == rule.Priority {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (matcher *PolicyRuleMatcher) FailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "match policyrule", matcher.expRule)
+}
+
+func (matcher *PolicyRuleMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "not match policyrule", matcher.expRule)
+}
+
+func NewPolicyRuleMatcher(rule cache.PolicyRule) gtypes.GomegaMatcher {
+	return &PolicyRuleMatcher{
+		expRule: rule,
+	}
+}

@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -45,7 +46,7 @@ import (
 )
 
 const (
-	timeout  = time.Second * 60
+	timeout  = time.Second * 10
 	interval = time.Millisecond * 250
 )
 
@@ -53,6 +54,7 @@ var _ = Describe("PolicyController", func() {
 	var ctx context.Context
 
 	BeforeEach(func() {
+		format.MaxLength = 0
 		ctx = context.Background()
 	})
 
@@ -73,14 +75,6 @@ var _ = Describe("PolicyController", func() {
 			membersList := groupv1alpha1.GroupMembersList{}
 			Expect(k8sClient.List(ctx, &membersList)).Should(Succeed())
 			return len(membersList.Items)
-		}, timeout, interval).Should(BeZero())
-
-		By("delete all test patches")
-		Expect(k8sClient.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{})).Should(Succeed())
-		Eventually(func() int {
-			patchList := groupv1alpha1.GroupMembersPatchList{}
-			Expect(k8sClient.List(ctx, &patchList)).Should(Succeed())
-			return len(patchList.Items)
 		}, timeout, interval).Should(BeZero())
 	})
 
@@ -109,15 +103,17 @@ var _ = Describe("PolicyController", func() {
 		})
 		When("create a sample policy with port range", func() {
 			var policy *securityv1alpha1.SecurityPolicy
+			var priority int32
 
-			BeforeEach(func() {
+			It("allowlist policy", func() {
+				priority = int32(rand.Intn(100))
 				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "1000-1999", "number"), newTestPort("UDP", "80", "number"))
+				policy.Spec.Priority = priority
 
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
-			})
 
-			It("should flatten policy to rules", func() {
+				By("should flatten policy to rules")
 				assertPolicyRulesNum(policy, 10)
 				assertCompleteRuleNum(4)
 
@@ -139,6 +135,41 @@ var _ = Describe("PolicyController", func() {
 				// default ingress/egress rule (drop all to/from source)
 				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
 				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+
+			It("blocklist policy", func() {
+				priority = int32(rand.Intn(100))
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "1000-1999", "number"), newTestPort("UDP", "80", "number"))
+				policy.Spec.Priority = priority
+				policy.Spec.IsBlocklist = true
+				policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+
+				By("should flatten policy to rules")
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(2))
+					var policyRuleList = getRuleByPolicy(policy)
+					g.Expect(len(policyRuleList)).Should(Equal(8))
+
+					expRule := newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x03e8, 0xfff8, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x03f0, 0xfff0, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x0400, 0xfe00, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x0600, 0xff00, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 0x50, 0xffff, "UDP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x0700, 0xff80, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x0780, 0xffc0, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x07c0, 0xfff0, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+				}, timeout, interval).Should(Succeed())
 			})
 		})
 
@@ -164,13 +195,12 @@ var _ = Describe("PolicyController", func() {
 
 		When("create a sample policy with named port", func() {
 			var policy *securityv1alpha1.SecurityPolicy
-
 			BeforeEach(func() {
 				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "http", "name"), newTestPort("UDP", "dns,nfs", "name"))
-
 				By("create policy " + policy.Name)
 				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
 			})
+
 			It("should flatten policy to rules", func() {
 				assertPolicyRulesNum(policy, 6)
 				assertCompleteRuleNum(4)
@@ -183,7 +213,73 @@ var _ = Describe("PolicyController", func() {
 					0, 0, "192.168.3.1/32", 0x36, 0xffff, "UDP")
 				assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "192.168.1.1/32",
 					0, 0, "192.168.3.1/32", 0x4e, 0xffff, "UDP")
+			})
+		})
 
+		When("create blocklist policy with named and number port", func() {
+			var priority = int32(rand.Intn(100))
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "http", "name"), newTestPort("UDP", "dns,nfs", "name"))
+				policy.Spec.EgressRules[0].Ports = append(policy.Spec.EgressRules[0].Ports, *newTestPort("TCP", "3322", "number"))
+				policy.Spec.IsBlocklist = true
+				policy.Spec.Priority = priority
+				policy.Spec.SymmetricMode = false
+				policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should flatten policy to rules", func() {
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(2))
+					var policyRuleList = getRuleByPolicy(policy)
+					g.Expect(len(policyRuleList)).Should(Equal(5))
+
+					expRule := newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x50, 0xffff, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 3322, 0xffff, "TCP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 53, 0xffff, "UDP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 54, 0xffff, "UDP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, priority)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+				}, timeout, interval).Should(Succeed())
+			})
+
+			When("update egress to no peer", func() {
+				var testPolicy *securityv1alpha1.SecurityPolicy
+				BeforeEach(func() {
+					gm := groupv1alpha1.GroupMembers{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: constants.AllEpWithNamedPort,
+						},
+						GroupMembers: []groupv1alpha1.GroupMember{*endpointToMember(ep3)},
+					}
+					Expect(k8sClient.Create(ctx, &gm)).Should(Succeed())
+					testPolicy = policy.DeepCopy()
+					testPolicy.Spec.EgressRules[0].To = nil
+					mustUpdatePolicy(ctx, testPolicy)
+				})
+				It("should flatten policy to rules", func() {
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(3))
+						var policyRuleList = getRuleByPolicy(testPolicy)
+						g.Expect(len(policyRuleList)).Should(Equal(5))
+
+						expRule := newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0x50, 0xffff, "TCP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 3322, 0xffff, "TCP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 53, 0xffff, "UDP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 54, 0xffff, "UDP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}, timeout, interval).Should(Succeed())
+				})
 			})
 		})
 
@@ -230,6 +326,40 @@ var _ = Describe("PolicyController", func() {
 						0, 0, "", 0, 0, "")
 				})
 			})
+
+			When("update to blocklist", func() {
+				var testPolicy *securityv1alpha1.SecurityPolicy
+				var priority = int32(rand.Intn(100))
+				BeforeEach(func() {
+					testPolicy = policy.DeepCopy()
+					testPolicy.Spec.IsBlocklist = true
+					testPolicy.Spec.Priority = priority
+
+					By(fmt.Sprintf("update allowlist policy %s to blocklist", testPolicy.Name))
+					mustUpdatePolicy(ctx, testPolicy)
+				})
+
+				It("check rules", func() {
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(4))
+						var policyRuleList = getRuleByPolicy(testPolicy)
+						g.Expect(len(policyRuleList)).Should(Equal(4))
+
+						expRule := newTestPolicyRule("Ingress", "Drop", "192.168.2.1/32", "192.168.1.1/32", 0, 0, "TCP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "192.168.3.1/32", 80, 0xffff, "UDP", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, priority)
+						g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+
+			When("update to no egress", func() {
+
+			})
 		})
 
 		When("create a sample policy with ingress and egress", func() {
@@ -252,55 +382,6 @@ var _ = Describe("PolicyController", func() {
 				// default ingress/egress rule (drop all to/from source)
 				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
 				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
-			})
-
-			When("create a patch add member in applied group", func() {
-				var patch *groupv1alpha1.GroupMembersPatch
-				var addEp *securityv1alpha1.Endpoint
-
-				BeforeEach(func() {
-					addEp = newTestEndpoint("192.168.1.2", []string{utils.CurrentAgentName()}, nil)
-					patch = newTestGroupMembersPatch(group1.Name, group1.Revision, endpointToMember(addEp), nil, nil)
-
-					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should sync policy rules", func() {
-					assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.2/32", 22, "TCP")
-					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.2/32", 0, "192.168.3.1/32", 80, "UDP")
-				})
-			})
-			When("create a patch remove member in ingress group", func() {
-				var patch *groupv1alpha1.GroupMembersPatch
-				var delEp *securityv1alpha1.Endpoint
-
-				BeforeEach(func() {
-					delEp = ep2.DeepCopy() // remove ep2 in group2
-					patch = newTestGroupMembersPatch(group2.Name, group2.Revision, nil, nil, endpointToMember(delEp))
-
-					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should remove ingress policy rules", func() {
-					assertNoPolicyRule(policy, "Ingress", "Allow", "192.168.2.1/32", 0, "192.168.1.1/32", 22, "TCP")
-				})
-			})
-			When("create a patch update member in egress group", func() {
-				var patch *groupv1alpha1.GroupMembersPatch
-				var updEp *securityv1alpha1.Endpoint
-
-				BeforeEach(func() {
-					updEp = ep3.DeepCopy() // update ep3 in group3
-					updEp.Status.IPs = []types.IPAddress{"192.168.3.2"}
-					patch = newTestGroupMembersPatch(group3.Name, group3.Revision, nil, endpointToMember(updEp), nil)
-
-					By(fmt.Sprintf("create patch %s for group %s, revision %d", patch.Name, group1.Name, group1.Revision))
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should replace an egress policy rule", func() {
-					assertNoPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.1/32", 80, "UDP")
-					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.3.2/32", 80, "UDP")
-				})
 			})
 
 			When("add a group into applied groups", func() {
@@ -898,48 +979,6 @@ var _ = Describe("PolicyController", func() {
 				assertCompleteRuleNum(4)
 				assertPolicyRulesNum(policy, 0)
 			})
-			When("endpoint update ingress in current agent", func() {
-				BeforeEach(func() {
-					ep5.Status.Agents = []string{utils.CurrentAgentName()}
-					patch := newTestGroupMembersPatch(group5.Name, group5.Revision, nil, endpointToMember(ep5), nil)
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should update policy", func() {
-					assertCompleteRuleNum(4)
-					assertPolicyRulesNum(policy, 1)
-
-					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.5.1/32", 0, "192.168.4.1/32", 80, "TCP")
-				})
-			})
-			When("endpoint update egress in current agent", func() {
-				BeforeEach(func() {
-					ep6.Status.Agents = []string{utils.CurrentAgentName()}
-					patch := newTestGroupMembersPatch(group6.Name, group6.Revision, nil, endpointToMember(ep6), nil)
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should update policy", func() {
-					assertCompleteRuleNum(4)
-					assertPolicyRulesNum(policy, 1)
-
-					assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.4.1/32", 0, "192.168.6.1/32", 80, "UDP")
-				})
-			})
-			When("endpoint update applyTo in current agent", func() {
-				BeforeEach(func() {
-					ep4.Status.Agents = []string{utils.CurrentAgentName()}
-					patch := newTestGroupMembersPatch(group4.Name, group4.Revision, nil, endpointToMember(ep4), nil)
-					Expect(k8sClient.Create(ctx, patch)).Should(Succeed())
-				})
-				It("should update policy", func() {
-					assertCompleteRuleNum(4)
-					assertPolicyRulesNum(policy, 4)
-
-					assertHasPolicyRule(policy, "Ingress", "Allow", "192.168.5.1/32", 0, "192.168.4.1/32", 80, "TCP")
-					assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.4.1/32", 0, "")
-					assertHasPolicyRule(policy, "Egress", "Allow", "192.168.4.1/32", 0, "192.168.6.1/32", 80, "UDP")
-					assertHasPolicyRule(policy, "Egress", "Drop", "192.168.4.1/32", 0, "", 0, "")
-				})
-			})
 		})
 		When("create a sample policy apply to current agent with egress & ingress not", func() {
 			var policy *securityv1alpha1.SecurityPolicy
@@ -977,6 +1016,45 @@ var _ = Describe("PolicyController", func() {
 				assertHasPolicyRule(policy, "Ingress", "Drop", "", 0, "192.168.1.1/32", 0, "")
 				assertHasPolicyRule(policy, "Egress", "Allow", "192.168.1.1/32", 0, "192.168.5.1/32", 80, "UDP")
 				assertHasPolicyRule(policy, "Egress", "Drop", "192.168.1.1/32", 0, "", 0, "")
+			})
+
+			When("update policy with ipBlock", func() {
+				var testPolicy *securityv1alpha1.SecurityPolicy
+				BeforeEach(func() {
+					testPolicy = policy.DeepCopy()
+					testPolicy.Spec.EgressRules[0].To = append(testPolicy.Spec.EgressRules[0].To, securityv1alpha1.SecurityPolicyPeer{
+						IPBlock: &networkingv1.IPBlock{CIDR: "192.168.7.0/25", Except: []string{"192.168.7.32/29", "192.168.7.41/32"}},
+					})
+					mustUpdatePolicy(ctx, testPolicy)
+				})
+				It("should update rules", func() {
+					pri := testPolicy.Spec.Priority
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(4))
+						rules := getRuleByPolicy(testPolicy)
+						//g.Expect(len(rules)).Should(Equal(9))
+						expRule := newTestPolicyRule("Ingress", "Allow", "192.168.2.1/32", "192.168.1.1/32", 80, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.5.1/32", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.64/26", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.0/27", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.40/32", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.42/31", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.44/30", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Allow", "192.168.1.1/32", "192.168.7.48/28", 80, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}, timeout, interval).Should(Succeed())
+				})
 			})
 		})
 		When("create a sample policy ingress(current agent), applyTo,egress(another agent)", func() {
@@ -1031,61 +1109,512 @@ var _ = Describe("PolicyController", func() {
 			})
 		})
 	})
-})
 
-var _ = Describe("GroupCache", func() {
-	var groupCache *cache.GroupCache
-
-	BeforeEach(func() {
-		groupCache = cache.NewGroupCache()
-	})
-
-	When("add a groupmembers to group cache", func() {
-		var members *groupv1alpha1.GroupMembers
-		var endpoint *securityv1alpha1.Endpoint
+	Context("groupmembers", func() {
+		var group1, group2, group3 *testGroup
+		var ep1, ep2, ep3, ep4, ep5, ep6 *securityv1alpha1.Endpoint
+		var policy *securityv1alpha1.SecurityPolicy
+		var pri int32
+		var isBlocklist, symmetricMode bool
+		var lenCompleteRule, lenRules int
+		var ruleAction string
+		var defaultRule securityv1alpha1.DefaultRuleType
 
 		BeforeEach(func() {
-			endpoint = newTestEndpoint("192.168.1.1", []string{utils.CurrentAgentName()}, nil)
-			members = newTestGroupMembers(0, endpointToMember(endpoint)).GroupMembers
-			groupCache.AddGroupMembership(members)
-		})
-		AfterEach(func() {
-			groupCache.DelGroupMembership(members.Name)
+			symmetricMode = (rand.Intn(2) == 1)
+			pri = int32(rand.Intn(100))
+			isBlocklist = (rand.Intn(2) == 1)
+			defaultRule = []securityv1alpha1.DefaultRuleType{securityv1alpha1.DefaultRuleDrop, securityv1alpha1.DefaultRuleNone}[rand.Intn(2)]
+			ruleAction = "Allow"
+			if isBlocklist {
+				symmetricMode = false
+				ruleAction = "Drop"
+				defaultRule = securityv1alpha1.DefaultRuleNone
+			}
+
+			ep1NamedPorts := []securityv1alpha1.NamedPort{newTestNamedPort("TCP", "http", 80)}
+			ep3NamedPorts := []securityv1alpha1.NamedPort{
+				newTestNamedPort("UDP", "dns", 53),
+				newTestNamedPort("UDP", "dns", 54),
+				newTestNamedPort("UDP", "nfs", 78),
+			}
+			ep5NamedPorts := []securityv1alpha1.NamedPort{
+				newTestNamedPort("UDP", "nfs", 90),
+			}
+			ep1 = newTestEndpoint("192.168.1.1", []string{utils.CurrentAgentName()}, ep1NamedPorts)
+			ep2 = newTestEndpoint("192.168.2.1", []string{utils.CurrentAgentName()}, nil)
+			ep3 = newTestEndpoint("192.168.3.1", []string{utils.CurrentAgentName()}, ep3NamedPorts)
+			ep4 = newTestEndpoint("192.168.4.1", []string{"agent2"}, nil)
+			ep5 = newTestEndpoint("192.168.5.1", []string{utils.CurrentAgentName()}, ep5NamedPorts)
+			ep6 = newTestEndpoint("192.168.6.1", []string{}, nil)
+
+			group1 = newTestGroupMembers(0, endpointToMember(ep1))
+			group2 = newTestGroupMembers(0, endpointToMember(ep2))
+			group3 = newTestGroupMembers(0, endpointToMember(ep3))
+
+			By(fmt.Sprintf("create endpoints %s and groups %v",
+				[]string{ep1.Name, ep2.Name, ep3.Name, ep4.Name, ep5.Name, ep6.Name},
+				[]string{group1.Name, group2.Name, group3.Name}))
+			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, group2.GroupMembers)).Should(Succeed())
+
+			By(fmt.Sprintf("create policy, priority=%d, isBlocklist=%v, symmetricMode=%v, defaultRule=%s", pri, isBlocklist, symmetricMode, defaultRule))
+			policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "54", "number"), newTestPort("UDP", "nfs", "name"))
+			policy.Spec.IngressRules[0].From = append(policy.Spec.IngressRules[0].From, securityv1alpha1.SecurityPolicyPeer{
+				IPBlock: &networkingv1.IPBlock{CIDR: "10.10.1.0/31"},
+			})
+			policy.Spec.IngressRules[0].From = append(policy.Spec.IngressRules[0].From, securityv1alpha1.SecurityPolicyPeer{
+				DisableSymmetric: true,
+				IPBlock: &networkingv1.IPBlock{
+					CIDR: "10.10.2.1/32",
+				},
+			})
+			policy.Spec.Priority = pri
+			policy.Spec.IsBlocklist = isBlocklist
+			policy.Spec.SymmetricMode = symmetricMode
+			policy.Spec.DefaultRule = defaultRule
+			Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+
+			lenCompleteRule = 2
+			if symmetricMode {
+				lenCompleteRule = 3
+			}
+			if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+				lenCompleteRule += 2
+			}
 		})
 
-		It("should list IPBlocks of members", func() {
-			revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
-			Expect(exist).Should(BeTrue())
-			Expect(revision).Should(Equal(members.Revision))
-			Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
-				&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
+		It("can't flatten rules", func() {
+			time.Sleep(2)
+			_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group3.Name)
+			Expect(exists).Should(BeFalse())
+			Expect(len(ruleCacheLister.ListKeys())).Should(Equal(0))
 		})
 
-		When("add and apply a patch to group cache", func() {
-			var patch *groupv1alpha1.GroupMembersPatch
-			var addEp *securityv1alpha1.Endpoint
-
+		When("add groupmembers", func() {
 			BeforeEach(func() {
-				addEp = newTestEndpoint("192.168.1.2", []string{utils.CurrentAgentName()}, nil)
-				patch = newTestGroupMembersPatch(members.Name, members.Revision, endpointToMember(addEp), nil, nil)
-
-				By("add and apply group patch")
-				groupCache.AddPatch(patch)
-				nextPatch := groupCache.NextPatch(members.Name)
-				Expect(nextPatch).NotTo(BeNil())
-				groupCache.ApplyPatch(nextPatch)
+				Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
 			})
 
-			It("should applied to members and patch length be zero", func() {
-				revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
-				Expect(exist).Should(BeTrue())
-				Expect(revision).Should(Equal(members.Revision + 1))
-				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
-					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
-				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.2/32",
-					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
-				Expect(groupCache.PatchLen(members.Name)).Should(BeZero())
+			It("should flatten rules", func() {
+				lenRules = 4
+				if symmetricMode {
+					lenRules = 7
+				}
+				if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+					lenRules += 2
+				}
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+					rules := getRuleByPolicy(policy)
+					g.Expect(len(rules)).Should(Equal(lenRules))
+
+					By("check rules")
+					expRule := newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+					if symmetricMode {
+						By("check symmetric rules")
+						expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}
+
+					if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+						By("check default rules")
+						expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}
+				}, timeout, interval).Should(Succeed())
 			})
+		})
+
+		When("update groupmembers", func() {
+			BeforeEach(func() {
+				Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
+
+				lenRules = 4
+				if symmetricMode {
+					lenRules = 7
+				}
+				if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+					lenRules += 2
+				}
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+					rules := getRuleByPolicy(policy)
+					g.Expect(len(rules)).Should(Equal(lenRules))
+
+					By("check rules")
+					expRule := newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+					g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+					if symmetricMode {
+						By("check symmetric rules")
+						expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}
+
+					if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+						By("check default rules")
+						expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					}
+				}, timeout, interval).Should(Succeed())
+			})
+
+			When("add endpoint to groupmembers", func() {
+				When("add local endpoint", func() {
+					BeforeEach(func() {
+						gm := &groupv1alpha1.GroupMembers{}
+						Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group3.GetName()}, gm)).Should(Succeed())
+						gm.GroupMembers = append(gm.GroupMembers, *endpointToMember(ep5))
+						Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+					})
+
+					It("check rules", func() {
+						lenRules++
+						if symmetricMode {
+							lenRules++
+						}
+
+						Eventually(func(g Gomega) {
+							g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+							rules := getRuleByPolicy(policy)
+							g.Expect(len(rules)).Should(Equal(lenRules))
+
+							By("check rules")
+							expRule := newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.5.1/32", 90, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+							if symmetricMode {
+								By("check symmetric rules")
+								expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.5.1/32", 90, 0xffff, "UDP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+
+							if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+								By("check default rules")
+								expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+						}, timeout, interval).Should(Succeed())
+					})
+				})
+
+				When("add endpoint in other agent", func() {
+					BeforeEach(func() {
+						gm := &groupv1alpha1.GroupMembers{}
+						Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+						gm.GroupMembers = append(gm.GroupMembers, *endpointToMember(ep4))
+						Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+					})
+
+					It("check rules", func() {
+						lenRules++
+
+						Eventually(func(g Gomega) {
+							g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+							rules := getRuleByPolicy(policy)
+							g.Expect(len(rules)).Should(Equal(lenRules))
+
+							By("check rules")
+							expRule := newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.4.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+							if symmetricMode {
+								By("check symmetric rules")
+								expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+
+							if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+								By("check default rules")
+								expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+						}, timeout, interval).Should(Succeed())
+					})
+				})
+
+				When("add endpoint in all agent", func() {
+					BeforeEach(func() {
+						gm := &groupv1alpha1.GroupMembers{}
+						Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group1.GetName()}, gm)).Should(Succeed())
+						gm.GroupMembers = append(gm.GroupMembers, *endpointToMember(ep6))
+						Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+					})
+
+					It("check rules", func() {
+						lenRules = lenRules * 2
+
+						Eventually(func(g Gomega) {
+							g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+							rules := getRuleByPolicy(policy)
+							g.Expect(len(rules)).Should(Equal(lenRules))
+
+							By("check rules")
+							expRule := newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.2.1/32", "192.168.6.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.6.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.6.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.6.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+							if symmetricMode {
+								By("check symmetric rules")
+								expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.6.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.6.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.6.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+
+							if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+								By("check default rules")
+								expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.6.1/32", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+								expRule = newTestPolicyRule("Egress", "Drop", "192.168.6.1/32", "", 0, 0, "", constants.Tier2, pri)
+								g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							}
+						}, timeout, interval).Should(Succeed())
+					})
+				})
+			})
+
+			When("update endpoint IP", func() {
+				BeforeEach(func() {
+					gm := &groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+					gm.GroupMembers[0].IPs = []types.IPAddress{"10.10.3.1"}
+					Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+				})
+
+				It("check rules", func() {
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+						rules := getRuleByPolicy(policy)
+						g.Expect(len(rules)).Should(Equal(lenRules))
+
+						By("check rules")
+						expRule := newTestPolicyRule("Ingress", ruleAction, "10.10.3.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+						if symmetricMode {
+							By("check symmetric rules")
+							expRule = newTestPolicyRule("Egress", ruleAction, "10.10.3.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						}
+
+						if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+							By("check default rules")
+							expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						}
+					}, timeout, interval).Should(Succeed())
+				})
+
+			})
+
+			When("update endpoint agents", func() {
+				BeforeEach(func() {
+					gm := &groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group1.GetName()}, gm)).Should(Succeed())
+					gm.GroupMembers[0].EndpointAgent = []string{"agent-unexists"}
+					Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+				})
+
+				It("check rules", func() {
+					lenRules -= 4
+					if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+						lenRules -= 2
+					}
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+						rules := getRuleByPolicy(policy)
+						g.Expect(len(rules)).Should(Equal(lenRules))
+
+						By("check rules")
+						var expRule cache.PolicyRule
+
+						if symmetricMode {
+							By("check symmetric rules")
+							expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", ruleAction, "192.168.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						}
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+			When("del endpoint from groupmembers", func() {
+				BeforeEach(func() {
+					gm := &groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+					gm.GroupMembers = nil
+					Expect(k8sClient.Update(ctx, gm)).Should(Succeed())
+				})
+
+				It("check rules", func() {
+					lenRules -= 1
+					if symmetricMode {
+						lenRules -= 1
+					}
+					Eventually(func(g Gomega) {
+						g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(lenCompleteRule))
+						rules := getRuleByPolicy(policy)
+						g.Expect(len(rules)).Should(Equal(lenRules))
+
+						By("check rules")
+						expRule := newTestPolicyRule("Ingress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Ingress", ruleAction, "10.10.2.1/32", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						expRule = newTestPolicyRule("Egress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+						g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+						if symmetricMode {
+							By("check symmetric rules")
+							expRule = newTestPolicyRule("Egress", ruleAction, "10.10.1.0/31", "192.168.1.1/32", 54, 0xffff, "TCP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Ingress", ruleAction, "192.168.1.1/32", "192.168.3.1/32", 78, 0xffff, "UDP", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						}
+
+						if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
+							By("check default rules")
+							expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+							expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier2, pri)
+							g.Expect(rules).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+						}
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+		})
+
+		When("del groupmembers", func() {
+
+			When("policy referenced the group", func() {
+				BeforeEach(func() {
+					gm := &groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+					Expect(k8sClient.Delete(ctx, gm)).Should(Succeed())
+				})
+
+				It("can't del groupmembers succeed", func() {
+					time.Sleep(2)
+					_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
+					Expect(exists).Should(BeTrue())
+				})
+			})
+
+			When("no policy referenced the group", func() {
+				BeforeEach(func() {
+					gm := &groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+					Expect(k8sClient.Delete(ctx, gm)).Should(Succeed())
+					p := &securityv1alpha1.SecurityPolicy{}
+					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: policy.GetNamespace(), Name: policy.GetName()}, p)).Should(Succeed())
+					Expect((k8sClient.Delete(ctx, p))).Should(Succeed())
+				})
+
+				It("should delete groupmembers from cache", func() {
+					Eventually(func(g Gomega) {
+						_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
+						Expect(exists).Should(BeFalse())
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+
 		})
 	})
 })
@@ -1308,40 +1837,11 @@ func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) 
 	return testGroup
 }
 
-func newTestGroupMembersPatch(groupName string, revision int32, addMember, updMember, delMember *groupv1alpha1.GroupMember) *groupv1alpha1.GroupMembersPatch {
-	name := "patch-test-" + rand.String(6)
-	var addMembers, updMembers, delMembers []groupv1alpha1.GroupMember
-
-	if addMember != nil {
-		addMembers = append(addMembers, *addMember)
-	}
-	if updMember != nil {
-		updMembers = append(updMembers, *updMember)
-	}
-	if delMember != nil {
-		delMembers = append(delMembers, *delMember)
-	}
-
-	return &groupv1alpha1.GroupMembersPatch{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: metav1.NamespaceNone,
-		},
-		AppliedToGroupMembers: groupv1alpha1.GroupMembersReference{
-			Name:     groupName,
-			Revision: revision,
-		},
-		AddedGroupMembers:   addMembers,
-		UpdatedGroupMembers: updMembers,
-		RemovedGroupMembers: delMembers,
-	}
-}
-
 func newTestCompleteRule(ruleId string, srcGroup, dstGroup string) *cache.CompleteRule {
 	return &cache.CompleteRule{
 		RuleID:    ruleId,
-		SrcGroups: map[string]int32{srcGroup: 1},
-		DstGroups: map[string]int32{dstGroup: 1},
+		SrcGroups: sets.New[string](srcGroup),
+		DstGroups: sets.New[string](dstGroup),
 	}
 }
 
@@ -1385,12 +1885,27 @@ func assertHasPolicyRule(policy *securityv1alpha1.SecurityPolicy,
 				srcPort == rule.SrcPort &&
 				dstCidr == rule.DstIPAddr &&
 				dstPort == rule.DstPort &&
-				protocol == rule.IPProtocol {
+				protocol == rule.IPProtocol &&
+				policy.Spec.Priority == rule.Priority {
 				return true
 			}
 		}
 		return false
 	}, timeout, interval).Should(BeTrue())
+}
+
+func newTestPolicyRule(direction, action, srcCidr string, dstCidr string, dstPort uint16, dstPortMask uint16, protocol string, tier string, priority int32) cache.PolicyRule {
+	return cache.PolicyRule{
+		Direction:   cache.RuleDirection(direction),
+		Action:      cache.RuleAction(action),
+		SrcIPAddr:   srcCidr,
+		DstIPAddr:   dstCidr,
+		DstPort:     dstPort,
+		DstPortMask: dstPortMask,
+		IPProtocol:  protocol,
+		Tier:        tier,
+		Priority:    priority,
+	}
 }
 
 func assertHasPolicyRuleWithPortRange(policy *securityv1alpha1.SecurityPolicy,
@@ -1409,7 +1924,8 @@ func assertHasPolicyRuleWithPortRange(policy *securityv1alpha1.SecurityPolicy,
 				dstCidr == rule.DstIPAddr &&
 				dstPort == rule.DstPort &&
 				dstPortMask == rule.DstPortMask &&
-				protocol == rule.IPProtocol {
+				protocol == rule.IPProtocol &&
+				policy.Spec.Priority == rule.Priority {
 				return true
 			}
 		}
@@ -1445,7 +1961,16 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule
 	var policyRuleList []cache.PolicyRule
 	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		policyRuleList = append(policyRuleList, completeRule.(*cache.CompleteRule).ListRules()...)
+		rule := completeRule.(*cache.CompleteRule)
+		srcIPs, err := cache.AssembleStaticIPAndGroup(rule.SrcIPs, rule.SrcGroups, pCtrl.GetGroupCache())
+		if err != nil {
+			return nil
+		}
+		dstIPs, err := cache.AssembleStaticIPAndGroup(rule.DstIPs, rule.DstGroups, pCtrl.GetGroupCache())
+		if err != nil {
+			return nil
+		}
+		policyRuleList = append(policyRuleList, rule.GenerateRuleList(srcIPs, dstIPs, rule.Ports)...)
 	}
 	return policyRuleList
 }
