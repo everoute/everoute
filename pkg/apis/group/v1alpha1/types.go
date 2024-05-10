@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/labels"
@@ -53,6 +54,41 @@ type GroupMember struct {
 	EndpointAgent []string             `json:"endpointAgent,omitempty"`
 	IPs           []types.IPAddress    `json:"ips,omitempty"`
 	Ports         []v1alpha1.NamedPort `json:"ports,omitempty"`
+}
+
+func (g *GroupMember) Equal(a *GroupMember) bool {
+	if a == nil {
+		return false
+	}
+	if g.EndpointReference != a.EndpointReference {
+		return false
+	}
+	if !sets.New[string](g.EndpointAgent...).Equal(sets.New[string](a.EndpointAgent...)) {
+		return false
+	}
+
+	if !sets.New[types.IPAddress](g.IPs...).Equal(sets.New[types.IPAddress](a.IPs...)) {
+		return false
+	}
+
+	if len(g.Ports) != len(a.Ports) {
+		return false
+	}
+	gPorts := make(map[string]v1alpha1.NamedPort)
+	aPorts := make(map[string]v1alpha1.NamedPort)
+	for i := range g.Ports {
+		gPorts[g.Ports[i].Name] = g.Ports[i]
+	}
+	for i := range a.Ports {
+		aPorts[a.Ports[i].Name] = a.Ports[i]
+	}
+	for k, v := range gPorts {
+		if aPorts[k] != v {
+			return false
+		}
+	}
+
+	return true
 }
 
 type EndpointReference struct {

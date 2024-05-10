@@ -23,241 +23,28 @@ import (
 	"k8s.io/klog"
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
-	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	"github.com/everoute/everoute/pkg/types"
 )
 
-type GroupPatch struct {
-	// GroupName is group Name which should applied to.
-	GroupName string
-	// Revision is group Revision which should applied to.
-	Revision int32
-
-	// Add is the Add IPBlocks if patch applied.
-	Add map[string]*IPBlockItem
-	// Del is the deleted IPBlocks if patch applied.
-	Del map[string]*IPBlockItem
-}
-
-type groupMembership struct {
-	name      string
-	revision  int32
-	endpoints map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember
-}
-
-// GroupCache cache GroupMembers and GroupMembersPatch, it's thread safe.
+// GroupCache cache GroupMembers, it's thread safe.
 type GroupCache struct {
 	lock sync.RWMutex
 
-	// patches storage patches by groupName and revision.
-	patches map[string]map[int32]*groupv1alpha1.GroupMembersPatch
-	members map[string]*groupMembership
+	members map[string][]groupv1alpha1.GroupMember
 }
 
 // NewGroupCache return a new GroupCache.
 func NewGroupCache() *GroupCache {
 	return &GroupCache{
-		patches: make(map[string]map[int32]*groupv1alpha1.GroupMembersPatch),
-		members: make(map[string]*groupMembership),
+		members: make(map[string][]groupv1alpha1.GroupMember),
 	}
 }
 
-// AddPatch add a GroupMembersPatch to patches.
-func (cache *GroupCache) AddPatch(patch *groupv1alpha1.GroupMembersPatch) {
-	var groupName = patch.AppliedToGroupMembers.Name
-	var revision = patch.AppliedToGroupMembers.Revision
-
+// UpdateGroupMembership add or update GroupMembers to cache.
+func (cache *GroupCache) UpdateGroupMembership(members *groupv1alpha1.GroupMembers) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
-	// todo: verify whether the patch generated for this group (by uuid)
-	membership, exist := cache.members[groupName]
-	if exist && revision < membership.revision {
-		klog.V(2).Infof("ignore old revision %d of patch %s", revision, patch.Name)
-		return
-	}
-
-	if _, exist := cache.patches[groupName]; !exist {
-		// create patch event may get first (before groupmembers create event).
-		cache.patches[groupName] = make(map[int32]*groupv1alpha1.GroupMembersPatch)
-	}
-
-	cache.patches[groupName][revision] = patch
-}
-
-// NextPatch return a patch with the same revision of current GroupMembers.
-// Nil patch means not exist next patch.
-func (cache *GroupCache) NextPatch(groupName string) *GroupPatch {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-
-	membership, ok := cache.members[groupName]
-	if !ok {
-		return nil
-	}
-	membershipIPMaps := groupMembershipsToIPMaps(membership)
-
-	sourcePatch, ok := cache.patches[groupName][membership.revision]
-	if !ok {
-		return nil
-	}
-
-	patch := &GroupPatch{
-		GroupName: groupName,
-		Revision:  membership.revision,
-		Add:       map[string]*IPBlockItem{},
-		Del:       map[string]*IPBlockItem{},
-	}
-
-	for _, member := range sourcePatch.AddedGroupMembers {
-		addMember(patch, member, &membershipIPMaps)
-	}
-
-	for _, member := range sourcePatch.UpdatedGroupMembers {
-		oldMember := membership.endpoints[member.EndpointReference]
-		delMember(patch, oldMember, &membershipIPMaps)
-		addMember(patch, member, &membershipIPMaps)
-	}
-
-	for _, member := range sourcePatch.RemovedGroupMembers {
-		delMember(patch, member, &membershipIPMaps)
-	}
-
-	return patch
-}
-
-//nolint:dupl
-func addMember(patch *GroupPatch, member groupv1alpha1.GroupMember, membershipIPMaps *map[types.IPAddress][]groupv1alpha1.GroupMember) {
-	for _, ipAddr := range member.IPs {
-		cidr := GetIPCidr(ipAddr)
-
-		oldAgents, oldPorts := getAgentsAndPortsByIP(ipAddr, membershipIPMaps, member.EndpointReference)
-		if oldAgents != nil {
-			if _, exist := patch.Del[cidr]; !exist {
-				patch.Del[cidr] = NewIPBlockItem()
-			}
-			patch.Del[cidr].AgentRef = addAgents(patch.Del[cidr].AgentRef, oldAgents.List())
-			patch.Del[cidr].Ports = AppendIPBlockPorts(patch.Del[cidr].Ports, oldPorts)
-		}
-
-		newAgents := addAgents(oldAgents, member.EndpointAgent)
-		if newAgents != nil {
-			if _, exist := patch.Add[cidr]; !exist {
-				patch.Add[cidr] = NewIPBlockItem()
-			}
-			patch.Add[cidr].AgentRef = addAgents(patch.Add[cidr].AgentRef, newAgents.List())
-			newPorts := AppendIPBlockPorts(oldPorts, member.Ports)
-			patch.Add[cidr].Ports = AppendIPBlockPorts(patch.Add[cidr].Ports, newPorts)
-		}
-	}
-}
-
-//nolint:dupl
-func delMember(patch *GroupPatch, member groupv1alpha1.GroupMember, membershipIPMaps *map[types.IPAddress][]groupv1alpha1.GroupMember) {
-	for _, ipAddr := range member.IPs {
-		cidr := GetIPCidr(ipAddr)
-
-		newAgents, newPorts := getAgentsAndPortsByIP(ipAddr, membershipIPMaps, member.EndpointReference)
-		if newAgents != nil {
-			if _, exist := patch.Add[cidr]; !exist {
-				patch.Add[cidr] = NewIPBlockItem()
-			}
-			patch.Add[cidr].AgentRef = addAgents(patch.Add[cidr].AgentRef, newAgents.List())
-			patch.Add[cidr].Ports = AppendIPBlockPorts(patch.Add[cidr].Ports, newPorts)
-		}
-
-		oldAgents := addAgents(newAgents, member.EndpointAgent)
-		if oldAgents != nil {
-			if _, exist := patch.Del[cidr]; !exist {
-				patch.Del[cidr] = NewIPBlockItem()
-			}
-			patch.Del[cidr].AgentRef = addAgents(patch.Del[cidr].AgentRef, oldAgents.List())
-			oldPorts := AppendIPBlockPorts(newPorts, member.Ports)
-			patch.Del[cidr].Ports = AppendIPBlockPorts(patch.Del[cidr].Ports, oldPorts)
-		}
-	}
-}
-
-// ApplyPatch applied patch to cache GroupMembers. ApplyPatch should be called
-// after the GroupPatch successfully processed.
-func (cache *GroupCache) ApplyPatch(patch *GroupPatch) {
-	var groupName = patch.GroupName
-	var revision = patch.Revision
-
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-
-	membership, ok := cache.members[groupName]
-	if !ok {
-		klog.Warningf("when apply patch of revision %d, group %s not found", patch.Revision, groupName)
-		return
-	}
-
-	if revision != membership.revision {
-		klog.Fatalf("expected state! patch revision %d can't applied to group %s revision %d", revision, groupName, membership.revision)
-	}
-
-	sourcePatch, ok := cache.patches[groupName][revision]
-	if !ok {
-		// patch has been applied
-		return
-	}
-
-	for _, member := range sourcePatch.AddedGroupMembers {
-		membership.endpoints[member.EndpointReference] = member
-	}
-	for _, member := range sourcePatch.UpdatedGroupMembers {
-		membership.endpoints[member.EndpointReference] = member
-	}
-	for _, member := range sourcePatch.RemovedGroupMembers {
-		delete(membership.endpoints, member.EndpointReference)
-	}
-
-	// upgrade to a new Revision
-	membership.revision = revision + 1
-
-	delete(cache.patches[groupName], revision)
-}
-
-// PatchLen return patches length of the giving group.
-func (cache *GroupCache) PatchLen(groupName string) int {
-	cache.lock.RLock()
-	defer cache.lock.RUnlock()
-	return len(cache.patches[groupName])
-}
-
-// AddGroupMembership add GroupMembers to cache.
-func (cache *GroupCache) AddGroupMembership(members *groupv1alpha1.GroupMembers) {
-	cache.lock.Lock()
-	defer cache.lock.Unlock()
-
-	if _, exist := cache.members[members.Name]; exist {
-		klog.Warningf("add groupmembers %s already exist in cache", members.Name)
-		return
-	}
-
-	membership := &groupMembership{
-		name:      members.Name,
-		revision:  members.Revision,
-		endpoints: make(map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember),
-	}
-
-	for _, member := range members.GroupMembers {
-		membership.endpoints[member.EndpointReference] = member
-	}
-
-	if _, ok := cache.patches[members.Name]; !ok {
-		cache.patches[members.Name] = make(map[int32]*groupv1alpha1.GroupMembersPatch)
-	}
-
-	// remove old revision of patches create before GroupMembership
-	for revision := range cache.patches[members.Name] {
-		if revision < membership.revision {
-			delete(cache.patches[members.Name], revision)
-		}
-	}
-
-	cache.members[members.Name] = membership
+	cache.members[members.Name] = append([]groupv1alpha1.GroupMember{}, members.GroupMembers...)
 }
 
 // DelGroupMembership removed GroupMembers and it's patches from cache.
@@ -265,72 +52,46 @@ func (cache *GroupCache) DelGroupMembership(groupName string) {
 	cache.lock.Lock()
 	defer cache.lock.Unlock()
 
-	delete(cache.patches, groupName)
 	delete(cache.members, groupName)
 }
 
 // ListGroupIPBlocks return a list of IPBlocks of the group.
-func (cache *GroupCache) ListGroupIPBlocks(groupName string) (revision int32, ipBlocks map[string]*IPBlockItem, exist bool) {
+func (cache *GroupCache) ListGroupIPBlocks(groupName string) (map[string]*IPBlockItem, bool) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
-	membership, ok := cache.members[groupName]
+	memberships, ok := cache.members[groupName]
 	if !ok {
-		return 0, nil, false
+		return nil, false
 	}
-
-	ipBlocks = make(map[string]*IPBlockItem)
-	for _, member := range membership.endpoints {
-		for _, ipAddr := range member.IPs {
-			if _, e := ipBlocks[GetIPCidr(ipAddr)]; !e {
-				ipBlocks[GetIPCidr(ipAddr)] = NewIPBlockItem()
-			}
-			ipBlocks[GetIPCidr(ipAddr)].AgentRef.Insert(member.EndpointAgent...)
-			ipBlocks[GetIPCidr(ipAddr)].Ports = AppendIPBlockPorts(ipBlocks[GetIPCidr(ipAddr)].Ports, member.Ports)
-		}
-	}
-
-	return membership.revision, ipBlocks, true
+	return GroupMembersToIPBlocks(memberships), true
 }
 
-func groupMembershipsToIPMaps(membership *groupMembership) map[types.IPAddress][]groupv1alpha1.GroupMember {
-	res := make(map[types.IPAddress][]groupv1alpha1.GroupMember, 0)
-	for _, v := range membership.endpoints {
-		for _, ip := range v.IPs {
-			if _, ok := res[ip]; !ok {
-				res[ip] = make([]groupv1alpha1.GroupMember, 0, 1)
-			}
-			res[ip] = append(res[ip], v)
-		}
+func GroupMembersToIPBlocks(members []groupv1alpha1.GroupMember) map[string]*IPBlockItem {
+	res := make(map[string]*IPBlockItem)
+	if len(members) == 0 {
+		return res
 	}
-	return res
-}
-
-func getAgentsAndPortsByIP(ip types.IPAddress, membershipIPMaps *map[types.IPAddress][]groupv1alpha1.GroupMember,
-	exceptMember groupv1alpha1.EndpointReference) (sets.String, []securityv1alpha1.NamedPort) {
-	var resAgents sets.String
-	resPorts := make([]securityv1alpha1.NamedPort, 0)
-	ipMemberships, ok := (*membershipIPMaps)[ip]
-	if !ok {
-		return resAgents, resPorts
-	}
-	for i := range ipMemberships {
-		if ipMemberships[i].EndpointReference == exceptMember {
+	for _, member := range members {
+		if len(member.IPs) == 0 {
+			klog.V(2).Infof("GroupMember with reference %v has no IPs", member.EndpointReference)
 			continue
 		}
 
-		resAgents = addAgents(resAgents, ipMemberships[i].EndpointAgent)
-		resPorts = append(resPorts, ipMemberships[i].Ports...)
+		for _, ipAddr := range member.IPs {
+			ipNetStr := GetIPCidr(ipAddr)
+			if _, ok := res[ipNetStr]; !ok {
+				res[ipNetStr] = NewIPBlockItem()
+				res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
+			} else {
+				if res[ipNetStr].AgentRef.Len() == 0 || len(member.EndpointAgent) == 0 {
+					res[ipNetStr].AgentRef = sets.NewString()
+				} else {
+					res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
+				}
+			}
+			res[ipNetStr].Ports = AppendIPBlockPorts(res[ipNetStr].Ports, member.Ports)
+		}
 	}
-	return resAgents, resPorts
-}
-
-func addAgents(oldAgents sets.String, addAgents []string) sets.String {
-	if len(addAgents) == 0 {
-		return sets.NewString()
-	}
-	if oldAgents == nil {
-		oldAgents = sets.NewString()
-	}
-	return oldAgents.Union(sets.NewString(addAgents...))
+	return res
 }
