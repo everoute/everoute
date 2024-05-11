@@ -223,6 +223,14 @@ func (r *GroupReconciler) updateEndpointGroup(_ context.Context, e event.UpdateE
 			Name:      newGroup.Name,
 		}})
 	}
+
+	// need to create empty groupmembers
+	if len(newGroup.Finalizers) > 0 && len(oldGroup.Finalizers) == 0 {
+		q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
+			Namespace: newGroup.Namespace,
+			Name:      newGroup.Name,
+		}})
+	}
 }
 
 func (r *GroupReconciler) deleteEndpointGroup(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
@@ -467,7 +475,7 @@ func (r *GroupReconciler) processEndpointGroupUpdate(ctx context.Context, group 
 
 	err = r.syncGroupMembers(ctx, group.Name, members)
 	if err != nil {
-		klog.Errorf("failed to sync groupmembers for group %s: %s", group.Name, err)
+		klog.Errorf("failed to sync groupmembers of for group %s: %s", group.Name, err)
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
@@ -575,25 +583,56 @@ func (r *GroupReconciler) syncGroupMembers(ctx context.Context, groupName string
 	groupMembers := groupv1alpha1.GroupMembers{}
 	err := r.Get(ctx, k8stypes.NamespacedName{Name: groupName}, &groupMembers)
 	if err != nil && apierrors.IsNotFound(err) {
-		// If not found, create a new empty groupmembers with revision 0.
+		// If not found, create a new groupmembers.
 		groupMembers.ObjectMeta = metav1.ObjectMeta{
 			Name:      groupName,
 			Namespace: metav1.NamespaceNone,
 			Labels:    map[string]string{constants.OwnerGroupLabelKey: groupName},
 		}
+		groupMembers.GroupMembers = members.GroupMembers
 		if err = r.Create(ctx, &groupMembers); err != nil {
 			return fmt.Errorf("create groupmembers %s: %s", groupName, err)
 		}
+		klog.Infof("success create groupmembers %s", groupName)
+		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("fetch groupmembers %s: %s", groupName, err)
+		return fmt.Errorf("fetch groupmembers %s failed: %s", groupName, err)
 	}
 
+	if !r.groupMembersIsDiff(groupMembers.GroupMembers, members.GroupMembers) {
+		return nil
+	}
 	groupMembers.GroupMembers = members.GroupMembers
 	if err := r.Update(ctx, &groupMembers); err != nil {
-		return fmt.Errorf("fetch groupmembers %s: %s", groupName, err)
+		return fmt.Errorf("update groupmembers %s failed: %s", groupName, err)
 	}
-	klog.Infof("updated groupmembers %s, numbers of members %d", groupMembers.Name, len(groupMembers.GroupMembers))
+	klog.Infof("updated groupmembers %s, members %v", groupMembers.Name, groupMembers.GroupMembers)
 
 	return nil
+}
+
+func (r *GroupReconciler) groupMembersIsDiff(a, b []groupv1alpha1.GroupMember) bool {
+	if len(a) != len(b) {
+		return true
+	}
+	aMap := make(map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember)
+	bMap := make(map[groupv1alpha1.EndpointReference]groupv1alpha1.GroupMember)
+	for i := range a {
+		aMap[a[i].EndpointReference] = a[i]
+	}
+	for i := range b {
+		bMap[b[i].EndpointReference] = b[i]
+	}
+
+	if len(aMap) != len(bMap) {
+		return true
+	}
+	for k, v := range aMap {
+		bv := bMap[k]
+		if !v.Equal(&bv) {
+			return true
+		}
+	}
+	return false
 }
