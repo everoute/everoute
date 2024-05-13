@@ -475,7 +475,7 @@ func (r *GroupReconciler) processEndpointGroupUpdate(ctx context.Context, group 
 
 	err = r.syncGroupMembers(ctx, group.Name, members)
 	if err != nil {
-		klog.Errorf("failed to sync groupmembers of for group %s: %s", group.Name, err)
+		klog.Errorf("failed to sync groupmembers for group %s: %s", group.Name, err)
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
