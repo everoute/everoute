@@ -98,36 +98,8 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	return r.processPolicyUpdate(&policy)
 }
 
-func (r *Reconciler) ReconcilePatch(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var groupName = req.Name
-
-	patch := r.groupCache.NextPatch(groupName)
-	if patch == nil {
-		return ctrl.Result{}, nil
-	}
-
-	r.reconcilerLock.Lock()
-	defer r.reconcilerLock.Unlock()
-
-	klog.Infof("Reconcile group %s patch revision %d", groupName, patch.Revision)
-
-	completeRules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, patch.GroupName)
-
-	for _, completeRule := range completeRules {
-		var rule = completeRule.(*policycache.CompleteRule)
-
-		newPolicyRuleList, oldPolicyRuleList := rule.GetPatchPolicyRules(patch)
-		r.syncPolicyRulesUntilSuccess(oldPolicyRuleList, newPolicyRuleList)
-
-		rule.ApplyPatch(patch)
-	}
-
-	r.groupCache.ApplyPatch(patch)
-
-	if r.groupCache.PatchLen(groupName) != 0 {
-		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
-	}
-
+func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// todo
 	return ctrl.Result{}, nil
 }
 
@@ -175,37 +147,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if patchController, err = controller.New("groupPatch-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
-		Reconciler:              reconcile.Func(r.ReconcilePatch),
+		Reconciler:              reconcile.Func(r.ReconcileGroupMembers),
 	}); err != nil {
 		return err
 	}
 
-	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembersPatch{}), &handler.Funcs{
-		CreateFunc: r.addPatch,
-		DeleteFunc: func(_ context.Context, e event.DeleteEvent, _ workqueue.RateLimitingInterface) {
-			if e.DeleteStateUnknown {
-				klog.Fatalf("groupmemberpatch %s delete state is unknown, fatal agent", e.Object.GetName())
-			}
-		},
-	}); err != nil {
-		return err
-	}
 
-	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.Funcs{
-		CreateFunc: func(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-			klog.V(2).Infof("Receive create groupmember %s event", e.Object.GetName())
-			r.groupCache.AddGroupMembership(e.Object.(*groupv1alpha1.GroupMembers))
-			// add into queue to process the group patches.
-			q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-				Namespace: e.Object.GetNamespace(),
-				Name:      e.Object.GetName(),
-			}})
-		},
-		DeleteFunc: func(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-			r.groupCache.DelGroupMembership(e.Object.GetName())
-			klog.V(2).Infof("Receive delete groupmember %s event", e.Object.GetName())
-		},
-	}); err != nil {
+	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 
@@ -220,29 +168,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
 }
 
-func (r *Reconciler) addPatch(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Object == nil {
-		klog.Errorf("receive create event with no object %v", e)
-		return
-	}
-
-	patch := e.Object.(*groupv1alpha1.GroupMembersPatch)
-	klog.V(2).Infof("Receive create patch %s event", patch.GetName())
-	r.groupCache.AddPatch(patch)
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Name:      patch.AppliedToGroupMembers.Name,
-		Namespace: metav1.NamespaceNone,
-	}})
-}
-
 func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error {
 	var oldRuleList []policycache.PolicyRule
 
 	// retrieve policy completeRules from cache
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(r.groupCache)...)
 		// start a force full synchronization of policyrule
 		// remove policy completeRules from cache
 		_ = r.ruleCache.Delete(completeRule)
@@ -257,7 +189,7 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules()...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(r.groupCache)...)
 	}
 
 	newRuleList, err := r.calculateExpectedPolicyRules(policy)
@@ -292,7 +224,7 @@ func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.Secur
 
 	for _, completeRule := range completeRules {
 		_ = r.ruleCache.Add(completeRule)
-		policyRuleList = append(policyRuleList, completeRule.ListRules()...)
+		policyRuleList = append(policyRuleList, completeRule.ListRules(r.groupCache)...)
 	}
 
 	return policyRuleList, nil
@@ -324,14 +256,14 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	for _, appliedTo := range policy.Spec.AppliedTo {
 		appliedToPeer = append(appliedToPeer, ctrlpolicy.AppliedAsSecurityPeer(policy.GetNamespace(), appliedTo))
 	}
-	appliedGroups, appliedIPBlocks, err := r.getPeersGroupsAndIPBlocks(policy.GetNamespace(), appliedToPeer)
+	appliedGroups, appliedIPs, err := r.getPeersGroupsAndIPs(policy.GetNamespace(), appliedToPeer)
 	if err != nil {
 		return nil, err
 	}
 
 	// if apply to is nil or empty, add all ips
 	if len(policy.Spec.AppliedTo) == 0 {
-		appliedIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
+		appliedIPs = sets.New[string]("")
 	}
 
 	if ingressEnabled {
@@ -344,8 +276,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Action:          ruleAction,
 				Direction:       policycache.RuleDirectionIn,
 				SymmetricMode:   policy.Spec.SymmetricMode,
-				DstGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				DstIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
+				DstGroups:       appliedGroups.Clone(),
+				DstIPs:          appliedIPs.Clone(),
 			}
 
 			ingressRuleTmpl.Ports, err = FlattenPorts(rule.Ports)
@@ -356,7 +288,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 			if len(rule.From) == 0 {
 				ingressRule := ingressRuleTmpl.Clone()
 				// If "rule.From" is empty or missing, this rule matches all sources
-				ingressRule.SrcIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
+				ingressRule.SrcIPs = sets.New[string]("")
 				completeRules = append(completeRules, ingressRule)
 			} else {
 				ingressRules, err := r.getCompleteRulesByParseSymmetricMode(ingressRuleTmpl, policy, networkingv1.PolicyTypeIngress, rule.From)
@@ -377,10 +309,10 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Direction:         policycache.RuleDirectionIn,
 				SymmetricMode:     false, // never generate symmetric rule for default rule
 				DefaultPolicyRule: true,
-				DstGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				DstIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
-				SrcIPBlocks:       map[string]*policycache.IPBlockItem{"": nil}, // matches all source IP
-				Ports:             []policycache.RulePort{{}},                   // has a port matches all ports
+				DstGroups:         appliedGroups.Clone(),
+				DstIPs:            appliedIPs.Clone(),
+				SrcIPs:            sets.New[string](""),       // matches all source IP
+				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
 			}
 			completeRules = append(completeRules, defaultIngressRule)
 		}
@@ -396,8 +328,8 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Action:          ruleAction,
 				Direction:       policycache.RuleDirectionOut,
 				SymmetricMode:   policy.Spec.SymmetricMode,
-				SrcGroups:       policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:     policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
+				SrcGroups:       appliedGroups.Clone(),
+				SrcIPs:          appliedIPs.Clone(),
 			}
 
 			if len(rule.To) > 0 {
@@ -420,7 +352,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				if len(numberPorts) > 0 || len(rule.Ports) == 0 {
 					egressRuleCur := egressRuleTmpl.Clone()
 					// If "rule.To" is empty or missing, this rule matches all destinations
-					egressRuleCur.DstIPBlocks = map[string]*policycache.IPBlockItem{"": nil}
+					egressRuleCur.DstIPs = sets.New[string]("")
 					egressRuleCur.Ports, err = FlattenPorts(numberPorts)
 					if err != nil {
 						return nil, err
@@ -433,7 +365,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 					egressRuleCur := egressRuleTmpl.Clone()
 					egressRuleCur.RuleID = fmt.Sprintf("%s.%s", egressRuleTmpl.RuleID, "namedport")
 					// If "rule.To" is empty or missing, this rule matches all endpoints with named port
-					egressRuleCur.DstGroups, egressRuleCur.DstIPBlocks, err = r.getAllEpWithNamedPortGroupAndIPBlocks()
+					egressRuleCur.DstGroups, err = r.getAllEpWithNamedPortGroup()
 					if err != nil {
 						return nil, err
 					}
@@ -456,10 +388,10 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				Direction:         policycache.RuleDirectionOut,
 				SymmetricMode:     false, // never generate symmetric rule for default rule
 				DefaultPolicyRule: true,
-				SrcGroups:         policycache.DeepCopyMap(appliedGroups).(map[string]int32),
-				SrcIPBlocks:       policycache.DeepCopyMap(appliedIPBlocks).(map[string]*policycache.IPBlockItem),
-				DstIPBlocks:       map[string]*policycache.IPBlockItem{"": nil}, // matches all destination IP
-				Ports:             []policycache.RulePort{{}},                   // has a port matches all ports
+				SrcGroups:         appliedGroups.Clone(),
+				SrcIPs:            appliedIPs.Clone(),
+				DstIPs:            sets.New[string](""),       // matches all destination IP
+				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
 			}
 			completeRules = append(completeRules, defaultEgressRule)
 		}
@@ -476,24 +408,24 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 	}
 
 	if !policy.Spec.SymmetricMode {
-		groups, ipBlocks, err := r.getPeersGroupsAndIPBlocks(policy.Namespace, peers)
+		groups, ips, err := r.getPeersGroupsAndIPs(policy.Namespace, peers)
 		if err != nil {
 			return nil, err
 		}
 		rule := ruleTmpl.Clone()
 		if policyType == networkingv1.PolicyTypeIngress {
 			rule.SrcGroups = groups
-			rule.SrcIPBlocks = ipBlocks
+			rule.SrcIPs = ips
 		} else {
 			rule.DstGroups = groups
-			rule.DstIPBlocks = ipBlocks
+			rule.DstIPs = ips
 		}
 		rules = append(rules, rule)
 		return rules, nil
 	}
 
 	for i, symmetricMode := range []bool{true, false} {
-		groups, ipBlocks, err := r.getPeersGroupsAndIPBlocks(policy.Namespace, peers, symmetricMode)
+		groups, ipBlocks, err := r.getPeersGroupsAndIPs(policy.Namespace, peers, symmetricMode)
 		if err != nil {
 			return nil, err
 		}
@@ -505,10 +437,10 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 		rule.SymmetricMode = symmetricMode
 		if policyType == networkingv1.PolicyTypeIngress {
 			rule.SrcGroups = groups
-			rule.SrcIPBlocks = ipBlocks
+			rule.SrcIPs = ipBlocks
 		} else {
 			rule.DstGroups = groups
-			rule.DstIPBlocks = ipBlocks
+			rule.DstIPs = ipBlocks
 		}
 		rules = append(rules, rule)
 	}
@@ -516,10 +448,10 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 }
 
 // getPeersGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
-func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string,
-	peers []securityv1alpha1.SecurityPolicyPeer, matchSymmetric ...bool) (map[string]int32, map[string]*policycache.IPBlockItem, error) {
-	var groups = make(map[string]int32)
-	var ipBlocks = make(map[string]*policycache.IPBlockItem)
+func (r *Reconciler) getPeersGroupsAndIPs(namespace string,
+	peers []securityv1alpha1.SecurityPolicyPeer, matchSymmetric ...bool) (sets.Set[string], sets.Set[string], error) {
+	var groups = sets.New[string]()
+	var ips = sets.New[string]()
 
 	var ignoreSymmetricMode, matchDisableSymmetric bool
 	if len(matchSymmetric) == 0 {
@@ -540,55 +472,32 @@ func (r *Reconciler) getPeersGroupsAndIPBlocks(namespace string,
 				klog.Infof("unable parse IPBlock %+v: %s", peer.IPBlock, err)
 				return nil, nil, err
 			}
-			for _, ipNet := range ipNets {
-				if _, exist := ipBlocks[ipNet.String()]; !exist {
-					ipBlocks[ipNet.String()] = policycache.NewIPBlockItem()
-				}
-				ipBlocks[ipNet.String()].StaticCount++
+			for i := range ipNets {
+				ips.Insert(ipNets[i].String())
 			}
 		case peer.Endpoint != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
 			group := ctrlpolicy.PeerAsEndpointGroup(namespace, peer).GetName()
-			revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
+			_, exist := r.groupCache.ListGroupIPBlocks(group)
 			if !exist {
 				return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
 			}
-			groups[group] = revision
-
-			for ip, ipBlock := range ipAddrs {
-				if _, exist = ipBlocks[ip]; !exist {
-					ipBlocks[ip] = policycache.NewIPBlockItem()
-				}
-				ipBlocks[ip].AgentRef.Insert(ipBlock.AgentRef.List()...)
-				ipBlocks[ip].Ports = policycache.AppendIPBlockPorts(ipBlocks[ip].Ports, ipBlock.Ports)
-			}
+			groups.Insert(group)
 		default:
 			klog.Errorf("Empty SecurityPolicyPeer, check your SecurityPolicy definition!")
 		}
 	}
 
-	return groups, ipBlocks, nil
+	return groups, ips, nil
 }
 
-func (r *Reconciler) getAllEpWithNamedPortGroupAndIPBlocks() (map[string]int32, map[string]*policycache.IPBlockItem, error) {
-	var groups = make(map[string]int32)
-	var ipBlocks = make(map[string]*policycache.IPBlockItem)
-
+func (r *Reconciler) getAllEpWithNamedPortGroup() (sets.Set[string], error) {
 	group := ctrlpolicy.GetAllEpWithNamedPortGroup().GetName()
-	revision, ipAddrs, exist := r.groupCache.ListGroupIPBlocks(group)
+	_, exist := r.groupCache.ListGroupIPBlocks(group)
 	if !exist {
-		return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
-	}
-	groups[group] = revision
-
-	for ip, ipBlock := range ipAddrs {
-		if _, exist = ipBlocks[ip]; !exist {
-			ipBlocks[ip] = policycache.NewIPBlockItem()
-		}
-		ipBlocks[ip].AgentRef.Insert(ipBlock.AgentRef.List()...)
-		ipBlocks[ip].Ports = policycache.AppendIPBlockPorts(ipBlocks[ip].Ports, ipBlock.Ports)
+		return nil, groupNotFound(fmt.Errorf("group %s members not found", group))
 	}
 
-	return groups, ipBlocks, nil
+	return sets.New[string](group), nil
 }
 
 func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList []policycache.PolicyRule) {
@@ -623,26 +532,18 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 		newRule, newExist := newRuleMap[ruleName]
 
 		if newExist {
-			if oldExist && ruleIsSame(oldRule.rule, newRule.rule) {
-				if oldRule.count >= newRule.count {
-					if oldRule.count > newRule.count {
-						klog.Infof("remove policyRule: %v", oldRule.rule)
-						errList = append(errList,
-							r.processPolicyRuleDelete(oldRule.rule.Name),
-						)
-					}
+			if oldExist && ruleIsSame(oldRule, newRule) {
 					continue
-				}
 			}
-			klog.Infof("create policyRule: %v", newRule.rule)
+			klog.Infof("create policyRule: %v", newRule)
 			errList = append(errList,
-				r.processPolicyRuleAdd(newRule.rule),
+				r.processPolicyRuleAdd(newRule),
 			)
 
 		} else if oldExist {
-			klog.Infof("remove policyRule: %v", oldRule.rule)
+			klog.Infof("remove policyRule: %v", oldRule)
 			errList = append(errList,
-				r.processPolicyRuleDelete(oldRule.rule.Name),
+				r.processPolicyRuleDelete(oldRule.Name),
 			)
 		}
 	}

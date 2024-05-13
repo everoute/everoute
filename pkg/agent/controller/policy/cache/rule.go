@@ -79,9 +79,7 @@ type IPBlockItem struct {
 	// AgentRef means this ip has appeared in these agents.
 	// if sets is empty, this ip will apply to all agents.
 	AgentRef sets.String
-	// StaticCount is counter for ips which assigned directly in policy
-	StaticCount int
-	Ports       []securityv1alpha1.NamedPort
+	Ports    []securityv1alpha1.NamedPort
 }
 
 func (item *IPBlockItem) DeepCopy() interface{} {
@@ -90,9 +88,8 @@ func (item *IPBlockItem) DeepCopy() interface{} {
 		return ptr
 	}
 	return &IPBlockItem{
-		AgentRef:    sets.NewString(item.AgentRef.List()...),
-		StaticCount: item.StaticCount,
-		Ports:       item.Ports,
+		AgentRef: sets.NewString(item.AgentRef.List()...),
+		Ports:    item.Ports,
 	}
 }
 
@@ -120,20 +117,17 @@ type CompleteRule struct {
 	// DefaultPolicyRule is true when the it's the default egress or ingress rule in policy.
 	DefaultPolicyRule bool
 
-	// SrcGroups is a map of groupName and revision. Revision is used to determine whether
-	// a patch has been executed for this group.
-	SrcGroups map[string]int32
-	DstGroups map[string]int32
+	// SrcGroups is a groupName sets
+	SrcGroups sets.Set[string]
+	DstGroups sets.Set[string]
 
-	// SrcIPBlocks is a map of source IPBlocks and other ip infos. This schema is used to calculate
-	// whether the patch leads to the added/deleted of IPBlocks. Virtual machine hot migration or
-	// configuration conflict may lead to multiple identical IP in the same group at the same time.
-	// If you want matches all source, you should write like {"": nil}.
-	SrcIPBlocks map[string]*IPBlockItem
+	// SrcIPs is a static source IP set. This schema is used to calculate
+	// If you want matches all source, you should write like {""}.
+	SrcIPs sets.Set[string]
 
-	// DstIPBlocks is a map of destination IPBlocks and other ip infos. If you want matches all
-	// destination, you should write like {"": nil}.
-	DstIPBlocks map[string]*IPBlockItem
+	// DstIPs is a static destination IP set. This schema is used to calculate
+	// If you want matches all destination, you should write like {""}.
+	DstIPs sets.Set[string]
 
 	// Ports is a list of srcport and dstport with protocol. This filed must not empty.
 	Ports []RulePort
@@ -174,23 +168,23 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 		Direction:         rule.Direction,
 		SymmetricMode:     rule.SymmetricMode,
 		DefaultPolicyRule: rule.DefaultPolicyRule,
-		SrcGroups:         DeepCopyMap(rule.SrcGroups).(map[string]int32),
-		DstGroups:         DeepCopyMap(rule.DstGroups).(map[string]int32),
-		SrcIPBlocks:       DeepCopyMap(rule.SrcIPBlocks).(map[string]*IPBlockItem),
-		DstIPBlocks:       DeepCopyMap(rule.DstIPBlocks).(map[string]*IPBlockItem),
+		SrcGroups:         rule.SrcGroups.Clone(),
+		DstGroups:         rule.DstGroups.Clone(),
+		SrcIPs:            rule.SrcIPs.Clone(),
+		DstIPs:            rule.DstIPs.Clone(),
 		Ports:             append([]RulePort{}, rule.Ports...),
 	}
 }
 
 // ListRules return a list of security.everoute.io/v1alpha1 PolicyRule
-func (rule *CompleteRule) ListRules() []PolicyRule {
+func (rule *CompleteRule) ListRules(groupCache *GroupCache) []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
-	return rule.generateRuleList(rule.SrcIPBlocks, rule.DstIPBlocks, rule.Ports)
+	return rule.generateRuleList(rule.assemblySrcIPBlocks(groupCache), rule.assemblyDstIPBlocks(groupCache), rule.Ports)
 }
 
-func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+func (rule *CompleteRule) generateRuleList(srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
 	var policyRuleList []PolicyRule
 
 	for srcIP, srcIPBlock := range srcIPBlocks {
@@ -234,13 +228,25 @@ func (rule *CompleteRule) generateRuleList(srcIPBlocks, dstIPBlocks map[string]*
 	return policyRuleList
 }
 
+func (rule *CompleteRule) assemblySrcIPBlocks(groupCache *GroupCache) map[string]*IPBlockItem {
+	ipBlocks, err := AssemblyStaticIPAndGroup(rule.SrcIPs, rule.SrcGroups, groupCache)
+	if err != nil {
+		klog.Fatalf("Failed to assemply rule src ipBlocks: %s", err)
+	}
+	return ipBlocks
+}
+
+func (rule *CompleteRule) assemblyDstIPBlocks(groupCache *GroupCache) map[string]*IPBlockItem {
+	ipBlocks, err := AssemblyStaticIPAndGroup(rule.DstIPs, rule.DstGroups, groupCache)
+	if err != nil {
+		klog.Fatalf("Failed to assemply rule dst ipBlocks: %s", err)
+	}
+	return ipBlocks
+}
+
 func (rule *CompleteRule) hasLocalRule(ipBlock *IPBlockItem) bool {
 	// apply to all target
 	if ipBlock == nil {
-		return true
-	}
-	// apply to peer with static ips
-	if ipBlock.StaticCount > 0 {
 		return true
 	}
 	// apply to src/dst has current agent
@@ -281,88 +287,6 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 	return policyRule
 }
 
-func (rule *CompleteRule) GetPatchPolicyRules(patch *GroupPatch) (newPolicyRuleList, oldPolicyRuleList []PolicyRule) {
-	rule.lock.RLock()
-	defer rule.lock.RUnlock()
-
-	srcIPs := DeepCopyMap(rule.SrcIPBlocks).(map[string]*IPBlockItem)
-	dstIPs := DeepCopyMap(rule.DstIPBlocks).(map[string]*IPBlockItem)
-
-	revision, exist := rule.SrcGroups[patch.GroupName]
-	if exist && revision == patch.Revision {
-		applyCountMap(srcIPs, patch.Add, patch.Del)
-
-		addRules := rule.generateRuleList(patch.Add, dstIPs, rule.Ports)
-		newPolicyRuleList = append(newPolicyRuleList, addRules...)
-
-		delRules := rule.generateRuleList(patch.Del, dstIPs, rule.Ports)
-		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
-	}
-
-	revision, exist = rule.DstGroups[patch.GroupName]
-	if exist && revision == patch.Revision {
-		applyCountMap(dstIPs, patch.Add, patch.Del)
-
-		addRules := rule.generateRuleList(srcIPs, patch.Add, rule.Ports)
-		newPolicyRuleList = append(newPolicyRuleList, addRules...)
-
-		delRules := rule.generateRuleList(srcIPs, patch.Del, rule.Ports)
-		oldPolicyRuleList = append(oldPolicyRuleList, delRules...)
-	}
-
-	return
-}
-
-func (rule *CompleteRule) ApplyPatch(patch *GroupPatch) {
-	rule.lock.Lock()
-	defer rule.lock.Unlock()
-
-	revision, exist := rule.SrcGroups[patch.GroupName]
-
-	if exist && revision == patch.Revision {
-		applyCountMap(rule.SrcIPBlocks, patch.Add, patch.Del)
-		rule.SrcGroups[patch.GroupName] = patch.Revision + 1
-	}
-
-	revision, exist = rule.DstGroups[patch.GroupName]
-
-	if exist && revision == patch.Revision {
-		applyCountMap(rule.DstIPBlocks, patch.Add, patch.Del)
-		rule.DstGroups[patch.GroupName] = patch.Revision + 1
-	}
-}
-
-func applyCountMap(count map[string]*IPBlockItem, added, deled map[string]*IPBlockItem) {
-	for ip, del := range deled {
-		if _, exist := count[ip]; !exist {
-			continue
-		}
-		if del != nil {
-			count[ip].StaticCount -= del.StaticCount
-			count[ip].AgentRef.Delete(del.AgentRef.List()...)
-		}
-
-		if count[ip].StaticCount < 0 {
-			count[ip].StaticCount = 0
-		}
-
-		if count[ip].StaticCount == 0 && count[ip].AgentRef.Len() == 0 {
-			delete(count, ip)
-		}
-	}
-
-	for ip, add := range added {
-		if _, exist := count[ip]; !exist {
-			count[ip] = NewIPBlockItem()
-		}
-		if add != nil {
-			count[ip].StaticCount += add.StaticCount
-			count[ip].AgentRef.Insert(add.AgentRef.List()...)
-			count[ip].Ports = AppendIPBlockPorts(count[ip].Ports, add.Ports)
-		}
-	}
-}
-
 const (
 	GroupIndex  = "GroupIndex"
 	PolicyIndex = "PolicyIndex"
@@ -385,9 +309,7 @@ func NewGlobalRuleCache() cache.Indexer {
 
 func groupIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	srcGroups := sets.StringKeySet[int32](rule.SrcGroups)
-	dstGroups := sets.StringKeySet[int32](rule.DstGroups)
-	groups := srcGroups.Union(dstGroups)
+	groups := rule.SrcGroups.Union(rule.DstGroups)
 	return groups.UnsortedList(), nil
 }
 
