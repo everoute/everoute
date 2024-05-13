@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -100,4 +102,30 @@ func DeepCopyMap(theMap interface{}) interface{} {
 		}
 	}
 	return dstMap.Interface()
+}
+
+func AssembleStaticIPAndGroup(staticIPs sets.Set[string], group sets.Set[string], groupCache *GroupCache) (map[string]*IPBlockItem, error) {
+	res := make(map[string]*IPBlockItem)
+	for _, ip := range staticIPs.UnsortedList() {
+		res[ip] = &IPBlockItem{}
+	}
+	for _, g := range group.UnsortedList() {
+		ipBlocks, exists := groupCache.ListGroupIPBlocks(g)
+		if !exists {
+			return nil, fmt.Errorf("can't find group %s in cache", g)
+		}
+		for ip, v := range ipBlocks {
+			if _, ok := res[ip]; !ok {
+				res[ip] = v.DeepCopy().(*IPBlockItem)
+			} else {
+				if res[ip].AgentRef.Len() == 0 || v.AgentRef.Len() == 0 {
+					res[ip].AgentRef = sets.NewString()
+				} else {
+					res[ip].AgentRef.Insert(v.AgentRef.List()...)
+				}
+				res[ip].Ports = AppendIPBlockPorts(res[ip].Ports, v.Ports)
+			}
+		}
+	}
+	return res, nil
 }

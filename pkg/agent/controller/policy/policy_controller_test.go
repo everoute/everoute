@@ -1033,63 +1033,6 @@ var _ = Describe("PolicyController", func() {
 	})
 })
 
-var _ = Describe("GroupCache", func() {
-	var groupCache *cache.GroupCache
-
-	BeforeEach(func() {
-		groupCache = cache.NewGroupCache()
-	})
-
-	When("add a groupmembers to group cache", func() {
-		var members *groupv1alpha1.GroupMembers
-		var endpoint *securityv1alpha1.Endpoint
-
-		BeforeEach(func() {
-			endpoint = newTestEndpoint("192.168.1.1", []string{utils.CurrentAgentName()}, nil)
-			members = newTestGroupMembers(0, endpointToMember(endpoint)).GroupMembers
-			groupCache.AddGroupMembership(members)
-		})
-		AfterEach(func() {
-			groupCache.DelGroupMembership(members.Name)
-		})
-
-		It("should list IPBlocks of members", func() {
-			revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
-			Expect(exist).Should(BeTrue())
-			Expect(revision).Should(Equal(members.Revision))
-			Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
-				&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
-		})
-
-		When("add and apply a patch to group cache", func() {
-			var patch *groupv1alpha1.GroupMembersPatch
-			var addEp *securityv1alpha1.Endpoint
-
-			BeforeEach(func() {
-				addEp = newTestEndpoint("192.168.1.2", []string{utils.CurrentAgentName()}, nil)
-				patch = newTestGroupMembersPatch(members.Name, members.Revision, endpointToMember(addEp), nil, nil)
-
-				By("add and apply group patch")
-				groupCache.AddPatch(patch)
-				nextPatch := groupCache.NextPatch(members.Name)
-				Expect(nextPatch).NotTo(BeNil())
-				groupCache.ApplyPatch(nextPatch)
-			})
-
-			It("should applied to members and patch length be zero", func() {
-				revision, ipBlocks, exist := groupCache.ListGroupIPBlocks(members.Name)
-				Expect(exist).Should(BeTrue())
-				Expect(revision).Should(Equal(members.Revision + 1))
-				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.1/32",
-					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
-				Expect(ipBlocks).Should(HaveKeyWithValue("192.168.1.2/32",
-					&cache.IPBlockItem{AgentRef: sets.NewString(utils.CurrentAgentName()), StaticCount: 0, Ports: []securityv1alpha1.NamedPort{}}))
-				Expect(groupCache.PatchLen(members.Name)).Should(BeZero())
-			})
-		})
-	})
-})
-
 var _ = Describe("CompleteRuleCache", func() {
 	var completeRuleCache storecache.Indexer
 
@@ -1340,8 +1283,8 @@ func newTestGroupMembersPatch(groupName string, revision int32, addMember, updMe
 func newTestCompleteRule(ruleId string, srcGroup, dstGroup string) *cache.CompleteRule {
 	return &cache.CompleteRule{
 		RuleID:    ruleId,
-		SrcGroups: map[string]int32{srcGroup: 1},
-		DstGroups: map[string]int32{dstGroup: 1},
+		SrcGroups: sets.New[string](srcGroup),
+		DstGroups: sets.New[string](dstGroup),
 	}
 }
 
@@ -1445,7 +1388,7 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule
 	var policyRuleList []cache.PolicyRule
 	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		policyRuleList = append(policyRuleList, completeRule.(*cache.CompleteRule).ListRules()...)
+		policyRuleList = append(policyRuleList, completeRule.(*cache.CompleteRule).ListRules(&cache.GroupCache{})...)
 	}
 	return policyRuleList
 }
