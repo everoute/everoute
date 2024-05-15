@@ -114,18 +114,29 @@ func AssembleStaticIPAndGroup(staticIPs sets.Set[string], group sets.Set[string]
 		if !exists {
 			return nil, fmt.Errorf("can't find group %s in cache", g)
 		}
-		for ip, v := range ipBlocks {
-			if _, ok := res[ip]; !ok {
-				res[ip] = v.DeepCopy().(*IPBlockItem)
-			} else {
-				if res[ip].AgentRef.Len() == 0 || v.AgentRef.Len() == 0 {
-					res[ip].AgentRef = sets.NewString()
-				} else {
-					res[ip].AgentRef.Insert(v.AgentRef.List()...)
-				}
-				res[ip].Ports = AppendIPBlockPorts(res[ip].Ports, v.Ports)
-			}
-		}
+		res = AppendIPBlocks(res, ipBlocks)
 	}
 	return res, nil
+}
+
+func AppendIPBlocks(ori map[string]*IPBlockItem, add map[string]*IPBlockItem) map[string]*IPBlockItem {
+	if ori == nil {
+		return DeepCopyMap(add).(map[string]*IPBlockItem)
+	}
+
+	res := DeepCopyMap(ori).(map[string]*IPBlockItem)
+	for ip, v := range add {
+		if _, ok := res[ip]; !ok {
+			res[ip] = v.DeepCopy().(*IPBlockItem)
+		} else {
+			if res[ip].AgentRef.Len() == 0 || v.AgentRef.Len() == 0 {
+				res[ip].AgentRef = sets.NewString()
+			} else {
+				res[ip].AgentRef.Insert(v.AgentRef.List()...)
+			}
+			res[ip].Ports = AppendIPBlockPorts(res[ip].Ports, v.Ports)
+		}
+	}
+
+	return res
 }
