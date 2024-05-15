@@ -139,6 +139,10 @@ func (r *Reconciler) GetGlobalRuleLister() informer.Lister {
 	return r.globalRuleCache
 }
 
+func (r *Reconciler) GetGroupCache() *policycache.GroupCache {
+	return r.groupCache
+}
+
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
@@ -178,7 +182,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-
 	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
@@ -211,6 +214,7 @@ func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) {
 	r.syncPolicyRulesUntilSuccess(oldRuleList, newRuleList)
 }
 
+//nolint:all
 func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(staticIPs sets.Set[string], groups sets.Set[string], newGroup *groupv1alpha1.GroupMembers) map[string]*policycache.IPBlockItem {
 	res, err := policycache.AssembleStaticIPAndGroup(staticIPs, groups.Clone().Delete(newGroup.GetName()), r.groupCache)
 	if err != nil {
@@ -251,6 +255,7 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	newRuleList, err := r.calculateExpectedPolicyRules(policy)
 	if isGroupNotFound(err) {
 		// wait until groupmembers created
+		klog.V(2).Infof("Failed to calculate expect complete rule for policy %s, %s", policy.GetName(), err)
 		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
 	}
 	if err != nil {
@@ -589,7 +594,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 
 		if newExist {
 			if oldExist && ruleIsSame(oldRule, newRule) {
-					continue
+				continue
 			}
 			klog.Infof("create policyRule: %v", newRule)
 			errList = append(errList,
