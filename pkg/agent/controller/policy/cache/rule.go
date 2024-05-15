@@ -181,10 +181,10 @@ func (rule *CompleteRule) ListRules(groupCache *GroupCache) []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
-	return rule.generateRuleList(rule.assemblySrcIPBlocks(groupCache), rule.assemblyDstIPBlocks(groupCache), rule.Ports)
+	return rule.GenerateRuleList(rule.assemblySrcIPBlocks(groupCache), rule.assemblyDstIPBlocks(groupCache), rule.Ports)
 }
 
-func (rule *CompleteRule) generateRuleList(srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+func (rule *CompleteRule) GenerateRuleList(srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
 	var policyRuleList []PolicyRule
 
 	for srcIP, srcIPBlock := range srcIPBlocks {

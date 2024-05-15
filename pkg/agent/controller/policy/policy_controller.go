@@ -97,7 +97,35 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// todo
+	r.reconcilerLock.Lock()
+	defer r.reconcilerLock.Unlock()
+
+	klog.Infof("Receive groupmembers %s reconcile", req.NamespacedName)
+
+	gm := groupv1alpha1.GroupMembers{}
+	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
+		if apierrors.IsNotFound(err) {
+			// delete from cache
+			rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, req.Name)
+			if len(rules) > 0 {
+				ruleNames := []string{}
+				for i := range rules {
+					ruleNames = append(ruleNames, rules[i].(*policycache.CompleteRule).RuleID)
+				}
+				klog.V(2).Infof("Group %s referenced by complete rules %v, can't be deleted", req.Name, ruleNames)
+				return ctrl.Result{RequeueAfter: time.Second}, nil
+			}
+			r.groupCache.DelGroupMembership(req.Name)
+			klog.Infof("Success delete groupmembers %s", req.Name)
+			return ctrl.Result{}, nil
+		}
+		klog.Errorf("Failed to get groupmembers %s: %v", req.Name, err)
+		return ctrl.Result{}, err
+	}
+
+	r.ruleUpdateByGroup(&gm)
+	r.groupCache.UpdateGroupMembership(&gm)
+	klog.Infof("Success update groupmembers %s", req.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -164,6 +192,36 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
+}
+
+func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) {
+	rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, gm.GetName())
+	if len(rules) == 0 {
+		return
+	}
+	var oldRuleList, newRuleList []policycache.PolicyRule
+	for i := range rules {
+		rule := rules[i].(*policycache.CompleteRule)
+		oldRuleList = append(oldRuleList, rule.ListRules(r.groupCache)...)
+		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.SrcIPs, rule.SrcGroups, gm)
+		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.DstIPs, rule.DstGroups, gm)
+		newRuleList = append(newRuleList, rule.GenerateRuleList(srcIPs, dstIPs, rule.Ports)...)
+	}
+
+	r.syncPolicyRulesUntilSuccess(oldRuleList, newRuleList)
+}
+
+func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(staticIPs sets.Set[string], groups sets.Set[string], newGroup *groupv1alpha1.GroupMembers) map[string]*policycache.IPBlockItem {
+	res, err := policycache.AssembleStaticIPAndGroup(staticIPs, groups.Clone().Delete(newGroup.GetName()), r.groupCache)
+	if err != nil {
+		klog.Fatalf("Failed to assemble ipblocks, err: %v", err)
+	}
+	if !groups.Has(newGroup.GetName()) {
+		return res
+	}
+
+	res = policycache.AppendIPBlocks(res, policycache.GroupMembersToIPBlocks(newGroup.GroupMembers))
+	return res
 }
 
 func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error {
