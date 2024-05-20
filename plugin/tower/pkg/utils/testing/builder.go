@@ -17,6 +17,7 @@ limitations under the License.
 package testing
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 
@@ -178,7 +179,7 @@ func NetworkPolicyRuleDelServices(rule *schema.NetworkPolicyRule, svcIDs ...stri
 	NetworkPolicyRuleAddServices(rule, newSvcIDs.List()...)
 }
 
-func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
+func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock []*networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 
 	if protocol != "" {
@@ -189,7 +190,9 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.I
 	}
 
 	if ipBlock != nil {
-		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
+		for _, item := range ipBlock {
+			rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{IPBlock: item})
+		}
 	}
 
 	if len(selectors) != 0 {
@@ -201,7 +204,7 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock *networkingv1.I
 	return &rule
 }
 
-func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock *networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
+func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock []*networkingv1.IPBlock, selectors ...*schema.Label) *v1alpha1.Rule {
 	var rule v1alpha1.Rule
 
 	if protocol != "" {
@@ -212,7 +215,9 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock *networkingv1.IP
 	}
 
 	if ipBlock != nil {
-		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock})
+		for _, item := range ipBlock {
+			rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{IPBlock: item})
+		}
 	}
 
 	if len(selectors) != 0 {
@@ -344,14 +349,18 @@ func NewRandomIP() net.IP {
 
 func NewRandomIPBlock() *networkingv1.IPBlock {
 	ipStr := NewRandomIP().String()
-	prefixLen := fmt.Sprintf("%d", rand.Intn(33))
+	prefixLenInt := rand.Intn(23) + 8
+	prefixLen := fmt.Sprintf("%d", prefixLenInt)
 	ipBlock := &networkingv1.IPBlock{
 		CIDR: ipStr + "/" + prefixLen,
 	}
 	exceptLen := rand.Intn(3)
 	var exceptIPs []string
 	for i := 0; i <= exceptLen; i++ {
-		exceptIPs = append(exceptIPs, NewRandomIP().String()+"/32")
+		offset := uint32(rand.Intn(1 << (32 - prefixLenInt)))
+		_, ipNet, _ := net.ParseCIDR(ipBlock.CIDR)
+		newIP := Ipv4ToUint32(ipNet.IP) + offset
+		exceptIPs = append(exceptIPs, Uint32ToIpv4(newIP).String()+"/32")
 	}
 	ipBlock.Except = exceptIPs
 	return ipBlock
@@ -393,4 +402,14 @@ func NewRandomNicAttachedTo(host *schema.Host, name string) *schema.Nic {
 
 	host.Nics = append(host.Nics, nic)
 	return &nic
+}
+
+func Uint32ToIpv4(ip uint32) net.IP {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, ip)
+	return net.IPv4(b[0], b[1], b[2], b[3])
+}
+
+func Ipv4ToUint32(ip net.IP) uint32 {
+	return binary.BigEndian.Uint32(ip.To4())
 }

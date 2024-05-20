@@ -25,6 +25,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2
+	github.com/mikioh/ipaddr v0.0.0-20190404000644-d465c8ab6721
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.27.7
 	github.com/orcaman/concurrent-map v1.0.0
@@ -36,7 +37,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.14.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.19.0
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
