@@ -199,13 +199,42 @@ var _ = Describe("PolicyController", func() {
 			When("create SecurityPolicy with IPBlocks and Except IPBlock", func() {
 				var policy *schema.SecurityPolicy
 				var ingress, egress *schema.NetworkPolicyRule
+				var ingressBlock []*networkingv1.IPBlock
+				var egressBlock []*networkingv1.IPBlock
 
 				BeforeEach(func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
-					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.1"}})
-					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"})
+					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100", Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24"}})
+					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24,192.168.4.1-192.168.4.100"})
 					policy.Ingress = append(policy.Ingress, *ingress)
 					policy.Egress = append(policy.Egress, *egress)
+
+					ingressBlock = []*networkingv1.IPBlock{
+						{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.0/24"}},
+						{CIDR: "192.168.1.1/32", Except: []string{}},
+						{CIDR: "192.168.3.1/32", Except: []string{"192.168.3.1/32"}},
+						{CIDR: "192.168.3.2/31", Except: []string{"192.168.3.2/31"}},
+						{CIDR: "192.168.3.4/30", Except: []string{"192.168.3.4/30"}},
+						{CIDR: "192.168.3.8/29", Except: []string{"192.168.3.8/29"}},
+						{CIDR: "192.168.3.16/28", Except: []string{"192.168.3.16/30", "192.168.3.20/32"}},
+						{CIDR: "192.168.3.32/27", Except: []string{}},
+						{CIDR: "192.168.3.64/27", Except: []string{}},
+						{CIDR: "192.168.3.96/30", Except: []string{}},
+						{CIDR: "192.168.3.100/32", Except: []string{}},
+					}
+
+					egressBlock = []*networkingv1.IPBlock{
+						{CIDR: "192.168.1.0/24"},
+						{CIDR: "192.168.4.1/32"},
+						{CIDR: "192.168.4.2/31"},
+						{CIDR: "192.168.4.4/30"},
+						{CIDR: "192.168.4.8/29"},
+						{CIDR: "192.168.4.16/28"},
+						{CIDR: "192.168.4.32/27"},
+						{CIDR: "192.168.4.64/27"},
+						{CIDR: "192.168.4.96/30"},
+						{CIDR: "192.168.4.100/32"},
+					}
 
 					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
 					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
@@ -216,8 +245,8 @@ var _ = Describe("PolicyController", func() {
 				It("should generate expect policies", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
-						NewSecurityPolicyRuleIngress("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.1/32"}}),
-						NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"}),
+						NewSecurityPolicyRuleIngress("tcp", "20-80", ingressBlock),
+						NewSecurityPolicyRuleEgress("udp", "123", egressBlock),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
 					assertAllowlist(ctx)
@@ -238,8 +267,8 @@ var _ = Describe("PolicyController", func() {
 					It("should update policy ipBlock value", func() {
 						assertPoliciesNum(ctx, 1)
 						assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
-							NewSecurityPolicyRuleIngress("tcp", "20-80", &networkingv1.IPBlock{CIDR: newIP + "/32"}),
-							NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: newIP + "/32"}),
+							NewSecurityPolicyRuleIngress("tcp", "20-80", []*networkingv1.IPBlock{{CIDR: newIP + "/32"}}),
+							NewSecurityPolicyRuleEgress("udp", "123", []*networkingv1.IPBlock{{CIDR: newIP + "/32"}}),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
 						assertAllowlist(ctx)
@@ -251,11 +280,13 @@ var _ = Describe("PolicyController", func() {
 					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
 
 					assertPoliciesNum(ctx, 1)
-					expectIngress := NewSecurityPolicyRuleIngress("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.1/32"}})
-					expectIngress.From[0].DisableSymmetric = true
+					expectIngress := NewSecurityPolicyRuleIngress("tcp", "20-80", ingressBlock)
+					for i := range expectIngress.From {
+						expectIngress.From[i].DisableSymmetric = true
+					}
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						expectIngress,
-						NewSecurityPolicyRuleEgress("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24"}),
+						NewSecurityPolicyRuleEgress("udp", "123", egressBlock),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
 					assertAllowlist(ctx)
@@ -529,8 +560,8 @@ var _ = Describe("PolicyController", func() {
 				})
 
 				It("should generate expect policies", func() {
-					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
-					expectEgress := NewSecurityPolicyRuleEgress("TCP", "33-34", ipBlock2)
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", []*networkingv1.IPBlock{ipBlock1})
+					expectEgress := NewSecurityPolicyRuleEgress("TCP", "33-34", []*networkingv1.IPBlock{ipBlock2})
 					RuleAddPorts(expectEgress, "TCP", "21", "UDP", "12,23")
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
@@ -544,9 +575,9 @@ var _ = Describe("PolicyController", func() {
 					server.TrackerFactory().Service().CreateOrUpdate(svcA)
 					server.TrackerFactory().Service().CreateOrUpdate(svcB)
 
-					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", []*networkingv1.IPBlock{ipBlock1})
 					RuleAddPorts(expectIngress, "TCP", "90", "UDP", "3434")
-					expectEgress := NewSecurityPolicyRuleEgress("ICMP", "", ipBlock2)
+					expectEgress := NewSecurityPolicyRuleEgress("ICMP", "", []*networkingv1.IPBlock{ipBlock2})
 					RuleAddPorts(expectEgress, "UDP", "12,23")
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
@@ -557,9 +588,9 @@ var _ = Describe("PolicyController", func() {
 					NetworkPolicyRuleDelServices(&policy.Egress[0], svcB.ID)
 					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
 
-					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", []*networkingv1.IPBlock{ipBlock1})
 					RuleAddPorts(expectIngress, "TCP", "33-34", "TCP", "21")
-					expectEgress := NewSecurityPolicyRuleEgress("UDP", "12,23", ipBlock2)
+					expectEgress := NewSecurityPolicyRuleEgress("UDP", "12,23", []*networkingv1.IPBlock{ipBlock2})
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
 						expectIngress, expectEgress, NewSecurityPolicyApplyPeer("", labelA, labelB))
 				})
@@ -837,6 +868,43 @@ var _ = Describe("PolicyController", func() {
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
+			})
+
+			When("update ingress with ip block", func() {
+				var ingressBlock []*networkingv1.IPBlock
+
+				BeforeEach(func() {
+					ingress = NewNetworkPolicyRule("tcp", "22-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.3.1-192.168.3.100", Except: []string{"192.168.3.0/26", "192.168.0.0"}})
+					policy.Ingress = []schema.NetworkPolicyRule{*ingress}
+
+					ingressBlock = []*networkingv1.IPBlock{
+						{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.0/32"}},
+						{CIDR: "192.168.3.1/32", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.2/31", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.4/30", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.8/29", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.16/28", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.32/27", Except: []string{"192.168.3.0/26"}},
+						{CIDR: "192.168.3.64/27", Except: []string{}},
+						{CIDR: "192.168.3.96/30", Except: []string{}},
+						{CIDR: "192.168.3.100/32", Except: []string{}},
+					}
+
+					By(fmt.Sprintf("Update IsolationPolicy %+v", policy))
+					server.TrackerFactory().IsolationPolicy().CreateOrUpdate(policy)
+				})
+				It("should have ip block", func() {
+					assertPoliciesNum(ctx, 2)
+					expectIngress := NewSecurityPolicyRuleIngress("tcp", "22-80", ingressBlock)
+					assertHasPolicy(ctx, constants.Tier1, true, "", v1alpha1.DefaultRuleDrop,
+						[]networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+						expectIngress,
+						nil,
+						NewSecurityPolicyApplyPeer(vnicA.GetID()),
+						NewSecurityPolicyApplyPeer(vnicB.GetID()),
+					)
+				})
+
 			})
 		})
 
@@ -1128,7 +1196,7 @@ var _ = Describe("PolicyController", func() {
 				It("should generate security policy with alg rule", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-						nil, NewSecurityPolicyRuleEgress("TCP", "27", ipBlock))
+						nil, NewSecurityPolicyRuleEgress("TCP", "27", []*networkingv1.IPBlock{ipBlock}))
 				})
 			})
 
@@ -1152,7 +1220,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should generate security policy with service ports", func() {
 					assertPoliciesNum(ctx, 1)
-					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+					expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", []*networkingv1.IPBlock{ipBlock1})
 					RuleAddPorts(expectIngress, "UDP", "12,23")
 					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 						expectIngress, nil)
@@ -1165,7 +1233,7 @@ var _ = Describe("PolicyController", func() {
 					})
 
 					It("should update security policy ports as service", func() {
-						expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", ipBlock1)
+						expectIngress := NewSecurityPolicyRuleIngress("ICMP", "", []*networkingv1.IPBlock{ipBlock1})
 						RuleAddPorts(expectIngress, "UDP", "12,23", "TCP", "90", "UDP", "3434")
 						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 							expectIngress, nil)
@@ -1450,6 +1518,28 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 		return policyTypeSet.Len() == 0
 	}
 
+	matchPeer := func(p1, p2 []v1alpha1.SecurityPolicyPeer) bool {
+		if len(p1) != len(p2) {
+			return false
+		}
+		for i := range p1 {
+			if p1[i].DisableSymmetric != p2[i].DisableSymmetric ||
+				(p1[i].IPBlock == nil && p2[i].IPBlock != nil) ||
+				(p1[i].IPBlock != nil && p2[i].IPBlock == nil) ||
+				(p1[i].IPBlock != nil && p2[i].IPBlock != nil &&
+					((p1[i].IPBlock.CIDR != p2[i].IPBlock.CIDR) ||
+						!sets.NewString(p1[i].IPBlock.Except...).Equal(sets.NewString(p2[i].IPBlock.Except...)))) ||
+				(p1[i].Endpoint == nil && p2[i].Endpoint != nil) ||
+				(p1[i].Endpoint != nil && p2[i].Endpoint == nil) ||
+				(p1[i].Endpoint != nil && p2[i].Endpoint != nil && p1[i].Endpoint.String() != p2[i].Endpoint.String()) ||
+				!reflect.DeepEqual(p1[i].EndpointSelector, p2[i].EndpointSelector) ||
+				!reflect.DeepEqual(p1[i].NamespaceSelector, p2[i].NamespaceSelector) {
+				return false
+			}
+		}
+		return true
+	}
+
 	matchRules := func(rule []v1alpha1.Rule, expectRule *v1alpha1.Rule) bool {
 		if expectRule == nil {
 			return len(rule) == 0
@@ -1475,9 +1565,13 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 			}
 			return true
 		}
-		return (len(rule[0].Ports) == 0 && len(expectRule.Ports) == 0 || matchPorts(rule[0].Ports, expectRule.Ports)) &&
-			(len(rule[0].From) == 0 && len(expectRule.From) == 0 || reflect.DeepEqual(rule[0].From, expectRule.From)) &&
-			(len(rule[0].To) == 0 && len(expectRule.To) == 0 || reflect.DeepEqual(rule[0].To, expectRule.To))
+
+		if !(len(rule[0].Ports) == 0 && len(expectRule.Ports) == 0 || matchPorts(rule[0].Ports, expectRule.Ports)) {
+			return false
+		}
+
+		return (len(rule[0].From) == 0 && len(expectRule.From) == 0 || matchPeer(rule[0].From, expectRule.From)) &&
+			(len(rule[0].To) == 0 && len(expectRule.To) == 0 || matchPeer(rule[0].To, expectRule.To))
 	}
 
 	matchApplyPeers := func(applyPeers, expectApplyPeers []v1alpha1.ApplyToPeer) bool {

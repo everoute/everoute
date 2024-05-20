@@ -65,6 +65,7 @@ type NetworkPolicyRule struct {
 	Type                       NetworkPolicyRuleType   `json:"type"`
 	Ports                      []NetworkPolicyRulePort `json:"ports,omitempty"`
 	Services                   []ObjectReference       `json:"services,omitempty"`
+	// IPBlock may be multi ip blocks, ip ranges or single ip
 	IPBlock                    *string                 `json:"ip_block"`
 	ExceptIPBlock              []string                `json:"except_ip_block,omitempty"`
 	Selector                   []ObjectReference       `json:"selector"`
@@ -111,7 +112,8 @@ const (
 type NetworkPolicyRuleType string
 
 const (
-	NetworkPolicyRuleTypeAll           NetworkPolicyRuleType = "ALL"
+	NetworkPolicyRuleTypeAll NetworkPolicyRuleType = "ALL"
+	// NetworkPolicyRuleTypeIPBlock may be multi ip blocks, ip ranges or single ip
 	NetworkPolicyRuleTypeIPBlock       NetworkPolicyRuleType = "IP_BLOCK"
 	NetworkPolicyRuleTypeSelector      NetworkPolicyRuleType = "SELECTOR"
 	NetworkPolicyRuleTypeSecurityGroup NetworkPolicyRuleType = "SECURITY_GROUP"

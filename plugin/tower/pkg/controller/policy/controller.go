@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mikioh/ipaddr"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1353,11 +1354,13 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		if rule.IPBlock == nil {
 			return nil, nil, fmt.Errorf("receive rule.Type %s but empty IPBlock", schema.NetworkPolicyRuleTypeIPBlock)
 		}
-		ipBlock, err := parseIPBlock(*rule.IPBlock, rule.ExceptIPBlock)
+		ipBlocks, err := parseIPBlock(*rule.IPBlock, rule.ExceptIPBlock)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse IPBlock %s with except %v: %s", *rule.IPBlock, rule.ExceptIPBlock, err)
 		}
-		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock, DisableSymmetric: disableSymmetric})
+		for _, ipBlock := range ipBlocks {
+			policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{IPBlock: ipBlock, DisableSymmetric: disableSymmetric})
+		}
 	case schema.NetworkPolicyRuleTypeSelector:
 		endpointSelector, err := c.parseSelectors(rule.Selector)
 		if err != nil {
@@ -1481,46 +1484,88 @@ func (c *Controller) getGlobalWhitelistPolicyKey() string {
 	return c.namespace + "/" + GlobalWhitelistPolicyName
 }
 
-func parseIPBlock(ipBlock string, excepts []string) (*networkingv1.IPBlock, error) {
-	var block networkingv1.IPBlock
+func parseIPBlock(ipBlock string, excepts []string) ([]*networkingv1.IPBlock, error) {
+	var block []*networkingv1.IPBlock
+	var exceptAll []string
 
-	cidr, err := formatIPBlock(ipBlock)
-	if err != nil {
-		return nil, err
-	}
-	block.CIDR = cidr
-
-	for _, except := range excepts {
-		cidr, err = formatIPBlock(except)
+	for _, item := range excepts {
+		cidr, err := formatIPBlock(item)
 		if err != nil {
 			return nil, err
 		}
-		block.Except = append(block.Except, cidr)
+		exceptAll = append(exceptAll, cidr...)
 	}
 
-	return &block, nil
+	ipBlockList := strings.Split(ipBlock, ",")
+	for _, item := range ipBlockList {
+		cidrs, err := formatIPBlock(item)
+		if err != nil {
+			return nil, err
+		}
+		for _, cidr := range cidrs {
+			_, cidrNet, _ := net.ParseCIDR(cidr)
+			var exceptValid []string
+			for _, exceptItem := range exceptAll {
+				_, exceptItemCidr, _ := net.ParseCIDR(exceptItem)
+				if cidrNet.Contains(exceptItemCidr.IP) ||
+					cidrNet.Contains(ipaddr.NewPrefix(exceptItemCidr).Last()) ||
+					exceptItemCidr.Contains(cidrNet.IP) ||
+					exceptItemCidr.Contains(ipaddr.NewPrefix(cidrNet).Last()) {
+					exceptValid = append(exceptValid, exceptItem)
+				}
+			}
+			block = append(block, &networkingv1.IPBlock{
+				CIDR:   cidr,
+				Except: exceptValid,
+			})
+		}
+	}
+
+	return block, nil
 }
 
-func formatIPBlock(ipBlock string) (string, error) {
+func formatIPBlock(ipBlock string) ([]string, error) {
 	ipBlock = strings.TrimSpace(ipBlock)
 
+	// for ip block
 	_, _, err := net.ParseCIDR(ipBlock)
 	if err == nil {
-		return ipBlock, nil
+		return []string{ipBlock}, nil
 	}
 
+	// for ip range
+	ipRange := strings.Split(ipBlock, "-")
+	if len(ipRange) == 2 {
+		ipStart := net.ParseIP(strings.TrimSpace(ipRange[0]))
+		ipEnd := net.ParseIP(strings.TrimSpace(ipRange[1]))
+
+		if ipStart == nil || ipEnd == nil ||
+			(ipStart.To4() == nil && ipEnd.To16() != nil) ||
+			(ipStart.To4() != nil && ipEnd.To16() == nil) {
+			return []string{}, fmt.Errorf("invalid ip range %s", ipRange)
+		}
+
+		ipPrefix := ipaddr.Summarize(ipStart, ipEnd)
+		var ret []string
+		for _, pf := range ipPrefix {
+			ret = append(ret, pf.String())
+		}
+		return ret, nil
+	}
+
+	// for single ip
 	ip := net.ParseIP(ipBlock)
 	if ip.Equal(net.IPv4zero) || ip.Equal(net.IPv6zero) {
-		return "0.0.0.0/0", nil
+		return []string{"0.0.0.0/0"}, nil
 	}
 	if ip.To4() != nil {
-		return fmt.Sprintf("%s/%d", ipBlock, net.IPv4len*8), nil
+		return []string{fmt.Sprintf("%s/%d", ipBlock, net.IPv4len*8)}, nil
 	}
 	if ip.To16() != nil {
-		return fmt.Sprintf("%s/%d", ipBlock, net.IPv6len*8), nil
+		return []string{fmt.Sprintf("%s/%d", ipBlock, net.IPv6len*8)}, nil
 	}
 
-	return "", fmt.Errorf("neither %s is cidr nor ipv4 nor ipv6", ipBlock)
+	return []string{""}, fmt.Errorf("neither %s is cidr nor ipv4 nor ipv6", ipBlock)
 }
 
 func parseEnforcementMode(mode schema.PolicyMode) v1alpha1.PolicyMode {
