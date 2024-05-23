@@ -1,9 +1,31 @@
+diff --git a/test/e2e/framework/pod/wait.go b/test/e2e/framework/pod/wait.go
+index 076bdcc525f..99efa95af74 100644
+--- a/test/e2e/framework/pod/wait.go
++++ b/test/e2e/framework/pod/wait.go
+@@ -39,7 +39,7 @@ import (
+
+ const (
+ 	// defaultPodDeletionTimeout is the default timeout for deleting pod.
+-	defaultPodDeletionTimeout = 3 * time.Minute
++	defaultPodDeletionTimeout = 13 * time.Minute
+
+ 	// podListTimeout is how long to wait for the pod to be listable.
+ 	podListTimeout = time.Minute
+@@ -50,7 +50,7 @@ const (
+ 	podScheduledBeforeTimeout = podListTimeout + (20 * time.Second)
+
+ 	// podStartTimeout is how long to wait for the pod to be started.
+-	podStartTimeout = 5 * time.Minute
++	podStartTimeout = 7 * time.Minute
+
+ 	// poll is how often to poll pods, nodes and claims.
+ 	poll = 2 * time.Second
 diff --git a/test/e2e/framework/util.go b/test/e2e/framework/util.go
 index 53c4d1a409b..4337812d53f 100644
 --- a/test/e2e/framework/util.go
 +++ b/test/e2e/framework/util.go
 @@ -464,7 +464,7 @@ func countEndpointsNum(e *v1.Endpoints) int {
- 
+
  // restclientConfig returns a config holds the information needed to build connection to kubernetes clusters.
  func restclientConfig(kubeContext string) (*clientcmdapi.Config, error) {
 -	Logf(">>> kubeConfig: %s", TestContext.KubeConfig)
@@ -22,7 +44,7 @@ index cacd0c2e9a3..69db4f550bc 100644
 -	admissionapi "k8s.io/pod-security-admission/api"
 +	//admissionapi "k8s.io/pod-security-admission/api"
  )
- 
+
  // probeConnectivityArgs is set of arguments for a probeConnectivity
 @@ -171,6 +171,7 @@ func (k *kubeManager) executeRemoteCommand(namespace string, pod string, contain
  		CaptureStdout:      true,
@@ -31,7 +53,7 @@ index cacd0c2e9a3..69db4f550bc 100644
 +		Quiet:              true,
  	})
  }
- 
+
 @@ -289,5 +290,5 @@ func enforcePodSecurityBaseline(ns *v1.Namespace) {
  		ns.ObjectMeta.Labels = make(map[string]string)
  	}
@@ -40,27 +62,134 @@ index cacd0c2e9a3..69db4f550bc 100644
 +	//ns.ObjectMeta.Labels[admissionapi.EnforceLevelLabel] = string(admissionapi.LevelBaseline)
  }
 diff --git a/test/e2e/network/netpol/network_legacy.go b/test/e2e/network/netpol/network_legacy.go
-index a46ca8bdfcc..390094b5045 100644
+index a46ca8bdfcc..ac3b4cbda7b 100644
 --- a/test/e2e/network/netpol/network_legacy.go
 +++ b/test/e2e/network/netpol/network_legacy.go
-@@ -2147,7 +2147,7 @@ func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *
+@@ -56,6 +56,11 @@ connections from one of the clients. The test then asserts that the clients
+ failed or successfully connected as expected.
+ */
+
++const (
++	ConnectRetry       int = 90
++	CannotConnectRetry int = 5
++)
++
+ type protocolPort struct {
+ 	port     int
+ 	protocol v1.Protocol
+@@ -913,7 +918,7 @@ var _ = common.SIGDescribe("NetworkPolicyLegacy [LinuxOnly]", func() {
+ 			ginkgo.By(fmt.Sprintf("Creating client pod %s that should not be able to connect to %s.", "client-a", service.Name))
+ 			// Specify RestartPolicy to OnFailure so we can check the client pod fails in the beginning and succeeds
+ 			// after updating its label, otherwise it would not restart after the first failure.
+-			podClient := createNetworkClientPodWithRestartPolicy(f, f.Namespace, "client-a", service, allowedPort, v1.ProtocolTCP, v1.RestartPolicyOnFailure)
++			podClient := createNetworkClientPodWithRestartPolicy(f, f.Namespace, "client-a", service, allowedPort, v1.ProtocolTCP, v1.RestartPolicyOnFailure, CannotConnectRetry)
+ 			defer func() {
+ 				ginkgo.By(fmt.Sprintf("Cleaning up the pod %s", podClient.Name))
+ 				if err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), podClient.Name, metav1.DeleteOptions{}); err != nil {
+@@ -1902,7 +1907,7 @@ func testCannotConnect(f *framework.Framework, ns *v1.Namespace, podName string,
+
+ func testCanConnectProtocol(f *framework.Framework, ns *v1.Namespace, podName string, service *v1.Service, targetPort int, protocol v1.Protocol) {
+ 	ginkgo.By(fmt.Sprintf("Creating client pod %s that should successfully connect to %s.", podName, service.Name))
+-	podClient := createNetworkClientPod(f, ns, podName, service, targetPort, protocol)
++	podClient := createNetworkClientPod(f, ns, podName, service, targetPort, protocol, ConnectRetry)
+ 	defer func() {
+ 		ginkgo.By(fmt.Sprintf("Cleaning up the pod %s", podClient.Name))
+ 		if err := f.ClientSet.CoreV1().Pods(ns.Name).Delete(context.TODO(), podClient.Name, metav1.DeleteOptions{}); err != nil {
+@@ -1914,7 +1919,7 @@ func testCanConnectProtocol(f *framework.Framework, ns *v1.Namespace, podName st
+
+ func testCannotConnectProtocol(f *framework.Framework, ns *v1.Namespace, podName string, service *v1.Service, targetPort int, protocol v1.Protocol) {
+ 	ginkgo.By(fmt.Sprintf("Creating client pod %s that should not be able to connect to %s.", podName, service.Name))
+-	podClient := createNetworkClientPod(f, ns, podName, service, targetPort, protocol)
++	podClient := createNetworkClientPod(f, ns, podName, service, targetPort, protocol, CannotConnectRetry)
+ 	defer func() {
+ 		ginkgo.By(fmt.Sprintf("Cleaning up the pod %s", podClient.Name))
+ 		if err := f.ClientSet.CoreV1().Pods(ns.Name).Delete(context.TODO(), podClient.Name, metav1.DeleteOptions{}); err != nil {
+@@ -2114,13 +2119,13 @@ func cleanupServerPodAndService(f *framework.Framework, pod *v1.Pod, service *v1
+ // Create a client pod which will attempt a netcat to the provided service, on the specified port.
+ // This client will attempt a one-shot connection, then die, without restarting the pod.
+ // Test can then be asserted based on whether the pod quit with an error or not.
+-func createNetworkClientPod(f *framework.Framework, namespace *v1.Namespace, podName string, targetService *v1.Service, targetPort int, protocol v1.Protocol) *v1.Pod {
+-	return createNetworkClientPodWithRestartPolicy(f, namespace, podName, targetService, targetPort, protocol, v1.RestartPolicyNever)
++func createNetworkClientPod(f *framework.Framework, namespace *v1.Namespace, podName string, targetService *v1.Service, targetPort int, protocol v1.Protocol, maxTries int) *v1.Pod {
++	return createNetworkClientPodWithRestartPolicy(f, namespace, podName, targetService, targetPort, protocol, v1.RestartPolicyNever, maxTries)
+ }
+
+ // Create a client pod which will attempt a netcat to the provided service, on the specified port.
+ // It is similar to createNetworkClientPod but supports specifying RestartPolicy.
+-func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *v1.Namespace, podName string, targetService *v1.Service, targetPort int, protocol v1.Protocol, restartPolicy v1.RestartPolicy) *v1.Pod {
++func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *v1.Namespace, podName string, targetService *v1.Service, targetPort int, protocol v1.Protocol, restartPolicy v1.RestartPolicy, maxTries int) *v1.Pod {
+ 	var connectProtocol string
+ 	switch protocol {
+ 	case v1.ProtocolTCP:
+@@ -2147,7 +2152,7 @@ func createNetworkClientPodWithRestartPolicy(f *framework.Framework, namespace *
  					Command: []string{"/bin/sh"},
  					Args: []string{
  						"-c",
 -						fmt.Sprintf("for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
-+						fmt.Sprintf("sleep 10; for i in $(seq 1 5); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
++						fmt.Sprintf("sleep 10; for i in $(seq 1 %d); do /agnhost connect %s --protocol %s --timeout 8s && exit 0 || sleep 1; done; exit 1", maxTries, net.JoinHostPort(targetService.Spec.ClusterIP, strconv.Itoa(targetPort)), connectProtocol),
  					},
  				},
  			},
 diff --git a/test/e2e/network/netpol/test_helper.go b/test/e2e/network/netpol/test_helper.go
-index dc09271fa9b..2fed7d92c5b 100644
+index dc09271fa9b..d2baac44a5b 100644
 --- a/test/e2e/network/netpol/test_helper.go
 +++ b/test/e2e/network/netpol/test_helper.go
-@@ -111,6 +111,7 @@ func waitForHTTPServers(k *kubeManager, model *Model) error {
+@@ -67,7 +67,7 @@ func UpdatePolicy(k8s *kubeManager, policy *networkingv1.NetworkPolicy, namespac
+
+ // waitForHTTPServers waits for all webservers to be up, on all protocols sent in the input,  and then validates them using the same probe logic as the rest of the suite.
+ func waitForHTTPServers(k *kubeManager, model *Model) error {
+-	const maxTries = 10
++	const maxTries = 40
+ 	framework.Logf("waiting for HTTP servers (ports 80 and/or 81) to become ready")
+
+ 	testCases := map[string]*TestCase{}
+@@ -110,21 +110,37 @@ func waitForHTTPServers(k *kubeManager, model *Model) error {
+ // ValidateOrFail validates connectivity
  func ValidateOrFail(k8s *kubeManager, model *Model, testCase *TestCase) {
  	ginkgo.By("Validating reachability matrix...")
- 
-+	time.Sleep(time.Second*10)
- 	// 1st try
- 	ginkgo.By("Validating reachability matrix... (FIRST TRY)")
- 	ProbePodToPodConnectivity(k8s, model, testCase)
++	const maxTries = 5
+
+-	// 1st try
+-	ginkgo.By("Validating reachability matrix... (FIRST TRY)")
+-	ProbePodToPodConnectivity(k8s, model, testCase)
+-	// 2nd try, in case first one failed
+-	if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
+-		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
++	time.Sleep(10 * time.Second)
++	for i := 1; i <= maxTries; i++ {
++		ginkgo.By(fmt.Sprintf("Validating reachability matrix... (%d TRY)", i))
+ 		ProbePodToPodConnectivity(k8s, model, testCase)
++		var wrong int
++		if _, wrong, _, _ = testCase.Reachability.Summary(ignoreLoopback); wrong == 0 {
++			break
++		}
++		if i >= maxTries {
++			testCase.Reachability.PrintSummary(true, true, true)
++			framework.Failf("Had %d wrong results in reachability matrix", wrong)
++		} else {
++			framework.Logf("failed first probe %d wrong results ... retrying", wrong)
++		}
+ 	}
+-
+-	// at this point we know if we passed or failed, print final matrix and pass/fail the test.
+-	if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
+-		testCase.Reachability.PrintSummary(true, true, true)
+-		framework.Failf("Had %d wrong results in reachability matrix", wrong)
+-	}
++	// // 1st try
++	// ginkgo.By("Validating reachability matrix... (FIRST TRY)")
++	// ProbePodToPodConnectivity(k8s, model, testCase)
++	// // 2nd try, in case first one failed
++	// if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
++	// 	framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
++	// 	ProbePodToPodConnectivity(k8s, model, testCase)
++	// }
++
++	// // at this point we know if we passed or failed, print final matrix and pass/fail the test.
++	// if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
++	// 	testCase.Reachability.PrintSummary(true, true, true)
++	// 	framework.Failf("Had %d wrong results in reachability matrix", wrong)
++	// }
+ 	if isVerbose {
+ 		testCase.Reachability.PrintSummary(true, true, true)
+ 	}

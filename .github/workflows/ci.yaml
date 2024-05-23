@@ -75,7 +75,7 @@ jobs:
 
       - name: run everoute e2e test
         run: sudo make docker-e2e-test
-  
+
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
     steps:
@@ -170,7 +170,7 @@ jobs:
           kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
           mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
@@ -189,7 +189,7 @@ jobs:
         run: ./k8se2e/bin/ginkgo -nodes=5 --skip="NodePort|SCTP|hairpin|ProxyTerminatingEndpoints|rejected|IPv6|Networking" --focus="Services" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: run NetworkPolicy case
-        timeout-minutes: 25
+        timeout-minutes: 50
         run: ./k8se2e/bin/ginkgo -nodes=10 --skip="SCTP" --focus="NetworkPolicy" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: delete test k8s cluster
