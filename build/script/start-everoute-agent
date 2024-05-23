@@ -8,33 +8,4 @@ while true; do
   fi
 done
 
-function sync_attached_ip() {
-  mkdir -p sync_tmp_dir
-  ln -s /host/var/run/netns /var/run/netns
-  for ns in `ls /var/run/netns`
-  do
-    link=`ip netns exec $ns ip a show dev eth0`
-    mac=`echo "$link" | grep ether | awk '{print$2}'`
-    ip=`echo "$link" | grep "inet " | awk '{print$2}' | awk -F '/' '{print $1}'`
-    echo $ip > sync_tmp_dir/$mac
-  done
-  
-  for name in `ovs-vsctl list-ifaces cnibr0 | grep -v cnibr0`
-  do
-    iface=`ovs-vsctl list in $name`
-    mac=`ovs-vsctl get in $name external_ids:attached-mac 2>/dev/null | tr -d '"'`
-    ip=`ovs-vsctl get in $name external_ids:attached-ipv4 2>/dev/null | tr -d '"'`
-  
-    target_ip=`cat sync_tmp_dir/$mac 2>/dev/null | tr -d ' '`
-    if [[ "$ip" != "$target_ip" && "$target_ip" != "" ]];then
-      ovs-vsctl set in $name external_ids:attached-ipv4=$target_ip
-      echo "update interface" "$name" "(" $mac ")" "attached-ipv4 to" "$target_ip"
-    fi
-  done
-  rm -rf /var/run/netns
-  rm -rf sync_tmp_dir
-}
-
-sync_attached_ip
-
 /opt/everoute/bin/everoute-agent $*
