@@ -357,7 +357,22 @@ var _ = Describe("CRD Validate", func() {
 			policy.Name = "new-blocklist"
 			policy.Spec.IsBlocklist = true
 			policy.Spec.SymmetricMode = true
+			policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
 			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create blocklist policy can't set default rule drop", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Name = "new-blocklist"
+			policy.Spec.IsBlocklist = true
+			policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleDrop
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("create a valid blocklist policy", func() {
+			policy := securityPolicyIngress.DeepCopy()
+			policy.Name = "new-blocklist"
+			policy.Spec.IsBlocklist = true
+			policy.Spec.DefaultRule = securityv1alpha1.DefaultRuleNone
+			Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 		})
 		It("Update policy with unexists tier should not allowed", func() {
 			policy := securityPolicyIngress.DeepCopy()

@@ -38,18 +38,14 @@ func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath
 	switch rule.RuleType {
 	case policycache.RuleTypeDefaultRule:
 		if rule.Tier == constants.Tier2 {
-			rulePriority = constants.NormalPolicyRuleStartPriority + int(rule.Priority)*2 - 1
+			rulePriority = constants.NormalPolicyRuleStartPriority + int(rule.PriorityOffset)
 		} else {
 			rulePriority = constants.DefaultPolicyRulePriority
 		}
 	case policycache.RuleTypeGlobalDefaultRule:
 		rulePriority = constants.GlobalDefaultPolicyRulePriority
 	default:
-		if rule.Tier == constants.Tier2 {
-			rulePriority = constants.NormalPolicyRuleStartPriority + int(rule.Priority)*2
-		} else {
-			rulePriority = constants.NormalPolicyRuleStartPriority
-		}
+		rulePriority = constants.NormalPolicyRuleStartPriority + int(rule.PriorityOffset)
 	}
 
 	everoutePolicyRule := &datapath.EveroutePolicyRule{

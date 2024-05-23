@@ -123,8 +123,16 @@ func (m *SecurityModel) collectPolicyFlowsByIP(policy *securityv1alpha1.Security
 		}
 		egressPorts = append(egressPorts, rulePorts...)
 	}
+	priority := constants.NormalPolicyRuleStartPriority
+	if policy.Spec.Tier == constants.Tier2 {
+		if policy.Spec.IsBlocklist {
+			priority = priority + 4*int(policy.Spec.Priority) + 3
+		} else {
+			priority = priority + 4*int(policy.Spec.Priority) + 1
+		}
+	}
 	return computePolicyFlow(policy.Spec.Tier, policy.Spec.SecurityPolicyEnforcementMode,
-		[]string{appliedIP}, ingressIPs, egressIPs, ingressPorts, egressPorts)
+		[]string{appliedIP}, ingressIPs, egressIPs, ingressPorts, egressPorts, priority)
 }
 
 func (m *SecurityModel) getPeerIPs(peer *securityv1alpha1.SecurityPolicyPeer) []string {
@@ -156,9 +164,8 @@ func matchEndpoint(peer *securityv1alpha1.SecurityPolicyPeer, endpoints []*model
 	return matchEp
 }
 
-func computePolicyFlow(tier string, mode securityv1alpha1.PolicyMode, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort) []string {
+func computePolicyFlow(tier string, mode securityv1alpha1.PolicyMode, appliedToIPs, ingressIPs, egressIPs []string, ingressPorts, egressGroupPorts []cache.RulePort, priority int) []string {
 	var flows []string
-	priority := constants.NormalPolicyRuleStartPriority
 	ingressTableID, ingressNextTableID, egressTableID, egressNextTableID, err := getTableIds(tier, mode)
 	if err != nil {
 		klog.Infof("Failed to computePolicyFlow, error: %v", err)
