@@ -26,6 +26,7 @@ import (
 	"k8s.io/klog"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -60,7 +61,7 @@ type PolicyRule struct {
 	Direction       RuleDirection `json:"direction"`
 	RuleType        RuleType      `json:"ruleType"`
 	Tier            string        `json:"tier,omitempty"`
-	Priority        int32         `json:"priority,omitempty"`
+	PriorityOffset  int32         `json:"priorityOffset,omitempty"`
 	EnforcementMode string        `json:"enforcementMode,omitempty"`
 	SrcIPAddr       string        `json:"srcIPAddr,omitempty"`
 	DstIPAddr       string        `json:"dstIPAddr,omitempty"`
@@ -266,7 +267,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		Direction:       direction,
 		RuleType:        ruleType,
 		Tier:            rule.Tier,
-		Priority:        rule.Priority,
+		PriorityOffset:  0,
 		EnforcementMode: rule.EnforcementMode,
 		SrcIPAddr:       srcIPBlock,
 		DstIPAddr:       dstIPBlock,
@@ -276,6 +277,24 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		SrcPortMask:     port.SrcPortMask,
 		DstPortMask:     port.DstPortMask,
 		Action:          rule.Action,
+	}
+
+	if policyRule.Tier == constants.Tier2 {
+		if policyRule.RuleType == RuleTypeDefaultRule {
+			policyRule.PriorityOffset = 4 * rule.Priority
+		}
+
+		// blocklist and allowlist with same policy priroity will generate different flow priority to avoid flowkey conflict
+		if policyRule.RuleType == RuleTypeNormalRule {
+			// allowlist ingress/egress rule
+			if policyRule.Action == RuleActionAllow {
+				policyRule.PriorityOffset = 4*rule.Priority + 1
+			}
+			// blocklist ingress/egress rule
+			if policyRule.Action == RuleActionDrop {
+				policyRule.PriorityOffset = 4*rule.Priority + 3
+			}
+		}
 	}
 
 	// todo: it is not appropriate to calculate the flowkey here

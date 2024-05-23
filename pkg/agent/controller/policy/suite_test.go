@@ -178,7 +178,7 @@ func (matcher *PolicyRuleMatcher) Match(actual interface{}) (success bool, err e
 		expRule.DstPort == rule.DstPort &&
 		expRule.DstPortMask == rule.DstPortMask &&
 		expRule.IPProtocol == rule.IPProtocol &&
-		expRule.Priority == rule.Priority {
+		expRule.PriorityOffset == rule.PriorityOffset {
 		return true, nil
 	}
 	return false, nil

@@ -332,6 +332,10 @@ func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.Securi
 		if policy.Spec.SymmetricMode {
 			return fmt.Errorf("blocklist don't support SymmetricMode")
 		}
+
+		if policy.Spec.DefaultRule != securityv1alpha1.DefaultRuleNone {
+			return fmt.Errorf("blocklist must set default rule to None")
+		}
 	}
 
 	// check validate of spec.appliedTo
