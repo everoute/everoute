@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	"github.com/agiledragon/gomonkey/v2"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -15,12 +16,16 @@ import (
 	svc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
-var _ = Describe("endpoints controller", func() {
+var _ = Describe("endpoints controller", Ordered, func() {
 	ctx := context.Background()
 	ns := "testep"
 	nsSelector := client.InNamespace(ns)
 	epNamespacedName := types.NamespacedName{
 		Name:      "eps",
+		Namespace: ns,
+	}
+	epNamespacedNameHeadless := types.NamespacedName{
+		Name:      "eps-headless",
 		Namespace: ns,
 	}
 	node1 := "node1"
@@ -30,7 +35,8 @@ var _ = Describe("endpoints controller", func() {
 	ip3 := "10.0.0.5"
 	portName1 := "http"
 	portName2 := "ssh"
-	BeforeEach(func() {
+	var mockGet *gomonkey.Patches
+	BeforeAll(func() {
 		Eventually(func(g Gomega) {
 			creatNS := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -43,7 +49,30 @@ var _ = Describe("endpoints controller", func() {
 				g.Expect(errors.IsNotFound(err)).Should(BeTrue())
 				g.Expect(k8sClient.Create(ctx, &creatNS)).Should(Succeed())
 			}
-		}, time.Minute, interval).Should(Succeed())
+		}, timeout, interval).Should(Succeed())
+
+		mockGet = gomonkey.NewPatches()
+		fn := func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if v, ok := obj.(*corev1.Service); ok {
+				if key.Name == "eps" {
+					v.Spec.ClusterIP = "1.1.1.1"
+					return nil
+				}
+				if key.Name == "eps-headless" {
+					v.Spec.ClusterIP = "None"
+					return nil
+				}
+			}
+			var out error
+			mockGet.Origin(func() {
+				out = k8sClient.Get(ctx, key, obj, opts...)
+			})
+			return out
+		}
+		mockGet.ApplyMethodFunc(k8sClient, "Get", fn)
+	})
+	AfterAll(func() {
+		mockGet.Reset()
 	})
 
 	Context("endpoints with only one port", func() {
@@ -247,6 +276,57 @@ var _ = Describe("endpoints controller", func() {
 					return false
 				}
 				return svcPorts.Items[0].Equal(expectSvcPort)
+			}, time.Minute, interval).Should(BeTrue())
+		})
+	})
+
+	Context("endpoints from headless serivce", func() {
+		endpoints := corev1.Endpoints{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      epNamespacedNameHeadless.Name,
+				Namespace: epNamespacedNameHeadless.Namespace,
+			},
+			Subsets: []corev1.EndpointSubset{
+				{
+					Addresses: []corev1.EndpointAddress{
+						{
+							IP: ip1,
+						}, {
+							IP:       ip2,
+							NodeName: &node2,
+						},
+					},
+					Ports: []corev1.EndpointPort{
+						{
+							Port:     80,
+							Protocol: corev1.ProtocolTCP,
+						},
+					},
+				},
+			},
+		}
+		BeforeEach(func() {
+			createEndpoints := endpoints
+			Expect(k8sClient.Create(ctx, &createEndpoints)).Should(Succeed())
+			Eventually(func() error {
+				return k8sClient.Get(ctx, epNamespacedNameHeadless, &corev1.Endpoints{})
+			}, time.Minute, interval).Should(BeNil())
+		})
+
+		AfterEach(func() {
+			ep := corev1.Endpoints{}
+			Expect(k8sClient.DeleteAllOf(ctx, &ep, nsSelector)).Should(Succeed())
+			Eventually(func() int {
+				svcPorts := svc.ServicePortList{}
+				Expect(k8sClient.List(ctx, &svcPorts, nsSelector)).Should(Succeed())
+				return len(svcPorts.Items)
+			}, time.Minute, interval).Should(BeZero())
+		})
+
+		It("should not create service port", func() {
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, epNamespacedNameHeadless, &svc.ServicePort{})
+				return errors.IsNotFound(err)
 			}, time.Minute, interval).Should(BeTrue())
 		})
 	})

@@ -27,6 +27,7 @@ require (
 	github.com/j-keck/arping v1.0.2
 	github.com/mikioh/ipaddr v0.0.0-20190404000644-d465c8ab6721
 	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo/v2 v2.9.5
 	github.com/onsi/gomega v1.27.7
 	github.com/orcaman/concurrent-map v1.0.0
 	github.com/pkg/errors v0.9.1
@@ -70,11 +71,13 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.3-0.20221024144010-f67b8970b736 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
@@ -109,6 +112,7 @@ require (
 	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/tools v0.9.1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
@@ -124,6 +128,7 @@ require (
 )
 
 replace (
+	github.com/agiledragon/gomonkey/v2 => github.com/wu-cl/gomonkey/v2 v2.0.0-20240528081215-1f91eb14f8d5
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20231031073250-15a479e83363
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20231123100718-d071171cf898

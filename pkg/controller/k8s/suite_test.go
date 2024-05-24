@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -47,7 +47,7 @@ var (
 
 const (
 	RunTestWithExistingCluster = "TESTING_WITH_EXISTING_CLUSTER"
-	GwEpNs = "test-gw"
+	GwEpNs                     = "test-gw"
 )
 
 func TestPolicyController(t *testing.T) {
@@ -134,8 +134,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&NodeReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
+		Client:        k8sManager.GetClient(),
+		Scheme:        k8sManager.GetScheme(),
 		GwEpNamespace: GwEpNs,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
@@ -148,7 +148,7 @@ var _ = BeforeSuite(func() {
 	k8sManager.GetCache().WaitForCacheSync(ctx)
 	k8sClient = k8sManager.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	By("stop controller manager")
