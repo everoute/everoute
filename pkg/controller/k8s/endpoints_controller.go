@@ -50,6 +50,16 @@ func (r *EndpointsReconcile) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	svc := corev1.Service{}
+	if err = r.Client.Get(ctx, req.NamespacedName, &svc); err != nil {
+		klog.Errorf("Failed to get svc related to  endpoints %#v, err: %s", req.NamespacedName, err)
+		return ctrl.Result{}, err
+	}
+	// filter headless svc,and it may not change once set
+	if svc.Spec.ClusterIP == "None" {
+		return ctrl.Result{}, nil
+	}
+
 	klog.Infof("Add or update endpoints %#v", svcEp)
 	if err := r.updateEndpoints(ctx, svcEp); err != nil {
 		klog.Errorf("Failed to reconcile add or update endpoints %v, err: %s", svcEp, err)
