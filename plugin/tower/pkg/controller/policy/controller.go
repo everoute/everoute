@@ -1027,7 +1027,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 	var policyList []v1alpha1.SecurityPolicy
 	var policyMode = parseEnforcementMode(securityPolicy.PolicyMode)
 
-	applyToPeers, err := c.parseSecurityPolicyApplys(securityPolicy.ApplyTo)
+	isPod, applyToPeers, err := c.parseSecurityPolicyApplys(securityPolicy.ApplyTo)
 	if err != nil {
 		return nil, err
 	}
@@ -1057,6 +1057,9 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			DefaultRule:                   c.getPolicyDefaultRule(securityPolicy),
 			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
+	}
+	if isPod {
+		policy.Namespace = "sks-sync-object"
 	}
 	policyList = append(policyList, policy)
 
@@ -1190,7 +1193,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.PolicyMode, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
-	appliedPeers, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
+	_, appliedPeers, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
 	if err != nil {
 		return nil, err
 	}
@@ -1223,34 +1226,74 @@ func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.Pol
 	return &policy, nil
 }
 
-func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPolicyApply) ([]v1alpha1.ApplyToPeer, error) {
+func (c *Controller) parseECPPodSelector(l *labels.Selector) (bool, *labels.Selector) {
+	if l == nil || l.MatchLabels == nil {
+		return false, l
+	}
+
+	kscName := ""
+	kscNs := ""
+	podSlector := false
+	for k, v := range l.MatchLabels {
+		if k == "is_pod" {
+			podSlector = v == "true"
+			if !podSlector {
+				break
+			}
+		}
+		if k == "sks-cluster-name" {
+			kscName = v
+		}
+		if k == "sks-namespace" {
+			kscNs = v
+		}
+	}
+
+	// todo if label doesn't exist should return err?
+	// todo length of label
+	kscValue := kscName + "." + kscNs
+	delete(l.MatchLabels, "is_pod")
+	if podSlector {
+		delete(l.MatchLabels, "sks-cluster-name")
+		delete(l.MatchLabels, "sks-namespace")
+		if kscValue != "" {
+			l.MatchLabels["sks-cluster"] = kscValue
+		}
+	}
+
+	return podSlector, l
+}
+
+func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPolicyApply) (bool, []v1alpha1.ApplyToPeer, error) {
 	var applyToPeers []v1alpha1.ApplyToPeer
 
+	var isPod = false
 	for _, policyApply := range policyApplies {
 		switch policyApply.Type {
 		case "", schema.SecurityPolicyTypeSelector:
 			endpointSelector, err := c.parseSelectors(policyApply.Selector)
 			if err != nil {
-				return nil, err
+				return false, nil, err
 			}
+			isPod, endpointSelector = c.parseECPPodSelector(endpointSelector)
 			applyToPeers = append(applyToPeers, v1alpha1.ApplyToPeer{
 				EndpointSelector: endpointSelector,
 			})
 		case schema.SecurityPolicyTypeSecurityGroup:
 			if policyApply.SecurityGroup == nil {
-				return nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.SecurityPolicyTypeSecurityGroup)
+				return false, nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.SecurityPolicyTypeSecurityGroup)
 			}
 			peers, err := c.parseSecurityGroup(policyApply.SecurityGroup)
 			if err != nil {
-				return nil, err
+				return false, nil, err
 			}
 			applyToPeers = append(applyToPeers, peers...)
 		default:
-			return nil, fmt.Errorf("unknown policy peer type %s", policyApply.Type)
+			return false, nil, fmt.Errorf("unknown policy peer type %s", policyApply.Type)
 		}
 	}
 
-	return applyToPeers, nil
+	return isPod, applyToPeers, nil
 }
 
 func (c *Controller) vmAsAppliedTo(vmKey string) ([]v1alpha1.ApplyToPeer, error) {
@@ -1313,6 +1356,12 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 	return ingress, egress, nil
 }
 
+func getPodNsLabel() map[string]string {
+	res := make(map[string]string)
+	res["kubernetes.io/metadata.name"] = "sks-sync-object"
+	return res
+}
+
 // parseNetworkPolicyRule parse NetworkPolicyRule to []v1alpha1.SecurityPolicyPeer and []v1alpha1.SecurityPolicyPort
 func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v1alpha1.SecurityPolicyPeer, []v1alpha1.SecurityPolicyPort, error) {
 	var policyPeers []v1alpha1.SecurityPolicyPeer
@@ -1366,10 +1415,18 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 		if err != nil {
 			return nil, nil, err
 		}
-		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
+		var isPod bool
+		isPod, endpointSelector = c.parseECPPodSelector(endpointSelector)
+		peer := v1alpha1.SecurityPolicyPeer{
 			EndpointSelector: endpointSelector,
 			DisableSymmetric: disableSymmetric,
-		})
+		}
+		if isPod {
+			peer.NamespaceSelector = &metav1.LabelSelector{
+				MatchLabels: getPodNsLabel(),
+			}
+		}
+		policyPeers = append(policyPeers, peer)
 	case schema.NetworkPolicyRuleTypeSecurityGroup:
 		if rule.SecurityGroup == nil {
 			return nil, nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.NetworkPolicyRuleTypeSecurityGroup)
