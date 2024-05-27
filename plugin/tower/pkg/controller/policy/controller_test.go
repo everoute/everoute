@@ -1478,7 +1478,7 @@ func assertAllowlist(ctx context.Context) {
 		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).Should(Succeed())
 		for _, item := range policyList.Items {
-			if !item.Spec.IsBlocklist && item.Spec.Priority == 0 && item.Spec.DefaultRule == v1alpha1.DefaultRuleDrop && item.Spec.SymmetricMode {
+			if !item.Spec.IsBlocklist && item.Spec.Priority == 30 && item.Spec.DefaultRule == v1alpha1.DefaultRuleDrop && item.Spec.SymmetricMode {
 				return true
 			}
 		}

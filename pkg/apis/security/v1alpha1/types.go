@@ -76,10 +76,10 @@ type SecurityPolicySpec struct {
 	Tier string `json:"tier"`
 
 	// Priority Specifies the priority of the SecurityPolicy on the tier to which it belongs (only valid when spec.tier=tier2)
-	// Defaults is 0
 	// Blocklist and Allowlist can't set same priority
-	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=100
+	// +kubebuilder:default=30
 	Priority int32 `json:"priority,omitempty"`
 
 	// Work mode specify the policy enforcement state: monitor or work

@@ -2105,12 +2105,13 @@ spec:
                   type: string
                 type: array
               priority:
+                default: 30
                 description: Priority Specifies the priority of the SecurityPolicy
                   on the tier to which it belongs (only valid when spec.tier=tier2)
-                  Defaults is 0 Blocklist and Allowlist can't set same priority
+                  Blocklist and Allowlist can't set same priority
                 format: int32
                 maximum: 100
-                minimum: 0
+                minimum: 1
                 type: integer
               securityPolicyEnforcementMode:
                 default: work
