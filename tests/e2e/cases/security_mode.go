@@ -123,12 +123,16 @@ func (m *SecurityModel) collectPolicyFlowsByIP(policy *securityv1alpha1.Security
 		}
 		egressPorts = append(egressPorts, rulePorts...)
 	}
+	policyPri := policy.Spec.Priority
+	if policyPri == 0 {
+		policyPri = 30
+	}
 	priority := constants.NormalPolicyRuleStartPriority
 	if policy.Spec.Tier == constants.Tier2 {
 		if policy.Spec.IsBlocklist {
-			priority = priority + 4*int(policy.Spec.Priority) + 3
+			priority = priority + 4*int(policyPri) + 3
 		} else {
-			priority = priority + 4*int(policy.Spec.Priority) + 1
+			priority = priority + 4*int(policyPri) + 1
 		}
 	}
 	return computePolicyFlow(policy.Spec.Tier, policy.Spec.SecurityPolicyEnforcementMode,
