@@ -106,7 +106,7 @@ var _ = Describe("PolicyController", func() {
 			var priority int32
 
 			It("allowlist policy", func() {
-				priority = int32(rand.Intn(100))
+				priority = int32(rand.Intn(100) + 1)
 				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "1000-1999", "number"), newTestPort("UDP", "80", "number"))
 				policy.Spec.Priority = priority
 
@@ -138,7 +138,7 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("blocklist policy", func() {
-				priority = int32(rand.Intn(100))
+				priority = int32(rand.Intn(100) + 1)
 				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "1000-1999", "number"), newTestPort("UDP", "80", "number"))
 				policy.Spec.Priority = priority
 				policy.Spec.IsBlocklist = true
@@ -217,9 +217,10 @@ var _ = Describe("PolicyController", func() {
 		})
 
 		When("create blocklist policy with named and number port", func() {
-			var priority = int32(rand.Intn(100))
+			var priority int32
 			var policy *securityv1alpha1.SecurityPolicy
 			BeforeEach(func() {
+				priority = int32(rand.Intn(100) + 1)
 				policy = newTestPolicy(group1, group2, group3, newTestPort("TCP", "http", "name"), newTestPort("UDP", "dns,nfs", "name"))
 				policy.Spec.EgressRules[0].Ports = append(policy.Spec.EgressRules[0].Ports, *newTestPort("TCP", "3322", "number"))
 				policy.Spec.IsBlocklist = true
@@ -329,8 +330,9 @@ var _ = Describe("PolicyController", func() {
 
 			When("update to blocklist", func() {
 				var testPolicy *securityv1alpha1.SecurityPolicy
-				var priority = int32(rand.Intn(100))
+				var priority int32
 				BeforeEach(func() {
+					priority = int32(rand.Intn(100) + 1)
 					testPolicy = policy.DeepCopy()
 					testPolicy.Spec.IsBlocklist = true
 					testPolicy.Spec.Priority = priority
@@ -1119,7 +1121,7 @@ var _ = Describe("PolicyController", func() {
 
 		BeforeEach(func() {
 			symmetricMode = (rand.Intn(2) == 1)
-			policyPri = int32(rand.Intn(100))
+			policyPri = int32(rand.Intn(100) + 1)
 			isBlocklist = (rand.Intn(2) == 1)
 			defaultRule = []securityv1alpha1.DefaultRuleType{securityv1alpha1.DefaultRuleDrop, securityv1alpha1.DefaultRuleNone}[rand.Intn(2)]
 			ruleAction = "Allow"

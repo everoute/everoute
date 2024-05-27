@@ -62,7 +62,7 @@ const (
 
 	InternalAllowlistPriority int32 = 90
 	BlocklistPriority         int32 = 50
-	AllowlistPriority         int32 = 0
+	AllowlistPriority         int32 = 30
 
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"

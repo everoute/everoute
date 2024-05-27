@@ -170,7 +170,7 @@ jobs:
           kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
           mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
