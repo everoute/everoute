@@ -31,7 +31,8 @@ require (
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/spf13/cobra v1.1.3
 	github.com/ti-mo/conntrack v0.4.0
-	github.com/vektah/gqlparser/v2 v2.1.0
+	github.com/vektah/gqlparser/v2 v2.5.0
+	github.com/viney-shih/go-lock v1.1.2
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.1.0
 	golang.org/x/sys v0.5.0
