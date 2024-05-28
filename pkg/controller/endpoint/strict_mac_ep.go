@@ -16,7 +16,6 @@ import (
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	"github.com/everoute/everoute/pkg/utils"
 )
 
 type StrictMacController struct {
@@ -88,6 +87,20 @@ func (s *StrictMacController) predicateCreate(e event.CreateEvent) bool {
 		return false
 	}
 
+	return s.shouldSetStrictMac(obj)
+}
+
+func (s *StrictMacController) predicateUpdate(e event.UpdateEvent) bool {
+	newObj, newOk := e.ObjectNew.(*securityv1alpha1.Endpoint)
+	if !newOk {
+		klog.Error("Failed to transform object to endpoint")
+		return false
+	}
+
+	return s.shouldSetStrictMac(newObj)
+}
+
+func (s *StrictMacController) shouldSetStrictMac(obj *securityv1alpha1.Endpoint) bool {
 	if obj.Spec.StrictMac {
 		return false
 	}
@@ -101,31 +114,4 @@ func (s *StrictMacController) predicateCreate(e event.CreateEvent) bool {
 	}
 
 	return false
-}
-
-func (s *StrictMacController) predicateUpdate(e event.UpdateEvent) bool {
-	newObj, newOk := e.ObjectNew.(*securityv1alpha1.Endpoint)
-	oldObj, oldOk := e.ObjectOld.(*securityv1alpha1.Endpoint)
-	if !newOk || !oldOk {
-		klog.Error("Failed to transform object to endpoint")
-		return false
-	}
-
-	if newObj.Spec.StrictMac {
-		return false
-	}
-
-	if newObj.Spec.Type != securityv1alpha1.EndpointDynamic {
-		return false
-	}
-
-	if !s.isStrictMacLabel(newObj.Labels) {
-		return false
-	}
-
-	if !utils.IsK8sLabelDiff(newObj.Labels, oldObj.Labels) {
-		return false
-	}
-
-	return true
 }
