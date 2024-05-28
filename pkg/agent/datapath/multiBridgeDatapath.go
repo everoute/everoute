@@ -37,6 +37,7 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	cmap "github.com/orcaman/concurrent-map"
 	log "github.com/sirupsen/logrus"
+	lock "github.com/viney-shih/go-lock"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -160,6 +161,8 @@ var (
 
 	IcmpTypeRequest uint8 = 8
 	IcmpTypeReply   uint8
+
+	lockTimeout = 5 * time.Minute
 )
 
 var IPMaskMatchFullBit = net.ParseIP("255.255.255.255")
@@ -225,9 +228,9 @@ type DpManager struct {
 	Info                      *DpManagerInfo
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
-	flowReplayMutex           sync.RWMutex
+	flowReplayMutex           *lock.CASMutex
 
-	flushMutex         sync.RWMutex
+	flushMutex         *lock.ChanMutex
 	needFlush          bool                    // need to flush
 	cleanConntrackChan chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
@@ -368,7 +371,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.Info = new(DpManagerInfo)
-	datapathManager.flowReplayMutex = sync.RWMutex{}
+	datapathManager.flowReplayMutex = lock.NewCASMutex()
+	datapathManager.flushMutex = lock.NewChanMutex()
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 	datapathManager.proxyReplayFunc = func() {}
@@ -389,6 +393,23 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ofPortIPAddressUpdateChan = ofPortIPAddressUpdateChan
 
 	return datapathManager
+}
+
+func (d *DpManager) lockflowReplayWithTimeout() {
+	if !d.flowReplayMutex.TryLockWithTimeout(lockTimeout) {
+		klog.Fatalf("fail to acquire datapath flowReplayMutex lock for %s", lockTimeout)
+	}
+}
+func (d *DpManager) lockRflowReplayWithTimeout() {
+	if !d.flowReplayMutex.RTryLockWithTimeout(lockTimeout) {
+		klog.Fatalf("fail to acquire datapath flowReplayMutex read lock for %s", lockTimeout)
+	}
+}
+
+func (d *DpManager) lockflushWithTimeout() {
+	if !d.flushMutex.TryLockWithTimeout(lockTimeout) {
+		klog.Fatalf("fail to acquire datapath flushMutex lock for %s", lockTimeout)
+	}
 }
 
 func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
@@ -444,7 +465,7 @@ func (datapathManager *DpManager) SetOverlaySyncFunc(f func()) {
 }
 
 func (datapathManager *DpManager) GetChainBridge() []string {
-	datapathManager.flowReplayMutex.RLock()
+	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 
 	var out []string
@@ -456,7 +477,7 @@ func (datapathManager *DpManager) GetChainBridge() []string {
 }
 
 func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
-	datapathManager.flowReplayMutex.RLock()
+	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 
 	var policyInfoList []*PolicyInfo
@@ -488,7 +509,7 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 }
 
 func (datapathManager *DpManager) GetRulesByFlowIDs(flowIDs ...uint64) []*v1alpha1.RuleEntry {
-	datapathManager.flowReplayMutex.RLock()
+	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
 	for _, id := range flowIDs {
@@ -500,7 +521,7 @@ func (datapathManager *DpManager) GetRulesByFlowIDs(flowIDs ...uint64) []*v1alph
 }
 
 func (datapathManager *DpManager) GetRulesByRuleIDs(ruleIDs ...string) []*v1alpha1.RuleEntry {
-	datapathManager.flowReplayMutex.RLock()
+	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
 	for _, id := range ruleIDs {
@@ -512,7 +533,7 @@ func (datapathManager *DpManager) GetRulesByRuleIDs(ruleIDs ...string) []*v1alph
 }
 
 func (datapathManager *DpManager) GetAllRules() []*v1alpha1.RuleEntry {
-	datapathManager.flowReplayMutex.RLock()
+	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
 	for _, entry := range datapathManager.Rules {
@@ -759,7 +780,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 }
 
 func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 
 	if !datapathManager.IsBridgesConnected() {
@@ -887,7 +908,7 @@ func (datapathManager *DpManager) ReplayEverouteIPAMFlow(vdsID string, brKey str
 }
 
 func (datapathManager *DpManager) AddIPPoolSubnet(subnet string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if datapathManager.ippoolSubnets.Has(subnet) {
 		return nil
@@ -909,7 +930,7 @@ func (datapathManager *DpManager) AddIPPoolSubnet(subnet string) error {
 }
 
 func (datapathManager *DpManager) DelIPPoolSubnet(subnet string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.ippoolSubnets.Has(subnet) {
 		return nil
@@ -930,7 +951,7 @@ func (datapathManager *DpManager) DelIPPoolSubnet(subnet string) error {
 }
 
 func (datapathManager *DpManager) AddIPPoolGW(gw string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if datapathManager.ippoolGWs.Has(gw) {
 		return nil
@@ -948,7 +969,7 @@ func (datapathManager *DpManager) AddIPPoolGW(gw string) error {
 }
 
 func (datapathManager *DpManager) DelIPPoolGW(gw string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.ippoolGWs.Has(gw) {
 		return nil
@@ -1013,7 +1034,7 @@ func (datapathManager *DpManager) skipLocalEndpoint(endpoint *Endpoint) bool {
 }
 
 func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
@@ -1049,7 +1070,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 }
 
 func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *Endpoint) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
@@ -1100,7 +1121,7 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 }
 
 func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
@@ -1130,7 +1151,7 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 }
 
 func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
@@ -1186,7 +1207,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 }
 
 func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleName string) error {
-	datapathManager.flowReplayMutex.Lock()
+	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
@@ -1302,13 +1323,13 @@ func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 }
 
 func (datapathManager *DpManager) getFlush() bool {
-	datapathManager.flushMutex.Lock()
+	datapathManager.lockflushWithTimeout()
 	defer datapathManager.flushMutex.Unlock()
 	return datapathManager.needFlush
 }
 
 func (datapathManager *DpManager) setFlush(needFlush bool) {
-	datapathManager.flushMutex.Lock()
+	datapathManager.lockflushWithTimeout()
 	defer datapathManager.flushMutex.Unlock()
 	datapathManager.needFlush = needFlush
 }
@@ -1316,7 +1337,7 @@ func (datapathManager *DpManager) setFlush(needFlush bool) {
 func (datapathManager *DpManager) cleanConntrackWorker() {
 	for {
 		if datapathManager.getFlush() {
-			datapathManager.flushMutex.Lock()
+			datapathManager.lockflushWithTimeout()
 			err := netlink.ConntrackTableFlush(netlink.ConntrackTable)
 			if err != nil {
 				klog.Errorf("Flush ct failed: %v", err)
