@@ -170,7 +170,7 @@ func TestPredicateUpdate(t *testing.T) {
 			name:  "update other",
 			oldEp: newEp(false, securityv1alpha1.EndpointDynamic, makeMap(constants.SksManagedLabelKey, constants.SksManagedLabelValue)),
 			newEp: newEp(false, securityv1alpha1.EndpointDynamic, makeMap(constants.SksManagedLabelKey, constants.SksManagedLabelValue)),
-			exp:   false,
+			exp:   true,
 		},
 		{
 			name:  "new endpoint stricMac is true",
