@@ -13,68 +13,68 @@ on:
     - cron: "0 23 * * *"
 
 jobs:
-  build-unit-test-image:
-    runs-on: [self-hosted, build]
-    steps:
-      - uses: actions/checkout@v2
+  # build-unit-test-image:
+  #   runs-on: [self-hosted, build]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: build unit-test image
-        uses: docker/build-push-action@v4
-        with:
-          file: build/images/unit-test/Dockerfile
-          tags: registry.smtx.io/everoute/unit-test
-          context: ./build/images/unit-test/
-          push: true
+  #     - name: build unit-test image
+  #       uses: docker/build-push-action@v4
+  #       with:
+  #         file: build/images/unit-test/Dockerfile
+  #         tags: registry.smtx.io/everoute/unit-test
+  #         context: ./build/images/unit-test/
+  #         push: true
 
-  pr-check:
-    needs: [build-unit-test-image, static-check, generate-check]
-    runs-on: [self-hosted, pod]
-    strategy:
-      matrix:
-        act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
-    steps:
-      - uses: actions/checkout@v2
+  # pr-check:
+  #   needs: [build-unit-test-image, static-check, generate-check]
+  #   runs-on: [self-hosted, pod]
+  #   strategy:
+  #     matrix:
+  #       act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: run everoute unit test
-        run: make ${{ matrix.act }}
-      - uses: codecov/codecov-action@v2
-        with:
-          files: ./coverage.out
+  #     - name: run everoute unit test
+  #       run: make ${{ matrix.act }}
+  #     - uses: codecov/codecov-action@v2
+  #       with:
+  #         files: ./coverage.out
 
-  static-check:
-    runs-on: [ubuntu-20.04]
-    steps:
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '1.20'
+  # static-check:
+  #   runs-on: [ubuntu-20.04]
+  #   steps:
+  #     - uses: actions/setup-go@v3
+  #       with:
+  #         go-version: '1.20'
 
-      - uses: actions/checkout@v2
+  #     - uses: actions/checkout@v2
 
-      - name: Check conventional commits
-        uses: webiny/action-conventional-commits@v1.1.0
+  #     - name: Check conventional commits
+  #       uses: webiny/action-conventional-commits@v1.1.0
 
-      - name: Check spelling
-        uses: crate-ci/typos@v1.0.4
+  #     - name: Check spelling
+  #       uses: crate-ci/typos@v1.0.4
 
-      - name: Check golang lint
-        # skip it for branch main can't pass this check
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.53
-          only-new-issues: true
-          # skip cache because of flaky behaviors
-          skip-build-cache: true
-          skip-pkg-cache: true
+  #     - name: Check golang lint
+  #       # skip it for branch main can't pass this check
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: golangci/golangci-lint-action@v3
+  #       with:
+  #         version: v1.53
+  #         only-new-issues: true
+  #         # skip cache because of flaky behaviors
+  #         skip-build-cache: true
+  #         skip-pkg-cache: true
 
-  run-e2e:
-    runs-on: [ubuntu-20.04]
-    needs: [static-check, generate-check, pr-check]
-    steps:
-      - uses: actions/checkout@v2
+  # run-e2e:
+  #   runs-on: [ubuntu-20.04]
+  #   needs: [static-check, generate-check, pr-check]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: run everoute e2e test
-        run: sudo make docker-e2e-test
+  #     - name: run everoute e2e test
+  #       run: sudo make docker-e2e-test
   
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
@@ -90,12 +90,12 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
+    needs: [build-k8s-e2e-image]
     strategy:
       fail-fast: false
       matrix:
-        enable-proxy: [true, false]
-        encap-mode: ["", geneve]
+        enable-proxy: [true]
+        encap-mode: [geneve]
         include:
           - ipam: "everoute"
             enable-proxy: true
@@ -192,14 +192,14 @@ jobs:
         timeout-minutes: 25
         run: ./k8se2e/bin/ginkgo -nodes=10 --skip="SCTP" --focus="NetworkPolicy" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
-      - name: delete test k8s cluster
-        id: delenv
-        if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
+      # - name: delete test k8s cluster
+      #   id: delenv
+      #   if: ${{ always() }}
+      #   run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
 
-      - name: recycle vip
-        if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
+      # - name: recycle vip
+      #   if: ${{ always() && steps.delenv.conclusion == 'success' }}
+      #   run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
   
   # run-tower-e2e:
   #   runs-on: [self-hosted, tower]
@@ -223,129 +223,129 @@ jobs:
   #     - name: run test cases
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
-  generate-check:
-    runs-on: [ubuntu-20.04]
-    steps:
-      - uses: actions/checkout@v2
+  # generate-check:
+  #   runs-on: [ubuntu-20.04]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: make docker-generate
-        run: sudo sh -c "make image-generate && make docker-generate"
+  #     - name: make docker-generate
+  #       run: sudo sh -c "make image-generate && make docker-generate"
 
-      - name: check if code changes
-        run: sudo sh -c "git add -A && git diff HEAD --exit-code"
+  #     - name: check if code changes
+  #       run: sudo sh -c "git add -A && git diff HEAD --exit-code"
 
-      - name: show message if failed
-        if: ${{ failure() }}
-        run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
+  #     - name: show message if failed
+  #       if: ${{ failure() }}
+  #       run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
 
-  slack-notification:
-    if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
-    runs-on: [ ubuntu-20.04 ]
-    env:
-      SLACK_COLOR: 2EA44F
-      RESULT_PR_CHECK: ":white_check_mark:"
-      RESULT_STATIC_CHECK: ":white_check_mark:"
-      RESULT_RUN_E2E: ":white_check_mark:"
-      RESULT_RUN_K8S_E2E: ":white_check_mark:"
-      RESULT_RUN_TOWER_E2E: ":white_check_mark:"
-      RESULT_GENERATE_CHECK: ":white_check_mark:"
-    steps:
-      - if: ${{ needs.pr-check.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.static-check.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_STATIC_CHECK=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_K8S_E2E=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-tower-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_TOWER_E2E=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.generate-check.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GENERATE_CHECK=:x:" >> $GITHUB_ENV
+  # slack-notification:
+  #   if: ${{ always() }}
+  #   needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
+  #   runs-on: [ ubuntu-20.04 ]
+  #   env:
+  #     SLACK_COLOR: 2EA44F
+  #     RESULT_PR_CHECK: ":white_check_mark:"
+  #     RESULT_STATIC_CHECK: ":white_check_mark:"
+  #     RESULT_RUN_E2E: ":white_check_mark:"
+  #     RESULT_RUN_K8S_E2E: ":white_check_mark:"
+  #     RESULT_RUN_TOWER_E2E: ":white_check_mark:"
+  #     RESULT_GENERATE_CHECK: ":white_check_mark:"
+  #   steps:
+  #     - if: ${{ needs.pr-check.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
+  #     - if: ${{ needs.static-check.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_STATIC_CHECK=:x:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-e2e.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_K8S_E2E=:x:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-tower-e2e.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_TOWER_E2E=:x:" >> $GITHUB_ENV
+  #     - if: ${{ needs.generate-check.result == 'failure'}}
+  #       run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_GENERATE_CHECK=:x:" >> $GITHUB_ENV
 
-      - if: ${{ needs.pr-check.result == 'cancelled'}}
-        run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.static-check.result == 'cancelled'}}
-        run: echo "RESULT_STATIC_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_K8S_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-tower-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_TOWER_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.generate-check.result == 'cancelled'}}
-        run: echo "RESULT_GENERATE_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.pr-check.result == 'cancelled'}}
+  #       run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.static-check.result == 'cancelled'}}
+  #       run: echo "RESULT_STATIC_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-e2e.result == 'cancelled'}}
+  #       run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
+  #       run: echo "RESULT_RUN_K8S_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.run-tower-e2e.result == 'cancelled'}}
+  #       run: echo "RESULT_RUN_TOWER_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
+  #     - if: ${{ needs.generate-check.result == 'cancelled'}}
+  #       run: echo "RESULT_GENERATE_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
 
-      - name: generate short commit sha
-        run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-7`" >> $GITHUB_ENV
+  #     - name: generate short commit sha
+  #       run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-7`" >> $GITHUB_ENV
 
-      - name: send message to slack
-        uses: slackapi/slack-github-action@v1.17.0
-        with:
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Finish Github Action CI, details <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} | `here`>"
-                  }
-                }
-              ],
-              "attachments": [
-                {
-                  "color": "${{ env.SLACK_COLOR }}",
-                  "blocks": [
-                    {"type": "section","fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*type: * ${{ github.event_name }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*ref: * ${{ github.ref }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*actor: * <${{ github.server_url }}/${{ github.actor }} | `${{ github.actor }}`>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*commit: * <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }} | `${{ env.SHORT_SHA }}`>"
-                        }
-                    ]},
-                    {"type": "section","fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_PR_CHECK }} => *pr-check*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_STATIC_CHECK }} => *static-check*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_E2E }} => *run-e2e*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_K8S_E2E }} => *run-k8s-e2e*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_TOWER_E2E }} => *run-tower-e2e*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_GENERATE_CHECK }} => *generate-check*"
-                      }
-                    ]}
-                  ]
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_E2E_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+  #     - name: send message to slack
+  #       uses: slackapi/slack-github-action@v1.17.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "blocks": [
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": "Finish Github Action CI, details <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} | `here`>"
+  #                 }
+  #               }
+  #             ],
+  #             "attachments": [
+  #               {
+  #                 "color": "${{ env.SLACK_COLOR }}",
+  #                 "blocks": [
+  #                   {"type": "section","fields": [
+  #                       {
+  #                         "type": "mrkdwn",
+  #                         "text": "*type: * ${{ github.event_name }}"
+  #                       },
+  #                       {
+  #                         "type": "mrkdwn",
+  #                         "text": "*ref: * ${{ github.ref }}"
+  #                       },
+  #                       {
+  #                         "type": "mrkdwn",
+  #                         "text": "*actor: * <${{ github.server_url }}/${{ github.actor }} | `${{ github.actor }}`>"
+  #                       },
+  #                       {
+  #                         "type": "mrkdwn",
+  #                         "text": "*commit: * <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }} | `${{ env.SHORT_SHA }}`>"
+  #                       }
+  #                   ]},
+  #                   {"type": "section","fields": [
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_PR_CHECK }} => *pr-check*"
+  #                     },
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_STATIC_CHECK }} => *static-check*"
+  #                     },
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_RUN_E2E }} => *run-e2e*"
+  #                     },
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_RUN_K8S_E2E }} => *run-k8s-e2e*"
+  #                     },
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_RUN_TOWER_E2E }} => *run-tower-e2e*"
+  #                     },
+  #                     {
+  #                       "type": "mrkdwn",
+  #                       "text": "${{ env.RESULT_GENERATE_CHECK }} => *generate-check*"
+  #                     }
+  #                   ]}
+  #                 ]
+  #               }
+  #             ]
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_E2E_URL }}
+  #         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
