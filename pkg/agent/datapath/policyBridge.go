@@ -175,7 +175,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
 	})
 	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
@@ -185,7 +185,7 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 
 	// Table 0, from cls bridge flow
 	inputFromUpstreamFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
 	})
 	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
