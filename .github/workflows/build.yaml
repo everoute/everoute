@@ -51,7 +51,7 @@ jobs:
 
       - name: Check if tag is a release tag
         run: |
-          if [[ ${{ github.ref }} =~ ^refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then 
+          if [[ ${{ github.ref }} =~ ^refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+\.*?$ ]]; then 
             echo "NEED_RELEASE=true" >> $GITHUB_ENV
           else 
             echo "NEED_RELEASE=false" >> $GITHUB_ENV
