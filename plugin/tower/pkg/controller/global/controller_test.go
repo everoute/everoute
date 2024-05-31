@@ -28,6 +28,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/global"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
 )
@@ -57,6 +58,14 @@ var _ = Describe("GlobalPolicyController", func() {
 		})
 		It("should create default global policy", func() {
 			assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionAllow)
+			globalPolicy, err := crdClient.SecurityV1alpha1().GlobalPolicies().Get(ctx, controller.DefaultGlobalPolicyName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(globalPolicy.Spec.Logging).ShouldNot(BeNil())
+			Expect(globalPolicy.Spec.Logging.Enabled).Should(BeFalse())
+			Expect(globalPolicy.Spec.Logging.Tags).Should(HaveLen(3))
+			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyID]).Should(Equal(erCluster.ID))
+			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyName]).Should(BeEmpty())
+			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyType]).Should(Equal(policy.LoggingTagPolicyTypeGlobalPolicy))
 		})
 
 		When("update everoute cluster to default drop", func() {
@@ -67,6 +76,16 @@ var _ = Describe("GlobalPolicyController", func() {
 			})
 			It("should update default global policy", func() {
 				assertMatchDefaultAction(ctx, v1alpha1.GlobalDefaultActionDrop)
+			})
+		})
+
+		When("enable everoute global policy logging", func() {
+			BeforeEach(func() {
+				erCluster.EnableLogging = true
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
+			})
+			It("should update default global policy", func() {
+				assertMatchEnabledLogging(ctx, true)
 			})
 		})
 	})
@@ -122,5 +141,15 @@ func assertMatchDefaultAction(ctx context.Context, defaultAction v1alpha1.Global
 			return false
 		}
 		return globalPolicy.Spec.DefaultAction == defaultAction
+	}, timeout, interval).Should(BeTrue())
+}
+
+func assertMatchEnabledLogging(ctx context.Context, enabledLogging bool) {
+	Eventually(func() bool {
+		globalPolicy, err := crdClient.SecurityV1alpha1().GlobalPolicies().Get(ctx, controller.DefaultGlobalPolicyName, metav1.GetOptions{})
+		if err != nil || globalPolicy.Spec.Logging == nil {
+			return false
+		}
+		return globalPolicy.Spec.Logging.Enabled == enabledLogging
 	}, timeout, interval).Should(BeTrue())
 }

@@ -30,6 +30,7 @@ require (
 	github.com/onsi/gomega v1.27.7
 	github.com/orcaman/concurrent-map v1.0.0
 	github.com/pkg/errors v0.9.1
+	github.com/samber/lo v1.39.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.0

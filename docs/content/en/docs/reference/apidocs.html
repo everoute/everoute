@@ -872,30 +872,13 @@ bool
 </tr>
 <tr>
 <td>
-<code>policyID</code><br/>
+<code>tags</code><br/>
 <em>
-string
+map[string]string
 </em>
 </td>
 <td>
-<em>(Optional)</em>
-<p>PolicyID is a user defined identity of policy, which would be record
-in logs and metrics. Can be repeated between different policies.
-Defaults to namespace/name.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>policyName</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>PolicyName is a user defined name of policy, which would be record
-in logs. Can be repeated between different policies.
-Defaults to namespace/name.</p>
+<p>Tags should be logging when the policy matched.</p>
 </td>
 </tr>
 </tbody>

@@ -972,16 +972,11 @@ spec:
                   enabled:
                     description: Enabled would log connections when the policy matched.
                     type: boolean
-                  policyID:
-                    description: PolicyID is a user defined identity of policy, which
-                      would be record in logs and metrics. Can be repeated between
-                      different policies. Defaults to namespace/name.
-                    type: string
-                  policyName:
-                    description: PolicyName is a user defined name of policy, which
-                      would be record in logs. Can be repeated between different policies.
-                      Defaults to namespace/name.
-                    type: string
+                  tags:
+                    additionalProperties:
+                      type: string
+                    description: Tags should be logging when the policy matched.
+                    type: object
                 required:
                 - enabled
                 type: object

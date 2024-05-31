@@ -34,6 +34,7 @@ type SecurityPolicy struct {
 	Egress          []NetworkPolicyRule   `json:"egress,omitempty"`
 	PolicyMode      PolicyMode            `json:"policy_mode,omitempty"`
 	IsBlocklist     bool                  `json:"is_blocklist,omitempty"`
+	EnableLogging   bool                  `json:"enable_logging,omitempty"`
 }
 
 type PolicyMode string
@@ -51,6 +52,7 @@ type IsolationPolicy struct {
 	Mode            IsolationMode       `json:"mode"`
 	Ingress         []NetworkPolicyRule `json:"ingress,omitempty"`
 	Egress          []NetworkPolicyRule `json:"egress,omitempty"`
+	EnableLogging   bool                `json:"enable_logging,omitempty"`
 }
 
 type SecurityPolicyApply struct {
@@ -66,10 +68,10 @@ type NetworkPolicyRule struct {
 	Ports                      []NetworkPolicyRulePort `json:"ports,omitempty"`
 	Services                   []ObjectReference       `json:"services,omitempty"`
 	// IPBlock may be multi ip blocks, ip ranges or single ip
-	IPBlock                    *string                 `json:"ip_block"`
-	ExceptIPBlock              []string                `json:"except_ip_block,omitempty"`
-	Selector                   []ObjectReference       `json:"selector"`
-	SecurityGroup              *ObjectReference        `json:"security_group,omitempty"`
+	IPBlock       *string           `json:"ip_block"`
+	ExceptIPBlock []string          `json:"except_ip_block,omitempty"`
+	Selector      []ObjectReference `json:"selector"`
+	SecurityGroup *ObjectReference  `json:"security_group,omitempty"`
 }
 
 type NetworkPolicyRulePort struct {
