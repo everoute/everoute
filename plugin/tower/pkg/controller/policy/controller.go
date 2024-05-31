@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/mikioh/ipaddr"
+	"github.com/samber/lo"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,6 +71,19 @@ const (
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
 	serviceIndex         = "serviceIndex"
+
+	/* logging tags key enum */
+
+	LoggingTagPolicyID   = "PolicyID"
+	LoggingTagPolicyName = "PolicyName"
+	LoggingTagPolicyType = "PolicyType"
+
+	/* logging policy type enum */
+
+	LoggingTagPolicyTypeSecurityPolicyAllow = "SecurityPolicyAllow"
+	LoggingTagPolicyTypeSecurityPolicyDeny  = "SecurityPolicyDeny"
+	LoggingTagPolicyTypeQuarantinePolicy    = "QuarantinePolicy"
+	LoggingTagPolicyTypeGlobalPolicy        = "GlobalPolicy"
 )
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
@@ -947,6 +961,7 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 			DefaultRule:                   v1alpha1.DefaultRuleNone,
 			IngressRules:                  ingress,
 			EgressRules:                   egress,
+			Logging:                       NewLoggingOptionsFrom(cluster, c.vmLister),
 			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
@@ -1039,6 +1054,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 	if err != nil {
 		return nil, err
 	}
+	loggingOptions := NewLoggingOptionsFrom(securityPolicy, c.vmLister)
 
 	policy := v1alpha1.SecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1055,6 +1071,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			IngressRules:                  ingress,
 			EgressRules:                   egress,
 			DefaultRule:                   c.getPolicyDefaultRule(securityPolicy),
+			Logging:                       loggingOptions,
 			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
@@ -1065,7 +1082,7 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 			continue
 		}
 		// generate intra group policy
-		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), policyMode, &securityPolicy.ApplyTo[item])
+		policy, err := c.generateIntragroupPolicy(securityPolicy.GetID(), policyMode, &securityPolicy.ApplyTo[item], loggingOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -1106,26 +1123,44 @@ func (c *Controller) parseIsolationPolicy(isolationPolicy *schema.IsolationPolic
 	}
 
 	var isolationPolices []v1alpha1.SecurityPolicy
+	var loggingOptions = NewLoggingOptionsFrom(isolationPolicy, c.vmLister)
 
 	switch isolationPolicy.Mode {
 	case schema.IsolationModeAll:
 		// IsolationModeAll should not create ingress or egress rule
-		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
-			schema.IsolationModeAll, applyToPeers, nil, nil)...)
+		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(
+			isolationPolicy.GetID(),
+			schema.IsolationModeAll,
+			applyToPeers,
+			nil,
+			nil,
+			loggingOptions,
+		)...)
 	case schema.IsolationModePartial:
 		ingress, egress, err := c.parseNetworkPolicyRules(isolationPolicy.Ingress, isolationPolicy.Egress)
 		if err != nil {
 			return nil, err
 		}
-		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(isolationPolicy.GetID(),
-			schema.IsolationModePartial, applyToPeers, ingress, egress)...)
+		isolationPolices = append(isolationPolices, c.generateIsolationPolicy(
+			isolationPolicy.GetID(),
+			schema.IsolationModePartial,
+			applyToPeers,
+			ingress,
+			egress,
+			loggingOptions,
+		)...)
 	}
 
 	return isolationPolices, nil
 }
 
-func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMode, applyToPeers []v1alpha1.ApplyToPeer,
-	ingress, egress []v1alpha1.Rule) []v1alpha1.SecurityPolicy {
+func (c *Controller) generateIsolationPolicy(
+	id string,
+	mode schema.IsolationMode,
+	applyToPeers []v1alpha1.ApplyToPeer,
+	ingress, egress []v1alpha1.Rule,
+	loggingOptions *v1alpha1.Logging,
+) []v1alpha1.SecurityPolicy {
 	var isolationPolices []v1alpha1.SecurityPolicy
 	switch mode {
 	case schema.IsolationModeAll:
@@ -1139,6 +1174,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 				Tier:          constants.Tier0,
 				AppliedTo:     applyToPeers,
 				DefaultRule:   v1alpha1.DefaultRuleDrop,
+				Logging:       loggingOptions,
 				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 			},
 		}
@@ -1154,6 +1190,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 				SymmetricMode: true,
 				AppliedTo:     applyToPeers,
 				DefaultRule:   v1alpha1.DefaultRuleDrop,
+				Logging:       loggingOptions,
 				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 				IngressRules:  ingress,
 				Tier:          constants.Tier1,
@@ -1176,6 +1213,7 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 				PolicyTypes:   []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 				EgressRules:   egress,
 				Tier:          constants.Tier1,
+				Logging:       loggingOptions,
 			},
 		}
 		if len(egress) == 0 {
@@ -1187,7 +1225,12 @@ func (c *Controller) generateIsolationPolicy(id string, mode schema.IsolationMod
 	return isolationPolices
 }
 
-func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.PolicyMode, appliedPeer *schema.SecurityPolicyApply) (*v1alpha1.SecurityPolicy, error) {
+func (c *Controller) generateIntragroupPolicy(
+	id string,
+	policyMode v1alpha1.PolicyMode,
+	appliedPeer *schema.SecurityPolicyApply,
+	loggingOptions *v1alpha1.Logging,
+) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
 	appliedPeers, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
@@ -1216,6 +1259,7 @@ func (c *Controller) generateIntragroupPolicy(id string, policyMode v1alpha1.Pol
 			}},
 			SecurityPolicyEnforcementMode: policyMode,
 			DefaultRule:                   v1alpha1.DefaultRuleDrop,
+			Logging:                       loggingOptions,
 			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
 	}
@@ -1633,4 +1677,35 @@ func getGlobalWhitelistPolicyEnforceMode(enable bool) v1alpha1.PolicyMode {
 		return v1alpha1.WorkMode
 	}
 	return v1alpha1.MonitorMode
+}
+
+func NewLoggingOptionsFrom(obj schema.Object, vmLister informer.Lister) *v1alpha1.Logging {
+	switch t := obj.(type) {
+	case *schema.EverouteCluster:
+		return newLoggingOptions(t.EnableLogging, t.ID, "", LoggingTagPolicyTypeGlobalPolicy)
+	case *schema.SecurityPolicy:
+		pt := lo.If(t.IsBlocklist, LoggingTagPolicyTypeSecurityPolicyDeny).Else(LoggingTagPolicyTypeSecurityPolicyAllow)
+		return newLoggingOptions(t.EnableLogging, t.ID, t.Name, pt)
+	case *schema.IsolationPolicy:
+		var name string
+		if vmLister != nil {
+			if vm, _, _ := vmLister.GetByKey(t.VM.ID); vm != nil {
+				name = vm.(*schema.VM).Name
+			}
+		}
+		return newLoggingOptions(t.EnableLogging, t.ID, name, LoggingTagPolicyTypeQuarantinePolicy)
+	default:
+		return newLoggingOptions(false, "", "", "")
+	}
+}
+
+func newLoggingOptions(enabled bool, policyID, policyName, policyType string) *v1alpha1.Logging {
+	return &v1alpha1.Logging{
+		Enabled: enabled,
+		Tags: map[string]string{
+			LoggingTagPolicyID:   policyID,
+			LoggingTagPolicyName: policyName,
+			LoggingTagPolicyType: policyType,
+		},
+	}
 }

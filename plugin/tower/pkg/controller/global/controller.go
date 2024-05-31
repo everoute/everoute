@@ -33,6 +33,7 @@ import (
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 )
@@ -150,11 +151,13 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 	oldERCluster := old.(*schema.EverouteCluster)
 	newERCluster := new.(*schema.EverouteCluster)
 
-	// enqueue when default action changes
-	if newERCluster.ID == c.everouteClusterID && oldERCluster.GlobalDefaultAction != newERCluster.GlobalDefaultAction {
-		c.handleEverouteCluster(newERCluster)
+	// enqueue when default action changes or enable/disable logging
+	if newERCluster.ID != c.everouteClusterID ||
+		oldERCluster.GlobalDefaultAction == newERCluster.GlobalDefaultAction &&
+			oldERCluster.EnableLogging == newERCluster.EnableLogging {
 		return
 	}
+	c.handleEverouteCluster(newERCluster)
 }
 
 func (c *Controller) reconcileGlobalPolicy(name string) error {
@@ -203,6 +206,7 @@ func (c *Controller) getCurrentGlobalPolicySpec() v1alpha1.GlobalPolicySpec {
 		case schema.GlobalPolicyActionDrop:
 			globalPolicySpec.DefaultAction = v1alpha1.GlobalDefaultActionDrop
 		}
+		globalPolicySpec.Logging = policy.NewLoggingOptionsFrom(obj.(*schema.EverouteCluster), nil)
 	} else {
 		// if everoute cluster not found, use default action allow
 		globalPolicySpec.DefaultAction = v1alpha1.GlobalDefaultActionAllow

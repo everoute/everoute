@@ -105,6 +105,7 @@ type EverouteCluster struct {
 	ControllerInstances []EverouteControllerInstance `json:"controller_instances"`
 	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
 	GlobalWhitelist     EverouteClusterWhitelist     `json:"global_whitelist,omitempty"`
+	EnableLogging       bool                         `json:"enable_logging,omitempty"`
 }
 
 type EverouteClusterWhitelist struct {

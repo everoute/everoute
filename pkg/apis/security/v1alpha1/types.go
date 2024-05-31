@@ -134,17 +134,8 @@ type Logging struct {
 	// Enabled would log connections when the policy matched.
 	Enabled bool `json:"enabled"`
 
-	// PolicyID is a user defined identity of policy, which would be record
-	// in logs and metrics. Can be repeated between different policies.
-	// Defaults to namespace/name.
-	// +optional
-	PolicyID string `json:"policyID,omitempty"`
-
-	// PolicyName is a user defined name of policy, which would be record
-	// in logs. Can be repeated between different policies.
-	// Defaults to namespace/name.
-	// +optional
-	PolicyName string `json:"policyName,omitempty"`
+	// Tags should be logging when the policy matched.
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // ApplyToPeer describes sets of endpoints which this SecurityPolicy object applies

@@ -62,6 +62,7 @@ type EverouteCluster {
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
+    enable_logging: Boolean
 }
 
 type EverouteClusterWhitelist {

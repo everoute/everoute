@@ -7,6 +7,7 @@ type SecurityPolicy {
     egress: [NetworkPolicyRule!]
     policy_mode: PolicyMode
     is_blocklist: Boolean
+    enable_logging: Boolean
 }
 
 type SecurityPolicyApply {
@@ -33,6 +34,7 @@ type IsolationPolicy {
     mode: IsolationMode!
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
+    enable_logging: Boolean
 }
 
 enum IsolationMode {

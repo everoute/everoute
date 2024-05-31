@@ -53,6 +53,7 @@ type ComplexityRoot struct {
 		AgentELFClusters    func(childComplexity int) int
 		AgentELFVDSes       func(childComplexity int) int
 		ControllerInstances func(childComplexity int) int
+		EnableLogging       func(childComplexity int) int
 		GlobalDefaultAction func(childComplexity int) int
 		GlobalWhitelist     func(childComplexity int) int
 		ID                  func(childComplexity int) int
@@ -99,6 +100,7 @@ type ComplexityRoot struct {
 
 	IsolationPolicy struct {
 		Egress          func(childComplexity int) int
+		EnableLogging   func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
@@ -200,6 +202,7 @@ type ComplexityRoot struct {
 	SecurityPolicy struct {
 		ApplyTo         func(childComplexity int) int
 		Egress          func(childComplexity int) int
+		EnableLogging   func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Ingress         func(childComplexity int) int
@@ -365,6 +368,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.EverouteCluster.ControllerInstances(childComplexity), true
 
+	case "EverouteCluster.enable_logging":
+		if e.complexity.EverouteCluster.EnableLogging == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.EnableLogging(childComplexity), true
+
 	case "EverouteCluster.global_default_action":
 		if e.complexity.EverouteCluster.GlobalDefaultAction == nil {
 			break
@@ -518,6 +528,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.IsolationPolicy.Egress(childComplexity), true
+
+	case "IsolationPolicy.enable_logging":
+		if e.complexity.IsolationPolicy.EnableLogging == nil {
+			break
+		}
+
+		return e.complexity.IsolationPolicy.EnableLogging(childComplexity), true
 
 	case "IsolationPolicy.everoute_cluster":
 		if e.complexity.IsolationPolicy.EverouteCluster == nil {
@@ -920,6 +937,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.SecurityPolicy.Egress(childComplexity), true
+
+	case "SecurityPolicy.enable_logging":
+		if e.complexity.SecurityPolicy.EnableLogging == nil {
+			break
+		}
+
+		return e.complexity.SecurityPolicy.EnableLogging(childComplexity), true
 
 	case "SecurityPolicy.everoute_cluster":
 		if e.complexity.SecurityPolicy.EverouteCluster == nil {
@@ -1567,6 +1591,7 @@ enum TaskOrderByInput {
     egress: [NetworkPolicyRule!]
     policy_mode: PolicyMode
     is_blocklist: Boolean
+    enable_logging: Boolean
 }
 
 type SecurityPolicyApply {
@@ -1593,6 +1618,7 @@ type IsolationPolicy {
     mode: IsolationMode!
     ingress: [NetworkPolicyRule!]
     egress: [NetworkPolicyRule!]
+    enable_logging: Boolean
 }
 
 enum IsolationMode {
@@ -1667,7 +1693,8 @@ type LabelGroup {
 type NetworkPolicyRuleService {
     id: ID!
     members: [NetworkPolicyRulePort!]
-}`, BuiltIn: false},
+}
+`, BuiltIn: false},
 	{Name: "../../../../schema/task_types.graphqls", Input: `type Task {
     id: ID!
     description: String!
@@ -1751,6 +1778,7 @@ type EverouteCluster {
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
+    enable_logging: Boolean
 }
 
 type EverouteClusterWhitelist {
@@ -2156,6 +2184,47 @@ func (ec *executionContext) fieldContext_EverouteCluster_global_whitelist(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _EverouteCluster_enable_logging(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteCluster_enable_logging(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EnableLogging, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteCluster_enable_logging(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EverouteClusterEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_EverouteClusterEvent_mutation(ctx, field)
 	if err != nil {
@@ -2251,6 +2320,8 @@ func (ec *executionContext) fieldContext_EverouteClusterEvent_node(ctx context.C
 				return ec.fieldContext_EverouteCluster_global_default_action(ctx, field)
 			case "global_whitelist":
 				return ec.fieldContext_EverouteCluster_global_whitelist(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_EverouteCluster_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EverouteCluster", field.Name)
 		},
@@ -3310,6 +3381,47 @@ func (ec *executionContext) fieldContext_IsolationPolicy_egress(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _IsolationPolicy_enable_logging(ctx context.Context, field graphql.CollectedField, obj *schema.IsolationPolicy) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IsolationPolicy_enable_logging(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EnableLogging, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IsolationPolicy_enable_logging(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IsolationPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IsolationPolicyEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.IsolationPolicyEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_IsolationPolicyEvent_mutation(ctx, field)
 	if err != nil {
@@ -3405,6 +3517,8 @@ func (ec *executionContext) fieldContext_IsolationPolicyEvent_node(ctx context.C
 				return ec.fieldContext_IsolationPolicy_ingress(ctx, field)
 			case "egress":
 				return ec.fieldContext_IsolationPolicy_egress(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_IsolationPolicy_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IsolationPolicy", field.Name)
 		},
@@ -4937,6 +5051,8 @@ func (ec *executionContext) fieldContext_Query_securityPolicies(ctx context.Cont
 				return ec.fieldContext_SecurityPolicy_policy_mode(ctx, field)
 			case "is_blocklist":
 				return ec.fieldContext_SecurityPolicy_is_blocklist(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_SecurityPolicy_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityPolicy", field.Name)
 		},
@@ -4995,6 +5111,8 @@ func (ec *executionContext) fieldContext_Query_isolationPolicies(ctx context.Con
 				return ec.fieldContext_IsolationPolicy_ingress(ctx, field)
 			case "egress":
 				return ec.fieldContext_IsolationPolicy_egress(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_IsolationPolicy_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IsolationPolicy", field.Name)
 		},
@@ -5053,6 +5171,8 @@ func (ec *executionContext) fieldContext_Query_everouteClusters(ctx context.Cont
 				return ec.fieldContext_EverouteCluster_global_default_action(ctx, field)
 			case "global_whitelist":
 				return ec.fieldContext_EverouteCluster_global_whitelist(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_EverouteCluster_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EverouteCluster", field.Name)
 		},
@@ -6183,6 +6303,47 @@ func (ec *executionContext) fieldContext_SecurityPolicy_is_blocklist(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _SecurityPolicy_enable_logging(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicy) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityPolicy_enable_logging(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EnableLogging, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityPolicy_enable_logging(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SecurityPolicyApply_type(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityPolicyApply) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SecurityPolicyApply_type(ctx, field)
 	if err != nil {
@@ -6463,6 +6624,8 @@ func (ec *executionContext) fieldContext_SecurityPolicyEvent_node(ctx context.Co
 				return ec.fieldContext_SecurityPolicy_policy_mode(ctx, field)
 			case "is_blocklist":
 				return ec.fieldContext_SecurityPolicy_is_blocklist(ctx, field)
+			case "enable_logging":
+				return ec.fieldContext_SecurityPolicy_enable_logging(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityPolicy", field.Name)
 		},
@@ -10812,6 +10975,10 @@ func (ec *executionContext) _EverouteCluster(ctx context.Context, sel ast.Select
 
 			out.Values[i] = ec._EverouteCluster_global_whitelist(ctx, field, obj)
 
+		case "enable_logging":
+
+			out.Values[i] = ec._EverouteCluster_enable_logging(ctx, field, obj)
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -11123,6 +11290,10 @@ func (ec *executionContext) _IsolationPolicy(ctx context.Context, sel ast.Select
 		case "egress":
 
 			out.Values[i] = ec._IsolationPolicy_egress(ctx, field, obj)
+
+		case "enable_logging":
+
+			out.Values[i] = ec._IsolationPolicy_enable_logging(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -11976,6 +12147,10 @@ func (ec *executionContext) _SecurityPolicy(ctx context.Context, sel ast.Selecti
 		case "is_blocklist":
 
 			out.Values[i] = ec._SecurityPolicy_is_blocklist(ctx, field, obj)
+
+		case "enable_logging":
+
+			out.Values[i] = ec._SecurityPolicy_enable_logging(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
