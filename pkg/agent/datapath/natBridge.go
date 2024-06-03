@@ -247,17 +247,20 @@ func (n *NatBridge) DelService(svcID string) error {
 	lbFlows := svcOvsCache.GetAllLBFlows()
 	for i := range lbFlows {
 		curEntry := lbFlows[i]
-		if curEntry.Flow == nil {
+		if curEntry.Flow == cache.UnexistFlowID {
 			continue
 		}
-		if err := curEntry.Flow.Delete(); err != nil {
+		if curEntry.LBIP == "" {
+
+		}
+		if err := ofctrl.DeleteFlow(n.serviceLBTable, curEntry.Flow); err != nil {
 			log.Errorf("Failed to delete lb flow for service %s ip %s port %s, err: %s", svcID, curEntry.LBIP, curEntry.PortName, err)
 			return err
 		}
 		svcOvsCache.SetLBFlow(curEntry.LBIP, curEntry.PortName, nil)
 	}
 
-	svcOvsCache.DeleteAllGroup()
+	svcOvsCache.DeleteAllGroup(n.OfSwitch)
 
 	if err := n.DelSessionAffinity(svcID); err != nil {
 		log.Errorf("Failed to delete session affinity flows for service %s, err: %s", svcID, err)
