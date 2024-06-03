@@ -39,7 +39,6 @@ var (
 	NatBrCTStateTable              uint8 = 10
 	NatBrSessionAffinityTable      uint8 = 30
 	NatBrServiceLBTable            uint8 = 35
-	NatBrExternalSvcLBTable        uint8 = 36
 	NatBrSessionAffinityLearnTable uint8 = 40
 	NatBrDnatTable                 uint8 = 50
 	NatBrL3ForwardTable            uint8 = 90
@@ -79,7 +78,6 @@ type NatBridge struct {
 	ctStateTable              *ofctrl.Table
 	sessionAffinityTable      *ofctrl.Table
 	serviceLBTable            *ofctrl.Table
-	externalSvcLBTable        *ofctrl.Table
 	sessionAffinityLearnTable *ofctrl.Table
 	dnatTable                 *ofctrl.Table
 	l3ForwardTable            *ofctrl.Table
@@ -125,12 +123,6 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.dnatTable, _ = sw.NewTable(NatBrDnatTable)
 	n.l3ForwardTable, _ = sw.NewTable(NatBrL3ForwardTable)
 	n.outputTable, _ = sw.NewTable(NatBrOutputTable)
-	if n.kubeProxyReplace {
-		n.externalSvcLBTable, _ = sw.NewTable(NatBrExternalSvcLBTable)
-		if err := n.initExternalSvcLBTable(); err != nil {
-			log.Fatalf("failed to init external svc ln table: %s", err)
-		}
-	}
 
 	if err := n.initInputTable(); err != nil {
 		log.Fatalf("Init Input table %d of nat bridge failed: %s", NatBrInputTable, err)
@@ -961,7 +953,7 @@ func (n *NatBridge) initCTStateTable() error {
 			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
 			return err
 		}
-		if err := svcPktFlow.Resubmit(nil, &NatBrExternalSvcLBTable); err != nil {
+		if err := svcPktFlow.Resubmit(nil, &NatBrServiceLBTable); err != nil {
 			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
 			return err
 		}
@@ -1036,13 +1028,6 @@ func (n *NatBridge) addNoNeedChooseEndpointTable(table *ofctrl.Table) error {
 func (n *NatBridge) initServiceLBTable() error {
 	if err := n.addNoNeedChooseEndpointTable(n.serviceLBTable); err != nil {
 		return fmt.Errorf("failed to add no need choose endpoint flow in clusterIP svc lb table: %s", err)
-	}
-	return nil
-}
-
-func (n *NatBridge) initExternalSvcLBTable() error {
-	if err := n.addNoNeedChooseEndpointTable(n.externalSvcLBTable); err != nil {
-		return fmt.Errorf("failed to add no need choose endpoint flow in nodeport/lb svc lb table: %s", err)
 	}
 	return nil
 }
