@@ -278,6 +278,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				Client:    mgr.GetClient(),
 				Scheme:    mgr.GetScheme(),
 				DpMgr:     datapathManager,
+				ProxyAll:  opts.IsEnableKubeProxyReplace(),
 				LocalNode: datapathManager.Info.NodeName,
 				SyncChan:  proxySyncChan,
 			}

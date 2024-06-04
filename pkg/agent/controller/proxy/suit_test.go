@@ -30,7 +30,7 @@ const (
 	RunTestWithExistingCluster = "TESTING_WITH_EXISTING_CLUSTER"
 	BrName                     = "proxybrUT"
 	Interval                   = time.Second
-	Timeout                    = time.Minute
+	Timeout                    = time.Second * 10
 	localNode                  = "nodelocal"
 
 	ipsetNs = "test-ipset"
@@ -103,10 +103,11 @@ var _ = BeforeSuite(func() {
 		DpMgr:     dpMgr,
 		LocalNode: localNode,
 		SyncChan:  syncChan,
+		ProxyAll:  true,
 	}
 	err = proxyController.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(proxyController.baseSvcCache).ToNot(BeNil())
+	Expect(proxyController.svcLBCache).ToNot(BeNil())
 
 	ipsetCtrl = IPSetCtrl{
 		Client: k8sManager.GetClient(),
@@ -137,57 +138,6 @@ var _ = AfterSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, BrName)).NotTo(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.CleanProxyBridgeChain, BrName)).NotTo(HaveOccurred())
 })
-
-func equalTrafficPolicy(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
-	if b1.InternalTrafficPolicy == ertype.TrafficPolicyLocal || b2.InternalTrafficPolicy == ertype.TrafficPolicyLocal {
-		if b1.InternalTrafficPolicy != ertype.TrafficPolicyLocal || b2.InternalTrafficPolicy != ertype.TrafficPolicyLocal {
-			return false
-		}
-	}
-
-	if b1.ExternalTrafficPolicy == ertype.TrafficPolicyLocal || b2.ExternalTrafficPolicy == ertype.TrafficPolicyLocal {
-		if b1.ExternalTrafficPolicy != ertype.TrafficPolicyLocal || b2.ExternalTrafficPolicy != ertype.TrafficPolicyLocal {
-			return false
-		}
-	}
-
-	return true
-}
-
-func equalBaseSvc(b1 *cache.BaseSvc, b2 *cache.BaseSvc) bool {
-	if b1 == nil && b2 == nil {
-		return true
-	}
-	if b1 == nil || b2 == nil {
-		return false
-	}
-
-	if b1.SvcID != b2.SvcID {
-		return false
-	}
-
-	if b1.SvcType != b2.SvcType {
-		return false
-	}
-
-	if !equalTrafficPolicy(b1, b2) {
-		return false
-	}
-
-	if add, del := b1.DiffClusterIPs(b2); len(add) != 0 || len(del) != 0 {
-		return false
-	}
-
-	if b1.ChangeAffinityMode(b2) || b1.ChangeAffinityTimeout(b2) {
-		return false
-	}
-
-	if add, upd, del := b1.DiffPorts(b2); len(add) != 0 || len(upd) != 0 || len(del) != 0 {
-		return false
-	}
-
-	return true
-}
 
 type testSvcOvsInfo struct {
 	// key is portname, value is groupid

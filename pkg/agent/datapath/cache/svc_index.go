@@ -44,11 +44,20 @@ func (s *SvcIndex) GetSvcOvsInfoAndInitIfEmpty(svcID string) *SvcOvsInfo {
 	return s.svcMap[svcID]
 }
 
-func (s *SvcIndex) DeleteSvcOvsInfo(svcID string) {
+func (s *SvcIndex) TryCleanSvcOvsInfoCache(svcID string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.svcMap[svcID] == nil || s.svcMap[svcID].IsEmpty() {
+		delete(s.svcMap, svcID)
+	}
+}
+
+// used by unittest
+func (s *SvcIndex) IsSvcInfoNil(svcID string) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	delete(s.svcMap, svcID)
+	return s.svcMap[svcID] == nil
 }
 
 func (s *SvcIndex) GetDnatFlow(backend string) *ofctrl.Flow {

@@ -6,8 +6,6 @@ import (
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
 
-const PortNameIndex = "PortNameIndex"
-
 type SvcPort struct {
 	Name      string
 	Namespace string
@@ -15,11 +13,20 @@ type SvcPort struct {
 	SvcName   string
 }
 
+func (s *SvcPort) DeepCopy() *SvcPort {
+	res := &SvcPort{}
+	*res = *s
+	return res
+}
+
 func NewSvcPortCache() cache.Indexer {
 	return cache.NewIndexer(
 		svcPortKeyFunc,
 		cache.Indexers{
-			PortNameIndex: portNameIndexFunc,
+			SvcPortIndex: portNameIndexFunc,
+			SvcIDIndex: func(obj interface{}) ([]string, error) {
+				return []string{obj.(*SvcPort).SvcName}, nil
+			},
 		},
 	)
 }
@@ -47,5 +54,5 @@ func svcPortKeyFunc(obj interface{}) (string, error) {
 
 func portNameIndexFunc(obj interface{}) ([]string, error) {
 	o := obj.(*SvcPort)
-	return []string{o.Namespace + "/" + o.SvcName + "/" + o.PortName}, nil
+	return []string{GenSvcPortIndex(o.Namespace, o.SvcName, o.PortName)}, nil
 }
