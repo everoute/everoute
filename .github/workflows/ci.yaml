@@ -26,6 +26,14 @@ jobs:
           context: ./build/images/unit-test/
           push: true
 
+      - name: build generate image
+        uses: docker/build-push-action@v4
+        with:
+          file: build/images/generate/Dockerfile
+          tags: registry.smtx.io/everoute/generate
+          context: ./build/images/generate/
+          push: true
+
   pr-check:
     needs: [build-unit-test-image, static-check, generate-check]
     runs-on: [self-hosted, pod]
@@ -42,7 +50,7 @@ jobs:
           files: ./coverage.out
 
   static-check:
-    runs-on: [ubuntu-20.04]
+    runs-on: [self-hosted, pod]
     steps:
       - uses: actions/setup-go@v3
         with:
@@ -68,13 +76,13 @@ jobs:
           skip-pkg-cache: true
 
   run-e2e:
-    runs-on: [ubuntu-20.04]
+    runs-on: [self-hosted, pod]
     needs: [static-check, generate-check, pr-check]
     steps:
       - uses: actions/checkout@v2
 
       - name: run everoute e2e test
-        run: sudo make docker-e2e-test
+        run: sudo make docker-e2e-test-ci
 
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
@@ -128,11 +136,16 @@ jobs:
 
       - name: allocate cluster vip
         run: |
-          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=${{ env.PoolName }}')
-          success=$(echo $out | grep "fullSuccess" |wc -l)
-          if [ $success != 1 ]; then exit 1; fi
-          ipright=${out#*\"ips\":[\"}
-          ip=${ipright%\"],\"ipNets\"*}
+          while true;do
+            out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=${{ env.PoolName }}')
+            success=$(echo $out | grep "fullSuccess" |wc -l)
+            if [ $success != 1 ]; then exit 1; fi
+            ipright=${out#*\"ips\":[\"}
+            ip=${ipright%\"],\"ipNets\"*}
+            success=$(ping $ip -c 4 -W 1; echo $?)
+            if [[ $success == 0 ]];then continue; fi
+            break
+          done
           echo "VIP=$ip" >> $GITHUB_ENV
       
       - name: gen k8s cluster name
@@ -170,16 +183,16 @@ jobs:
           kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: |
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=20m
           mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
           workercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.workers.totalCount}})
           echo "mastercount: $mastercount, workercount: $workercount"
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlanes.readyCount}'=$mastercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=2m
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.workers.readyCount}'=$workercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
-          kubectl wait --for=condition=Ready nodes --all --timeout=10m
-          kubectl wait --for=condition=Ready pods --all -A  --timeout=5m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlanes.readyCount}'=$mastercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.workers.readyCount}'=$workercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=20m
+          kubectl wait --for=condition=Ready nodes --all --timeout=20m
+          kubectl wait --for=condition=Ready pods --all -A  --timeout=10m
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }}
           kubectl get nodes -owide
 
@@ -224,12 +237,13 @@ jobs:
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
-    runs-on: [ubuntu-20.04]
+    runs-on: [self-hosted, pod]
+    needs: [build-unit-test-image]
     steps:
       - uses: actions/checkout@v2
 
-      - name: make docker-generate
-        run: sudo sh -c "make image-generate && make docker-generate"
+      - name: make docker-generate-ci
+        run: sudo sh -c "make docker-generate-ci"
 
       - name: check if code changes
         run: sudo sh -c "git add -A && git diff HEAD --exit-code"
@@ -241,7 +255,7 @@ jobs:
   slack-notification:
     if: ${{ always() }}
     needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
-    runs-on: [ ubuntu-20.04 ]
+    runs-on: [self-hosted, pod]
     env:
       SLACK_COLOR: 2EA44F
       RESULT_PR_CHECK: ":white_check_mark:"

@@ -30,6 +30,10 @@ docker-generate: image-generate
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
+docker-generate-ci:
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) registry.smtx.io/everoute/generate make generate
+
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/*.go
 
@@ -101,6 +105,10 @@ docker-e2e-test-entry: setup-e2e-env
 docker-e2e-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make docker-e2e-test-entry
+
+docker-e2e-test-ci:
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make docker-e2e-test-entry
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests
