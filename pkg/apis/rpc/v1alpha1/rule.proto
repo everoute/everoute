@@ -67,16 +67,22 @@ message Backend {
   string Node = 4;
 }
 
+message SvcLB {
+  string IP = 1;
+  string PortName = 2;
+  int32 Port = 3;
+  int32 NodePort = 4;
+  string Protocol = 5;
+  string SessionAffinity = 6;
+  int32 SessionAffinityTimeout = 7;
+  string TrafficPolicy = 8;
+}
+
 message SvcCache {
   string SvcID = 1;
-  string SvcType = 2;
-  repeated string ClusterIP = 3;
-  repeated SvcPort Ports = 4;
-  string SessionAffinity = 5;
-  int32 SessionAffinityTimeout = 6;
-  string InternalTrafficPolicy = 7;
-  repeated Backend Backends = 8;
-  repeated string SvcPortResourceNames = 9;
+  repeated SvcLB SvcLBs = 2;
+  repeated Backend Backends = 3;
+  repeated string SvcPortNames = 4;
 }
 
 message SvcFlowEntry {

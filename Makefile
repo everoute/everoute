@@ -110,6 +110,10 @@ docker-e2e-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make docker-e2e-test-entry
 
+docker-golint-check:
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) golangci/golangci-lint:v1.53 golangci-lint run ./...
+
 # Generate deepcopy, client, openapi codes
 codegen: manifests
 	$(APISERVER_BOOT) build generated --generator client --generator deepcopy --copyright hack/boilerplate.generatego.txt \

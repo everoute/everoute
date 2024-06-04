@@ -36,30 +36,32 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 	if g.proxyCache == nil {
 		return nil, fmt.Errorf("agent doesn't enable proxy feature")
 	}
-	svc, backends, svcPortNames := g.proxyCache.GetCacheBySvcID(svcID.ID)
+	svcLBs, backends, svcPortNames := g.proxyCache.GetCacheBySvcID(svcID.ID)
 	svcCache := &v1alpha1.SvcCache{
-		SvcID:                  svc.SvcID,
-		SvcType:                string(svc.SvcType),
-		ClusterIP:              svc.ClusterIPs,
-		SessionAffinity:        string(svc.SessionAffinity),
-		SessionAffinityTimeout: svc.SessionAffinityTimeout,
-		InternalTrafficPolicy:  string(svc.InternalTrafficPolicy),
-		SvcPortResourceNames:   svcPortNames,
+		SvcID:        svcID.ID,
+		SvcPortNames: svcPortNames,
+		SvcLBs:       make([]*v1alpha1.SvcLB, len(svcLBs)),
+		Backends:     make([]*v1alpha1.Backend, len(backends)),
 	}
-	for portName := range svc.Ports {
-		svcCache.Ports = append(svcCache.Ports, &v1alpha1.SvcPort{
-			Name:     portName,
-			Port:     svc.Ports[portName].Port,
-			Protocol: string(svc.Ports[portName].Protocol),
-		})
+	for i := range svcLBs {
+		svcCache.SvcLBs[i] = &v1alpha1.SvcLB{
+			IP:                     svcLBs[i].IP,
+			PortName:               svcLBs[i].Port.Name,
+			Port:                   svcLBs[i].Port.Port,
+			Protocol:               string(svcLBs[i].Port.Protocol),
+			NodePort:               svcLBs[i].Port.NodePort,
+			TrafficPolicy:          string(svcLBs[i].TrafficPolicy),
+			SessionAffinity:        string(svcLBs[i].SessionAffinity),
+			SessionAffinityTimeout: svcLBs[i].SessionAffinityTimeout,
+		}
 	}
 	for i := range backends {
-		svcCache.Backends = append(svcCache.Backends, &v1alpha1.Backend{
+		svcCache.Backends[i] = &v1alpha1.Backend{
 			IP:       backends[i].IP,
 			Port:     backends[i].Port,
 			Protocol: string(backends[i].Protocol),
 			Node:     backends[i].Node,
-		})
+		}
 	}
 
 	svcInfo := &v1alpha1.SvcInfo{SvcCache: svcCache}

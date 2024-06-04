@@ -8,8 +8,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const ServicePortIndex = "ServicePortIndex"
-
 type Backend struct {
 	IP              string
 	Protocol        corev1.Protocol
@@ -20,7 +18,7 @@ type Backend struct {
 
 func GenServicePortRef(svcNs, svcName, portName string) string {
 	// portName is service port name in service spec
-	return svcNs + "/" + svcName + "/" + portName
+	return GenSvcPortIndex(svcNs, svcName, portName)
 }
 
 func GenBackendKey(ip string, port int32, protocol corev1.Protocol) string {
@@ -31,19 +29,19 @@ func NewBackendCache() cache.Indexer {
 	return cache.NewIndexer(
 		backendCacheKeyFunc,
 		cache.Indexers{
-			ServicePortIndex: servicePortRefIndexFunc,
+			SvcPortIndex: servicePortRefIndexFunc,
 		},
 	)
 }
 
 func (b *Backend) DeepCopy() *Backend {
 	res := &Backend{
-		IP:       b.IP,
-		Protocol: b.Protocol,
-		Port:     b.Port,
-		Node:     b.Node,
+		IP:              b.IP,
+		Protocol:        b.Protocol,
+		Port:            b.Port,
+		Node:            b.Node,
+		ServicePortRefs: b.ServicePortRefs.Clone(),
 	}
-	res.ServicePortRefs = sets.NewString(b.ServicePortRefs.List()...)
 	return res
 }
 

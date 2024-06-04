@@ -89,6 +89,9 @@ func (*testIPSet) Restore(r io.Reader, exist ...bool) error { return nil }
 func (*testIPSet) RestoreFromFile(filename string, exist ...bool) error { return nil }
 
 func (t *testIPSet) resetErr() {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
 	t.addErr = nil
 	t.delErr = nil
 }

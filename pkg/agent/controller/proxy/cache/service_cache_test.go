@@ -1,160 +1,739 @@
 package cache
 
 import (
-	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ertype "github.com/everoute/everoute/pkg/types"
 )
 
-func TestDeepCopy(t *testing.T) {
-	src := &BaseSvc{
-		SvcID:                  "src",
-		SvcType:                corev1.ServiceTypeClusterIP,
-		ClusterIPs:             []string{"1.1.1.1"},
-		Ports:                  make(map[string]*Port),
-		ExternalTrafficPolicy:  ertype.TrafficPolicyLocal,
-		InternalTrafficPolicy:  ertype.TrafficPolicyCluster,
-		SessionAffinity:        corev1.ServiceAffinityClientIP,
-		SessionAffinityTimeout: 100000,
-	}
-	src.Ports["p1"] = &Port{
-		Name:     "p1",
-		Protocol: corev1.ProtocolTCP,
-		Port:     10,
-		NodePort: 100,
-	}
-
-	dst := src.DeepCopy()
-
-	if !equalBaseSvc(src, dst) {
-		t.Fatalf("deepcopy failed: src data %+v doesn't equal dst data %+v", *src, *dst)
-	}
-	if fmt.Sprintf("%p", src) == fmt.Sprintf("%p", dst) {
-		t.Fatalf("deepcopy failed: src pointer %p is equal to dst pointer %p", src, dst)
-	}
-	for i := range src.Ports {
-		if fmt.Sprintf("%p", src.Ports[i]) == fmt.Sprintf("%p", dst.Ports[i]) {
-			t.Fatalf("deepcopy failed: src.Ports[%s] pointer %p is equal to dst.Ports[%s] pointer %p", i, src.Ports[i], i, dst.Ports[i])
-		}
-	}
-
-	dstChangeString := src.DeepCopy()
-	dstChangeString.SvcType = corev1.ServiceTypeLoadBalancer
-	if equalBaseSvc(src, dstChangeString) {
-		t.Fatalf("deepcopy failed: src.SvcType %s changed follow dst.SvcType %s", src.SvcType, dstChangeString.SvcType)
-	}
-
-	dstChangeInt := src.DeepCopy()
-	dstChangeInt.SessionAffinityTimeout = 10
-	if equalBaseSvc(src, dstChangeInt) {
-		t.Fatalf("deepcopy failed: src.SessionAffinityTimeout %d changed follow dst.SessionAffinityTimeout %d", src.SessionAffinityTimeout, dstChangeInt.SessionAffinityTimeout)
-	}
-
-	dstChangeSlice := src.DeepCopy()
-	dstChangeSlice.ClusterIPs = []string{"2.3.4.5", "1.1.1.1"}
-	if equalBaseSvc(src, dstChangeSlice) {
-		t.Fatalf("deepcopy failed: src.ClusterIPs %+v changed follow dst.ClusterIPs %+v", src.ClusterIPs, dstChangeSlice.ClusterIPs)
-	}
-
-	dstChangePointerSlice := src.DeepCopy()
-	dstChangePointerSlice.Ports["p1"].Port = 456
-	if equalBaseSvc(src, dstChangePointerSlice) {
-		t.Fatalf("deepcopy failed: src.Ports %+v changed follow dst.Ports %+v", src.Ports, dstChangePointerSlice.Ports)
-	}
-}
-
-func TestServicePortToPort(t *testing.T) {
-	tests := []struct {
-		name string
-		arg  *corev1.ServicePort
-		exp  *Port
+func TestServiceToSvcLBs(t *testing.T) {
+	internalTPLocal := corev1.ServiceInternalTrafficPolicyLocal
+	timeout := int32(900)
+	invalidTimeout :=  int32(-9)
+	cases := []struct {
+		name     string
+		svc      *corev1.Service
+		proxyAll bool
+		exp      []*SvcLB
+		expErr   bool
 	}{
 		{
-			name: "normal",
-			arg: &corev1.ServicePort{
-				Name:     "port1",
-				Protocol: corev1.ProtocolTCP,
-				Port:     34,
-				NodePort: 90,
+			name: "clusterIP svc with proxyAll",
+			proxyAll: true,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeClusterIP,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+						{
+							Name: "dhcp",
+							Protocol: corev1.ProtocolUDP,
+							Port: 53,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
 			},
-			exp: &Port{
-				Name:     "port1",
-				Protocol: corev1.ProtocolTCP,
-				Port:     34,
-				NodePort: 90,
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						Port: 53,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
 			},
+			expErr: false,
 		},
 		{
-			name: "input is nil",
-			arg:  nil,
-			exp:  nil,
+			name: "clusterIP svc without proxyAll",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeClusterIP,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+						{
+							Name: "dhcp",
+							Protocol: corev1.ProtocolUDP,
+							Port: 53,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						Port: 53,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+			},
+			expErr: false,
 		},
 		{
-			name: "invalid protocol",
-			arg: &corev1.ServicePort{
-				Name:     "port2",
-				Protocol: corev1.ProtocolSCTP,
-				Port:     34,
-				NodePort: 90,
+			name: "nodeport svc with proxyAll",
+			proxyAll: true,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeNodePort,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							NodePort: 33100,
+							Port: 22,
+						},
+						{
+							Name: "dhcp",
+							Protocol: corev1.ProtocolUDP,
+							Port: 53,
+							NodePort: 45666,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						Port: 53,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						NodePort: 33100,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						NodePort: 45666,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "nodeport svc without proxyAll",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeNodePort,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							NodePort: 33100,
+							Port: 22,
+						},
+						{
+							Name: "dhcp",
+							Protocol: corev1.ProtocolUDP,
+							Port: 53,
+							NodePort: 45666,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						Port: 53,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "lb svc without proxyAll",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							NodePort: 33100,
+							Port: 22,
+						},
+						{
+							Name: "dhcp",
+							Protocol: corev1.ProtocolUDP,
+							Port: 53,
+							NodePort: 45666,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "dhcp",
+						Protocol: corev1.ProtocolUDP,
+						Port: 53,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "lb svc with proxyAll",
+			proxyAll: true,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							NodePort: 33100,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.2",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						NodePort: 33100,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "lb svc with proxyAll and without nodeport",
+			proxyAll: true,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.2",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "sessionaffinity = none",
+			proxyAll: true,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "192.1.1.2",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityNone,
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "sessionaffinity = clientIP with valid affinitytime",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityConfig: &corev1.SessionAffinityConfig{
+						ClientIP: &corev1.ClientIPConfig{
+							TimeoutSeconds: &timeout,
+						},
+					},
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: []*SvcLB{
+				&SvcLB{
+					SvcID: "ns/svc",
+					IP: "10.10.1.1",
+					Port: Port{
+						Name: "ssh",
+						Protocol: corev1.ProtocolTCP,
+						Port: 22,
+					},
+					TrafficPolicy: ertype.TrafficPolicyLocal,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: int32(timeout),
+				},
+			},
+			expErr: false,
+		},
+		{
+			name: "sessionaffinity = clientIP with invalid affinitytime",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolTCP,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityConfig: &corev1.SessionAffinityConfig{
+						ClientIP: &corev1.ClientIPConfig{
+							TimeoutSeconds: &invalidTimeout,
+						},
+					},
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
 			},
 			exp: nil,
+			expErr: true,
+		},
+		{
+			name: "port protocol with sftp",
+			proxyAll: false,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "svc",
+					Namespace: "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeLoadBalancer,
+					ClusterIP: "10.10.1.1",
+					ClusterIPs: []string{"10.10.1.1", "fe23::90"},
+					Ports: []corev1.ServicePort{
+						{
+							Name: "ssh",
+							Protocol: corev1.ProtocolSCTP,
+							Port: 22,
+						},
+					},
+					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyCluster,
+					SessionAffinity: corev1.ServiceAffinityClientIP,
+					SessionAffinityConfig: &corev1.SessionAffinityConfig{
+						ClientIP: &corev1.ClientIPConfig{
+							TimeoutSeconds: &timeout,
+						},
+					},
+					InternalTrafficPolicy: &internalTPLocal,
+				},
+				Status: corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "192.1.1.1",
+							},
+							{
+								IP: "192.1.1.2",
+							},
+						},
+					},
+				},
+			},
+			exp: nil,
+			expErr: false,
 		},
 	}
-	for i := range tests {
-		t.Run(tests[i].name, func(t *testing.T) {
-			real := servicePortToPort(tests[i].arg)
-			if tests[i].exp == nil && real == nil {
-				return
+	for _, c := range cases {
+		res, err := ServiceToSvcLBs(c.svc, c.proxyAll)
+		if (err != nil) != c.expErr {
+			t.Errorf("test %s failed, exp err failed", c.name)
+			continue
+		}
+		if len(res) != len(c.exp) {
+			t.Errorf("test %s failed, exp is %v, real is %v", c.name, c.exp, res)
+			continue
+		}
+		for i := range c.exp {
+			real := res[c.exp[i].ID()]
+			if *real != *c.exp[i] {
+				t.Errorf("test %s failed, exp is %v, real is %v", c.name, c.exp[i], real)
 			}
-			if tests[i].exp == nil || real == nil {
-				t.Errorf("expect %+v equal to %+v", real, tests[i].exp)
-				return
-			}
-			if *tests[i].exp != *real {
-				t.Errorf("expect %+v equal to %+v", real, tests[i].exp)
-			}
-		})
+		}
 	}
-}
-
-func equalBaseSvc(b1 *BaseSvc, b2 *BaseSvc) bool {
-	if b1 == nil && b2 == nil {
-		return true
-	}
-	if b1 == nil || b2 == nil {
-		return false
-	}
-
-	if b1.SvcID != b2.SvcID {
-		return false
-	}
-
-	if b1.ExternalTrafficPolicy != b2.ExternalTrafficPolicy {
-		return false
-	}
-
-	if b1.InternalTrafficPolicy != b2.InternalTrafficPolicy {
-		return false
-	}
-
-	if b1.SvcType != b2.SvcType {
-		return false
-	}
-
-	if add, del := b1.DiffClusterIPs(b2); len(add) != 0 || len(del) != 0 {
-		return false
-	}
-
-	if b1.ChangeAffinityMode(b2) || b1.ChangeAffinityTimeout(b2) {
-		return false
-	}
-
-	if add, upd, del := b1.DiffPorts(b2); len(add) != 0 || len(upd) != 0 || len(del) != 0 {
-		return false
-	}
-
-	return true
 }

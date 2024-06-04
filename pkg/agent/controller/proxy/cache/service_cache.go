@@ -1,30 +1,23 @@
 package cache
 
 import (
+	"fmt"
 	"net"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 
 	ertype "github.com/everoute/everoute/pkg/types"
 )
 
-// BaseSvc store a service base info
-type BaseSvc struct {
+// SvcLB store a service info for each ip and port
+type SvcLB struct {
 	// SvcID is unique identifier of BaseSvc, it should be set svcNamespace/svcName
-	SvcID   string
-	SvcType corev1.ServiceType
-
-	ClusterIPs []string
-	// Ports the key is portname
-	Ports map[string]*Port
-
-	// ExternalTrafficPolicy ClusterIP doesn't use it
-	ExternalTrafficPolicy ertype.TrafficPolicyType
-	InternalTrafficPolicy ertype.TrafficPolicyType
+	SvcID         string
+	IP            string
+	Port          Port
+	TrafficPolicy ertype.TrafficPolicyType
 
 	SessionAffinity corev1.ServiceAffinity
 	// SessionAffinityTimeout，the unit is seconds
@@ -47,65 +40,93 @@ const (
 	DefaultSessionAffinityTimeout int32 = 10800
 )
 
-func NewBaseSvcCache() cache.Indexer {
-	return cache.NewIndexer(baseSvcKeyFunc, cache.Indexers{})
+func NewSvcLBCache() cache.Indexer {
+	return cache.NewIndexer(svcLBKeyFunc,
+		cache.Indexers{
+			SvcIDIndex:   svcIDIndexFunc,
+			SvcPortIndex: svcPortIndexFuncForSvcLB,
+		})
 }
 
-func GenSvcID(svcNS string, svcName string) string {
-	return svcNS + "/" + svcName
-}
-
-func GetNsAndNameFromSvcID(svcID string) (string, string) {
-	strs := strings.Split(svcID, "/")
-	if len(strs) == 0 {
-		return "", ""
-	}
-	if len(strs) == 1 {
-		return strs[0], ""
-	}
-	return strs[0], strs[1]
-}
-
-func ServiceToBaseSvc(svc *corev1.Service) *BaseSvc {
+func ServiceToSvcLBs(svc *corev1.Service, proxyAll bool) (map[string]*SvcLB, error) {
 	if svc == nil {
-		return nil
+		return nil, fmt.Errorf("service can't be nil")
 	}
 
-	baseSvc := &BaseSvc{
-		SvcID:                 GenSvcID(svc.Namespace, svc.Name),
-		SvcType:               svc.Spec.Type,
-		ClusterIPs:            GetClusterIPs(svc.Spec),
-		ExternalTrafficPolicy: ertype.TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
-		InternalTrafficPolicy: ertype.TrafficPolicyCluster,
-		SessionAffinity:       svc.Spec.SessionAffinity,
-		Ports:                 make(map[string]*Port),
-	}
+	svcID := GenSvcID(svc.Namespace, svc.Name)
+
+	// traffic policy
+	internalTrafficPolicy := ertype.TrafficPolicyCluster
 	if svc.Spec.InternalTrafficPolicy != nil {
-		baseSvc.InternalTrafficPolicy = ertype.TrafficPolicyType(*svc.Spec.InternalTrafficPolicy)
+		internalTrafficPolicy = ertype.TrafficPolicyType(*svc.Spec.InternalTrafficPolicy)
 	}
 
-	if baseSvc.SessionAffinity == corev1.ServiceAffinityClientIP {
+	// session affinity config
+	sessionAffinity := svc.Spec.SessionAffinity
+	var sessionAffinityTimeout int32
+	if sessionAffinity == corev1.ServiceAffinityClientIP {
 		if svc.Spec.SessionAffinityConfig != nil && svc.Spec.SessionAffinityConfig.ClientIP != nil && svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds != nil {
 			timeout := *svc.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds
 			if timeout <= 0 {
-				klog.Errorf("Invalid service SessionAffinityTimeout %d for service %s", timeout, baseSvc.SvcID)
-				return nil
+				klog.Errorf("Invalid service SessionAffinityTimeout %d for service %s", timeout, svcID)
+				return nil, fmt.Errorf("invalid SessionAffinityTimeout %d", timeout)
 			}
-			baseSvc.SessionAffinityTimeout = timeout
+			sessionAffinityTimeout = timeout
 		} else {
-			baseSvc.SessionAffinityTimeout = DefaultSessionAffinityTimeout
+			sessionAffinityTimeout = DefaultSessionAffinityTimeout
 		}
 	}
 
+	clusterIPs := GetClusterIPs(svc.Spec)
+	lbIPs := []string{}
+	if proxyAll {
+		lbIPs = GetLBIPs(svc.Status)
+	}
+	res := make(map[string]*SvcLB)
 	for i := range svc.Spec.Ports {
 		svcPort := svc.Spec.Ports[i]
 		p := servicePortToPort(&svcPort)
-		if p != nil {
-			baseSvc.Ports[p.Name] = p
+		if p == nil {
+			continue
+		}
+		if proxyAll && p.NodePort != 0 {
+			port := *p
+			port.Port = 0
+			svcLB := &SvcLB{
+				SvcID:                  svcID,
+				Port:                   port,
+				TrafficPolicy:          ertype.TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
+				SessionAffinity:        sessionAffinity,
+				SessionAffinityTimeout: sessionAffinityTimeout,
+			}
+			res[svcLB.ID()] = svcLB
+		}
+		p.NodePort = 0
+		for _, ip := range clusterIPs {
+			svcLB := &SvcLB{
+				SvcID:                  svcID,
+				IP:                     ip,
+				Port:                   *p,
+				TrafficPolicy:          internalTrafficPolicy,
+				SessionAffinity:        sessionAffinity,
+				SessionAffinityTimeout: sessionAffinityTimeout,
+			}
+			res[svcLB.ID()] = svcLB
+		}
+		for _, ip := range lbIPs {
+			svcLB := &SvcLB{
+				SvcID:                  svcID,
+				IP:                     ip,
+				Port:                   *p,
+				TrafficPolicy:          ertype.TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
+				SessionAffinity:        sessionAffinity,
+				SessionAffinityTimeout: sessionAffinityTimeout,
+			}
+			res[svcLB.ID()] = svcLB
 		}
 	}
 
-	return baseSvc
+	return res, nil
 }
 
 func GetClusterIPs(spec corev1.ServiceSpec) []string {
@@ -117,80 +138,45 @@ func GetClusterIPs(spec corev1.ServiceSpec) []string {
 	return res
 }
 
-func (b *BaseSvc) DeepCopy() *BaseSvc {
-	res := &BaseSvc{
-		SvcID:                  b.SvcID,
-		SvcType:                b.SvcType,
-		ClusterIPs:             make([]string, 0),
-		Ports:                  make(map[string]*Port),
-		ExternalTrafficPolicy:  b.ExternalTrafficPolicy,
-		InternalTrafficPolicy:  b.InternalTrafficPolicy,
-		SessionAffinity:        b.SessionAffinity,
-		SessionAffinityTimeout: b.SessionAffinityTimeout,
-	}
-	res.ClusterIPs = append(res.ClusterIPs, b.ClusterIPs...)
+func GetLBIPs(status corev1.ServiceStatus) []string {
+	res := make([]string, 0)
 
-	for pName := range b.Ports {
-		curP := *b.Ports[pName]
-		res.Ports[pName] = &curP
-	}
-
-	return res
-}
-
-func (b *BaseSvc) ListPorts() []*Port {
-	var res []*Port
-	for k := range b.Ports {
-		if b.Ports[k] != nil {
-			res = append(res, b.Ports[k])
+	for i := range status.LoadBalancer.Ingress {
+		ip := status.LoadBalancer.Ingress[i].IP
+		// only support ipv4
+		if net.ParseIP(ip).To4() != nil {
+			res = append(res, ip)
 		}
 	}
 	return res
 }
 
-func (b *BaseSvc) DiffClusterIPs(new *BaseSvc) (add, del []string) {
-	newSets := sets.NewString(new.ClusterIPs...)
-	oldSets := sets.NewString(b.ClusterIPs...)
-	add = newSets.Difference(oldSets).List()
-	del = oldSets.Difference(newSets).List()
-
-	return
+func (s *SvcLB) ID() string {
+	return s.SvcID + "/" + s.IP + "/" + s.Port.Name
 }
 
-func (b *BaseSvc) ChangeAffinityMode(new *BaseSvc) bool {
-	return b.SessionAffinity != new.SessionAffinity
+func (s *SvcLB) Valid() bool {
+	if s.Port.Protocol != corev1.ProtocolTCP && s.Port.Protocol != corev1.ProtocolUDP {
+		return false
+	}
+	if s.IP == "" && s.Port.NodePort == 0 {
+		return false
+	}
+	if s.IP != "" && s.Port.Port == 0 {
+		return false
+	}
+	return true
 }
 
-func (b *BaseSvc) ChangeAffinityTimeout(new *BaseSvc) bool {
-	return b.SessionAffinityTimeout != new.SessionAffinityTimeout
+func (s *SvcLB) DeepCopy() *SvcLB {
+	res := &SvcLB{}
+	*res = *s
+	return res
 }
 
-func (b *BaseSvc) DiffPorts(new *BaseSvc) (add, update, del []*Port) {
-	for oldName := range b.Ports {
-		if v, ok := new.Ports[oldName]; !ok || v == nil {
-			del = append(del, b.Ports[oldName])
-		} else if b.Ports[oldName].validUpdate(new.Ports[oldName]) {
-			update = append(update, new.Ports[oldName])
-		}
-	}
-
-	for newName := range new.Ports {
-		if v, ok := b.Ports[newName]; !ok || v == nil {
-			add = append(add, new.Ports[newName])
-		}
-	}
-
-	return
-}
-
-func (p *Port) validUpdate(new *Port) bool {
-	if p.Port != new.Port {
-		return true
-	}
-	if p.Protocol != new.Protocol {
-		return true
-	}
-	return false
+func (s *SvcLB) ResetSessionAffinityConfig() {
+	s.SessionAffinity = corev1.ServiceAffinityNone
+	s.SessionAffinityTimeout = 0
 }
 
 func servicePortToPort(svcPort *corev1.ServicePort) *Port {
@@ -209,6 +195,17 @@ func servicePortToPort(svcPort *corev1.ServicePort) *Port {
 	}
 }
 
-func baseSvcKeyFunc(obj interface{}) (string, error) {
-	return obj.(*BaseSvc).SvcID, nil
+func svcLBKeyFunc(obj interface{}) (string, error) {
+	o := obj.(*SvcLB)
+	return o.ID(), nil
+}
+
+func svcIDIndexFunc(obj interface{}) ([]string, error) {
+	o := obj.(*SvcLB)
+	return []string{o.SvcID}, nil
+}
+
+func svcPortIndexFuncForSvcLB(obj interface{}) ([]string, error) {
+	o := obj.(*SvcLB)
+	return []string{o.SvcID + "/" + o.Port.Name}, nil
 }
