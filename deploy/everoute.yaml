@@ -2333,6 +2333,7 @@ rules:
   - pods
   - nodes
   - endpoints
+  - services
   verbs:
   - patch
   - create

@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/agiledragon/gomonkey/v2"
@@ -36,6 +37,7 @@ var _ = Describe("endpoints controller", Ordered, func() {
 	portName1 := "http"
 	portName2 := "ssh"
 	var mockGet *gomonkey.Patches
+	var mockMutex sync.Mutex
 	BeforeAll(func() {
 		Eventually(func(g Gomega) {
 			creatNS := corev1.Namespace{
@@ -53,6 +55,8 @@ var _ = Describe("endpoints controller", Ordered, func() {
 
 		mockGet = gomonkey.NewPatches()
 		fn := func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			mockMutex.Lock()
+			defer mockMutex.Unlock()
 			if v, ok := obj.(*corev1.Service); ok {
 				if key.Name == "eps" {
 					v.Spec.ClusterIP = "1.1.1.1"
@@ -72,6 +76,8 @@ var _ = Describe("endpoints controller", Ordered, func() {
 		mockGet.ApplyMethodFunc(k8sClient, "Get", fn)
 	})
 	AfterAll(func() {
+		mockMutex.Lock()
+		defer mockMutex.Unlock()
 		mockGet.Reset()
 	})
 
