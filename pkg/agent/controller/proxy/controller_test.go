@@ -1113,6 +1113,8 @@ var _ = Describe("proxy controller", func() {
 		})
 
 		AfterEach(func() {
+			proxyController.syncLock.RLock()
+			defer proxyController.syncLock.RUnlock()
 			Expect(proxyController.deleteService(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName})).Should(Succeed())
 			Expect(proxyController.deleteService(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName2})).Should(Succeed())
 			Expect(proxyController.deleteServicePort(ctx, types.NamespacedName{Namespace: svcNs, Name: svcPort1.Name})).Should(Succeed())
