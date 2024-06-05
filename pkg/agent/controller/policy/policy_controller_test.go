@@ -1582,13 +1582,19 @@ var _ = Describe("PolicyController", func() {
 
 		When("del groupmembers", func() {
 
-			When("policy referenced the group", func() {
-				BeforeEach(func() {
-					gm := &groupv1alpha1.GroupMembers{}
-					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
-					Expect(k8sClient.Delete(ctx, gm)).Should(Succeed())
-				})
+			BeforeEach(func() {
+				Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).ShouldNot(Equal(0))
+				}, timeout, interval).Should(Succeed())
 
+				By(fmt.Sprintf("delete group2 %s", group2.GetName()))
+				gm := &groupv1alpha1.GroupMembers{}
+				Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
+				Expect(k8sClient.Delete(ctx, gm)).Should(Succeed())
+			})
+
+			When("policy referenced the group", func() {
 				It("can't del groupmembers succeed", func() {
 					time.Sleep(2)
 					_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
@@ -1598,9 +1604,6 @@ var _ = Describe("PolicyController", func() {
 
 			When("no policy referenced the group", func() {
 				BeforeEach(func() {
-					gm := &groupv1alpha1.GroupMembers{}
-					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: group2.GetName()}, gm)).Should(Succeed())
-					Expect(k8sClient.Delete(ctx, gm)).Should(Succeed())
 					p := &securityv1alpha1.SecurityPolicy{}
 					Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: policy.GetNamespace(), Name: policy.GetName()}, p)).Should(Succeed())
 					Expect((k8sClient.Delete(ctx, p))).Should(Succeed())
@@ -1609,7 +1612,7 @@ var _ = Describe("PolicyController", func() {
 				It("should delete groupmembers from cache", func() {
 					Eventually(func(g Gomega) {
 						_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
-						Expect(exists).Should(BeFalse())
+						g.Expect(exists).Should(BeFalse())
 					}, timeout, interval).Should(Succeed())
 				})
 			})
