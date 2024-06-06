@@ -178,6 +178,7 @@ echo 1 > /proc/sys/net/ipv4/conf/${CLS_BRIDGE}/rp_filter
 echo 1 > /proc/sys/net/ipv4/conf/${UPLINK_BRIDGE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter
 echo 0 > /proc/sys/net/ipv4/ip_early_demux
+echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal
 
 # load alg module
 modprobe nf_nat_ftp
@@ -204,6 +205,7 @@ echo "check sysctl"
 [[ `cat /proc/sys/net/ipv4/conf/all/rp_filter` -ne 0 ]] && error_handle
 [[ `cat /proc/sys/net/ipv4/conf/${GW_IFACE}/rp_filter` -ne 0 ]] && error_handle
 [[ `cat /proc/sys/net/ipv4/ip_early_demux` -ne 0 ]] && error_handle
+[[ `cat /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal` -ne 1 ]] && error_handle
 
 echo "finish init"
 touch /tmp/everoute_agent_init
