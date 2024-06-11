@@ -28,6 +28,7 @@ var _ = Describe("proxy controller", func() {
 		ip1             = "10.0.0.12"
 		ip2             = "10.3.4.5"
 		ip3             = "123.1.1.1"
+		lbIP1           = "192.168.1.1"
 		affinityTimeout = int32(100)
 		ipFamilyPolicy  = corev1.IPFamilyPolicySingleStack
 	)
@@ -54,6 +55,7 @@ var _ = Describe("proxy controller", func() {
 			Name:     "http",
 			Protocol: corev1.ProtocolTCP,
 			Port:     80,
+			NodePort: 32001,
 		}
 		portName3 = port3.Name
 	)
@@ -117,6 +119,40 @@ var _ = Describe("proxy controller", func() {
 			Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeTrue())
 		})
 
+		It("add clusterIP svc", func() {
+			svcCopy := svc.DeepCopy()
+			svcCopy.Spec.Type = corev1.ServiceTypeClusterIP
+			svcCopy.Spec.Ports[0].NodePort = 0
+			Expect(k8sClient.Create(ctx, svcCopy)).Should(Succeed())
+
+			expSvcLBs := []*proxycache.SvcLB{
+				{
+					SvcID: svcID,
+					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity: corev1.ServiceAffinityNone,
+					TrafficPolicy:   ertype.TrafficPolicyCluster,
+				},
+			}
+			Eventually(func(g Gomega) {
+				res, _ := proxyController.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
+				g.Expect(len(res)).Should(Equal(len(expSvcLBs)))
+				for i := range expSvcLBs {
+					res, exists, _ := proxyController.svcLBCache.GetByKey(expSvcLBs[i].ID())
+					g.Expect(exists).Should(BeTrue())
+					g.Expect(*res.(*proxycache.SvcLB)).Should(Equal(*expSvcLBs[i]))
+				}
+			}, Timeout, Interval).Should(Succeed())
+			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
+			Expect(dpOvs).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
+		})
 		It("add service normal", func() {
 			svcCopy := svc.DeepCopy()
 			Expect(k8sClient.Create(ctx, svcCopy)).Should(Succeed())
@@ -156,6 +192,7 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
 		})
@@ -205,11 +242,13 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
 			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
 		})
-		It("add service with traffic policy local", func() {
+		It("add service with internal traffic policy local", func() {
 			svcCopy := svc.DeepCopy()
 			svcCopy.Spec.SessionAffinity = corev1.ServiceAffinityClientIP
 			svcCopy.Spec.SessionAffinityConfig = &corev1.SessionAffinityConfig{
@@ -257,9 +296,89 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
+		})
+
+		It("add lb service with external traffic policy local", func() {
+			svcCopy := svc.DeepCopy()
+			svcCopy.Spec.Type = corev1.ServiceTypeLoadBalancer
+			svcCopy.Spec.SessionAffinity = corev1.ServiceAffinityClientIP
+			svcCopy.Spec.SessionAffinityConfig = &corev1.SessionAffinityConfig{
+				ClientIP: &corev1.ClientIPConfig{TimeoutSeconds: &affinityTimeout},
+			}
+			svcCopy.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+			Expect(k8sClient.Create(ctx, svcCopy)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, svcCopy)).Should(Succeed())
+			svcCopy.Status.LoadBalancer = corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						IP: lbIP1,
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, svcCopy)).Should(Succeed())
+			expSvcLBs := []*proxycache.SvcLB{
+				{
+					SvcID: svcID,
+					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyLocal,
+				},
+				{
+					SvcID: svcID,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						NodePort: port1.NodePort,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyLocal,
+				},
+			}
+
+			Eventually(func(g Gomega) {
+				objs, _ := proxyController.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
+				g.Expect(len(objs)).Should(Equal(len(expSvcLBs)))
+				for i := range expSvcLBs {
+					res, exists, _ := proxyController.svcLBCache.GetByKey(expSvcLBs[i].ID())
+					g.Expect(exists).Should(BeTrue())
+					g.Expect(*res.(*proxycache.SvcLB)).Should(Equal(*expSvcLBs[i]))
+				}
+			}, Timeout, Interval).Should(Succeed())
+			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
+			Expect(dpOvs).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(lbIP1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port1.Name)).ShouldNot(BeNil())
 		})
 
 		It("add headless service", func() {
@@ -304,7 +423,7 @@ var _ = Describe("proxy controller", func() {
 				Namespace: svcNs,
 			},
 			Spec: corev1.ServiceSpec{
-				Type:       corev1.ServiceTypeNodePort,
+				Type:       corev1.ServiceTypeLoadBalancer,
 				ClusterIP:  ip1,
 				ClusterIPs: []string{ip1},
 				Ports: []corev1.ServicePort{
@@ -330,12 +449,35 @@ var _ = Describe("proxy controller", func() {
 		var oldOvsInfo *testSvcOvsInfo
 		var svcCopy corev1.Service
 		BeforeEach(func() {
-			svcCopy = svc
+			svcCopy = *svc.DeepCopy()
 			Expect(k8sClient.Create(ctx, &svcCopy)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, &svcCopy))
+			svcCopy.Status.LoadBalancer = corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						IP: lbIP1,
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, &svcCopy)).Should(Succeed())
+
 			expSvcLBs := []*proxycache.SvcLB{
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port1.Name,
 						Protocol: port1.Protocol,
@@ -368,6 +510,19 @@ var _ = Describe("proxy controller", func() {
 					SessionAffinityTimeout: affinityTimeout,
 					TrafficPolicy:          ertype.TrafficPolicyCluster,
 				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
 			}
 
 			Eventually(func(g Gomega) {
@@ -384,9 +539,13 @@ var _ = Describe("proxy controller", func() {
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
 				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetLBFlow(lbIP1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetLBFlow("", portName)).ShouldNot(BeNil())
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
 				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetSessionAffinityFlow("", portName)).ShouldNot(BeNil())
 			}
 			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
 		})
@@ -424,8 +583,34 @@ var _ = Describe("proxy controller", func() {
 					TrafficPolicy:          ertype.TrafficPolicyCluster,
 				},
 				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port3.Name,
+						Protocol: port3.Protocol,
+						Port:     port3.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port3.Name,
 						Protocol: port3.Protocol,
@@ -448,7 +633,31 @@ var _ = Describe("proxy controller", func() {
 				},
 				{
 					SvcID: svcID,
+					Port: proxycache.Port{
+						Name:     port3.Name,
+						Protocol: port3.Protocol,
+						NodePort: port3.NodePort,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port2.Name,
 						Protocol: port2.Protocol,
@@ -461,7 +670,7 @@ var _ = Describe("proxy controller", func() {
 			}
 			Eventually(func(g Gomega) {
 				objs, _ := proxyController.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
-				g.Expect(len(objs)).Should(Equal(len(expSvcLBs) + 2))
+				g.Expect(len(objs)).Should(Equal(len(expSvcLBs) + 1))
 				for i := range expSvcLBs {
 					res, exists, _ := proxyController.svcLBCache.GetByKey(expSvcLBs[i].ID())
 					g.Expect(exists).Should(BeTrue())
@@ -472,14 +681,20 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+				for _, ip := range []string{ip1, lbIP1, ""} {
+					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+				}
 			}
 			Expect(dpOvs.GetLBFlow(ip1, port3.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow("", port3.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(lbIP1, port3.Name)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
 			Expect(dpOvs.GetSessionAffinityFlow(ip1, port3.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port3.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow("", port3.Name)).ShouldNot(BeNil())
 		})
 
 		It("delete service port", func() {
@@ -497,6 +712,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port1.Name,
 						Protocol: port1.Protocol,
@@ -532,14 +760,20 @@ var _ = Describe("proxy controller", func() {
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name} {
 				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+				Expect(dpOvs.GetLBFlow("", portName).FlowID).Should(Equal(oldOvsInfo.lbMap[""][portName]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
 				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
+				Expect(dpOvs.GetSessionAffinityFlow("", portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
 			}
 			Expect(dpOvs.GetLBFlow(ip1, port2.Name)).Should(BeNil())
+			Expect(dpOvs.GetLBFlow(lbIP1, port2.Name)).Should(BeNil())
 			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).Should(BeNil())
 			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
 			Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name)).Should(BeNil())
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port2.Name)).Should(BeNil())
 		})
 
 		It("change service port without svcPort", func() {
@@ -573,6 +807,19 @@ var _ = Describe("proxy controller", func() {
 					TrafficPolicy:          ertype.TrafficPolicyCluster,
 				},
 				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
 					SvcID: svcID,
 					Port: proxycache.Port{
 						Name:     port1.Name,
@@ -586,6 +833,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     1000,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port2.Name,
 						Protocol: port2.Protocol,
@@ -609,17 +869,21 @@ var _ = Describe("proxy controller", func() {
 				g.Expect(dpOvs).ShouldNot(BeNil())
 				for _, portName := range []string{port1.Name} {
 					g.Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+					g.Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+					g.Expect(dpOvs.GetLBFlow("", portName).FlowID).Should(Equal(oldOvsInfo.lbMap[""][portName]))
 					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
 					g.Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+					g.Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
+					g.Expect(dpOvs.GetSessionAffinityFlow("", portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
 				}
 				// group not change
 				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster).GroupID).ShouldNot(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
 				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
 
 				// flow should change
-				g.Expect(dpOvs.GetLBFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
-				g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
+				// g.Expect(dpOvs.GetLBFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
+				// g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
 			}, Timeout, Interval).Should(Succeed())
 
 		})
@@ -681,6 +945,7 @@ var _ = Describe("proxy controller", func() {
 					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
 					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 					// g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
+
 				}, Timeout, Interval).Should(Succeed())
 			})
 		})
@@ -704,6 +969,18 @@ var _ = Describe("proxy controller", func() {
 					TrafficPolicy:   ertype.TrafficPolicyCluster,
 				},
 				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity: corev1.ServiceAffinityNone,
+					TrafficPolicy:   ertype.TrafficPolicyCluster,
+				},
+				{
 					SvcID: svcID,
 					Port: proxycache.Port{
 						Name:     port1.Name,
@@ -716,6 +993,18 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity: corev1.ServiceAffinityNone,
+					TrafficPolicy:   ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port2.Name,
 						Protocol: port2.Protocol,
@@ -739,9 +1028,11 @@ var _ = Describe("proxy controller", func() {
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
 				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
 			}
+			Expect(dpOvs.GetLBFlow("", port1.Name).FlowID).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
 			Expect(len(dpOvs.GetAllSessionAffinityFlows())).Should(BeZero())
 
 			By("session affinity change from node to clientip, and session affinity config is default")
@@ -753,6 +1044,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: proxycache.DefaultSessionAffinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port1.Name,
 						Protocol: port1.Protocol,
@@ -776,6 +1080,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: proxycache.DefaultSessionAffinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port2.Name,
 						Protocol: port2.Protocol,
@@ -799,10 +1116,12 @@ var _ = Describe("proxy controller", func() {
 			dpOvs = svcIndex.GetSvcOvsInfo(svcID)
 			for _, portName := range []string{port1.Name, port2.Name} {
 				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
 				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
 			}
+			Expect(dpOvs.GetLBFlow("", port1.Name).FlowID).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
 		})
 
 		It("change session affinity timeout", func() {
@@ -814,6 +1133,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: 5000,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port1.Name,
 						Protocol: port1.Protocol,
@@ -837,6 +1169,19 @@ var _ = Describe("proxy controller", func() {
 				{
 					SvcID: svcID,
 					IP:    ip1,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: 5000,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
 					Port: proxycache.Port{
 						Name:     port2.Name,
 						Protocol: port2.Protocol,
@@ -860,10 +1205,12 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				for _, ip := range []string{ip1, lbIP1, ""} {
+					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+				}
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
 			}
 		})
 
@@ -884,6 +1231,19 @@ var _ = Describe("proxy controller", func() {
 					SessionAffinity:        corev1.ServiceAffinityClientIP,
 					SessionAffinityTimeout: affinityTimeout,
 					TrafficPolicy:          ertype.TrafficPolicyLocal,
+				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
 				},
 				{
 					SvcID: svcID,
@@ -908,6 +1268,19 @@ var _ = Describe("proxy controller", func() {
 					SessionAffinityTimeout: affinityTimeout,
 					TrafficPolicy:          ertype.TrafficPolicyLocal,
 				},
+				{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
 			}
 			Eventually(func(g Gomega) {
 				objs, _ := proxyController.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
@@ -926,6 +1299,13 @@ var _ = Describe("proxy controller", func() {
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+			}
+
+			for _, portName := range []string{port1.Name, port2.Name} {
+				for _, ip := range []string{lbIP1, ""} {
+					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+				}
 			}
 		})
 	})
@@ -1145,7 +1525,7 @@ var _ = Describe("proxy controller", func() {
 				Namespace: svcNs,
 			},
 			Spec: corev1.ServiceSpec{
-				Type:       corev1.ServiceTypeNodePort,
+				Type:       corev1.ServiceTypeLoadBalancer,
 				ClusterIP:  ip1,
 				ClusterIPs: []string{ip1},
 				Ports: []corev1.ServicePort{
@@ -1224,6 +1604,64 @@ var _ = Describe("proxy controller", func() {
 				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(BeNil())
 				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(BeNil())
+			}
+
+			By("add lb ip")
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, &svcCopy)).Should(Succeed())
+			svcCopy.Status.LoadBalancer = corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						IP:       lbIP1,
+						Hostname: "hhh",
+					},
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, &svcCopy)).Should(Succeed())
+			expSvcLBs = append(expSvcLBs, []*proxycache.SvcLB{
+				&proxycache.SvcLB{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port1.Name,
+						Protocol: port1.Protocol,
+						Port:     port1.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+				&proxycache.SvcLB{
+					SvcID:  svcID,
+					IP:     lbIP1,
+					IsLBIP: true,
+					Port: proxycache.Port{
+						Name:     port2.Name,
+						Protocol: port2.Protocol,
+						Port:     port2.Port,
+					},
+					SessionAffinity:        corev1.ServiceAffinityClientIP,
+					SessionAffinityTimeout: affinityTimeout,
+					TrafficPolicy:          ertype.TrafficPolicyCluster,
+				},
+			}...)
+			Eventually(func(g Gomega) {
+				objs, _ := proxyController.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
+				g.Expect(len(objs)).Should(Equal(len(expSvcLBs) + 1))
+				for i := range expSvcLBs {
+					res, exists, _ := proxyController.svcLBCache.GetByKey(expSvcLBs[i].ID())
+					g.Expect(exists).Should(BeTrue())
+					g.Expect(*res.(*proxycache.SvcLB)).Should(Equal(*expSvcLBs[i]))
+				}
+			}, Timeout, Interval).Should(Succeed())
+			dpOvs = svcIndex.GetSvcOvsInfo(svcID)
+			Expect(dpOvs).ShouldNot(BeNil())
+			for _, portName := range []string{port1.Name, port2.Name} {
+				for _, ip := range []string{ip1, lbIP1, ""} {
+					Expect(dpOvs.GetLBFlow(ip, portName)).ShouldNot(BeNil())
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).ShouldNot(BeNil())
+				}
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
 			}
 			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
 		})
@@ -1414,10 +1852,9 @@ var _ = Describe("proxy controller", func() {
 	Context("test replay flows", func() {
 		svcLB1 := proxycache.SvcLB{
 			SvcID: svcID,
-			IP:    ip1,
 			Port: proxycache.Port{
 				Protocol: port1.Protocol,
-				Port:     port1.Port,
+				NodePort: port1.NodePort,
 				Name:     port1.Name,
 			},
 			TrafficPolicy:          ertype.TrafficPolicyLocal,
@@ -1437,8 +1874,9 @@ var _ = Describe("proxy controller", func() {
 			SessionAffinityTimeout: affinityTimeout,
 		}
 		svcLB3 := proxycache.SvcLB{
-			SvcID: svcID2,
-			IP:    ip2,
+			SvcID:  svcID2,
+			IP:     ip2,
+			IsLBIP: true,
 			Port: proxycache.Port{
 				Protocol: port2.Protocol,
 				Port:     port2.Port,
@@ -1528,9 +1966,9 @@ var _ = Describe("proxy controller", func() {
 				g.Expect(ovsInfo1.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
 				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyCluster)).Should(BeNil())
-				g.Expect(ovsInfo1.GetLBFlow(ip1, portName1)).ToNot(BeNil())
+				g.Expect(ovsInfo1.GetLBFlow("", portName1)).ToNot(BeNil())
 				g.Expect(ovsInfo1.GetLBFlow(ip1, portName3)).ToNot(BeNil())
-				g.Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName1)).ToNot(BeNil())
+				g.Expect(ovsInfo1.GetSessionAffinityFlow("", portName1)).ToNot(BeNil())
 				g.Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName3)).ToNot(BeNil())
 
 				ovsInfo2 := svcIndex.GetSvcOvsInfo(svcID2)

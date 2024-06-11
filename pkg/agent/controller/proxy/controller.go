@@ -357,7 +357,7 @@ func (r *Reconciler) processSvcLBAdd(l *proxycache.SvcLB) error {
 
 func (r *Reconciler) processSvcLBDel(l *proxycache.SvcLB) error {
 	if !l.Valid() {
-		return fmt.Errorf("invalid svcLB %v", *l)
+		return fmt.Errorf("invalid svcLB %+v", *l)
 	}
 	dpNatBrs := r.DpMgr.GetNatBridges()
 
@@ -404,27 +404,20 @@ func (r *Reconciler) processSvcLBUpd(newLB, oldLB *proxycache.SvcLB) error {
 		return fmt.Errorf("invalid old svcLB %v", *oldLB)
 	}
 
-	if newLB.IP == "" {
-		if newLB.Port.NodePort != oldLB.Port.NodePort {
-			// todo update nodeport flow
-			oldLB.Port.NodePort = newLB.Port.NodePort
-			_ = r.svcLBCache.Update(oldLB)
-			return nil
+	// port is different, changes lbflow and sessionAffinity flow
+	if newLB.Port != oldLB.Port {
+		if err := r.processSvcLBDel(oldLB); err != nil {
+			klog.Errorf("Failed to delete old service lb info %v related flow, err: %s", *oldLB, err)
+			return err
 		}
-	} else {
-		if newLB.Port.Port != oldLB.Port.Port {
-			if err := r.processSvcLBDel(oldLB); err != nil {
-				klog.Errorf("Failed to delete old service lb info %v related flow, err: %s", *oldLB, err)
-				return err
-			}
-			if err := r.processSvcLBAdd(newLB); err != nil {
-				klog.Errorf("Failed to delete new service lb info %v related flow, err: %s", *newLB, err)
-				return err
-			}
-			return nil
+		if err := r.processSvcLBAdd(newLB); err != nil {
+			klog.Errorf("Failed to delete new service lb info %v related flow, err: %s", *newLB, err)
+			return err
 		}
+		return nil
 	}
 
+	// traffic policy is different, only change lbflow
 	dpNatBrs := r.DpMgr.GetNatBridges()
 	if newLB.TrafficPolicy != oldLB.TrafficPolicy {
 		for i := range dpNatBrs {
@@ -443,6 +436,7 @@ func (r *Reconciler) processSvcLBUpd(newLB, oldLB *proxycache.SvcLB) error {
 		klog.Infof("Success to update svcLB %s traffic policy to %s", oldLB.ID(), newLB.TrafficPolicy)
 	}
 
+	// sessionAffinity is different, only change sessionAffinity flow
 	if newLB.SessionAffinity != oldLB.SessionAffinity || newLB.SessionAffinityTimeout != oldLB.SessionAffinityTimeout {
 		for i := range dpNatBrs {
 			dpNatBr := dpNatBrs[i]
