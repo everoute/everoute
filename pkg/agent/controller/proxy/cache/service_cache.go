@@ -16,6 +16,7 @@ type SvcLB struct {
 	// SvcID is unique identifier of BaseSvc, it should be set svcNamespace/svcName
 	SvcID         string
 	IP            string
+	IsLBIP        bool
 	Port          Port
 	TrafficPolicy ertype.TrafficPolicyType
 
@@ -117,6 +118,7 @@ func ServiceToSvcLBs(svc *corev1.Service, proxyAll bool) (map[string]*SvcLB, err
 			svcLB := &SvcLB{
 				SvcID:                  svcID,
 				IP:                     ip,
+				IsLBIP:                 true,
 				Port:                   *p,
 				TrafficPolicy:          ertype.TrafficPolicyType(svc.Spec.ExternalTrafficPolicy),
 				SessionAffinity:        sessionAffinity,
@@ -166,6 +168,18 @@ func (s *SvcLB) Valid() bool {
 		return false
 	}
 	return true
+}
+
+// IsExternal returns is lb or nodeport svc
+func (s *SvcLB) IsExternal() bool {
+	if s.IsLBIP {
+		return true
+	}
+
+	if s.IP == "" && s.Port.NodePort != 0 {
+		return true
+	}
+	return false
 }
 
 func (s *SvcLB) DeepCopy() *SvcLB {
