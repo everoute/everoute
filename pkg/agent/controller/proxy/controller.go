@@ -357,7 +357,7 @@ func (r *Reconciler) processSvcLBAdd(l *proxycache.SvcLB) error {
 
 func (r *Reconciler) processSvcLBDel(l *proxycache.SvcLB) error {
 	if !l.Valid() {
-		return fmt.Errorf("invalid svcLB %v", *l)
+		return fmt.Errorf("invalid svcLB %+v", *l)
 	}
 	dpNatBrs := r.DpMgr.GetNatBridges()
 

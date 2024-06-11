@@ -257,14 +257,36 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 
 	var lbFlow *ofctrl.Flow
 	if ipDa != nil {
-		lbFlow, err = n.addLBFlow(&ipDa, svcLB.Port.Protocol, svcLB.Port.Port, gpID)
+		lbFlow, err = n.newLBFlow(&ipDa, svcLB.Port.Protocol, svcLB.Port.Port)
 		if err != nil {
-			log.Errorf("Failed to add a lb flow for service %s, ip: %s, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
+			log.Errorf("Failed to new a lb flow for service %s, ip: %s, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
+			return err
+		}
+	} else {
+		lbFlow, err = n.newLBFlowForNodePort(svcLB.Port.Protocol, svcLB.Port.NodePort)
+		if err != nil {
+			log.Errorf("Failed to new a lb flow for service %s nodeport, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.Port.Name, svcLB.TrafficPolicy, err)
 			return err
 		}
 	}
 
-	// todo nodeport flow
+	if svcLB.TrafficPolicy == ertype.TrafficPolicyLocal && svcLB.IsExternal() {
+		ofRange := openflow13.NewNXRange(constants.SvcLocalPktMarkBit, constants.SvcLocalPktMarkBit)
+		if err := lbFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, ofRange); err != nil {
+			log.Errorf("Failed to setup set pkt mark for svc lb info %v with ExternalTrafficPolicy=Local flow load field action: %s", *svcLB, err)
+			return err
+		}
+	}
+	if err := lbFlow.SetGroup(gpID); err != nil {
+		log.Errorf("Failed to set group action to lb flow: %+v, err: %s", lbFlow, err)
+		return err
+	}
+
+	if err := lbFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install lb flow: %+v, err: %s", lbFlow, err)
+		return err
+	}
+
 	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, lbFlow)
 	log.Infof("Dp success to add lb flow for svclb %v", *svcLB)
 	return nil
@@ -316,15 +338,12 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 
 	var sessionFlow *ofctrl.Flow
 	var err error
-	if ipDa != nil {
-		sessionFlow, err = n.addSessionAffinityFlow(ipDa, svcLB.Port.Protocol, svcLB.Port.Port, svcLB.SessionAffinityTimeout)
-		if err != nil {
-			log.Errorf("Failed to add a session affinity flow for service lb info %v, err: %s", *svcLB, err)
-			return err
-		}
+	sessionFlow, err = n.addSessionAffinityFlow(ipDa, svcLB)
+	if err != nil {
+		log.Errorf("Failed to add a session affinity flow for service lb info %v, err: %s", *svcLB, err)
+		return err
 	}
 
-	// todo nodeport flow
 	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, sessionFlow)
 	log.Infof("Dp success to add sessionAffinity flow for svclb %v", *svcLB)
 	return nil
@@ -472,21 +491,35 @@ func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32)
 	return nil
 }
 
-func (n *NatBridge) addLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32, gpID uint32) (*ofctrl.Flow, error) {
-	newFlow, err := n.newLBFlow(ipDa, protocol, port)
-	if err != nil {
-		log.Errorf("Failed to New a lb flow: %s", err)
-		return nil, err
+func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int32) (*ofctrl.Flow, error) {
+	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	if protocol == corev1.ProtocolTCP {
+		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       NORMAL_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        PROTOCOL_TCP,
+			TcpDstPort:     uint16(nodePort),
+			TcpDstPortMask: PortMaskMatchFullBit,
+			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMarkMask:    &pktMask,
+		})
+		return newFlow, err
 	}
-	if err := newFlow.SetGroup(gpID); err != nil {
-		log.Errorf("Failed to set group action to lb flow: %+v, err: %s", newFlow, err)
-		return nil, err
+
+	if protocol == corev1.ProtocolUDP {
+		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       NORMAL_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        PROTOCOL_UDP,
+			UdpDstPort:     uint16(nodePort),
+			UdpDstPortMask: PortMaskMatchFullBit,
+			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMarkMask:    &pktMask,
+		})
+		return newFlow, err
 	}
-	if err := newFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install lb flow: %+v, err: %s", newFlow, err)
-		return nil, err
-	}
-	return newFlow, nil
+
+	return nil, fmt.Errorf("invalid protocol: %s", protocol)
 }
 
 func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32) (*ofctrl.Flow, error) {
@@ -782,7 +815,7 @@ func (n *NatBridge) initServiceLBTable() error {
 	return nil
 }
 
-func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, learnActionTimeout int32) (*ofctrl.LearnAction, error) {
+func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, learnActionTimeout int32, isNP bool) (*ofctrl.LearnAction, error) {
 	ethTypeField := ofctrl.LearnField{Name: "nxm_of_eth_type", Start: 0}
 	ipSrcField := ofctrl.LearnField{Name: "nxm_of_ip_src", Start: 0}
 	ipDstField := ofctrl.LearnField{Name: "nxm_of_ip_dst", Start: 0}
@@ -794,12 +827,18 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, lear
 	backendIPField := ofctrl.LearnField{Name: BackendIPReg, Start: 0}
 	backendPortField := ofctrl.LearnField{Name: BackendPortReg, Start: 0}
 	chooseBackendFlagField := ofctrl.LearnField{Name: ChooseBackendFlagReg, Start: uint16(ChooseBackendFlagStart)}
+	unsnatFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: constants.SvcLocalPktMarkBit}
+	externalFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: constants.ExternalSvcPktMarkBit}
 
 	cookieID, err := getLearnCookieID()
 	if err != nil {
 		return nil, err
 	}
-	learnAct := ofctrl.NewLearnAction(NatBrSessionAffinityTable, MID_MATCH_FLOW_PRIORITY, 0, uint16(learnActionTimeout), 0, 0, cookieID)
+	priority := MID_MATCH_FLOW_PRIORITY
+	if isNP {
+		priority = NORMAL_MATCH_FLOW_PRIORITY
+	}
+	learnAct := ofctrl.NewLearnAction(NatBrSessionAffinityTable, uint16(priority), 0, uint16(learnActionTimeout), 0, 0, cookieID)
 	learnAct.SetDeleteLearned()
 
 	if err := learnAct.AddLearnedMatch(&ethTypeField, EtherTypeLength, nil, uintToByteBigEndian(uint16(PROTOCOL_IP))); err != nil {
@@ -808,8 +847,14 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, lear
 	if err := learnAct.AddLearnedMatch(&ipSrcField, IPv4Lenth, &ipSrcField, nil); err != nil {
 		return nil, err
 	}
-	if err := learnAct.AddLearnedMatch(&ipDstField, IPv4Lenth, &ipDstField, nil); err != nil {
-		return nil, err
+	if isNP {
+		if err := learnAct.AddLearnedMatch(&externalFlagField, 1, nil, uintToByteBigEndian(constants.PktMarkSetValue)); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := learnAct.AddLearnedMatch(&ipDstField, IPv4Lenth, &ipDstField, nil); err != nil {
+			return nil, err
+		}
 	}
 
 	switch ipProto {
@@ -842,10 +887,14 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, lear
 		return nil, err
 	}
 
+	if err := learnAct.AddLearnedLoadAction(&unsnatFlagField, 1, &unsnatFlagField, nil); err != nil {
+		return nil, err
+	}
+
 	return learnAct, nil
 }
 
-func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, protocol corev1.Protocol, dstPort int32, sessionAffinityTimeout int32) (*ofctrl.Flow, error) {
+func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protocol, dstPort int32) (*ofctrl.Flow, error) {
 	var flow *ofctrl.Flow
 	var ipProto uint8
 	var err error
@@ -884,22 +933,87 @@ func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 		log.Errorf("Unsupport service protocol %s", protocol)
 		return nil, fmt.Errorf("unsupport service protocol %s", protocol)
 	}
+	return flow, nil
+}
 
-	learnAct, err := n.buildLearnActOfSessionAffinityLearnTable(ipProto, sessionAffinityTimeout)
+func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, dstNodePort int32) (*ofctrl.Flow, error) {
+	var flow *ofctrl.Flow
+	var ipProto uint8
+	var err error
+	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	switch protocol {
+	case corev1.ProtocolTCP:
+		ipProto = PROTOCOL_TCP
+		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       NORMAL_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        ipProto,
+			TcpDstPort:     uint16(dstNodePort),
+			TcpDstPortMask: PortMaskMatchFullBit,
+			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMarkMask:    &pktMask,
+		})
+		if err != nil {
+			log.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
+			return nil, err
+		}
+	case corev1.ProtocolUDP:
+		ipProto = PROTOCOL_UDP
+		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
+			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Ethertype:      PROTOCOL_IP,
+			IpProto:        ipProto,
+			UdpDstPort:     uint16(dstNodePort),
+			UdpDstPortMask: PortMaskMatchFullBit,
+			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMarkMask:    &pktMask,
+		})
+		if err != nil {
+			log.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
+			return nil, err
+		}
+	default:
+		log.Errorf("Unsupport service protocol %s", protocol)
+		return nil, fmt.Errorf("unsupport service protocol %s", protocol)
+	}
+	return flow, nil
+}
+
+func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, svcLB *proxycache.SvcLB) (*ofctrl.Flow, error) {
+	var flow *ofctrl.Flow
+	var err error
+	var ipProto uint8
+	isNP := dstIP == nil
+	if isNP {
+		flow, err = n.newSessionAffinityFlowForNodePort(svcLB.Port.Protocol, svcLB.Port.NodePort)
+	} else {
+		flow, err = n.newSessionAffinityFlow(dstIP, svcLB.Port.Protocol, svcLB.Port.Port)
+	}
+	if err != nil {
+		log.Errorf("Failed to new session affinity flow for svclb %v, err: %s", *svcLB, err)
+		return nil, err
+	}
+
+	ipProto = PROTOCOL_TCP
+	if svcLB.Port.Protocol == corev1.ProtocolUDP {
+		ipProto = PROTOCOL_UDP
+	}
+
+	learnAct, err := n.buildLearnActOfSessionAffinityLearnTable(ipProto, svcLB.SessionAffinityTimeout, isNP)
 	if err != nil {
 		log.Errorf("Failed to build a learn action: %s", err)
 		return nil, err
 	}
 	if err = flow.Learn(learnAct); err != nil {
-		log.Errorf("Failed to add learn action to session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+		log.Errorf("Failed to add learn action to session affinity flow for svclb %v: %s", *svcLB, err)
 		return nil, err
 	}
 	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+		log.Errorf("Failed to add a resubmit action to session affinity flow for for svclb %v: %s", *svcLB, err)
 		return nil, err
 	}
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install session affinity flow %+v for ip %s protocol %s port %d: %s", flow, dstIP, protocol, dstPort, err)
+		log.Errorf("Failed to install session affinity flow %+v for for svclb %v: %s", flow, *svcLB, err)
 		return nil, err
 	}
 
