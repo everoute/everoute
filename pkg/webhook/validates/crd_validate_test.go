@@ -328,10 +328,10 @@ var _ = Describe("CRD Validate", func() {
 			endpointB.Name = "endpointB"
 			Expect(validate.Validate(fakeAdmissionReview(endpointB, nil, "")).Allowed).Should(BeTrue())
 		})
-		It("Update endpoint id should not allowed", func() {
+		It("Update endpoint id should be allowed", func() {
 			endpointB := endpointA.DeepCopy()
 			endpointB.Spec.Reference.ExternalIDValue = "update-id-value"
-			Expect(validate.Validate(fakeAdmissionReview(endpointB, endpointA, "")).Allowed).Should(BeFalse())
+			Expect(validate.Validate(fakeAdmissionReview(endpointB, endpointA, "")).Allowed).Should(BeTrue())
 		})
 		It("Update endpoint with invalid labels should not allow", func() {
 			endpointB := endpointA.DeepCopy()
