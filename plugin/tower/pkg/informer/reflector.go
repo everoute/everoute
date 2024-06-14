@@ -17,9 +17,11 @@ limitations under the License.
 package informer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"reflect"
 	"regexp"
 	"strings"
@@ -52,6 +54,8 @@ func NewReflectorBuilder(client *client.Client) informer.NewReflectorFunc {
 			resyncPeriod:   options.ResyncPeriod,
 			shouldResync:   options.ShouldResync,
 			clock:          options.Clock,
+			reconnectMin:   time.Minute * 30,
+			reconnectMax:   time.Minute * 60,
 		}
 	}
 }
@@ -73,6 +77,11 @@ type reflector struct {
 
 	// backoff manages backoff of reflector listAndWatch
 	backoffManager wait.BackoffManager
+
+	// reconnectMin and reconnectMax is the reconnect range of the websocket connection
+	// listAndWatch will reset at a random time within the configured time range
+	reconnectMin time.Duration
+	reconnectMax time.Duration
 
 	// resyncPeriod is the period at which shouldResync is considered.
 	resyncPeriod time.Duration
@@ -99,8 +108,29 @@ func (r *reflector) LastSyncResourceVersion() string {
 func (r *reflector) reflectWorker(stopCh <-chan struct{}) func() {
 	return func() {
 		defer runtime.HandleCrash()
-		r.watchErrorHandler(r.listAndWatch(stopCh))
+		r.watchErrorHandler(listAndWatchWithTimeout(stopCh, r.listAndWatch, r.reconnectMin, r.reconnectMax))
 	}
+}
+
+func listAndWatchWithTimeout(stopCh <-chan struct{},
+	f func(c <-chan struct{}) ([]client.ResponseError, error), minTimeout, maxTimeout time.Duration) ([]client.ResponseError, error) {
+	rand.Seed(time.Now().UnixNano())
+	reconnect := minTimeout
+	if maxTimeout > minTimeout {
+		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec,G404
+	}
+	pctx := wait.ContextForChannel(stopCh)
+
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if reconnect != 0 {
+		ctx, cancel = context.WithTimeout(pctx, reconnect)
+	} else {
+		ctx, cancel = context.WithCancel(pctx)
+	}
+	defer cancel()
+
+	return f(ctx.Done())
 }
 
 func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError, error) {
