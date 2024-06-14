@@ -215,11 +215,7 @@ func (v endpointValidator) createValidate(curObj runtime.Object, userInfo authv1
 
 func (v endpointValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
 	curEndpoint := curObj.(*securityv1alpha1.Endpoint)
-	oldEndpoint := oldObj.(*securityv1alpha1.Endpoint)
 
-	if curEndpoint.Spec.Reference != oldEndpoint.Spec.Reference {
-		return "update endpoint externalID not allowed", false
-	}
 	err := v.validateEndpoint(curEndpoint)
 	if err != nil {
 		return err.Error(), false
