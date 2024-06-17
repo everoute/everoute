@@ -3,14 +3,17 @@ package cache
 import (
 	"strconv"
 	"sync"
+)
 
-	"github.com/contiv/ofnet/ofctrl"
+const (
+	UnexistFlowID  uint64 = 0
+	UnexistGroupID uint32 = 0
 )
 
 type SvcIndex struct {
 	lock sync.RWMutex
 	// dnatMap key is ip-port-protocol, value is flowID in NatBrDnatTable
-	dnatMap map[string]*ofctrl.Flow
+	dnatMap map[string]uint64
 	// svcMap key is svcNs/svcName
 	svcMap map[string]*SvcOvsInfo
 }
@@ -21,7 +24,7 @@ func GenDnatMapKey(ip, protocol string, port int32) string {
 
 func NewSvcIndex() *SvcIndex {
 	return &SvcIndex{
-		dnatMap: make(map[string]*ofctrl.Flow),
+		dnatMap: make(map[string]uint64),
 		svcMap:  make(map[string]*SvcOvsInfo),
 	}
 }
@@ -60,18 +63,18 @@ func (s *SvcIndex) IsSvcInfoNil(svcID string) bool {
 	return s.svcMap[svcID] == nil
 }
 
-func (s *SvcIndex) GetDnatFlow(backend string) *ofctrl.Flow {
+func (s *SvcIndex) GetDnatFlow(backend string) uint64 {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	return s.dnatMap[backend]
 }
 
-func (s *SvcIndex) SetDnatFlow(backend string, flow *ofctrl.Flow) {
+func (s *SvcIndex) SetDnatFlow(backend string, flowID uint64) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.dnatMap[backend] = flow
+	s.dnatMap[backend] = flowID
 }
 
 func (s *SvcIndex) DeleteDnatFlow(backend string) {

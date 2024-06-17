@@ -68,6 +68,9 @@ var (
 
 const (
 	SelectGroupWeight = 100
+
+	LbFlowForIPPri uint16 = MID_MATCH_FLOW_PRIORITY
+	LbFlowForNPPri uint16 = NORMAL_MATCH_FLOW_PRIORITY
 )
 
 type NatBridge struct {
@@ -242,18 +245,17 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
-	if svcOvsCache.GetLBFlow(svcLB.IP, svcLB.Port.Name) != nil {
+	if svcOvsCache.GetLBFlow(svcLB.IP, svcLB.Port.Name) != cache.UnexistFlowID {
 		log.Infof("The lb flow has been installed for service lb info %v, skip create it", *svcLB)
 		return nil
 	}
 
-	gp, err := svcOvsCache.GetGroupAndCreateIfEmpty(svcLB.Port.Name, svcLB.TrafficPolicy, n.createEmptyGroup)
+	gpID, err := svcOvsCache.GetGroupAndCreateIfEmpty(svcLB.Port.Name, svcLB.TrafficPolicy, n.createEmptyGroup)
 	if err != nil {
 		log.Errorf("Failed to create a empty group for service %s, lbip: %s, portname: %s, traffic policy: %s, err: %s", svcID,
 			svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
 		return err
 	}
-	gpID := gp.GroupID
 
 	var lbFlow *ofctrl.Flow
 	if ipDa != nil {
@@ -287,7 +289,7 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 		return err
 	}
 
-	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, lbFlow)
+	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, lbFlow.FlowID)
 	log.Infof("Dp success to add lb flow for svclb %v", *svcLB)
 	return nil
 }
@@ -299,15 +301,16 @@ func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
 		return nil
 	}
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
-	lbFlow := svcOvsCache.GetLBFlow(svcLB.IP, svcLB.Port.Name)
-	if lbFlow == nil {
+	lbFlowID := svcOvsCache.GetLBFlow(svcLB.IP, svcLB.Port.Name)
+	if lbFlowID == cache.UnexistFlowID {
 		return nil
 	}
-	if err := lbFlow.Delete(); err != nil {
+
+	if err := ofctrl.DeleteFlow(n.serviceLBTable, n.getFlowPriBySvcLB(svcLB), lbFlowID); err != nil {
 		klog.Errorf("Failed to delete lb flow for svc lb info %v, err: %s", *svcLB, err)
 		return err
 	}
-	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, nil)
+	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, cache.UnexistFlowID)
 	n.svcIndexCache.TryCleanSvcOvsInfoCache(svcID)
 	log.Infof("Dp success delete lbflow for svclb %v", *svcLB)
 	return nil
@@ -331,7 +334,7 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
-	if svcOvsCache.GetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name) != nil {
+	if svcOvsCache.GetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name) != cache.UnexistFlowID {
 		log.Infof("The session affinity flow has been installed for service lb info %v, skip create it", *svcLB)
 		return nil
 	}
@@ -344,7 +347,7 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 		return err
 	}
 
-	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, sessionFlow)
+	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, sessionFlow.FlowID)
 	log.Infof("Dp success to add sessionAffinity flow for svclb %v", *svcLB)
 	return nil
 }
@@ -356,15 +359,15 @@ func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 		return nil
 	}
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
-	sAFlow := svcOvsCache.GetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name)
-	if sAFlow == nil {
+	sAFlowID := svcOvsCache.GetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name)
+	if sAFlowID == cache.UnexistFlowID {
 		return nil
 	}
-	if err := sAFlow.Delete(); err != nil {
+	if err := ofctrl.DeleteFlow(n.sessionAffinityLearnTable, n.getFlowPriBySvcLB(svcLB), sAFlowID); err != nil {
 		log.Errorf("Failed to delete service session affinity flow for lb info %v, err: %s", *svcLB, err)
 		return err
 	}
-	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, nil)
+	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, cache.UnexistFlowID)
 	n.svcIndexCache.TryCleanSvcOvsInfoCache(svcID)
 	log.Infof("Dp success to delete sessionAffinity flow for svclb %v", *svcLB)
 	return nil
@@ -373,10 +376,15 @@ func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend, tp ertype.TrafficPolicyType) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	var err error
-	gp, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
+	gpID, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
 	if err != nil {
 		log.Errorf("Failed to create a empty group for svc %s portname %s, err: %s", svcID, portName, err)
 		return err
+	}
+	gp := n.OfSwitch.GetGroup(gpID)
+	if gp == nil {
+		log.Errorf("Group with groupID %d is nil", gpID)
+		return fmt.Errorf("group is nil")
 	}
 
 	buckets := make([]*ofctrl.Bucket, 0, len(backends))
@@ -401,7 +409,7 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 		return nil
 	}
 	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
-		svcOvsCache.DeleteGroupIfExist(portName, tp)
+		svcOvsCache.DeleteGroupIfExist(n.OfSwitch, portName, tp)
 	}
 
 	// when a group is deleted, the flow referenced it will be deleted automatically
@@ -418,7 +426,7 @@ func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32)
 		return fmt.Errorf("invalid dnat ip: %s", ip)
 	}
 	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
-	if f := n.svcIndexCache.GetDnatFlow(dnatKey); f != nil {
+	if f := n.svcIndexCache.GetDnatFlow(dnatKey); f != cache.UnexistFlowID {
 		log.Infof("The dnat flow has been exists, skip it. ip: %s, protocol: %s, port: %d, flow: %+v", ip, protocol, port, f)
 		return nil
 	}
@@ -462,7 +470,7 @@ func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32)
 		return err
 	}
 
-	n.svcIndexCache.SetDnatFlow(dnatKey, flow)
+	n.svcIndexCache.SetDnatFlow(dnatKey, flow.FlowID)
 	log.Infof("Success add a dnat flow %+v for ip %s protocol: %s port: %d", flow, ip, protocol, port)
 	return nil
 }
@@ -475,14 +483,14 @@ func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32)
 	}
 
 	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
-	flow := n.svcIndexCache.GetDnatFlow(dnatKey)
-	if flow == nil {
+	flowID := n.svcIndexCache.GetDnatFlow(dnatKey)
+	if flowID == cache.UnexistFlowID {
 		log.Infof("The dnat flow has been deleted, skip it. ip: %s, protocol: %s, port: %d", ip, protocol, port)
 		return nil
 	}
 
-	if err := flow.Delete(); err != nil {
-		log.Errorf("Delete dnat flow %+v for %s failed, err: %s", flow, dnatKey, err)
+	if err := ofctrl.DeleteFlow(n.dnatTable, MID_MATCH_FLOW_PRIORITY, flowID); err != nil {
+		log.Errorf("Delete dnat flow for %s failed, err: %s", dnatKey, err)
 		return err
 	}
 
@@ -495,7 +503,7 @@ func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int3
 	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
 	if protocol == corev1.ProtocolTCP {
 		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
-			Priority:       NORMAL_MATCH_FLOW_PRIORITY,
+			Priority:       LbFlowForNPPri,
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        PROTOCOL_TCP,
 			TcpDstPort:     uint16(nodePort),
@@ -525,7 +533,7 @@ func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int3
 func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32) (*ofctrl.Flow, error) {
 	if protocol == corev1.ProtocolTCP {
 		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
-			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Priority:       LbFlowForIPPri,
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        PROTOCOL_TCP,
 			IpDa:           ipDa,
@@ -917,7 +925,7 @@ func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 	case corev1.ProtocolUDP:
 		ipProto = PROTOCOL_UDP
 		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
-			Priority:       MID_MATCH_FLOW_PRIORITY,
+			Priority:       LbFlowForIPPri,
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        ipProto,
 			IpDa:           &dstIP,
@@ -945,7 +953,7 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 	case corev1.ProtocolTCP:
 		ipProto = PROTOCOL_TCP
 		flow, err = n.sessionAffinityLearnTable.NewFlow(ofctrl.FlowMatch{
-			Priority:       NORMAL_MATCH_FLOW_PRIORITY,
+			Priority:       LbFlowForNPPri,
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        ipProto,
 			TcpDstPort:     uint16(dstNodePort),
@@ -1078,6 +1086,13 @@ func (n *NatBridge) initOutputTable() error {
 	}
 
 	return nil
+}
+
+func (n *NatBridge) getFlowPriBySvcLB(s *proxycache.SvcLB) uint16 {
+	if s.IP == "" {
+		return LbFlowForNPPri
+	}
+	return LbFlowForIPPri
 }
 
 func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {

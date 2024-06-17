@@ -15,6 +15,7 @@ import (
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 	ersource "github.com/everoute/everoute/pkg/source"
 	ertype "github.com/everoute/everoute/pkg/types"
+	dpcache "github.com/everoute/everoute/pkg/agent/datapath/cache"
 )
 
 var _ = Describe("proxy controller", func() {
@@ -149,9 +150,9 @@ var _ = Describe("proxy controller", func() {
 			}, Timeout, Interval).Should(Succeed())
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 		})
 		It("add service normal", func() {
 			svcCopy := svc.DeepCopy()
@@ -191,10 +192,10 @@ var _ = Describe("proxy controller", func() {
 			Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 		})
 
 		It("add service with session affinity", func() {
@@ -241,12 +242,12 @@ var _ = Describe("proxy controller", func() {
 			Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
 		})
 		It("add service with internal traffic policy local", func() {
 			svcCopy := svc.DeepCopy()
@@ -295,12 +296,12 @@ var _ = Describe("proxy controller", func() {
 			Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
 		})
 
 		It("add lb service with external traffic policy local", func() {
@@ -371,14 +372,14 @@ var _ = Describe("proxy controller", func() {
 			}, Timeout, Interval).Should(Succeed())
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(lbIP1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port1.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow(lbIP1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port1.Name, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow("", port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port1.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
 		})
 
 		It("add headless service", func() {
@@ -538,14 +539,14 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetLBFlow(lbIP1, portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetLBFlow("", portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow("", portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetLBFlow("", portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetSessionAffinityFlow("", portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
 			}
 			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
 		})
@@ -681,20 +682,20 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
 				for _, ip := range []string{ip1, lbIP1, ""} {
-					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
-					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+					Expect(dpOvs.GetLBFlow(ip, portName)).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
 				}
 			}
-			Expect(dpOvs.GetLBFlow(ip1, port3.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow("", port3.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetLBFlow(lbIP1, port3.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(ip1, port3.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port3.Name)).ShouldNot(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow("", port3.Name)).ShouldNot(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow("", port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow(lbIP1, port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port3.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow("", port3.Name)).ShouldNot(Equal(dpcache.UnexistFlowID))
 		})
 
 		It("delete service port", func() {
@@ -759,21 +760,21 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
-				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
-				Expect(dpOvs.GetLBFlow("", portName).FlowID).Should(Equal(oldOvsInfo.lbMap[""][portName]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
-				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
-				Expect(dpOvs.GetSessionAffinityFlow("", portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
+				Expect(dpOvs.GetLBFlow(ip1, portName)).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+				Expect(dpOvs.GetLBFlow("", portName)).Should(Equal(oldOvsInfo.lbMap[""][portName]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+				Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
+				Expect(dpOvs.GetSessionAffinityFlow("", portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
 			}
-			Expect(dpOvs.GetLBFlow(ip1, port2.Name)).Should(BeNil())
-			Expect(dpOvs.GetLBFlow(lbIP1, port2.Name)).Should(BeNil())
-			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).Should(BeNil())
-			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name)).Should(BeNil())
-			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port2.Name)).Should(BeNil())
+			Expect(dpOvs.GetLBFlow(ip1, port2.Name)).Should(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetLBFlow(lbIP1, port2.Name)).Should(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).Should(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+			Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name)).Should(Equal(dpcache.UnexistFlowID))
+			Expect(dpOvs.GetSessionAffinityFlow(lbIP1, port2.Name)).Should(Equal(dpcache.UnexistFlowID))
 		})
 
 		It("change service port without svcPort", func() {
@@ -868,22 +869,22 @@ var _ = Describe("proxy controller", func() {
 				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 				g.Expect(dpOvs).ShouldNot(BeNil())
 				for _, portName := range []string{port1.Name} {
-					g.Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
-					g.Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
-					g.Expect(dpOvs.GetLBFlow("", portName).FlowID).Should(Equal(oldOvsInfo.lbMap[""][portName]))
-					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
-					g.Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
-					g.Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
-					g.Expect(dpOvs.GetSessionAffinityFlow("", portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
+					g.Expect(dpOvs.GetLBFlow(ip1, portName)).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+					g.Expect(dpOvs.GetLBFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+					g.Expect(dpOvs.GetLBFlow("", portName)).Should(Equal(oldOvsInfo.lbMap[""][portName]))
+					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+					g.Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+					g.Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+					g.Expect(dpOvs.GetSessionAffinityFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[lbIP1][portName]))
+					g.Expect(dpOvs.GetSessionAffinityFlow("", portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
 				}
 				// group not change
-				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster).GroupID).ShouldNot(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
-				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(BeNil())
+				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
+				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 
 				// flow should change
-				// g.Expect(dpOvs.GetLBFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
-				// g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
+				g.Expect(dpOvs.GetLBFlow(ip1, port2.Name)).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
+				g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name)).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
 			}, Timeout, Interval).Should(Succeed())
 
 		})
@@ -940,12 +941,10 @@ var _ = Describe("proxy controller", func() {
 					g.Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 					dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 					g.Expect(dpOvs).ShouldNot(BeNil())
-					// todo use flowid
-					// g.Expect(dpOvs.GetLBFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
-					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
-					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-					// g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
-
+					g.Expect(dpOvs.GetLBFlow(ip1, port2.Name)).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][port2.Name]))
+					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
+					g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+					g.Expect(dpOvs.GetSessionAffinityFlow(ip1, port2.Name)).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][port2.Name]))
 				}, Timeout, Interval).Should(Succeed())
 			})
 		})
@@ -1027,12 +1026,12 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
-				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
+				Expect(dpOvs.GetLBFlow(ip1, portName)).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 			}
-			Expect(dpOvs.GetLBFlow("", port1.Name).FlowID).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
 			Expect(len(dpOvs.GetAllSessionAffinityFlows())).Should(BeZero())
 
 			By("session affinity change from node to clientip, and session affinity config is default")
@@ -1115,13 +1114,13 @@ var _ = Describe("proxy controller", func() {
 			Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 			dpOvs = svcIndex.GetSvcOvsInfo(svcID)
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
-				Expect(dpOvs.GetLBFlow(lbIP1, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(ip1, portName)).Should(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(lbIP1, portName)).Should(Equal(oldOvsInfo.lbMap[lbIP1][portName]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
 			}
-			Expect(dpOvs.GetLBFlow("", port1.Name).FlowID).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
+			Expect(dpOvs.GetLBFlow("", port1.Name)).Should(Equal(oldOvsInfo.lbMap[""][port1.Name]))
 		})
 
 		It("change session affinity timeout", func() {
@@ -1206,11 +1205,11 @@ var _ = Describe("proxy controller", func() {
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
 				for _, ip := range []string{ip1, lbIP1, ""} {
-					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
-					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+					Expect(dpOvs.GetLBFlow(ip, portName)).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).ShouldNot(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
 				}
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(BeNil())
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 			}
 		})
 
@@ -1295,16 +1294,16 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName).FlowID).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][portName]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
+				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(Equal(oldOvsInfo.lbMap[ip1][portName]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName][ertype.TrafficPolicyCluster]))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[ip1][portName]))
 			}
 
 			for _, portName := range []string{port1.Name, port2.Name} {
 				for _, ip := range []string{lbIP1, ""} {
-					Expect(dpOvs.GetLBFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
-					Expect(dpOvs.GetSessionAffinityFlow(ip, portName).FlowID).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
+					Expect(dpOvs.GetLBFlow(ip, portName)).Should(Equal(oldOvsInfo.lbMap[ip][portName]))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[ip][portName]))
 				}
 			}
 		})
@@ -1364,12 +1363,12 @@ var _ = Describe("proxy controller", func() {
 			Eventually(func(g Gomega) {
 				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 				g.Expect(dpOvs).ShouldNot(BeNil())
-				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				g.Expect(svcIndex.GetDnatFlow(bk1)).ShouldNot(BeNil())
+				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(svcIndex.GetDnatFlow(bk1)).ShouldNot(Equal(dpcache.UnexistFlowID))
 			}, Timeout, Interval).Should(Succeed())
 			oldDnatMap = make(map[string]uint64)
-			oldDnatMap[bk1] = svcIndex.GetDnatFlow(bk1).FlowID
+			oldDnatMap[bk1] = svcIndex.GetDnatFlow(bk1)
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
@@ -1384,8 +1383,8 @@ var _ = Describe("proxy controller", func() {
 				g.Expect(len(proxyController.svcPortCache.List())).Should(BeZero())
 				g.Expect(len(proxyController.backendCache.List())).Should(BeZero())
 				g.Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeTrue())
-				g.Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
-				g.Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+				g.Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(dpcache.UnexistFlowID))
+				g.Expect(svcIndex.GetDnatFlow(bk2)).To(Equal(dpcache.UnexistFlowID))
 			}, Timeout, Interval).Should(Succeed())
 		})
 
@@ -1439,9 +1438,9 @@ var _ = Describe("proxy controller", func() {
 				g.Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 				g.Expect(dpOvs).ShouldNot(BeNil())
-				g.Expect(dpOvs.GetGroup(portName2, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				g.Expect(dpOvs.GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				g.Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
+				g.Expect(dpOvs.GetGroup(portName2, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(dpOvs.GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(oldDnatMap[bk1]))
 			}, Timeout, Interval).Should(Succeed())
 		})
 
@@ -1483,10 +1482,10 @@ var _ = Describe("proxy controller", func() {
 				g.Expect(svcIndex.IsSvcInfoNil(svcID)).Should(BeFalse())
 				dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 				g.Expect(dpOvs).ShouldNot(BeNil())
-				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
-				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyLocal).GroupID).Should(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal]))
-				g.Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
-				g.Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
+				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
+				g.Expect(dpOvs.GetGroup(portName1, ertype.TrafficPolicyLocal)).Should(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal]))
+				g.Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(oldDnatMap[bk1]))
+				g.Expect(svcIndex.GetDnatFlow(bk2)).ToNot(Equal(dpcache.UnexistFlowID))
 			}, Timeout, Interval).Should(Succeed())
 		})
 
@@ -1512,7 +1511,7 @@ var _ = Describe("proxy controller", func() {
 				return len(proxyController.backendCache.List())
 			}, Timeout, Interval).Should(BeZero())
 
-			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(dpcache.UnexistFlowID))
 		})
 	})
 
@@ -1601,9 +1600,9 @@ var _ = Describe("proxy controller", func() {
 			dpOvs := svcIndex.GetSvcOvsInfo(svcID)
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
-				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(BeNil())
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(BeNil())
+				Expect(dpOvs.GetLBFlow(ip1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				Expect(dpOvs.GetSessionAffinityFlow(ip1, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
 			}
 
 			By("add lb ip")
@@ -1658,10 +1657,10 @@ var _ = Describe("proxy controller", func() {
 			Expect(dpOvs).ShouldNot(BeNil())
 			for _, portName := range []string{port1.Name, port2.Name} {
 				for _, ip := range []string{ip1, lbIP1, ""} {
-					Expect(dpOvs.GetLBFlow(ip, portName)).ShouldNot(BeNil())
-					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).ShouldNot(BeNil())
+					Expect(dpOvs.GetLBFlow(ip, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
+					Expect(dpOvs.GetSessionAffinityFlow(ip, portName)).ShouldNot(Equal(dpcache.UnexistFlowID))
 				}
-				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
+				Expect(dpOvs.GetGroup(portName, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
 			}
 			oldOvsInfo = genTestSvcOvsInfo(dpOvs)
 		})
@@ -1728,16 +1727,16 @@ var _ = Describe("proxy controller", func() {
 				}, Timeout, Interval).Should(BeTrue())
 
 				Eventually(func(g Gomega) {
-					g.Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
+					g.Expect(svcIndex.GetDnatFlow(bk1)).ToNot(Equal(dpcache.UnexistFlowID))
 					ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
 					g.Expect(ovsInfo).ToNot(BeNil())
-					g.Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyCluster).GroupID).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
-					g.Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
+					g.Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyCluster)).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
+					g.Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
 				}, Timeout, Interval).Should(Succeed())
 				oldDnatMap = make(map[string]uint64)
-				oldDnatMap[bk1] = svcIndex.GetDnatFlow(bk1).FlowID
+				oldDnatMap[bk1] = svcIndex.GetDnatFlow(bk1)
 				ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
-				oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal] = ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal).GroupID
+				oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal] = ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal)
 			})
 
 			AfterEach(func() {
@@ -1790,10 +1789,10 @@ var _ = Describe("proxy controller", func() {
 				}, Timeout, Interval).Should(BeFalse())
 				ovsInfo := svcIndex.GetSvcOvsInfo(svcID)
 				Expect(ovsInfo).ToNot(BeNil())
-				Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyCluster).GroupID).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
-				Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal).GroupID).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal]))
-				Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
-				Expect(svcIndex.GetDnatFlow(bk3)).ToNot(BeNil())
+				Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyCluster)).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyCluster]))
+				Expect(ovsInfo.GetGroup(portName1, ertype.TrafficPolicyLocal)).To(Equal(oldOvsInfo.groupMap[portName1][ertype.TrafficPolicyLocal]))
+				Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(dpcache.UnexistFlowID))
+				Expect(svcIndex.GetDnatFlow(bk3)).ToNot(Equal(dpcache.UnexistFlowID))
 			})
 
 			It("add servicePort with new portname", func() {
@@ -1841,10 +1840,10 @@ var _ = Describe("proxy controller", func() {
 				}, Timeout, Interval).Should(BeTrue())
 
 				Expect(svcIndex.GetSvcOvsInfo(svcID)).ToNot(BeNil())
-				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyCluster).GroupID).Should(Equal(oldOvsInfo.groupMap[portName2][ertype.TrafficPolicyCluster]))
-				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				Expect(svcIndex.GetDnatFlow(bk1).FlowID).To(Equal(oldDnatMap[bk1]))
-				Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
+				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[portName2][ertype.TrafficPolicyCluster]))
+				Expect(svcIndex.GetSvcOvsInfo(svcID).GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(oldDnatMap[bk1]))
+				Expect(svcIndex.GetDnatFlow(bk2)).ToNot(Equal(dpcache.UnexistFlowID))
 			})
 		})
 	})
@@ -1937,8 +1936,8 @@ var _ = Describe("proxy controller", func() {
 
 			Expect(svcIndex.GetSvcOvsInfo(svcID)).To(BeNil())
 			Expect(svcIndex.GetSvcOvsInfo(svcID2)).To(BeNil())
-			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
-			Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(dpcache.UnexistFlowID))
+			Expect(svcIndex.GetDnatFlow(bk2)).To(Equal(dpcache.UnexistFlowID))
 		})
 
 		AfterEach(func() {
@@ -1953,8 +1952,8 @@ var _ = Describe("proxy controller", func() {
 
 			Expect(svcIndex.GetSvcOvsInfo(svcID)).To(BeNil())
 			Expect(svcIndex.GetSvcOvsInfo(svcID2)).To(BeNil())
-			Expect(svcIndex.GetDnatFlow(bk1)).To(BeNil())
-			Expect(svcIndex.GetDnatFlow(bk2)).To(BeNil())
+			Expect(svcIndex.GetDnatFlow(bk1)).To(Equal(dpcache.UnexistFlowID))
+			Expect(svcIndex.GetDnatFlow(bk2)).To(Equal(dpcache.UnexistFlowID))
 		})
 
 		It("test replay flows", func() {
@@ -1962,26 +1961,26 @@ var _ = Describe("proxy controller", func() {
 			Eventually(func(g Gomega) {
 				ovsInfo1 := svcIndex.GetSvcOvsInfo(svcID)
 				g.Expect(ovsInfo1).ToNot(BeNil())
-				g.Expect(ovsInfo1.GetGroup(portName1, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				g.Expect(ovsInfo1.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyCluster)).Should(BeNil())
-				g.Expect(ovsInfo1.GetLBFlow("", portName1)).ToNot(BeNil())
-				g.Expect(ovsInfo1.GetLBFlow(ip1, portName3)).ToNot(BeNil())
-				g.Expect(ovsInfo1.GetSessionAffinityFlow("", portName1)).ToNot(BeNil())
-				g.Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName3)).ToNot(BeNil())
+				g.Expect(ovsInfo1.GetGroup(portName1, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo1.GetGroup(portName1, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo1.GetGroup(portName3, ertype.TrafficPolicyCluster)).Should(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo1.GetLBFlow("", portName1)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo1.GetLBFlow(ip1, portName3)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo1.GetSessionAffinityFlow("", portName1)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo1.GetSessionAffinityFlow(ip1, portName3)).ToNot(Equal(dpcache.UnexistFlowID))
 
 				ovsInfo2 := svcIndex.GetSvcOvsInfo(svcID2)
 				g.Expect(ovsInfo2).ToNot(BeNil())
-				g.Expect(ovsInfo2.GetGroup(portName2, ertype.TrafficPolicyCluster)).ShouldNot(BeNil())
-				g.Expect(ovsInfo2.GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(BeNil())
-				g.Expect(ovsInfo2.GetLBFlow(ip2, portName2)).ToNot(BeNil())
-				g.Expect(ovsInfo2.GetLBFlow(ip3, portName2)).ToNot(BeNil())
-				g.Expect(ovsInfo2.GetSessionAffinityFlow(ip2, portName2)).To(BeNil())
-				g.Expect(ovsInfo2.GetSessionAffinityFlow(ip3, portName3)).To(BeNil())
+				g.Expect(ovsInfo2.GetGroup(portName2, ertype.TrafficPolicyCluster)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo2.GetGroup(portName2, ertype.TrafficPolicyLocal)).ShouldNot(Equal(dpcache.UnexistGroupID))
+				g.Expect(ovsInfo2.GetLBFlow(ip2, portName2)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo2.GetLBFlow(ip3, portName2)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo2.GetSessionAffinityFlow(ip2, portName2)).To(Equal(dpcache.UnexistFlowID))
+				g.Expect(ovsInfo2.GetSessionAffinityFlow(ip3, portName3)).To(Equal(dpcache.UnexistFlowID))
 
-				g.Expect(svcIndex.GetDnatFlow(bk1)).ToNot(BeNil())
-				g.Expect(svcIndex.GetDnatFlow(bk2)).ToNot(BeNil())
+				g.Expect(svcIndex.GetDnatFlow(bk1)).ToNot(Equal(dpcache.UnexistFlowID))
+				g.Expect(svcIndex.GetDnatFlow(bk2)).ToNot(Equal(dpcache.UnexistFlowID))
 			}, Timeout, Interval).Should(Succeed())
 		})
 	})
