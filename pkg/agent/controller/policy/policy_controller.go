@@ -253,7 +253,7 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	}
 
 	newRuleList, err := r.calculateExpectedPolicyRules(policy)
-	if isGroupNotFound(err) {
+	if IsGroupMembersNotFoundErr(err) {
 		// wait until groupmembers created
 		klog.V(2).Infof("Failed to calculate expect complete rule for policy %s, %s", policy.GetName(), err)
 		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
@@ -540,7 +540,7 @@ func (r *Reconciler) getPeersGroupsAndIPs(namespace string,
 			group := ctrlpolicy.PeerAsEndpointGroup(namespace, peer).GetName()
 			_, exist := r.groupCache.ListGroupIPBlocks(group)
 			if !exist {
-				return nil, nil, groupNotFound(fmt.Errorf("group %s members not found", group))
+				return nil, nil, NewGroupMembersNotFoundErr(group)
 			}
 			groups.Insert(group)
 		default:
@@ -555,7 +555,7 @@ func (r *Reconciler) getAllEpWithNamedPortGroup() (sets.Set[string], error) {
 	group := ctrlpolicy.GetAllEpWithNamedPortGroup().GetName()
 	_, exist := r.groupCache.ListGroupIPBlocks(group)
 	if !exist {
-		return nil, groupNotFound(fmt.Errorf("group %s members not found", group))
+		return nil, NewGroupMembersNotFoundErr(group)
 	}
 
 	return sets.New[string](group), nil
