@@ -1,5 +1,7 @@
 FROM golang:1.19
 
+ENV GOPROXY=http://goproxy.smartx.com,https://proxy.golang.org,direct
+
 RUN go install github.com/99designs/gqlgen@v0.17.16 && \
     go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.2 && \
     go install github.com/golang/protobuf/protoc-gen-go@v1.5.2 && \
