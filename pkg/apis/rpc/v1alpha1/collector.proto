@@ -24,6 +24,8 @@ message PolicyList{
   string mode = 3; 
   repeated PolicyItem items = 4;
   uint64 flowID = 5;
+  uint32 tier = 6;
+  int64 priority = 7;
 }
 
 message PolicyItem{
