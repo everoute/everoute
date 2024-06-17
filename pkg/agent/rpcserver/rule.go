@@ -76,7 +76,7 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 		svcInfo.SvcGroup = append(svcInfo.SvcGroup, &v1alpha1.SvcGroup{
 			PortName:      groupEntries[i].PortName,
 			TrafficPolicy: string(groupEntries[i].TrafficPolicy),
-			GroupID:       groupEntries[i].Group.GroupID,
+			GroupID:       groupEntries[i].GroupID,
 		})
 	}
 
@@ -86,7 +86,7 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 		svcFlow.LBFlows = append(svcFlow.LBFlows, &v1alpha1.SvcFlowEntry{
 			IP:       flowEntries[i].LBIP,
 			PortName: flowEntries[i].PortName,
-			FlowID:   flowEntries[i].Flow.FlowID,
+			FlowID:   flowEntries[i].FlowID,
 		})
 	}
 	affinityEntries := svcDpCache.GetAllSessionAffinityFlows()
@@ -94,19 +94,19 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 		svcFlow.SessionAffinityFlows = append(svcFlow.SessionAffinityFlows, &v1alpha1.SvcFlowEntry{
 			IP:       affinityEntries[i].LBIP,
 			PortName: affinityEntries[i].PortName,
-			FlowID:   affinityEntries[i].Flow.FlowID,
+			FlowID:   affinityEntries[i].FlowID,
 		})
 	}
 	for i := range backends {
 		dnatKey := backends[i].IP + "-" + strconv.Itoa(int(backends[i].Port)) + "-" + string(backends[i].Protocol)
-		backendFlow := natBrs[0].GetSvcIndexCache().GetDnatFlow(dnatKey)
+		backendFlowID := natBrs[0].GetSvcIndexCache().GetDnatFlow(dnatKey)
 		svcFlow.DnatFlows = append(svcFlow.DnatFlows, &v1alpha1.SvcDnatFlowEntry{
 			Backend: &v1alpha1.Backend{
 				IP:       backends[i].IP,
 				Port:     backends[i].Port,
 				Protocol: string(backends[i].Protocol),
 			},
-			FlowID: backendFlow.FlowID,
+			FlowID: backendFlowID,
 		})
 	}
 
