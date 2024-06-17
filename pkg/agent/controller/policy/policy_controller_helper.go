@@ -22,13 +22,29 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	ertypes "github.com/everoute/everoute/pkg/types"
 )
+
+const GroupMembersRscType = "groupMembers"
+
+func NewGroupMembersNotFoundErr(groupName string) error {
+	return ertypes.NewRscInCacheNotFoundErr(GroupMembersRscType, types.NamespacedName{Name: groupName})
+}
+
+func IsGroupMembersNotFoundErr(e error) bool {
+	err, ok := e.(*ertypes.RscInCacheNotFoundErr)
+	if !ok {
+		return false
+	}
+	return err.RscType() == GroupMembersRscType
+}
 
 func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath.EveroutePolicyRule {
 	ipProtoNo := protocolToInt(rule.IPProtocol)
@@ -290,14 +306,4 @@ func toRuleMap(ruleList []policycache.PolicyRule) map[string]*policycache.Policy
 		}
 	}
 	return ruleMap
-}
-
-type (
-	// groupNotFound means policy needed group not found, needed retry.
-	groupNotFound error
-)
-
-func isGroupNotFound(err error) bool {
-	_, isType := err.(groupNotFound)
-	return isType
 }
