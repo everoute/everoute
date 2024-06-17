@@ -269,11 +269,13 @@ type RoundInfo struct {
 }
 
 type PolicyInfo struct {
-	Dir    uint8
-	Action string
-	Mode   string
-	FlowID uint64
-	Item   []PolicyItem
+	Dir      uint8
+	Action   string
+	Mode     string
+	FlowID   uint64
+	Item     []PolicyItem
+	Tier     uint8
+	Priority int
 }
 type PolicyItem struct {
 	Name       string
@@ -401,10 +403,12 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 		item := datapathManager.FlowIDToRules[id]
 		if item != nil {
 			policyInfo := &PolicyInfo{
-				Dir:    item.Direction,
-				Action: item.EveroutePolicyRule.Action,
-				Mode:   item.Mode,
-				FlowID: id,
+				Dir:      item.Direction,
+				Action:   item.EveroutePolicyRule.Action,
+				Mode:     item.Mode,
+				FlowID:   id,
+				Tier:     item.Tier,
+				Priority: item.EveroutePolicyRule.Priority,
 			}
 			for _, p := range item.PolicyRuleReference.List() {
 				policyInfo.Item = append(policyInfo.Item, PolicyItem{
