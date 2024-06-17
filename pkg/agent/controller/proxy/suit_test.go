@@ -159,7 +159,7 @@ func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
 		if res.groupMap[gps[i].PortName] == nil {
 			res.groupMap[gps[i].PortName] = make(map[ertype.TrafficPolicyType]uint32)
 		}
-		res.groupMap[gps[i].PortName][gps[i].TrafficPolicy] = gps[i].Group.GroupID
+		res.groupMap[gps[i].PortName][gps[i].TrafficPolicy] = gps[i].GroupID
 	}
 	lbFlows := dpInfo.GetAllLBFlows()
 	for i := range lbFlows {
@@ -167,7 +167,7 @@ func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
 		if res.lbMap[cur.LBIP] == nil {
 			res.lbMap[cur.LBIP] = make(map[string]uint64)
 		}
-		res.lbMap[cur.LBIP][cur.PortName] = cur.Flow.FlowID
+		res.lbMap[cur.LBIP][cur.PortName] = cur.FlowID
 	}
 	sessionFlows := dpInfo.GetAllSessionAffinityFlows()
 	for i := range sessionFlows {
@@ -175,7 +175,7 @@ func genTestSvcOvsInfo(dpInfo *dpcache.SvcOvsInfo) *testSvcOvsInfo {
 		if res.sessionAffinityMap[cur.LBIP] == nil {
 			res.sessionAffinityMap[cur.LBIP] = make(map[string]uint64)
 		}
-		res.sessionAffinityMap[cur.LBIP][cur.PortName] = cur.Flow.FlowID
+		res.sessionAffinityMap[cur.LBIP][cur.PortName] = cur.FlowID
 	}
 	return res
 }
