@@ -402,10 +402,31 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 	return nil
 }
 
+func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
+	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
+	if svcOvsCache == nil {
+		log.Infof("The Service %s has no related ovs group for port %s, skip", svcID, portName)
+		return nil
+	}
+
+	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
+		gpID := svcOvsCache.GetGroup(portName, tp)
+		if gpID == cache.UnexistGroupID {
+			continue
+		}
+		if err := n.UpdateLBGroup(svcID, portName, nil, tp); err != nil {
+			log.Errorf("Failed to reset svc %s lb group for port %s with traffic policy type %s, err: %s", svcID, portName, tp, err)
+			return err
+		}
+	}
+	log.Infof("Dp success to reset LB group for service %s port %s", svcID, portName)
+	return nil
+}
+
 func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
-		log.Infof("The Service %s has no related ovs group for port %s", svcID, portName)
+		log.Infof("The Service %s has no related ovs group for port %s, skip", svcID, portName)
 		return nil
 	}
 	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
