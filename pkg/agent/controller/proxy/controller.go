@@ -12,7 +12,7 @@ import (
 	utilerr "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -376,9 +376,8 @@ func (r *Reconciler) processSvcLBDel(l *proxycache.SvcLB) error {
 
 	// lb flow
 	svcPortName := proxycache.GenSvcPortIndexBySvcID(l.SvcID, l.Port.Name)
-	res, _ := r.svcPortCache.ByIndex(proxycache.SvcPortIndex, svcPortName)
-	if len(res) == 0 {
-		// delete group without referenced svcport
+	if r.shouldDelGroupWhenDelSvcLB(l.ID(), svcPortName) {
+		// delete group in dp
 		if err := r.deleteServicePortForGroup(l.SvcID, l.Port.Name); err != nil {
 			klog.Errorf("Failed to delete group for service %s port %s, err: %s", l.SvcID, l.Port.Name, err)
 			return err
@@ -594,23 +593,28 @@ func (r *Reconciler) deleteServicePort(ctx context.Context, namespacedName types
 		return nil
 	}
 	old := oldObj.(*proxycache.SvcPort).DeepCopy()
-	portNameIndex := proxycache.GenSvcPortIndex(old.Namespace, old.SvcName, old.PortName)
-	objs, _ := r.svcLBCache.ByIndex(proxycache.SvcPortIndex, portNameIndex)
-	if len(objs) > 0 {
-		klog.Infof("The servicePort has been referenced by service %s, can't delete it", old.SvcName)
-		return fmt.Errorf("servicePort has been referenced by service")
-	}
-
 	svcID := proxycache.GenSvcID(old.Namespace, old.SvcName)
+	portNameIndex := proxycache.GenSvcPortIndex(old.Namespace, old.SvcName, old.PortName)
+
 	if err := r.deleteServicePortForBackend(svcID, old.PortName); err != nil {
 		klog.Errorf("Failed to delete backend for servicePort %s, err: %s", portNameIndex, err)
 		return err
 	}
 
-	if err := r.deleteServicePortForGroup(svcID, old.PortName); err != nil {
-		klog.Errorf("Failed to delete group for servicePort %s, err: %s", portNameIndex, err)
-		return err
+	objs, _ := r.svcLBCache.ByIndex(proxycache.SvcPortIndex, portNameIndex)
+	if len(objs) > 0 {
+		// reset serviceport
+		if err := r.resetServicePortForGroup(svcID, old.PortName); err != nil {
+			klog.Errorf("Failed to reset group for servicePort %s, err: %s", portNameIndex, err)
+			return err
+		}
+	} else {
+		if err := r.deleteServicePortForGroup(svcID, old.PortName); err != nil {
+			klog.Errorf("Failed to delete group for servicePort %s, err: %s", portNameIndex, err)
+			return err
+		}
 	}
+
 	_ = r.svcPortCache.Delete(old)
 	return nil
 }
@@ -625,6 +629,19 @@ func (r *Reconciler) deleteServicePortForGroup(svcID, portName string) error {
 		}
 	}
 	klog.Infof("Success delete service %s port %s for group", svcID, portName)
+	return nil
+}
+
+func (r *Reconciler) resetServicePortForGroup(svcID, portName string) error {
+	dpNatBrs := r.DpMgr.GetNatBridges()
+	for i := range dpNatBrs {
+		dpNatBr := dpNatBrs[i]
+		if err := dpNatBr.ResetLBGroup(svcID, portName); err != nil {
+			klog.Errorf("Failed to reset service %s group for port %s, err: %s", svcID, portName, err)
+			return err
+		}
+	}
+	klog.Infof("Success reset service %s port %s for group", svcID, portName)
 	return nil
 }
 
@@ -650,6 +667,28 @@ func (r *Reconciler) deleteServicePortForBackend(svcID, portName string) error {
 	}
 	klog.Infof("Success delete ServicePort %s for backend", svcPortRef)
 	return nil
+}
+
+func (r *Reconciler) shouldDelGroupWhenDelSvcLB(delSvcLBID, svcPortName string) bool {
+	objs, _ := r.svcPortCache.ByIndex(proxycache.SvcPortIndex, svcPortName)
+	if len(objs) > 0 {
+		return false
+	}
+
+	res, _ := r.svcLBCache.ByIndex(proxycache.SvcPortIndex, svcPortName)
+	if len(res) == 0 {
+		klog.Warningf("The servicePort %s should be referenced by svclb %s, but not", svcPortName, delSvcLBID)
+		return true
+	}
+	if len(res) > 1 {
+		return false
+	}
+	svcLB := res[0].(*proxycache.SvcLB).DeepCopy()
+	if svcLB.ID() == delSvcLBID {
+		return true
+	}
+	klog.Warningf("The servicePort %s should be referenced by svclb %s, but not", svcPortName, delSvcLBID)
+	return false
 }
 
 func (r *Reconciler) replay() error {
