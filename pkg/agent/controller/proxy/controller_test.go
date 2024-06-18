@@ -879,7 +879,7 @@ var _ = Describe("proxy controller", func() {
 					g.Expect(dpOvs.GetSessionAffinityFlow("", portName)).Should(Equal(oldOvsInfo.sessionAffinityMap[""][portName]))
 				}
 				// group not change
-				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).ShouldNot(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
+				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyCluster)).Should(Equal(oldOvsInfo.groupMap[port2.Name][ertype.TrafficPolicyCluster]))
 				g.Expect(dpOvs.GetGroup(port2.Name, ertype.TrafficPolicyLocal)).Should(Equal(dpcache.UnexistGroupID))
 
 				// flow should change
