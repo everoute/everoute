@@ -4,7 +4,7 @@
 
 image:
   repository: everoute/release
-  tag: "latest"
+  tag: "debug-v4.3.8"
 
 bridgeName: cnibr0
 enableCNI: true
@@ -20,10 +20,10 @@ CNIConf:
     gateway: 240.100.0.1
     subnet: 240.100.0.0/16
     cidr: 240.100.0.0/24
-  kubeProxyReplace: false
+  kubeProxyReplace: true
   svcInternalIP: 169.254.0.254
 
-apiServer: ""
+apiServer: "172.21.192.50:6443"
 
 webhook:
   type: Service # enum: Service, URL

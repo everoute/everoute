@@ -38,11 +38,11 @@ data:
       # ipam: everoute
 
       # enable kube-proxy replace, if enable kubeProxyReplace, must set svcInternalIP and apiServer
-      kubeProxyReplace: false
+      kubeProxyReplace: true
       svcInternalIP: 169.254.0.254
 
     # when set apiServer, use it to connect kube-apiserver. It must be a valid url. And if enable cni kubeProxyReplace, must set apiServer
-    # apiServer: "https://192.168.7.1:6443"
+    apiServer: 172.21.192.50:6443
   cni-conf.conflist: |
     {
         "cniVersion": "0.3.0",
@@ -71,7 +71,7 @@ data:
       # ipamCleanPeriod: 30
 
     # when set apiServer, use it to connect kube-apiserver. It must be a valid url. And if enable cni kubeProxyReplace, must set apiServer
-    # apiServer: "https://192.168.7.1:6443"
+    apiServer: 172.21.192.50:6443
 kind: ConfigMap
 metadata:
   annotations: {}
@@ -2533,7 +2533,7 @@ spec:
       containers:
         - name: init-agent
           command: ["init_agent"]
-          image: everoute/release:latest
+          image: everoute/release:debug-v4.3.8
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: true
@@ -2577,7 +2577,7 @@ spec:
             requests:
               memory: 256Mi
         - name: everoute-agent
-          image: everoute/release:latest
+          image: everoute/release:debug-v4.3.8
           imagePullPolicy: IfNotPresent
           command: ["start-everoute-agent"]
           args:
@@ -2713,7 +2713,7 @@ spec:
       serviceAccountName: everoute-controller
       containers:
         - name: everoute-controller
-          image: everoute/release:latest
+          image: everoute/release:debug-v4.3.8
           imagePullPolicy: IfNotPresent
           command: ["everoute-controller"]
           args:

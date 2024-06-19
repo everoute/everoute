@@ -140,11 +140,11 @@ func (o *Options) complete() error {
 		return o.cniConfigCheck()
 	}
 
-	if o.Config.APIServer != "" {
-		if _, err := url.Parse(o.Config.APIServer); err != nil {
-			return fmt.Errorf("can't set invalid apiServer %s, err: %s", o.Config.APIServer, err)
-		}
-	}
+	// if o.Config.APIServer != "" {
+	// 	if _, err := url.Parse(o.Config.APIServer); err != nil {
+	// 		return fmt.Errorf("can't set invalid apiServer %s, err: %s", o.Config.APIServer, err)
+	// 	}
+	// }
 
 	return nil
 }
