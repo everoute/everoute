@@ -23,7 +23,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/gorilla/websocket"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/conn"

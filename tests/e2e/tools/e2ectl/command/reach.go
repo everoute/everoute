@@ -30,7 +30,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/tests/e2e/framework"
 	"github.com/everoute/everoute/tests/e2e/framework/model"

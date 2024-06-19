@@ -10,7 +10,7 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"

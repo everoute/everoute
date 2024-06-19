@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v3"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 )

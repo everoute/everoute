@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	"github.com/everoute/everoute/tests/e2e/framework/config"

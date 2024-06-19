@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/cache/synctrack"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/buffer"
 	"k8s.io/utils/clock"
 )
@@ -129,7 +129,7 @@ type updateNotification struct {
 }
 
 type addNotification struct {
-	newObj interface{}
+	newObj          interface{}
 	isInInitialList bool
 }
 
@@ -146,7 +146,6 @@ func (s *sharedIndexInformer) SetWatchErrorHandler(cache.WatchErrorHandler) erro
 func (s *sharedIndexInformer) SetTransform(cache.TransformFunc) error {
 	return fmt.Errorf("unsupport")
 }
-
 
 func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()

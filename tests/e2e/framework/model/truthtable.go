@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // TruthTable takes in n items and maintains an n x n table of booleans for each ordered pair

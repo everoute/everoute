@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"google.golang.org/grpc"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"

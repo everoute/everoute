@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-iptables/iptables"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 type Options struct {
