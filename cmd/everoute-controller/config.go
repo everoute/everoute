@@ -20,6 +20,7 @@ type Options struct {
 	tlsCertDir           string
 	namespace            string
 	serverPort           int
+	serverAddr           string
 
 	Config *controllerConfig
 }

@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog"
+	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -174,6 +175,7 @@ func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.M
 			Scheme:             clientsetscheme.Scheme,
 			MetricsBindAddress: opts.metricsAddr,
 			EventBroadcaster:   eventBroadcaster,
+			Logger:             klogr.New(),
 		})
 		if err != nil {
 			klog.Errorf("unable to create manager: %s", err.Error())

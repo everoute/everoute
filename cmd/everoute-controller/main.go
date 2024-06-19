@@ -41,8 +41,10 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/client-go/util/keyutil"
 	"k8s.io/klog"
+	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	kwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
@@ -82,6 +84,7 @@ func main() {
 	flag.StringVar(&opts.tlsCertDir, "tls-certs-dir", "/etc/ssl/certs", "The certs dir for everoute webhook use.")
 	flag.StringVar(&opts.namespace, "namespace", "", "The namespace which everoute deploy in.")
 	flag.IntVar(&opts.serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
+	flag.StringVar(&opts.serverAddr, "host", "", "The host for the Everoute controller to serve on.")
 
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
@@ -97,17 +100,22 @@ func main() {
 	if opts.getAPIServer() != "" {
 		config.Host = opts.getAPIServer()
 	}
+
+	s := kwebhook.NewServer(kwebhook.Options{
+		Host:    opts.serverAddr,
+		Port:    opts.serverPort,
+		CertDir: opts.tlsCertDir,
+		TLSOpts: []func(*tls.Config){func(conf *tls.Config) { conf.MinVersion = tls.VersionTLS13 }},
+	})
+
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                  clientsetscheme.Scheme,
 		MetricsBindAddress:      opts.metricsAddr,
-		Port:                    opts.serverPort,
+		Logger:                  klogr.New(),
 		LeaderElection:          opts.enableLeaderElection,
 		LeaderElectionNamespace: opts.namespace,
 		LeaderElectionID:        "24d5749e.leader-election.everoute.io",
-		CertDir:                 opts.tlsCertDir,
-		TLSOpts: []func(*tls.Config){
-			func(conf *tls.Config) { conf.MinVersion = tls.VersionTLS13 },
-		},
+		WebhookServer:           s,
 	})
 	if err != nil {
 		klog.Fatalf("unable to start manager: %s", err.Error())
