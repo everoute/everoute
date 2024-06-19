@@ -9,7 +9,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend/allocator"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	etypes "github.com/everoute/everoute/pkg/types"
 )

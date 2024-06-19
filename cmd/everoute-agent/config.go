@@ -32,7 +32,7 @@ import (
 	"github.com/gonetx/ipset"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"

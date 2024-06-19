@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"

@@ -32,7 +32,7 @@ import (
 	"github.com/contiv/ofnet/ovsdbDriver"
 	"github.com/j-keck/arping"
 	coretypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"

@@ -24,7 +24,7 @@ import (
 	"golang.org/x/sys/unix"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/third_party/netutil"
