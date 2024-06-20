@@ -356,6 +356,10 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 	ctx := context.Background()
 	epName := utils.GetGwEndpointName(datapathManager.Info.NodeName)
 
+	labels := make(map[string]string, 1)
+	// when use proxyAll mode, webhook svc can't connection before create gw-ep endpoint
+	labels[constants.SkipWebhookLabelKey] = ""
+
 	ep := v1alpha1.Endpoint{}
 	epReq := coretypes.NamespacedName{
 		Namespace: opts.namespace,
@@ -368,6 +372,7 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      epName,
 					Namespace: opts.namespace,
+					Labels:    labels,
 				},
 				Spec: v1alpha1.EndpointSpec{
 					Type: v1alpha1.EndpointStatic,
@@ -389,6 +394,13 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 
 	if ep.Spec.Type != v1alpha1.EndpointStatic {
 		ep.Spec.Type = v1alpha1.EndpointStatic
+		if ep.GetLabels() == nil {
+			ep.ObjectMeta.Labels = labels
+		} else {
+			if _, ok := ep.GetLabels()[constants.SkipWebhookLabelKey]; !ok {
+				ep.ObjectMeta.Labels[constants.SkipWebhookLabelKey] = ""
+			}
+		}
 		if err := k8sClient.Update(ctx, &ep); err != nil {
 			klog.Errorf("Failed to update gw-ep endpoint: %v", err)
 			return err
