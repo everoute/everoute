@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/url"
 	"os"
 	"strings"
 
@@ -138,12 +137,6 @@ func (o *Options) complete() error {
 		}
 		o.namespace = ns
 		return o.cniConfigCheck()
-	}
-
-	if o.Config.APIServer != "" {
-		if _, err := url.Parse(o.Config.APIServer); err != nil {
-			return fmt.Errorf("can't set invalid apiServer %s, err: %s", o.Config.APIServer, err)
-		}
 	}
 
 	return nil

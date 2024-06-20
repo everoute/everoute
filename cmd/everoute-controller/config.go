@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -99,12 +98,6 @@ func (o *Options) complete() error {
 			return fmt.Errorf("can't get controller namespace from env")
 		}
 		o.namespace = ns
-	}
-
-	if o.Config.APIServer != "" {
-		if _, err := url.Parse(o.Config.APIServer); err != nil {
-			return fmt.Errorf("can't set invalid apiServer %s, err: %s", o.Config.APIServer, err)
-		}
 	}
 
 	return o.cniConfigCheck()
