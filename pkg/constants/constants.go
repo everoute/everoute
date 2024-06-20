@@ -28,11 +28,11 @@ const (
 
 	IfaceIPTimeoutDuration = 30 * time.Minute
 
-	DefaultMaxConcurrentReconciles   = 4
-	DependentsCleanFinalizer         = "finalizer.everoute.io/dependentsclean"
-	OwnerGroupLabelKey               = "label.everoute.io/ownergroup"
-	OwnerPolicyLabelKey              = "label.everoute.io/ownerpolicy"
-	IsGlobalPolicyRuleLabel          = "label.everoute.io/isglobalpolicy"
+	DefaultMaxConcurrentReconciles = 4
+	DependentsCleanFinalizer       = "finalizer.everoute.io/dependentsclean"
+	OwnerGroupLabelKey             = "label.everoute.io/ownergroup"
+	OwnerPolicyLabelKey            = "label.everoute.io/ownerpolicy"
+	IsGlobalPolicyRuleLabel        = "label.everoute.io/isglobalpolicy"
 
 	// Tier0 used for isolation policy and forensic one side drop
 	Tier0 = "tier0"
@@ -69,6 +69,8 @@ const (
 	// sks related
 	SksManagedLabelKey   = "sks-managed"
 	SksManagedLabelValue = "true"
+
+	SkipWebhookLabelKey = "everoute-skip-webhook"
 
 	EncapModeGeneve = "geneve"
 	GeneveHeaderLen = 50

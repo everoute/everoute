@@ -6,6 +6,10 @@ metadata:
 webhooks:
   - admissionReviewVersions: ["v1"]
     sideEffects: None
+    objectSelector:
+      matchExpressions:
+      - key: everoute-skip-webhook
+        operator: DoesNotExist
     clientConfig:
       # CaBundle must set as the ca for secret everoute-controller-tls.
       caBundle: {{ .Values.webhook.caBundle }}
