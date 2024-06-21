@@ -49,6 +49,7 @@ func (r *RouteIPtables) Update(nodeList corev1.NodeList, thisNode corev1.Node) {
 
 	r.proxy.prerouting(ipt)
 	r.proxy.forward(ipt)
+	r.proxy.output(ipt)
 }
 
 func (r *RouteIPtables) updateEverouteOutputChain(ipt *iptables.IPTables, nodeList corev1.NodeList, thisNode corev1.Node) {

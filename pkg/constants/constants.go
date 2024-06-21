@@ -105,7 +105,8 @@ const (
 	IPSetNameNPSvcUDP = "er-npsvc-udp"
 	IPSetNameLBSvc    = "er-lbsvc"
 
-	SvcChain = "EVEROUTE-SVC"
+	IPtSvcChain   = "EVEROUTE-SVC"
+	IPtNPSvcChain = "EVEROUTE-SVC-NP"
 
 	// ct zone used by cni
 	CTZoneNatBrFromLocal  = 65505
