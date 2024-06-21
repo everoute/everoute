@@ -35,6 +35,8 @@ func newTestIPSet(name string) *testIPSet {
 }
 
 func (t *testIPSet) List(options ...ipset.Option) (*ipset.Info, error) {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
 	return &ipset.Info{
 		Name:    t.name,
 		Entries: t.ipset.UnsortedList(),
