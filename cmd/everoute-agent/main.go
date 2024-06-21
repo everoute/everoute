@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"net"
+	"sync"
 	"time"
 
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
@@ -34,7 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,6 +63,8 @@ import (
 
 var (
 	opts *Options
+
+	ipsetCtrl *ctrlProxy.IPSetCtrl
 )
 
 func init() {
@@ -130,9 +133,7 @@ func main() {
 	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache)
 	go rpcServer.Run(stopCtx.Done())
 
-	if err := resourceUpdate(stopCtx, mgr, datapathManager); err != nil {
-		klog.Fatalf("resource update failed when start everoute-agent, err: %v", err)
-	}
+	resourceInit(stopCtx, mgr, datapathManager)
 
 	<-stopCtx.Done()
 }
@@ -291,12 +292,13 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			proxyCache = proxyReconciler.GetCache()
 
 			if opts.IsEnableKubeProxyReplace() {
-				if err := (&ctrlProxy.IPSetCtrl{
+				ipsetCtrl = &ctrlProxy.IPSetCtrl{
 					Client: mgr.GetClient(),
 					TCPSet: opts.svcTCPSet,
 					UDPSet: opts.svcUDPSet,
 					LBSet:  opts.lbSvcSet,
-				}).SetupWithManager(mgr); err != nil {
+				}
+				if err := ipsetCtrl.SetupWithManager(mgr); err != nil {
 					klog.Errorf("unable to create ipset proxy controller: %s", err.Error())
 					return nil, err
 				}
@@ -314,20 +316,44 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	return proxyCache, nil
 }
 
-func resourceUpdate(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) error {
+func resourceInit(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) {
 	mgr.GetCache().WaitForCacheSync(ctx)
 
+	var wg sync.WaitGroup
 	if opts.IsEnableOverlay() {
-		err := wait.PollImmediate(5*time.Second, time.Minute, func() (bool, error) {
-			err := updateGwEndpoint(mgr.GetClient(), datapathManager)
-			return err == nil, nil
-		})
-		if err == nil {
-			klog.Info("Success create or update gw-ep endpoint")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Minute, true, func(context.Context) (bool, error) {
+				err := updateGwEndpoint(mgr.GetClient(), datapathManager)
+				return err == nil, nil
+			})
+			if err != nil {
+				klog.Fatalf("Failed to update gw endpoint: %s", err)
+			}
+			klog.Info("Succeed to create or update gw-ep endpoint")
+		}()
+
+		if opts.IsEnableKubeProxyReplace() {
+			if ipsetCtrl == nil {
+				klog.Fatalf("ipsetCtrl can't be nil")
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err := wait.PollUntilContextTimeout(ctx, 10*time.Second, time.Minute, true, func(c context.Context) (bool, error) {
+					err := ipsetCtrl.Sync(c)
+					return err == nil, nil
+				})
+				if err != nil {
+					klog.Fatalf("Failed to sync ipset: %s", err)
+				}
+				klog.Info("Succeed to sync ipset")
+			}()
 		}
-		return err
 	}
-	return nil
+
+	wg.Wait()
 }
 
 func getGwEndpointIP(k8sClient client.Client, nodeName string) (net.IP, error) {
