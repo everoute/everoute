@@ -71,6 +71,7 @@ func (o *overlayIPtables) Update() {
 
 	o.proxy.prerouting(ipt)
 	o.proxy.forward(ipt)
+	o.proxy.output(ipt)
 }
 
 func (o *overlayIPtables) updateEverouteOutputChain(ipt *iptables.IPTables) {

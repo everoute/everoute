@@ -28,11 +28,11 @@ const (
 
 	IfaceIPTimeoutDuration = 30 * time.Minute
 
-	DefaultMaxConcurrentReconciles   = 4
-	DependentsCleanFinalizer         = "finalizer.everoute.io/dependentsclean"
-	OwnerGroupLabelKey               = "label.everoute.io/ownergroup"
-	OwnerPolicyLabelKey              = "label.everoute.io/ownerpolicy"
-	IsGlobalPolicyRuleLabel          = "label.everoute.io/isglobalpolicy"
+	DefaultMaxConcurrentReconciles = 4
+	DependentsCleanFinalizer       = "finalizer.everoute.io/dependentsclean"
+	OwnerGroupLabelKey             = "label.everoute.io/ownergroup"
+	OwnerPolicyLabelKey            = "label.everoute.io/ownerpolicy"
+	IsGlobalPolicyRuleLabel        = "label.everoute.io/isglobalpolicy"
 
 	// Tier0 used for isolation policy and forensic one side drop
 	Tier0 = "tier0"
@@ -103,7 +103,8 @@ const (
 	IPSetNameNPSvcUDP = "er-npsvc-udp"
 	IPSetNameLBSvc    = "er-lbsvc"
 
-	SvcChain = "EVEROUTE-SVC"
+	IPtSvcChain   = "EVEROUTE-SVC"
+	IPtNPSvcChain = "EVEROUTE-SVC-NP"
 
 	// ct zone used by cni
 	CTZoneNatBrFromLocal  = 65505
