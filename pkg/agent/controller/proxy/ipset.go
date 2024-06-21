@@ -270,7 +270,7 @@ func (p *IPSetCtrl) deletePortFromIPSet(svcID string, port int32, portType PortT
 	}
 	ipSet := p.getIPSetByPortType(portType)
 	portStr := fmt.Sprintf("%d", port)
-	if err := ipSet.Del(portStr); err != nil {
+	if err := ipSet.Del(portStr, ipset.Exist(true)); err != nil {
 		klog.Errorf("%s, failed to del service %s port %d from ipset %s, err: %s", p.logPre, svcID, port, ipSet.Name(), err)
 		return err
 	}
@@ -280,7 +280,7 @@ func (p *IPSetCtrl) deletePortFromIPSet(svcID string, port int32, portType PortT
 func (p *IPSetCtrl) addPortToIPSet(svcID string, port int32, portType PortType) error {
 	ipSet := p.getIPSetByPortType(portType)
 	portStr := fmt.Sprintf("%d", port)
-	if err := ipSet.Add(portStr, ipset.CommentContent(svcID)); err != nil {
+	if err := ipSet.Add(portStr, ipset.CommentContent(svcID), ipset.Exist(true)); err != nil {
 		klog.Errorf("%s, failed to add service %s port %d to ipset %s, err: %s", p.logPre, svcID, port, ipSet.Name(), err)
 		return err
 	}
@@ -366,7 +366,7 @@ func (p *IPSetCtrl) createOrUpdateLBSvc(svc *corev1.Service) error {
 		}
 	}
 	for i := range addIPPorts {
-		if err := p.LBSet.Add(addIPPorts[i].String(), ipset.CommentContent(svcID)); err != nil {
+		if err := p.LBSet.Add(addIPPorts[i].String(), ipset.CommentContent(svcID), ipset.Exist(true)); err != nil {
 			klog.Errorf("%s, failed to add lb service %s ipport %s to ipset %s, err: %s", p.logPre, svcID, addIPPorts[i], p.LBSet.Name(), err)
 			errs = append(errs, err)
 			continue
@@ -393,7 +393,7 @@ func (p *IPSetCtrl) deleteIPPortFromIPSet(svcID string, ipPort IPPort) error {
 		return nil
 	}
 
-	err := p.LBSet.Del(ipPort.String(), ipset.CommentContent(svcID))
+	err := p.LBSet.Del(ipPort.String(), ipset.CommentContent(svcID), ipset.Exist(true))
 	if err != nil {
 		klog.Errorf("%s, failed to delete service %s loadbalancer ip port %s from ipset %s, err: %s", p.logPre, svcID, ipPort, p.LBSet.Name(), err)
 	}
