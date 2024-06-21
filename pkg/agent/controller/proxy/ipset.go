@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/gonetx/ipset"
@@ -57,6 +58,7 @@ type IPSetCtrl struct {
 	nodePorts map[string]map[PortType]sets.Set[int32]
 	lbLock    sync.RWMutex
 	lbIPPorts map[string]sets.Set[IPPort]
+	syncLock  sync.RWMutex
 
 	logPre string
 }
@@ -86,6 +88,9 @@ func (p *IPSetCtrl) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (p *IPSetCtrl) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	p.syncLock.RLock()
+	defer p.syncLock.RUnlock()
+
 	klog.Infof("%s, receive reconcile service %s", p.logPre, req.NamespacedName)
 	svc := corev1.Service{}
 	if err := p.Client.Get(ctx, req.NamespacedName, &svc); err != nil {
@@ -449,4 +454,120 @@ func (*IPSetCtrl) predicateUpdate(e event.UpdateEvent) bool {
 	}
 
 	return false
+}
+
+func (p *IPSetCtrl) Sync(ctx context.Context) error {
+	p.syncLock.Lock()
+	defer p.syncLock.Unlock()
+	klog.Infof("Begin to sync ipset")
+
+	svcs := &corev1.ServiceList{}
+	if err := p.Client.List(ctx, svcs); err != nil {
+		klog.Errorf("Failed to list services: %s", err)
+		return err
+	}
+
+	udpPortsExp, tcpPortsExp, lbsExp := p.getAllExpIPSetEntrys(svcs)
+
+	hasErr := false
+	udpRes, err := p.UDPSet.List()
+	if err != nil || udpRes == nil {
+		klog.Errorf("Failed to list ipset %s, err: %s", p.UDPSet.Name(), err)
+		hasErr = true
+	} else {
+		for i := range udpRes.Entries {
+			portStr := getIPSetEntryWithoutComment(udpRes.Entries[i])
+			if portStr == "" || udpPortsExp.Has(portStr) {
+				continue
+			}
+			if err := p.UDPSet.Del(portStr, ipset.Exist(true)); err != nil {
+				klog.Errorf("Failed to del udp nodeport %s from ipset %s", udpRes.Entries[i], p.UDPSet.Name())
+				hasErr = true
+			} else {
+				klog.Infof("Succeed to del udp nodeport %s from ipset %s", udpRes.Entries[i], p.UDPSet.Name())
+			}
+		}
+	}
+
+	tcpRes, err := p.TCPSet.List()
+	if err != nil || tcpRes == nil {
+		klog.Errorf("Failed to list ipset %s, err: %s", p.TCPSet.Name(), err)
+		hasErr = true
+	} else {
+		for i := range tcpRes.Entries {
+			portStr := getIPSetEntryWithoutComment(tcpRes.Entries[i])
+			if portStr == "" || tcpPortsExp.Has(portStr) {
+				continue
+			}
+			if err := p.TCPSet.Del(portStr, ipset.Exist(true)); err != nil {
+				klog.Errorf("Failed to del tcp nodeport %s from ipset %s", tcpRes.Entries[i], p.TCPSet.Name())
+				hasErr = true
+			} else {
+				klog.Infof("Succeed to del tcp nodeport %s from ipset %s", tcpRes.Entries[i], p.TCPSet.Name())
+			}
+		}
+	}
+	lbRes, err := p.LBSet.List()
+	if err != nil || lbRes == nil {
+		klog.Errorf("Failed to list ipset %s, err: %s", p.LBSet.Name(), err)
+		hasErr = true
+	} else {
+		for i := range lbRes.Entries {
+			lbStr := getIPSetEntryWithoutComment(lbRes.Entries[i])
+			if lbStr == "" || lbsExp.Has(lbStr) {
+				continue
+			}
+			if err := p.LBSet.Del(lbStr, ipset.Exist(true)); err != nil {
+				klog.Errorf("Failed to del lb %s from ipset %s", lbRes.Entries[i], p.LBSet.Name())
+				hasErr = true
+			} else {
+				klog.Infof("Succeed to del lb %s from ipset %s", lbRes.Entries[i], p.LBSet.Name())
+			}
+		}
+	}
+
+	if hasErr {
+		return fmt.Errorf("sync ipset failed")
+	}
+	klog.Infof("Finished to sync ipset")
+	return nil
+}
+
+func (p *IPSetCtrl) getAllExpIPSetEntrys(svcs *corev1.ServiceList) (sets.Set[string], sets.Set[string], sets.Set[string]) {
+	udpPortsExp, tcpPortsExp, lbsExp := sets.New[string](), sets.New[string](), sets.New[string]()
+	for i := range svcs.Items {
+		cur := svcs.Items[i]
+		lbIPs := []string{}
+		for j := range cur.Status.LoadBalancer.Ingress {
+			ip := cur.Status.LoadBalancer.Ingress[j].IP
+			if ip != "" {
+				lbIPs = append(lbIPs, ip)
+			}
+		}
+		for j := range cur.Spec.Ports {
+			curP := cur.Spec.Ports[j]
+			for _, ip := range lbIPs {
+				lbsExp.Insert(NewIPPort(ip, curP.Protocol, curP.Port).String())
+			}
+			if curP.NodePort == 0 {
+				continue
+			}
+			if curP.Protocol == corev1.ProtocolTCP {
+				tcpPortsExp.Insert(fmt.Sprintf("%d", curP.NodePort))
+			}
+			if curP.Protocol == corev1.ProtocolUDP {
+				udpPortsExp.Insert(fmt.Sprintf("%d", curP.NodePort))
+			}
+		}
+	}
+
+	return udpPortsExp, tcpPortsExp, lbsExp
+}
+
+func getIPSetEntryWithoutComment(s string) string {
+	infos := strings.Split(s, "comment")
+	if len(infos) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(infos[0])
 }
