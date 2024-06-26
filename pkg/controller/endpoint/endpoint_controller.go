@@ -41,6 +41,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -49,7 +50,8 @@ import (
 // endpoint status from agentinfo.
 type EndpointReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme         *runtime.Scheme
+	IPMigrateCount *metrics.IPMigrateCount
 
 	ifaceCacheLock sync.RWMutex
 	ifaceCache     cache.Indexer
@@ -103,6 +105,7 @@ func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
+	r.ipMigrateCountUpdate(endpoint.Status.IPs, expectStatus.IPs)
 	endpoint.Status = *expectStatus
 	if err := r.Status().Update(ctx, &endpoint); err != nil {
 		klog.Errorf("failed to update endpoint %s status: %s", endpoint.Name, err.Error())
@@ -117,6 +120,9 @@ func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
+	}
+	if r.IPMigrateCount == nil {
+		return fmt.Errorf("can't setup with nil IPMigrateCount")
 	}
 
 	c, err := controller.New("endpoint-controller", mgr, controller.Options{
@@ -250,6 +256,15 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 	}
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
 	r.updateCachedAgentInfo(newAgentInfo, q)
+}
+
+func (r *EndpointReconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress) {
+	srcSets := sets.New[types.IPAddress](srcIPs...)
+	for _, ip := range expIPs {
+		if !srcSets.Has(ip) {
+			r.IPMigrateCount.Inc(ip.String())
+		}
+	}
 }
 
 func (r *EndpointReconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {

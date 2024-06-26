@@ -38,6 +38,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -381,8 +382,9 @@ func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
 	ep := securityv1alpha1.Endpoint{}
 
 	return &EndpointReconciler{
-		Client: fakeclient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(initObjs...).WithStatusSubresource(&ep).Build(),
-		Scheme: scheme.Scheme,
+		Client:         fakeclient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(initObjs...).WithStatusSubresource(&ep).Build(),
+		Scheme:         scheme.Scheme,
+		IPMigrateCount: metrics.NewIPMigrateCount(),
 		ifaceCache: cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
 			agentIndex:      agentIndexFunc,
 			externalIDIndex: externalIDIndexFunc,

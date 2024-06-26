@@ -118,6 +118,14 @@ const (
 
 	// endpoint
 	EndpointExternalIDKey = "iface-id"
+
+	// metric
+	MetricPath               = "/metrics"
+	MetricNamespace          = "everoute"
+	MetricSubSystem          = "ms"
+	MetricIPMigrateCountName = "ip_migrate_count"
+	MetricIPLabel            = "ip"
+	MetricMaxIPNumInCache    = 2000
 )
 
 const (
