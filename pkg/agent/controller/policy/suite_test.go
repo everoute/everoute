@@ -37,6 +37,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
@@ -123,7 +124,7 @@ var _ = BeforeSuite(func() {
 	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			brName: brName,
-		}}, updateChan)
+		}}, updateChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(ctx.Done())
 
 	pCtrl = &policy.Reconciler{

@@ -33,6 +33,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -172,7 +173,7 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 	}
 
 	updateChan := make(chan *types.EndpointIP, 10)
-	datapathManager := NewDatapathManager(dpConfig, updateChan)
+	datapathManager := NewDatapathManager(dpConfig, updateChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(stopCh)
 
 	agentInfo := datapathManager.Info

@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -167,7 +168,7 @@ func setupEverouteDp() {
 	}
 
 	stopChan := make(<-chan struct{})
-	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan)
+	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(stopChan)
 }
 

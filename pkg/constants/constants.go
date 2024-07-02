@@ -126,6 +126,9 @@ const (
 	MetricIPMigrateCountName = "ip_migrate_count"
 	MetricIPLabel            = "ip"
 	MetricMaxIPNumInCache    = 2000
+
+	MetricArpCountName       = "arp_count"
+	MetricArpRejectCountName = "arp_reject_count"
 )
 
 const (
