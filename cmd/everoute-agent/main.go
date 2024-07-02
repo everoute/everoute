@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	ctrlPool "github.com/everoute/everoute/pkg/agent/controller/ippool"
 	"github.com/everoute/everoute/pkg/agent/controller/overlay"
@@ -55,6 +56,7 @@ import (
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/monitor"
 	ersource "github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/types"
@@ -101,9 +103,11 @@ func main() {
 		config.Host = opts.getAPIServer()
 	}
 
+	agentMetric := metrics.NewAgentMetric()
+
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
-	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan)
+	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan, agentMetric)
 	datapathManager.InitializeDatapath(stopCtx.Done())
 
 	var mgr manager.Manager
@@ -117,6 +121,9 @@ func main() {
 		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
 		mgr = initK8sCtrlManager(config, stopCtx.Done())
 	}
+
+	// registry metrics
+	ctrlmetrics.Registry.MustRegister(agentMetric.GetCollectors()...)
 
 	// add health check handler
 	loadModuleHealthz := evehealthz.NewLoadModuleHealthz(constants.AlgNeedModules)

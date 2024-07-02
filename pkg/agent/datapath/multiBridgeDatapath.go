@@ -40,6 +40,7 @@ import (
 	lock "github.com/viney-shih/go-lock"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -47,6 +48,7 @@ import (
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -145,6 +147,7 @@ const (
 	MaxRoundNum = 15
 
 	MaxArpChanCache = 100
+	ArpLimiterRate  = 5000
 
 	MaxCleanConntrackChanSize = 5000
 )
@@ -234,7 +237,10 @@ type DpManager struct {
 	needFlush          bool                    // need to flush
 	cleanConntrackChan chan EveroutePolicyRule // clean conntrack entries for rule in chan
 
-	ArpChan chan ArpInfo
+	ArpChan    chan ArpInfo
+	ArpLimiter *rate.Limiter
+
+	AgentMetric *metrics.AgentMetric
 
 	proxyReplayFunc   func()
 	overlayReplayFunc func()
@@ -362,7 +368,7 @@ type ArpInfo struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateChan chan *types.EndpointIP) *DpManager {
+func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateChan chan *types.EndpointIP, agentMetric *metrics.AgentMetric) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
@@ -377,10 +383,12 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.flushMutex = lock.NewChanMutex()
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
+	datapathManager.ArpLimiter = rate.NewLimiter(rate.Every(time.Second/ArpLimiterRate), ArpLimiterRate)
 	datapathManager.proxyReplayFunc = func() {}
 	datapathManager.overlayReplayFunc = func() {}
 	datapathManager.ippoolSubnets = sets.New[string]()
 	datapathManager.ippoolGWs = sets.New[string]()
+	datapathManager.AgentMetric = agentMetric
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {

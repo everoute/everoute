@@ -106,6 +106,12 @@ func newLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 	switch pkt.Data.Ethertype {
 	case PROTOCOL_ARP:
+		l.datapathManager.AgentMetric.ArpInc()
+		if !l.datapathManager.ArpLimiter.Allow() {
+			l.datapathManager.AgentMetric.ArpRejectInc()
+			return
+		}
+
 		if (pkt.Match.Type == openflow13.MatchType_OXM) &&
 			(pkt.Match.Fields[0].Class == openflow13.OXM_CLASS_OPENFLOW_BASIC) &&
 			(pkt.Match.Fields[0].Field == openflow13.OXM_FIELD_IN_PORT) {
