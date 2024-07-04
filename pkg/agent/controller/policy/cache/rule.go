@@ -72,6 +72,58 @@ type PolicyRule struct {
 	DstPortMask     uint16        `json:"dstPortMask,omitempty"`
 }
 
+func (p *PolicyRule) IsBlock() bool {
+	if p.Action != RuleActionDrop {
+		return false
+	}
+
+	if p.Tier != constants.Tier2 {
+		return false
+	}
+
+	return p.RuleType == RuleTypeNormalRule
+}
+
+func (p *PolicyRule) ContainsTCP() bool {
+	return p.IPProtocol == string(securityv1alpha1.ProtocolTCP) || p.IPProtocol == ""
+}
+
+func (p *PolicyRule) ReverseForTCP() *PolicyRule {
+	if p == nil || !p.ContainsTCP() {
+		return nil
+	}
+	res := &PolicyRule{
+		RuleType:        p.RuleType,
+		Tier:            p.Tier,
+		PriorityOffset:  p.PriorityOffset,
+		EnforcementMode: p.EnforcementMode,
+		IPProtocol:      p.IPProtocol,
+		Action:          p.Action,
+		SrcIPAddr:       p.DstIPAddr,
+		SrcPort:         p.DstPort,
+		SrcPortMask:     p.DstPortMask,
+		DstIPAddr:       p.SrcIPAddr,
+		DstPort:         p.SrcPort,
+		DstPortMask:     p.SrcPortMask,
+	}
+
+	if res.IPProtocol == "" {
+		res.IPProtocol = string(securityv1alpha1.ProtocolTCP)
+	}
+
+	switch p.Direction {
+	case RuleDirectionIn:
+		res.Direction = RuleDirectionOut
+	case RuleDirectionOut:
+		res.Direction = RuleDirectionIn
+	}
+
+	srcFlowKey := GenerateFlowKey(*p)
+	prefix, _ := strings.CutSuffix(p.Name, srcFlowKey)
+	res.Name = prefix + GenerateFlowKey(*res)
+	return res
+}
+
 type DeepCopyBase interface {
 	DeepCopy() interface{}
 }

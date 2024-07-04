@@ -1,9 +1,11 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 func TestResolveDstPort(t *testing.T) {
@@ -244,6 +246,197 @@ func TestAppendIPBlockPorts(t *testing.T) {
 			if find == false {
 				t.Errorf("test %s failed, the expect is %#v, but the res is %#v", item.name, item.expect, res)
 			}
+		}
+	}
+}
+
+func TestPolicyRuleIsBlock(t *testing.T) {
+	cases := []struct {
+		name string
+		arg  PolicyRule
+		exp  bool
+	}{
+		{
+			name: "block rule",
+			arg: PolicyRule{
+				Action:     RuleActionDrop,
+				Tier:       constants.Tier2,
+				IPProtocol: string(securityv1alpha1.ProtocolICMP),
+				RuleType:   RuleTypeNormalRule,
+			},
+			exp: true,
+		},
+		{
+			name: "other tier",
+			arg: PolicyRule{
+				Action:     RuleActionDrop,
+				Tier:       constants.Tier1,
+				IPProtocol: string(securityv1alpha1.ProtocolTCP),
+				RuleType:   RuleTypeNormalRule,
+			},
+			exp: false,
+		},
+		{
+			name: "default drop",
+			arg: PolicyRule{
+				Action:   RuleActionDrop,
+				Tier:     constants.Tier2,
+				RuleType: RuleTypeDefaultRule,
+			},
+			exp: false,
+		},
+		{
+			name: "global default rule",
+			arg: PolicyRule{
+				Action:   RuleActionDrop,
+				Tier:     constants.Tier2,
+				RuleType: RuleTypeGlobalDefaultRule,
+			},
+			exp: false,
+		},
+		{
+			name: "allow rule",
+			arg: PolicyRule{
+				Action:   RuleActionAllow,
+				Tier:     constants.Tier2,
+				RuleType: RuleTypeNormalRule,
+			},
+			exp: false,
+		},
+	}
+
+	for i := range cases {
+		res := cases[i].arg.IsBlock()
+		if res != cases[i].exp {
+			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, res)
+		}
+	}
+}
+
+func TestRuleReverseForTCP(t *testing.T) {
+	cases := []struct {
+		name string
+		rule PolicyRule
+		exp  *PolicyRule
+	}{
+		{
+			name: "without port",
+			rule: PolicyRule{
+				Name:            "default/test/normal/ingress.ingress1",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionIn,
+				Tier:            constants.Tier2,
+				EnforcementMode: "work",
+				IPProtocol:      string(securityv1alpha1.ProtocolTCP),
+				SrcIPAddr:       "192.168.1.1/31",
+				DstIPAddr:       "0.0.0.0/32",
+			},
+			exp: &PolicyRule{
+				Name:            "default/test/normal/ingress.ingress1-ycpj5nwmp19cvivz0kxwbjkvulr395so",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionOut,
+				Tier:            constants.Tier2,
+				EnforcementMode: "work",
+				IPProtocol:      string(securityv1alpha1.ProtocolTCP),
+				DstIPAddr:       "192.168.1.1/31",
+				SrcIPAddr:       "0.0.0.0/32",
+			},
+		},
+		{
+			name: "with dst port",
+			rule: PolicyRule{
+				Name:            "default/test/normal/egress.egress1",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionOut,
+				Tier:            constants.Tier2,
+				EnforcementMode: "monitor",
+				IPProtocol:      string(securityv1alpha1.ProtocolTCP),
+				SrcIPAddr:       "192.168.1.1/31",
+				DstPort:         0xe,
+				DstPortMask:     0xfffe,
+			},
+			exp: &PolicyRule{
+				Name:            "default/test/normal/egress.egress1-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionIn,
+				Tier:            constants.Tier2,
+				EnforcementMode: "monitor",
+				IPProtocol:      string(securityv1alpha1.ProtocolTCP),
+				DstIPAddr:       "192.168.1.1/31",
+				SrcPort:         0xe,
+				SrcPortMask:     0xfffe,
+			},
+		},
+		{
+			name: "with udp protocol",
+			rule: PolicyRule{
+				Name:            "default/test/normal/egress.egress1",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionOut,
+				Tier:            constants.Tier2,
+				EnforcementMode: "monitor",
+				IPProtocol:      string(securityv1alpha1.ProtocolUDP),
+				SrcIPAddr:       "192.168.1.1/31",
+				DstIPAddr:       "0.0.0.0/32",
+				DstPort:         0xe,
+				DstPortMask:     0xfffe,
+			},
+			exp: nil,
+		},
+		{
+			name: "without Protocol",
+			rule: PolicyRule{
+				Name:            "default/test/normal/egress.egress1",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionOut,
+				Tier:            constants.Tier2,
+				EnforcementMode: "work",
+				SrcIPAddr:       "192.168.1.1/31",
+				DstIPAddr:       "0.0.0.0/32",
+				DstPort:         0xe,
+				DstPortMask:     0xfffe,
+			},
+			exp: &PolicyRule{
+				Name:            "default/test/normal/egress.egress1-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
+				Action:          RuleActionDrop,
+				PriorityOffset:  30,
+				RuleType:        RuleTypeNormalRule,
+				Direction:       RuleDirectionIn,
+				Tier:            constants.Tier2,
+				EnforcementMode: "work",
+				IPProtocol:      string(securityv1alpha1.ProtocolTCP),
+				DstIPAddr:       "192.168.1.1/31",
+				SrcIPAddr:       "0.0.0.0/32",
+				SrcPort:         0xe,
+				SrcPortMask:     0xfffe,
+			},
+		},
+	}
+
+	for i := range cases {
+		cases[i].rule.Name = fmt.Sprintf("%s-%s", cases[i].rule.Name, GenerateFlowKey(cases[i].rule))
+		res := cases[i].rule.ReverseForTCP()
+		if cases[i].exp == nil && res == nil {
+			continue
+		}
+		if cases[i].exp == nil || res == nil {
+			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, res)
+			continue
+		}
+		if *res != *cases[i].exp {
+			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, *res)
 		}
 	}
 }
