@@ -110,7 +110,6 @@ func getRuleAction(ruleAction policycache.RuleAction) string {
 		action = "deny"
 	default:
 		klog.Fatalf("unsupport ruleAction %s in policyrule.", ruleAction)
-		return action
 	}
 	return action
 }

@@ -600,12 +600,27 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 			errList = append(errList,
 				r.processPolicyRuleAdd(newRule),
 			)
-
+			if newRule.ContainsTCP() && newRule.IsBlock() {
+				reverseRule := newRule.ReverseForTCP()
+				if reverseRule == nil {
+					klog.Errorf("The reverse rule of created rule %v is nil", *newRule)
+					continue
+				}
+				errList = append(errList, r.processPolicyRuleAdd(reverseRule))
+			}
 		} else if oldExist {
 			klog.Infof("remove policyRule: %v", oldRule)
 			errList = append(errList,
 				r.processPolicyRuleDelete(oldRule.Name),
 			)
+			if oldRule.ContainsTCP() && oldRule.IsBlock() {
+				reverseRule := oldRule.ReverseForTCP()
+				if reverseRule == nil {
+					klog.Errorf("The reverse rule of deleted rule %v is nil", *oldRule)
+					continue
+				}
+				errList = append(errList, r.processPolicyRuleDelete(reverseRule.Name))
+			}
 		}
 	}
 
