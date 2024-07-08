@@ -31,6 +31,7 @@ import (
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 
+	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/metrics"
@@ -540,4 +541,109 @@ func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*o
 	}
 
 	return f, nil
+}
+
+func (rule *EveroutePolicyRule) Clone() *EveroutePolicyRule {
+	return &EveroutePolicyRule{
+		RuleID:      rule.RuleID,
+		Priority:    rule.Priority,
+		SrcIPAddr:   rule.SrcIPAddr,
+		DstIPAddr:   rule.DstIPAddr,
+		IPProtocol:  rule.IPProtocol,
+		SrcPort:     rule.SrcPort,
+		SrcPortMask: rule.SrcPortMask,
+		DstPort:     rule.DstPort,
+		DstPortMask: rule.DstPortMask,
+		Action:      rule.Action,
+	}
+}
+
+func (e *EveroutePolicyRuleEntry) Clone() *EveroutePolicyRuleEntry {
+	if e == nil {
+		return nil
+	}
+	return &EveroutePolicyRuleEntry{
+		EveroutePolicyRule: e.EveroutePolicyRule.Clone(),
+		Direction:          e.Direction,
+		Tier:               e.Tier,
+		Mode:               e.Mode,
+		// RuleFlowMap will not update inner entry
+		RuleFlowMap:         DeepCopyMap(e.RuleFlowMap).(map[string]*FlowEntry),
+		PolicyRuleReference: e.PolicyRuleReference.Clone(),
+	}
+}
+
+func FlowKeyFromRuleName(ruleName string) string {
+	// rule name format like: policyname-rulename-namehash-flowkey
+	keys := strings.Split(ruleName, "-")
+	return keys[len(keys)-1]
+}
+
+func (dm *DpManager) GetRuleEntryByFlowID(id uint64) *EveroutePolicyRuleEntry {
+	items, err := dm.Rules.ByIndex(FlowIDIndex, strconv.FormatUint(id, 10))
+	if err == nil && len(items) == 1 {
+		return items[0].(*EveroutePolicyRuleEntry)
+	}
+	return nil
+}
+
+func (dm *DpManager) GetRuleEntryByRuleID(id string) *EveroutePolicyRuleEntry {
+	item, exist, err := dm.Rules.GetByKey(id)
+	if err == nil && exist && item != nil {
+		return item.(*EveroutePolicyRuleEntry)
+	}
+	return nil
+}
+
+func (dm *DpManager) ListRuleEntry() []*EveroutePolicyRuleEntry {
+	var ret []*EveroutePolicyRuleEntry
+	items := dm.Rules.List()
+	for _, item := range items {
+		ret = append(ret, item.(*EveroutePolicyRuleEntry))
+	}
+	return ret
+}
+
+// func (dm *DpManager) PolicyRuleLimit(policyIDs []string, addList, deleteList []*policycache.PolicyRule) bool {
+func (dm *DpManager) PolicyRuleLimit(_ []string, _, _ []*policycache.PolicyRule) bool {
+	return false
+	/*
+		dm.lockflowReplayWithTimeout()
+		defer dm.flowReplayMutex.Unlock()
+
+		if !dm.AgentMetric.ShouldLimit(policyIDs) {
+			return false
+		}
+
+		// count real rule num after changes
+		addCnt := 0
+		delCnt := 0
+		for _, item := range addList {
+			if dm.GetRuleEntryByRuleID(FlowKeyFromRuleName(item.Name)) == nil {
+				addCnt++
+			}
+		}
+		for _, item := range deleteList {
+			entry := dm.GetRuleEntryByRuleID(FlowKeyFromRuleName(item.Name))
+			if entry != nil && len(entry.PolicyRuleReference.List()) <= 1 {
+				delCnt++
+			}
+		}
+
+		diffSize := addCnt - delCnt
+		return len(dm.ListRuleEntry())*len(dm.BridgeChainMap)+diffSize > RuleEntryCap
+	*/
+}
+
+func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
+	// update rule entry num
+	for _, policyID := range policyIDs {
+		rules, err := dm.Rules.ByIndex(PolicyRuleIndex, policyID)
+		if err != nil {
+			continue
+		}
+		dm.AgentMetric.SetRuleEntryNum(policyID, len(rules), limited)
+	}
+
+	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.ListRuleEntry()))
 }

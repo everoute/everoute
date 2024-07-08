@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/global"
-	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
 )
@@ -63,9 +63,9 @@ var _ = Describe("GlobalPolicyController", func() {
 			Expect(globalPolicy.Spec.Logging).ShouldNot(BeNil())
 			Expect(globalPolicy.Spec.Logging.Enabled).Should(BeFalse())
 			Expect(globalPolicy.Spec.Logging.Tags).Should(HaveLen(3))
-			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyID]).Should(Equal(erCluster.ID))
-			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyName]).Should(BeEmpty())
-			Expect(globalPolicy.Spec.Logging.Tags[policy.LoggingTagPolicyType]).Should(Equal(policy.LoggingTagPolicyTypeGlobalPolicy))
+			Expect(globalPolicy.Spec.Logging.Tags[constants.LoggingTagPolicyID]).Should(Equal(erCluster.ID))
+			Expect(globalPolicy.Spec.Logging.Tags[constants.LoggingTagPolicyName]).Should(BeEmpty())
+			Expect(globalPolicy.Spec.Logging.Tags[constants.LoggingTagPolicyType]).Should(Equal(constants.LoggingTagPolicyTypeGlobalPolicy))
 		})
 
 		When("update everoute cluster to default drop", func() {

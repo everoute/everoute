@@ -295,21 +295,21 @@ func testERPolicyRule(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
-		if _, ok := datapathManager.Rules[rule1.RuleID]; !ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1)
 		}
 
 		if err := datapathManager.RemoveEveroutePolicyRule(rule1.RuleID, "rule1"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
 		}
-		if _, ok := datapathManager.Rules[rule1.RuleID]; ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item != nil {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
 		}
 
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
-		if _, ok := datapathManager.Rules[rule2.RuleID]; !ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule2.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
@@ -319,13 +319,13 @@ func testERPolicyRule(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule3, "rule3", POLICY_DIRECTION_IN, POLICY_TIER_ECP, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule3, err)
 		}
-		if _, ok := datapathManager.Rules[rule3.RuleID]; !ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule3.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule3)
 		}
 		if err := datapathManager.RemoveEveroutePolicyRule(rule3.RuleID, "rule3"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule3, err)
 		}
-		if _, ok := datapathManager.Rules[rule3.RuleID]; ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule3.RuleID); item != nil {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule3)
 		}
 	})
@@ -451,21 +451,21 @@ func testMonitorRule(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
-		if _, ok := datapathManager.Rules[rule1.RuleID]; !ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1)
 		}
 
 		if err := datapathManager.RemoveEveroutePolicyRule(rule1.RuleID, "rule1"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
 		}
-		if _, ok := datapathManager.Rules[rule1.RuleID]; ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item != nil {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
 		}
 
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
-		if _, ok := datapathManager.Rules[rule2.RuleID]; !ok {
+		if item := datapathManager.GetRuleEntryByRuleID(rule2.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {

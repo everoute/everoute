@@ -67,8 +67,13 @@ const (
 	HealthCheckPath = "/healthz"
 
 	// sks related
-	SksManagedLabelKey   = "sks-managed"
-	SksManagedLabelValue = "true"
+	SksManagedLabelKey         = "sks-managed"
+	SksManagedLabelValue       = "true"
+	SKSObjectNamespace         = "sks-sync-object"
+	SKSNetworkpolicyPrefix     = "np.sks-"
+	SKSLabelKeyCluster         = "sks-cluster"
+	SKSLabelKeyObjectName      = "sks-object-name"
+	SKSLabelKeyObjectNamespace = "sks-object-namespace"
 
 	SkipWebhookLabelKey = "everoute-skip-webhook"
 
@@ -127,8 +132,28 @@ const (
 	MetricIPLabel            = "ip"
 	MetricMaxIPNumInCache    = 2000
 
-	MetricArpCountName       = "arp_count"
-	MetricArpRejectCountName = "arp_reject_count"
+	MetricArpCount       = "arp_count"
+	MetricArpCountReject = "arp_count_reject"
+
+	MetricRuleEntryNumTotal        = "rule_entry_num_total"
+	MetricRuleEntryNum             = "rule_entry_num"
+	MetricRuleEntryNumLimit        = "rule_entry_num_limit"
+	MetricRuleEntryPolicyNameLabel = "name"
+)
+
+const (
+	/* logging tags key enum */
+
+	LoggingTagPolicyID   = "PolicyID"
+	LoggingTagPolicyName = "PolicyName"
+	LoggingTagPolicyType = "PolicyType"
+
+	/* logging policy type enum */
+
+	LoggingTagPolicyTypeSecurityPolicyAllow = "SecurityPolicyAllow"
+	LoggingTagPolicyTypeSecurityPolicyDeny  = "SecurityPolicyDeny"
+	LoggingTagPolicyTypeQuarantinePolicy    = "QuarantinePolicy"
+	LoggingTagPolicyTypeGlobalPolicy        = "GlobalPolicy"
 )
 
 const (
