@@ -71,19 +71,6 @@ const (
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
 	serviceIndex         = "serviceIndex"
-
-	/* logging tags key enum */
-
-	LoggingTagPolicyID   = "PolicyID"
-	LoggingTagPolicyName = "PolicyName"
-	LoggingTagPolicyType = "PolicyType"
-
-	/* logging policy type enum */
-
-	LoggingTagPolicyTypeSecurityPolicyAllow = "SecurityPolicyAllow"
-	LoggingTagPolicyTypeSecurityPolicyDeny  = "SecurityPolicyDeny"
-	LoggingTagPolicyTypeQuarantinePolicy    = "QuarantinePolicy"
-	LoggingTagPolicyTypeGlobalPolicy        = "GlobalPolicy"
 )
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
@@ -1682,9 +1669,10 @@ func getGlobalWhitelistPolicyEnforceMode(enable bool) v1alpha1.PolicyMode {
 func NewLoggingOptionsFrom(obj schema.Object, vmLister informer.Lister) *v1alpha1.Logging {
 	switch t := obj.(type) {
 	case *schema.EverouteCluster:
-		return newLoggingOptions(t.EnableLogging, t.ID, "", LoggingTagPolicyTypeGlobalPolicy)
+		return newLoggingOptions(t.EnableLogging, t.ID, "", constants.LoggingTagPolicyTypeGlobalPolicy)
 	case *schema.SecurityPolicy:
-		pt := lo.If(t.IsBlocklist, LoggingTagPolicyTypeSecurityPolicyDeny).Else(LoggingTagPolicyTypeSecurityPolicyAllow)
+		pt := lo.If(t.IsBlocklist, constants.LoggingTagPolicyTypeSecurityPolicyDeny).
+			Else(constants.LoggingTagPolicyTypeSecurityPolicyAllow)
 		return newLoggingOptions(t.EnableLogging, t.ID, t.Name, pt)
 	case *schema.IsolationPolicy:
 		var name string
@@ -1693,7 +1681,7 @@ func NewLoggingOptionsFrom(obj schema.Object, vmLister informer.Lister) *v1alpha
 				name = vm.(*schema.VM).Name
 			}
 		}
-		return newLoggingOptions(t.EnableLogging, t.ID, name, LoggingTagPolicyTypeQuarantinePolicy)
+		return newLoggingOptions(t.EnableLogging, t.ID, name, constants.LoggingTagPolicyTypeQuarantinePolicy)
 	default:
 		return newLoggingOptions(false, "", "", "")
 	}
@@ -1703,9 +1691,9 @@ func newLoggingOptions(enabled bool, policyID, policyName, policyType string) *v
 	return &v1alpha1.Logging{
 		Enabled: enabled,
 		Tags: map[string]string{
-			LoggingTagPolicyID:   policyID,
-			LoggingTagPolicyName: policyName,
-			LoggingTagPolicyType: policyType,
+			constants.LoggingTagPolicyID:   policyID,
+			constants.LoggingTagPolicyName: policyName,
+			constants.LoggingTagPolicyType: policyType,
 		},
 	}
 }

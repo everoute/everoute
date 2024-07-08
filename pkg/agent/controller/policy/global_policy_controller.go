@@ -52,7 +52,7 @@ func (r *Reconciler) ReconcileGlobalPolicy(context.Context, ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	r.syncPolicyRulesUntilSuccess(oldPolicyRule, newPolicyRule)
+	_ = r.syncPolicyRulesUntilSuccess([]string{}, oldPolicyRule, newPolicyRule)
 	return ctrl.Result{}, nil
 }
 

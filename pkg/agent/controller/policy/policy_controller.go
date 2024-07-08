@@ -19,12 +19,14 @@ package policy
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -84,6 +86,7 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if apierrors.IsNotFound(err) {
+		r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), nil)
 		err := r.cleanPolicyDependents(req.NamespacedName)
 		if err != nil {
 			klog.Errorf("failed to delete policy %s dependents: %s", req.Name, err.Error())
@@ -92,6 +95,7 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 		klog.Infof("succeed remove policy %s all rules", req.Name)
 		return ctrl.Result{}, nil
 	}
+	r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), &policy)
 
 	return r.processPolicyUpdate(&policy)
 }
@@ -123,10 +127,13 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	r.ruleUpdateByGroup(&gm)
+	err := r.ruleUpdateByGroup(&gm)
 	r.groupCache.UpdateGroupMembership(&gm)
-	klog.Infof("Success update groupmembers %s", req.Name)
-	return ctrl.Result{}, nil
+	if err == nil {
+		klog.Infof("Success update groupmembers %s", req.Name)
+		return ctrl.Result{}, nil
+	}
+	return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
 }
 
 // GetCompleteRuleLister return cache.CompleteRule lister, used for debug or testing
@@ -197,21 +204,26 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
 }
 
-func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) {
+func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) error {
 	rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, gm.GetName())
 	if len(rules) == 0 {
-		return
+		return nil
 	}
 	var oldRuleList, newRuleList []policycache.PolicyRule
+	var relatedPolicies []string
 	for i := range rules {
 		rule := rules[i].(*policycache.CompleteRule)
+
+		relatedPolicies = append(relatedPolicies,
+			fmt.Sprintf("%s/%s", strings.Split(rule.RuleID, "/")[0], strings.Split(rule.RuleID, "/")[1]))
+
 		oldRuleList = append(oldRuleList, rule.ListRules(r.groupCache)...)
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.SrcIPs, rule.SrcGroups, gm)
 		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.DstIPs, rule.DstGroups, gm)
 		newRuleList = append(newRuleList, rule.GenerateRuleList(srcIPs, dstIPs, rule.Ports)...)
 	}
 
-	r.syncPolicyRulesUntilSuccess(oldRuleList, newRuleList)
+	return r.syncPolicyRulesUntilSuccess(relatedPolicies, oldRuleList, newRuleList)
 }
 
 //nolint:all
@@ -239,9 +251,8 @@ func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error
 		// remove policy completeRules from cache
 		_ = r.ruleCache.Delete(completeRule)
 	}
-	r.syncPolicyRulesUntilSuccess(oldRuleList, nil)
 
-	return nil
+	return r.syncPolicyRulesUntilSuccess([]string{policy.String()}, oldRuleList, nil)
 }
 
 func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
@@ -264,7 +275,9 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	}
 
 	// start a force full synchronization of policyrule
-	r.syncPolicyRulesUntilSuccess(oldRuleList, newRuleList)
+	if err := r.syncPolicyRulesUntilSuccess([]string{fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)}, oldRuleList, newRuleList); err != nil {
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -561,31 +574,35 @@ func (r *Reconciler) getAllEpWithNamedPortGroup() (sets.Set[string], error) {
 	return sets.New[string](group), nil
 }
 
-func (r *Reconciler) syncPolicyRulesUntilSuccess(oldRuleList, newRuleList []policycache.PolicyRule) {
-	var err = r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
+func (r *Reconciler) syncPolicyRulesUntilSuccess(policyID []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
+	var err = r.compareAndApplyPolicyRulesChanges(policyID, oldRuleList, newRuleList)
 	var rateLimiter = workqueue.NewItemExponentialFailureRateLimiter(time.Microsecond, time.Second)
 	var timeout = time.Minute * 5
 	var deadline = time.Now().Add(timeout)
 
-	for err != nil {
+	for err != nil && !apierrors.IsForbidden(err) {
 		if time.Now().After(deadline) {
 			klog.Errorf("unable sync %+v and %+v in %s", oldRuleList, newRuleList, timeout)
-			return
+			return nil
 		}
 		duration := rateLimiter.When("next-sync")
 		klog.Errorf("failed to sync policyRules, next sync after %s: %s", duration, err)
 		time.Sleep(duration)
 
-		err = r.compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList)
+		err = r.compareAndApplyPolicyRulesChanges(policyID, oldRuleList, newRuleList)
 	}
+	return err
 }
 
-func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList []policycache.PolicyRule) error {
+func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
 	var (
 		errList    []error
 		newRuleMap = toRuleMap(newRuleList)
 		oldRuleMap = toRuleMap(oldRuleList)
 		allRuleSet = sets.StringKeySet(newRuleMap).Union(sets.StringKeySet(oldRuleMap))
+
+		addRuleList = []*policycache.PolicyRule{}
+		delRuleList = []*policycache.PolicyRule{}
 	)
 
 	for ruleName := range allRuleSet {
@@ -596,49 +613,59 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(oldRuleList, newRuleList 
 			if oldExist && ruleIsSame(oldRule, newRule) {
 				continue
 			}
-			klog.Infof("create policyRule: %v", newRule)
-			errList = append(errList,
-				r.processPolicyRuleAdd(newRule),
-			)
+			addRuleList = append(addRuleList, newRule)
 			if newRule.ContainsTCP() && newRule.IsBlock() {
 				reverseRule := newRule.ReverseForTCP()
 				if reverseRule == nil {
 					klog.Errorf("The reverse rule of created rule %v is nil", *newRule)
 					continue
 				}
-				errList = append(errList, r.processPolicyRuleAdd(reverseRule))
+				addRuleList = append(addRuleList, reverseRule)
 			}
 		} else if oldExist {
-			klog.Infof("remove policyRule: %v", oldRule)
-			errList = append(errList,
-				r.processPolicyRuleDelete(oldRule.Name),
-			)
+			delRuleList = append(delRuleList, oldRule)
 			if oldRule.ContainsTCP() && oldRule.IsBlock() {
 				reverseRule := oldRule.ReverseForTCP()
 				if reverseRule == nil {
 					klog.Errorf("The reverse rule of deleted rule %v is nil", *oldRule)
 					continue
 				}
-				errList = append(errList, r.processPolicyRuleDelete(reverseRule.Name))
+				delRuleList = append(delRuleList, reverseRule)
 			}
 		}
 	}
+
+	if r.DatapathManager.PolicyRuleLimit(policyName, addRuleList, delRuleList) {
+		r.DatapathManager.PolicyRuleMetricsUpdate(policyName, true)
+		return apierrors.NewForbidden(schema.GroupResource{}, "", nil)
+	}
+
+	for _, item := range addRuleList {
+		klog.Infof("create policyRule: %v", item)
+		errList = append(errList,
+			r.processPolicyRuleAdd(item),
+		)
+	}
+
+	for _, item := range delRuleList {
+		klog.Infof("remove policyRule: %v", item)
+		errList = append(errList,
+			r.processPolicyRuleDelete(item.Name),
+		)
+	}
+
+	r.DatapathManager.PolicyRuleMetricsUpdate(policyName, false)
 
 	return errors.NewAggregate(errList)
 }
 
 func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {
-	return r.DatapathManager.RemoveEveroutePolicyRule(flowKeyFromRuleName(ruleName), ruleName)
+	return r.DatapathManager.RemoveEveroutePolicyRule(datapath.FlowKeyFromRuleName(ruleName), ruleName)
 }
 
 func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) error {
-
 	klog.Infof("add rule %s to datapath", policyRule.Name)
-	if err := r.addPolicyRuleToDatapath(flowKeyFromRuleName(policyRule.Name), policyRule); err != nil {
-		return err
-	}
-
-	return nil
+	return r.addPolicyRuleToDatapath(datapath.FlowKeyFromRuleName(policyRule.Name), policyRule)
 }
 
 func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) error {
@@ -649,3 +676,14 @@ func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.Po
 
 	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
 }
+
+// func (r *Reconciler) getSecurityPolicyByCompleteRule(ruleID string) *securityv1alpha1.SecurityPolicy {
+// 	sp := securityv1alpha1.SecurityPolicy{}
+// 	if err := r.Get(context.Background(), k8stypes.NamespacedName{
+// 		Namespace: strings.Split(ruleID, "/")[0],
+// 		Name:      strings.Split(ruleID, "/")[1],
+// 	}, &sp); err != nil {
+// 		return nil
+// 	}
+// 	return &sp
+// }
