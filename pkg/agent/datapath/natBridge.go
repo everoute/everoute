@@ -115,7 +115,7 @@ func (n *NatBridge) BridgeInitCNI() {
 
 	sw := n.OfSwitch
 
-	_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
+	//_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
 
 	n.inputTable = sw.DefaultTable()
 	n.inPortTable, _ = sw.NewTable(NatBrInPortTable)

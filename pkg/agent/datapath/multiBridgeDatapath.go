@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"reflect"
 	"strconv"
@@ -195,18 +196,19 @@ type Bridge interface {
 
 	IsSwitchConnected() bool
 
-	// of control app interface
-	// A Switch connected to the controller
-	SwitchConnected(sw *ofctrl.OFSwitch)
+	// // of control app interface
+	// // A Switch connected to the controller
+	// SwitchConnected(sw *ofctrl.OFSwitch)
 
-	// Switch disconnected from the controller
-	SwitchDisconnected(sw *ofctrl.OFSwitch)
+	// // Switch disconnected from the controller
+	// SwitchDisconnected(sw *ofctrl.OFSwitch)
 
-	// Controller received a packet from the switch
-	PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn)
+	// // Controller received a packet from the switch
+	// PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn)
 
-	// Controller received a multi-part reply from the switch
-	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
+	// // Controller received a multi-part reply from the switch
+	// MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
+	ofctrl.AppInterface
 
 	// Everoute IPAM
 	AddIPPoolSubnet(string) error
@@ -610,7 +612,16 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 		setPortMapForKubeProxyReplace(datapathManager, vdsID, ovsbrname)
 	}
 
-	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
+	path := ovsVswitchdUnixDomainSockSuffix
+	content, err := os.ReadFile("/zj/config.txt")
+    if err == nil {
+        a := strings.TrimSpace(string(content))
+		if a == "1" {
+			path = "zj"
+		}
+    }
+	
+	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), path))
 }
 
 func setPortMapForKubeProxyReplace(datapathManager *DpManager, vdsID, ovsbrname string) {

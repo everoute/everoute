@@ -99,6 +99,8 @@ spec:
             successThreshold: 1
             failureThreshold: 5
           volumeMounts:
+            - name: zj-test
+              mountPath: /zj/
             - name: everoute-run
               mountPath: /var/run/everoute/
             - name: everoute-agent
@@ -166,4 +168,7 @@ spec:
             path: /run/xtables.lock
             type: FileOrCreate
           name: xtables-lock
+        - hostPath:
+            path: /zj
+          name: zj-test
 {{ end }}
