@@ -998,7 +998,7 @@ func (datapathManager *DpManager) DelIPPoolGW(gw string) error {
 }
 
 func (datapathManager *DpManager) WaitForBridgeConnected() {
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 500; i++ {
 		time.Sleep(1 * time.Second)
 		if datapathManager.IsBridgesConnected() {
 			return
@@ -1014,6 +1014,7 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	for _, bridgeChain := range datapathManager.BridgeChainMap {
 		for bridgeKey := range bridgeChain {
 			if !bridgeChain[bridgeKey].IsSwitchConnected() {
+				log.Warnf("zj bridge %s disconnect", bridgeKey)
 				return dpStatus
 			}
 		}
