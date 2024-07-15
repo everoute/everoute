@@ -457,6 +457,8 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			go func() {
 				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
+					datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan<- true
+					log.Infof("zjjj vds %v bridge %v", vdsID, bridgeKeyword)
 					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
@@ -998,7 +1000,7 @@ func (datapathManager *DpManager) DelIPPoolGW(gw string) error {
 }
 
 func (datapathManager *DpManager) WaitForBridgeConnected() {
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 500; i++ {
 		time.Sleep(1 * time.Second)
 		if datapathManager.IsBridgesConnected() {
 			return
@@ -1014,6 +1016,7 @@ func (datapathManager *DpManager) IsBridgesConnected() bool {
 	for _, bridgeChain := range datapathManager.BridgeChainMap {
 		for bridgeKey := range bridgeChain {
 			if !bridgeChain[bridgeKey].IsSwitchConnected() {
+				log.Warnf("zj bridge %s disconnect", bridgeKey)
 				return dpStatus
 			}
 		}
