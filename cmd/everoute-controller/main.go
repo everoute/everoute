@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -95,6 +96,11 @@ func main() {
 	if err := opts.complete(); err != nil {
 		klog.Fatalf("Failed to complete Options, err: %v", err)
 	}
+
+	// Try disable nftables to fix CVE-2024-1086
+	// http://jira.smartx.com/browse/ER-796
+	_ = exec.Command("rmmod", "nf_tables").Run()
+	_ = os.WriteFile("/proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal", []byte("blacklist nf_tables\n"), 0600)
 
 	config := ctrl.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(constants.ControllerRuntimeQPS, constants.ControllerRuntimeBurst)
