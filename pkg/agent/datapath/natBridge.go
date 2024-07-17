@@ -19,12 +19,13 @@ package datapath
 import (
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
 
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
@@ -92,6 +93,12 @@ type NatBridge struct {
 	l3FlowMap map[string]*ofctrl.Flow
 
 	kubeProxyReplace bool
+
+	// groupid related config
+	curMaxGroupID    uint32
+	groupIDAllocator *GroupIDAllocator
+	groupIDFileLock  sync.RWMutex
+	iterLock         sync.RWMutex
 }
 
 func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
@@ -112,10 +119,11 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.svcIndexCache = cache.NewSvcIndex()
 	n.l3FlowMap = make(map[string]*ofctrl.Flow)
 	n.kubeProxyReplace = n.datapathManager.Config.CNIConfig.KubeProxyReplace
+	if err := n.initGroupIDConfig(); err != nil {
+		log.Fatalf("Bridge %s init group ID related config failed: %s", n.GetName(), err)
+	}
 
 	sw := n.OfSwitch
-
-	_ = ofctrl.DeleteGroup(sw, openflow13.OFPG_ALL)
 
 	n.inputTable = sw.DefaultTable()
 	n.inPortTable, _ = sw.NewTable(NatBrInPortTable)
@@ -307,7 +315,7 @@ func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	if err := ofctrl.DeleteFlow(n.serviceLBTable, n.getFlowPriBySvcLB(svcLB), lbFlowID); err != nil {
-		klog.Errorf("Failed to delete lb flow for svc lb info %v, err: %s", *svcLB, err)
+		log.Errorf("Failed to delete lb flow for svc lb info %v, err: %s", *svcLB, err)
 		return err
 	}
 	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, cache.UnexistFlowID)
@@ -430,7 +438,7 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 		return nil
 	}
 	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
-		svcOvsCache.DeleteGroupIfExist(n.OfSwitch, portName, tp)
+		svcOvsCache.DeleteGroupIfExist(portName, tp, n.deleteGroup)
 	}
 
 	// when a group is deleted, the flow referenced it will be deleted automatically
@@ -581,6 +589,11 @@ func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32
 	return nil, fmt.Errorf("invalid protocol: %s", protocol)
 }
 
+func (n *NatBridge) deleteGroup(gpID uint32) {
+	_ = ofctrl.DeleteGroup(n.OfSwitch, gpID)
+	n.groupIDAllocator.Release(gpID)
+}
+
 func (n *NatBridge) createEmptyGroup() (*ofctrl.Group, error) {
 	newGp, err := n.newEmptyGroup()
 	if err != nil {
@@ -596,9 +609,14 @@ func (n *NatBridge) createEmptyGroup() (*ofctrl.Group, error) {
 
 func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
 	sw := n.OfSwitch
-	groupID, err := getGroupID()
-	if err != nil {
-		log.Errorf("Allocate a new group id failed, err: %s", err)
+	groupID := n.groupIDAllocator.Allocate()
+	if groupID == InvalidGroupID {
+		log.Error("Allocate a new group id failed, doesn't has available groupid")
+		return nil, fmt.Errorf("has no available groupid")
+	}
+	if err := n.updateMaxGroupID(groupID); err != nil {
+		log.Errorf("Failed to update maxGroupID to file, err: %s", err)
+		n.groupIDAllocator.Release(groupID)
 		return nil, err
 	}
 	newGp, err := sw.NewGroup(groupID, uint8(openflow13.OFPGT_SELECT))
@@ -1114,6 +1132,155 @@ func (n *NatBridge) getFlowPriBySvcLB(s *proxycache.SvcLB) uint16 {
 		return LbFlowForNPPri
 	}
 	return LbFlowForIPPri
+}
+
+func (n *NatBridge) initGroupIDConfig() error {
+	n.iterLock.Lock()
+	defer n.iterLock.Unlock()
+	gpIDs, err := n.getGroupIDInfo()
+	if err != nil {
+		log.Errorf("Failed to get GroupIDInfo: %s", err)
+		return err
+	}
+	nextIter := gpIDs.GetNextIter()
+	if nextIter > constants.MaxGroupIter || gpIDs.TooManyGroups() {
+		log.Infof("No available groupid iter or there is too many groups to be deleted, so delete all groups for bridge %s", n.GetName())
+		// no available groupid iter
+		_ = ofctrl.DeleteGroup(n.OfSwitch, openflow13.OFPG_ALL)
+		nextIter = 0
+		n.curMaxGroupID = constants.GroupIDUpdateUnit
+		n.groupIDAllocator = NewGroupIDAllocate(nextIter)
+		newGpIDs := &GroupIDInfo{Exists: make(map[uint32]uint32)}
+		newGpIDs.Exists[nextIter] = n.curMaxGroupID
+		if err := SetGroupIDInfo(n.GetName(), newGpIDs); err != nil {
+			log.Errorf("Failed to write new groupid info to file, err: %s", err)
+			return err
+		}
+		return nil
+	}
+
+	n.groupIDAllocator = NewGroupIDAllocate(nextIter)
+	n.curMaxGroupID = nextIter<<(32-constants.BitWidthGroupIter) + constants.GroupIDUpdateUnit
+	newGpIDs := gpIDs.Clone()
+	if newGpIDs.Exists == nil {
+		newGpIDs.Exists = make(map[uint32]uint32, 1)
+	}
+	newGpIDs.Exists[nextIter] = n.curMaxGroupID
+	if err := SetGroupIDInfo(n.GetName(), newGpIDs); err != nil {
+		log.Errorf("Failed to write new groupid info to file, err: %s", err)
+		return err
+	}
+	go n.cleanStaleGroupIDs(gpIDs, n.groupIDAllocator.GetIter())
+	return nil
+}
+
+func (n *NatBridge) cleanStaleGroupIDs(gpID *GroupIDInfo, curIter uint32) {
+	if gpID == nil || gpID.Exists == nil {
+		return
+	}
+	time.Sleep(15 * time.Second)
+	for iter := range gpID.Exists {
+		if n.cleanStaleGroupIDsByIter(curIter, iter) {
+			return
+		}
+	}
+}
+
+// returns exit clean or not
+func (n *NatBridge) cleanStaleGroupIDsByIter(curIter, delIter uint32) bool {
+	n.iterLock.RLock()
+	defer n.iterLock.RUnlock()
+
+	// bridge has init again
+	if curIter != n.groupIDAllocator.GetIter() {
+		return true
+	}
+
+	gpIDs, err := n.getGroupIDInfo()
+	if err != nil {
+		log.Errorf("Can't clean groupids by iter %d, failed to get GroupIDInfo: %s", delIter, err)
+		return false
+	}
+	if gpIDs == nil || gpIDs.Exists == nil {
+		return false
+	}
+	end, ok := gpIDs.Exists[delIter]
+	if !ok {
+		return false
+	}
+	log.Infof("Bridge %s begin to delete group for iter %d", n.GetName(), delIter)
+	start := delIter<<(32-constants.BitWidthGroupIter) + 1
+	for curGp := start; curGp <= end; curGp++ {
+		_ = ofctrl.DeleteGroup(n.OfSwitch, curGp)
+	}
+	log.Infof("Bridge %s end to delete group for iter %d", n.GetName(), delIter)
+	n.deleteIterFromFile(delIter)
+	return false
+}
+
+func (n *NatBridge) getGroupIDInfo() (*GroupIDInfo, error) {
+	n.groupIDFileLock.RLock()
+	defer n.groupIDFileLock.RUnlock()
+
+	return GetGroupIDInfo(n.GetName())
+}
+
+func (n *NatBridge) deleteIterFromFile(iter uint32) {
+	n.groupIDFileLock.Lock()
+	defer n.groupIDFileLock.Unlock()
+	gpIDs, err := GetGroupIDInfo(n.GetName())
+	if err != nil {
+		log.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't delete iter %d", n.GetName(), err, iter)
+		return
+	}
+	if gpIDs == nil || gpIDs.Exists == nil {
+		log.Warnf("Bridge %s exists groupIDs is nil, don't need to delete iter %d", n.GetName(), iter)
+		return
+	}
+	if _, ok := gpIDs.Exists[iter]; !ok {
+		log.Warnf("Bridge %s exists groupIDs has no iter %d", n.GetName(), iter)
+		return
+	}
+	delete(gpIDs.Exists, iter)
+	err = SetGroupIDInfo(n.GetName(), gpIDs)
+	if err != nil {
+		log.Errorf("Bridge %s failed to delete iter %d from file, err: %s", n.GetName(), iter, err)
+		return
+	}
+	log.Infof("Bridge %s success to delete groupid for iter %d from file", n.GetName(), iter)
+}
+
+func (n *NatBridge) updateMaxGroupID(curGpID uint32) error {
+	n.groupIDFileLock.Lock()
+	defer n.groupIDFileLock.Unlock()
+
+	if curGpID <= n.curMaxGroupID {
+		return nil
+	}
+
+	newMax := n.groupIDAllocator.Max()
+	if n.groupIDAllocator.Max()-n.curMaxGroupID > constants.GroupIDUpdateUnit {
+		newMax = n.curMaxGroupID + constants.GroupIDUpdateUnit
+	}
+	curIter := n.groupIDAllocator.GetIter()
+	gpIDs, err := GetGroupIDInfo(n.GetName())
+	if err != nil {
+		log.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't update maxGroupID to %d for iter %d", n.GetName(), err, newMax, curIter)
+		return err
+	}
+
+	if gpIDs.Exists == nil {
+		gpIDs.Exists = make(map[uint32]uint32, 1)
+	}
+	gpIDs.Exists[curIter] = newMax
+	err = SetGroupIDInfo(n.GetName(), gpIDs)
+	if err != nil {
+		log.Errorf("Bridge %s failed to update maxGroupID to %d for iter %d, err: %s", n.GetName(), newMax, curIter, err)
+		return err
+	}
+	n.curMaxGroupID = newMax
+	log.Infof("Bridge %s success to update maxGroupID to %d for iter %d", n.GetName(), newMax, curIter)
+	return nil
 }
 
 func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {

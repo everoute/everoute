@@ -139,6 +139,13 @@ const (
 	MetricRuleEntryNum             = "rule_entry_num"
 	MetricRuleEntryNumLimit        = "rule_entry_num_limit"
 	MetricRuleEntryPolicyNameLabel = "name"
+
+	// GroupID
+	GroupIDFileSuffix       = ".groupid"
+	MaxGroupIter            = 15
+	BitWidthGroupIter       = 4
+	GroupIDUpdateUnit       = 100
+	DeleteAllGroupThreshold = 1000000
 )
 
 const (
