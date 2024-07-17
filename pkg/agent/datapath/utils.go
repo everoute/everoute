@@ -19,8 +19,11 @@ package datapath
 import (
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
@@ -29,7 +32,9 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -646,4 +651,77 @@ func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
 	}
 
 	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.ListRuleEntry()))
+}
+
+type GroupIDInfo struct {
+	// key is iter, value is the end groupid
+	Exists map[uint32]uint32 `yaml:"exists"`
+}
+
+func (e *GroupIDInfo) GetNextIter() uint32 {
+	if e.Exists == nil {
+		return 0
+	}
+	for i := uint32(0); i <= constants.MaxGroupIter; i++ {
+		if _, ok := e.Exists[i]; !ok {
+			return i
+		}
+	}
+	return constants.MaxGroupIter + 1
+}
+
+func (e *GroupIDInfo) Clone() *GroupIDInfo {
+	if e == nil {
+		return nil
+	}
+	res := &GroupIDInfo{}
+	if e.Exists == nil {
+		return res
+	}
+	res.Exists = make(map[uint32]uint32, len(e.Exists))
+	for k, v := range e.Exists {
+		res.Exists[k] = v
+	}
+	return res
+}
+
+func GetGroupIDInfo(brName string) (*GroupIDInfo, error) {
+	file := getGroupIDFile(brName)
+	data, err := os.ReadFile(file)
+	if err != nil && !os.IsNotExist(err) {
+		klog.Errorf("Failed to read file %s, err: %s", file, err)
+		return nil, err
+	}
+	existsGroupID := &GroupIDInfo{}
+	if data != nil {
+		err := yaml.Unmarshal(data, existsGroupID)
+		if err != nil {
+			klog.Errorf("Failed to unmarshal ExistsGroupID, err: %s", err)
+			return nil, err
+		}
+	}
+	return existsGroupID, nil
+}
+
+func SetGroupIDInfo(brName string, gpIDs *GroupIDInfo) error {
+	file := getGroupIDFile(brName)
+	if gpIDs == nil {
+		gpIDs = &GroupIDInfo{}
+	}
+	data, err := yaml.Marshal(gpIDs)
+	if err != nil {
+		klog.Errorf("Failed to marshal ExistsGroupID %v, err: %s", gpIDs, err)
+		return err
+	}
+	err = os.WriteFile(file, data, 0666)
+	if err != nil {
+		klog.Errorf("Failed to write data %v to file %s, err: %s", gpIDs, file, err)
+		return err
+	}
+	return nil
+}
+
+func getGroupIDFile(brName string) string {
+	fileName := brName + constants.GroupIDFileSuffix
+	return path.Join(ovsVswitchdUnixDomainSockPath, fileName)
 }

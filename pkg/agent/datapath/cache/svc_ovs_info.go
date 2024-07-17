@@ -9,6 +9,7 @@ import (
 )
 
 type CreateGroupFunc func() (*ofctrl.Group, error)
+type DeleteGroupFunc func(gpID uint32)
 
 type SvcFlowEntry struct {
 	LBIP     string
@@ -92,7 +93,7 @@ func (s *SvcOvsInfo) GetAllGroups() []SvcGroupEntry {
 	return res
 }
 
-func (s *SvcOvsInfo) DeleteGroupIfExist(sw *ofctrl.OFSwitch, portName string, groupType ertype.TrafficPolicyType) {
+func (s *SvcOvsInfo) DeleteGroupIfExist(portName string, groupType ertype.TrafficPolicyType, f DeleteGroupFunc) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -107,7 +108,7 @@ func (s *SvcOvsInfo) DeleteGroupIfExist(sw *ofctrl.OFSwitch, portName string, gr
 		return
 	}
 
-	_ = ofctrl.DeleteGroup(sw, s.groupMap[portName][groupType])
+	f(s.groupMap[portName][groupType])
 	delete(s.groupMap[portName], groupType)
 	if len(s.groupMap[portName]) == 0 {
 		delete(s.groupMap, portName)

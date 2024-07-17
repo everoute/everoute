@@ -609,7 +609,7 @@ func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	natBr := NewNatBridge(ovsbrname, datapathManager)
-	natControl := ofctrl.NewOFController(natBr, utils.GenerateControllerID(constants.EverouteComponentType), nil, natBr.GetName())
+	natControl := ofctrl.NewOFController(natBr, utils.GenerateControllerID(constants.EverouteComponentType), nil, natBr.GetName(), ofctrl.DisableCleanGroup())
 	natDriver := ovsdbDriver.NewOvsDriverForExistBridge(natBr.GetName())
 
 	protocols := map[string][]string{

@@ -4,21 +4,21 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl/cookie"
+	"github.com/everoute/everoute/pkg/constants"
 	log "github.com/sirupsen/logrus"
 )
 
 const InvalidGroupID uint32 = 0
 
-//nolint
+//nolint:all
 type idGenerate struct {
 	lock     sync.RWMutex
 	idUint32 uint32
 	idUint64 uint64
 }
 
-//nolint
+//nolint:all
 func (i *idGenerate) ascendUint32() uint32 {
 	i.lock.Lock()
 	defer i.lock.Unlock()
@@ -36,7 +36,6 @@ func (i *idGenerate) ascendUint64() uint64 {
 }
 
 var learnCookieID = &idGenerate{}
-var groupID = &idGenerate{}
 
 func getLearnCookieID() (uint64, error) {
 	id := learnCookieID.ascendUint64()
@@ -47,12 +46,52 @@ func getLearnCookieID() (uint64, error) {
 	return id, nil
 }
 
-func getGroupID() (uint32, error) {
-	id := groupID.ascendUint32()
-	if id > openflow13.OFPG_MAX {
-		log.Error("No enough avalible group id")
-		return InvalidGroupID, errors.New("no enough avalible group id")
+type GroupIDAllocator struct {
+	lock    sync.Mutex
+	iter    uint32
+	offset  uint32
+	release []uint32
+}
+
+func NewGroupIDAllocate(iter uint32) *GroupIDAllocator {
+	if iter > constants.MaxGroupIter {
+		return nil
+	}
+	return &GroupIDAllocator{
+		iter:    iter,
+		release: make([]uint32, 0),
+	}
+}
+
+func (g *GroupIDAllocator) Allocate() uint32 {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+
+	if len(g.release) > 0 {
+		gID := g.release[0]
+		g.release = g.release[1:]
+		return gID
 	}
 
-	return id, nil
+	if g.offset+1 < 1<<(32-constants.BitWidthGroupIter) {
+		g.offset += 1
+		return g.iter<<(32-constants.BitWidthGroupIter) + g.offset
+	}
+
+	return InvalidGroupID
+}
+
+func (g *GroupIDAllocator) Release(gID uint32) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	g.release = append(g.release, gID)
+}
+
+func (g *GroupIDAllocator) Max() uint32 {
+	maxOffset := 1<<(32-constants.BitWidthGroupIter) - 1
+	return g.iter<<(32-constants.BitWidthGroupIter) + uint32(maxOffset)
+}
+
+func (g *GroupIDAllocator) GetIter() uint32 {
+	return g.iter
 }
