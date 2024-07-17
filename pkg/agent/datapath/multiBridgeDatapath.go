@@ -455,8 +455,8 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			bridgeKeyword := bridgeKeyword
 
 			go func() {
-				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
-					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
+				for a := range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
+					log.Infof("Received vds %v bridge %v reconnect event %v", vdsID, bridgeKeyword, a)
 					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
