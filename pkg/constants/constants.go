@@ -144,7 +144,7 @@ const (
 	GroupIDFileSuffix = ".groupid"
 	MaxGroupIter      = 15
 	BitWidthGroupIter = 4
-	GroupIDUpdateUnit = 100
+	GroupIDUpdateUnit = 10
 )
 
 const (
