@@ -1281,15 +1281,18 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	return datapathManager.Rules.Delete(pRule)
 }
 
-func (datapathManager *DpManager) GetNatBridges() []*NatBridge {
-	natBrs := []*NatBridge{}
+func (datapathManager *DpManager) GetNatBridge() *NatBridge {
 	for vdsID := range datapathManager.BridgeChainMap {
-		natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
-		if natBr != nil {
-			natBrs = append(natBrs, natBr.(*NatBridge))
+		br := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
+		if br != nil {
+			natBr, ok := br.(*NatBridge)
+			if ok {
+				return natBr
+			}
 		}
 	}
-	return natBrs
+	log.Fatal("can't get nat bridge")
+	return nil
 }
 
 func (datapathManager *DpManager) GetUplinkBridgeOverlay() *UplinkBridgeOverlay {
@@ -1303,6 +1306,7 @@ func (datapathManager *DpManager) GetUplinkBridgeOverlay() *UplinkBridgeOverlay 
 			}
 		}
 	}
+	log.Fatal("can't get uplink overlay bridge")
 	return nil
 }
 

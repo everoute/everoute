@@ -287,7 +287,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			proxyReconciler := &ctrlProxy.Reconciler{
 				Client:    mgr.GetClient(),
 				Scheme:    mgr.GetScheme(),
-				DpMgr:     datapathManager,
+				NatBr:     datapathManager.GetNatBridge(),
 				ProxyAll:  opts.IsEnableKubeProxyReplace(),
 				LocalNode: datapathManager.Info.NodeName,
 				SyncChan:  proxySyncChan,

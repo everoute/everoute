@@ -3,6 +3,7 @@ package datapath
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
@@ -37,6 +38,9 @@ var (
 
 type UplinkBridgeOverlay struct {
 	BaseBridge
+
+	// lock for replay
+	initLock sync.RWMutex
 
 	inputTable            *ofctrl.Table
 	arpProxyTable         *ofctrl.Table
@@ -73,6 +77,9 @@ func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBr
 }
 
 func (u *UplinkBridgeOverlay) BridgeInitCNI() {
+	u.initLock.Lock()
+	defer u.initLock.Unlock()
+
 	u.localEpFlowMap = make(map[string]*ofctrl.Flow)
 	u.remoteEpFlowMap = make(map[string]*ofctrl.Flow)
 	u.enableERIPAM = u.datapathManager.UseEverouteIPAM()
@@ -146,6 +153,9 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 }
 
 func (u *UplinkBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	if endpoint == nil {
 		return nil
 	}
@@ -188,6 +198,9 @@ func (u *UplinkBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
 }
 
 func (u *UplinkBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	if endpoint == nil {
 		return nil
 	}
@@ -206,6 +219,9 @@ func (u *UplinkBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
 }
 
 func (u *UplinkBridgeOverlay) AddRemoteEndpoint(epIP, remoteNodeIP net.IP) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	if u.remoteEpFlowMap[epIP.String()] != nil {
 		log.Infof("Remote endpoint %v flow has been add, flow: %v", epIP, u.remoteEpFlowMap[epIP.String()])
 		return nil
@@ -235,6 +251,9 @@ func (u *UplinkBridgeOverlay) AddRemoteEndpoint(epIP, remoteNodeIP net.IP) error
 }
 
 func (u *UplinkBridgeOverlay) RemoveRemoteEndpoint(epIPStr string) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	if u.remoteEpFlowMap[epIPStr] == nil {
 		log.Infof("Remote endpoint %s flow has been removed", epIPStr)
 		return nil
@@ -250,6 +269,9 @@ func (u *UplinkBridgeOverlay) RemoveRemoteEndpoint(epIPStr string) error {
 }
 
 func (u *UplinkBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	_, subnet, err := net.ParseCIDR(subnetStr)
 	if err != nil {
 		log.Errorf("Parse subnet %s failed: %v", subnetStr, err)
@@ -269,6 +291,9 @@ func (u *UplinkBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
 }
 
 func (u *UplinkBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
+	u.initLock.RLock()
+	defer u.initLock.RUnlock()
+
 	ipf, ok := u.ipForwardFlowMap[subnetStr]
 	if !ok {
 		return nil
