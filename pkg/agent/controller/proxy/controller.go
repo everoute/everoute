@@ -61,7 +61,8 @@ func (c *Cache) GetCacheBySvcID(svcID string) ([]*proxycache.SvcLB, []*proxycach
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	DpMgr  *datapath.DpManager
+	// DpMgr  *datapath.DpManager
+	NatBr *datapath.NatBridge
 
 	LocalNode string
 	ProxyAll  bool
@@ -328,27 +329,20 @@ func (r *Reconciler) processSvcLBAdd(l *proxycache.SvcLB) error {
 	if !l.Valid() {
 		return fmt.Errorf("invalid svcLB %v", *l)
 	}
-	dpNatBrs := r.DpMgr.GetNatBridges()
 
 	// lb flow
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.AddLBFlow(l); err != nil {
-			klog.Errorf("Failed to add service LB flow for lb info %v, err: %s", *l, err)
-			return err
-		}
+	if err := r.NatBr.AddLBFlow(l); err != nil {
+		klog.Errorf("Failed to add service LB flow for lb info %v, err: %s", *l, err)
+		return err
 	}
 	lCopy := *l
 	lCopy.ResetSessionAffinityConfig()
 	_ = r.svcLBCache.Add(&lCopy)
 
 	// session flow
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.AddSessionAffinityFlow(l); err != nil {
-			klog.Errorf("Failed to add service session affinity flow for lb info %v, err: %s", *l, err)
-			return err
-		}
+	if err := r.NatBr.AddSessionAffinityFlow(l); err != nil {
+		klog.Errorf("Failed to add service session affinity flow for lb info %v, err: %s", *l, err)
+		return err
 	}
 	_ = r.svcLBCache.Update(l)
 	klog.Infof("Success to add svcLB %s", l.ID())
@@ -359,16 +353,12 @@ func (r *Reconciler) processSvcLBDel(l *proxycache.SvcLB) error {
 	if !l.Valid() {
 		return fmt.Errorf("invalid svcLB %+v", *l)
 	}
-	dpNatBrs := r.DpMgr.GetNatBridges()
 
 	if l.SessionAffinity == corev1.ServiceAffinityClientIP {
 		// session flow
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.DelSessionAffinityFlow(l); err != nil {
-				klog.Errorf("Failed to del service session affinity flow for lb info %v, err: %s", *l, err)
-				return err
-			}
+		if err := r.NatBr.DelSessionAffinityFlow(l); err != nil {
+			klog.Errorf("Failed to del service session affinity flow for lb info %v, err: %s", *l, err)
+			return err
 		}
 		l.ResetSessionAffinityConfig()
 		_ = r.svcLBCache.Update(l)
@@ -383,12 +373,9 @@ func (r *Reconciler) processSvcLBDel(l *proxycache.SvcLB) error {
 			return err
 		}
 	}
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.DelLBFlow(l); err != nil {
-			klog.Errorf("Failed to delete service LB flow for lb info %v, err: %s", *l, err)
-			return err
-		}
+	if err := r.NatBr.DelLBFlow(l); err != nil {
+		klog.Errorf("Failed to delete service LB flow for lb info %v, err: %s", *l, err)
+		return err
 	}
 	_ = r.svcLBCache.Delete(l)
 	klog.Infof("Success to delete svcLB %s", l.ID())
@@ -417,18 +404,14 @@ func (r *Reconciler) processSvcLBUpd(newLB, oldLB *proxycache.SvcLB) error {
 	}
 
 	// traffic policy is different, only change lbflow
-	dpNatBrs := r.DpMgr.GetNatBridges()
 	if newLB.TrafficPolicy != oldLB.TrafficPolicy {
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.DelLBFlow(oldLB); err != nil {
-				klog.Errorf("Failed to del service LB flow for old lb info %v, err: %s", *oldLB, err)
-				return err
-			}
-			if err := dpNatBr.AddLBFlow(newLB); err != nil {
-				klog.Errorf("Failed to add service LB flow for new lb info %v, err: %s", *newLB, err)
-				return err
-			}
+		if err := r.NatBr.DelLBFlow(oldLB); err != nil {
+			klog.Errorf("Failed to del service LB flow for old lb info %v, err: %s", *oldLB, err)
+			return err
+		}
+		if err := r.NatBr.AddLBFlow(newLB); err != nil {
+			klog.Errorf("Failed to add service LB flow for new lb info %v, err: %s", *newLB, err)
+			return err
 		}
 		oldLB.TrafficPolicy = newLB.TrafficPolicy
 		_ = r.svcLBCache.Update(oldLB)
@@ -437,16 +420,13 @@ func (r *Reconciler) processSvcLBUpd(newLB, oldLB *proxycache.SvcLB) error {
 
 	// sessionAffinity is different, only change sessionAffinity flow
 	if newLB.SessionAffinity != oldLB.SessionAffinity || newLB.SessionAffinityTimeout != oldLB.SessionAffinityTimeout {
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.DelSessionAffinityFlow(oldLB); err != nil {
-				klog.Errorf("Failed to del service session affinity flow for old lb info %v, err: %s", *oldLB, err)
-				return err
-			}
-			if err := dpNatBr.AddSessionAffinityFlow(newLB); err != nil {
-				klog.Errorf("Failed to add service session affinity flow for new lb info %v, err: %s", *newLB, err)
-				return err
-			}
+		if err := r.NatBr.DelSessionAffinityFlow(oldLB); err != nil {
+			klog.Errorf("Failed to del service session affinity flow for old lb info %v, err: %s", *oldLB, err)
+			return err
+		}
+		if err := r.NatBr.AddSessionAffinityFlow(newLB); err != nil {
+			klog.Errorf("Failed to add service session affinity flow for new lb info %v, err: %s", *newLB, err)
+			return err
 		}
 		oldLB.SessionAffinity = newLB.SessionAffinity
 		oldLB.SessionAffinityTimeout = newLB.SessionAffinityTimeout
@@ -489,13 +469,9 @@ func (r *Reconciler) updateServicePortForGroup(servicePort *everoutesvc.ServiceP
 	svcID := proxycache.GenSvcID(servicePort.GetNamespace(), servicePort.Spec.SvcRef)
 	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
 		bks := r.filterServicePortBackends(servicePort.Spec.Backends, tp)
-		dpNatBrs := r.DpMgr.GetNatBridges()
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.UpdateLBGroup(svcID, servicePort.Spec.PortName, bks, tp); err != nil {
-				klog.Errorf("Failed to update lb group for traffic policy %s servicePort %+v of service: %s, err: %s", tp, servicePort, svcID, err)
-				return err
-			}
+		if err := r.NatBr.UpdateLBGroup(svcID, servicePort.Spec.PortName, bks, tp); err != nil {
+			klog.Errorf("Failed to update lb group for traffic policy %s servicePort %+v of service: %s, err: %s", tp, servicePort, svcID, err)
+			return err
 		}
 	}
 
@@ -519,7 +495,6 @@ func (r *Reconciler) updateServicePortForBackend(servicePort *everoutesvc.Servic
 	}
 
 	var errs []error
-	dpNatBrs := r.DpMgr.GetNatBridges()
 	for k, v := range newBackends {
 		obj, exists, _ := r.backendCache.GetByKey(k)
 		if exists {
@@ -538,12 +513,9 @@ func (r *Reconciler) updateServicePortForBackend(servicePort *everoutesvc.Servic
 		}
 
 		var localErrs []error
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.AddDnatFlow(v.IP, v.Protocol, v.Port); err != nil {
-				klog.Errorf("Failed to add dnat flow for backend %s, err: %s", k, err)
-				localErrs = append(localErrs, err)
-			}
+		if err := r.NatBr.AddDnatFlow(v.IP, v.Protocol, v.Port); err != nil {
+			klog.Errorf("Failed to add dnat flow for backend %s, err: %s", k, err)
+			localErrs = append(localErrs, err)
 		}
 		if len(localErrs) > 0 {
 			errs = append(errs, localErrs...)
@@ -563,12 +535,9 @@ func (r *Reconciler) updateServicePortForBackend(servicePort *everoutesvc.Servic
 			continue
 		}
 		var localErrs []error
-		for i := range dpNatBrs {
-			dpNatBr := dpNatBrs[i]
-			if err := dpNatBr.DelDnatFlow(v.IP, v.Protocol, v.Port); err != nil {
-				klog.Errorf("Failed to del dnat flow for backend %s, err: %s", k, err)
-				localErrs = append(localErrs, err)
-			}
+		if err := r.NatBr.DelDnatFlow(v.IP, v.Protocol, v.Port); err != nil {
+			klog.Errorf("Failed to del dnat flow for backend %s, err: %s", k, err)
+			localErrs = append(localErrs, err)
 		}
 		if len(localErrs) > 0 {
 			errs = append(errs, localErrs...)
@@ -620,26 +589,18 @@ func (r *Reconciler) deleteServicePort(ctx context.Context, namespacedName types
 }
 
 func (r *Reconciler) deleteServicePortForGroup(svcID, portName string) error {
-	dpNatBrs := r.DpMgr.GetNatBridges()
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.DelLBGroup(svcID, portName); err != nil {
-			klog.Errorf("Failed to del service %s group for port %s, err: %s", svcID, portName, err)
-			return err
-		}
+	if err := r.NatBr.DelLBGroup(svcID, portName); err != nil {
+		klog.Errorf("Failed to del service %s group for port %s, err: %s", svcID, portName, err)
+		return err
 	}
 	klog.Infof("Success delete service %s port %s for group", svcID, portName)
 	return nil
 }
 
 func (r *Reconciler) resetServicePortForGroup(svcID, portName string) error {
-	dpNatBrs := r.DpMgr.GetNatBridges()
-	for i := range dpNatBrs {
-		dpNatBr := dpNatBrs[i]
-		if err := dpNatBr.ResetLBGroup(svcID, portName); err != nil {
-			klog.Errorf("Failed to reset service %s group for port %s, err: %s", svcID, portName, err)
-			return err
-		}
+	if err := r.NatBr.ResetLBGroup(svcID, portName); err != nil {
+		klog.Errorf("Failed to reset service %s group for port %s, err: %s", svcID, portName, err)
+		return err
 	}
 	klog.Infof("Success reset service %s port %s for group", svcID, portName)
 	return nil
@@ -649,16 +610,13 @@ func (r *Reconciler) deleteServicePortForBackend(svcID, portName string) error {
 	svcPortRef := proxycache.GenSvcPortIndexBySvcID(svcID, portName)
 	backends, _ := r.backendCache.ByIndex(proxycache.SvcPortIndex, svcPortRef)
 
-	dpNatBrs := r.DpMgr.GetNatBridges()
 	for i := range backends {
 		b := backends[i].(*proxycache.Backend).DeepCopy()
 		b.ServicePortRefs.Delete(svcPortRef)
 		if b.ServicePortRefs.Len() == 0 {
-			for j := range dpNatBrs {
-				if err := dpNatBrs[j].DelDnatFlow(b.IP, b.Protocol, b.Port); err != nil {
-					klog.Errorf("Failed to delete dnat flow for backend %+v, svc port: %s, err: %s", b, svcPortRef, err)
-					return err
-				}
+			if err := r.NatBr.DelDnatFlow(b.IP, b.Protocol, b.Port); err != nil {
+				klog.Errorf("Failed to delete dnat flow for backend %+v, svc port: %s, err: %s", b, svcPortRef, err)
+				return err
 			}
 			_ = r.backendCache.Delete(b)
 		} else {
@@ -692,32 +650,30 @@ func (r *Reconciler) shouldDelGroupWhenDelSvcLB(delSvcLBID, svcPortName string) 
 }
 
 func (r *Reconciler) replay() error {
-	dpNatBrs := r.DpMgr.GetNatBridges()
-
 	var err1, err2, err3 error
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	// replay groups
-	go func(dpNatBrs []*datapath.NatBridge) {
+	go func() {
 		defer wg.Done()
-		if err1 = r.replayGroup(dpNatBrs); err1 != nil {
+		if err1 = r.replayGroup(); err1 != nil {
 			klog.Errorf("Failed to replay group for nat bridge, err: %s", err1)
 		}
-	}(dpNatBrs)
+	}()
 
 	// replay dnat flows
-	go func(dpNatBrs []*datapath.NatBridge) {
+	go func() {
 		defer wg.Done()
-		if err3 = r.replayDnatFlows(dpNatBrs); err3 != nil {
+		if err3 = r.replayDnatFlows(); err3 != nil {
 			klog.Errorf("Failed to replay dnat flows for nat bridge, err: %s", err3)
 		}
-	}(dpNatBrs)
+	}()
 
 	wg.Wait()
 
 	// replay service lb flows
-	if err2 = r.replayLBFlows(dpNatBrs); err2 != nil {
+	if err2 = r.replayLBFlows(); err2 != nil {
 		klog.Errorf("Failed to replay lb flows for nat bridge, err: %s", err2)
 	}
 
@@ -729,7 +685,7 @@ func (r *Reconciler) replay() error {
 	return nil
 }
 
-func (r *Reconciler) replayGroup(dpNatBrs []*datapath.NatBridge) error {
+func (r *Reconciler) replayGroup() error {
 	svcPortObjList := r.svcPortCache.List()
 	for i := range svcPortObjList {
 		if svcPortObjList[i] == nil {
@@ -756,50 +712,43 @@ func (r *Reconciler) replayGroup(dpNatBrs []*datapath.NatBridge) error {
 		for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
 			bks := r.filterServicePortBackends(svcBackends, tp)
 			svcID := proxycache.GenSvcID(svcPort.Namespace, svcPort.SvcName)
-			for i := range dpNatBrs {
-				dpNatBr := dpNatBrs[i]
-				if err := dpNatBr.UpdateLBGroup(svcID, svcPort.PortName, bks, tp); err != nil {
-					klog.Errorf("Failed to replay lb group for servicePort %s traffic policy %s, err: %s", svcPortRef, tp, err)
-					return err
-				}
+			if err := r.NatBr.UpdateLBGroup(svcID, svcPort.PortName, bks, tp); err != nil {
+				klog.Errorf("Failed to replay lb group for servicePort %s traffic policy %s, err: %s", svcPortRef, tp, err)
+				return err
 			}
 		}
 	}
 	return nil
 }
 
-func (r *Reconciler) replayLBFlows(dpNatBrs []*datapath.NatBridge) error {
+func (r *Reconciler) replayLBFlows() error {
 	svcObjList := r.svcLBCache.List()
 	for i := range svcObjList {
 		if svcObjList[i] == nil {
 			continue
 		}
 		svcLB := svcObjList[i].(*proxycache.SvcLB)
-		for i := range dpNatBrs {
-			if err := dpNatBrs[i].AddLBFlow(svcLB); err != nil {
-				klog.Errorf("Failed to add lb flow for svc lb info %v, err: %s", *svcLB, err)
-				return err
-			}
-			if err := dpNatBrs[i].AddSessionAffinityFlow(svcLB); err != nil {
-				klog.Errorf("Failed to add session affinity flow for svc lb info %v, err: %s", *svcLB, err)
-			}
+		if err := r.NatBr.AddLBFlow(svcLB); err != nil {
+			klog.Errorf("Failed to add lb flow for svc lb info %v, err: %s", *svcLB, err)
+			return err
+		}
+		if err := r.NatBr.AddSessionAffinityFlow(svcLB); err != nil {
+			klog.Errorf("Failed to add session affinity flow for svc lb info %v, err: %s", *svcLB, err)
 		}
 	}
 	return nil
 }
 
-func (r *Reconciler) replayDnatFlows(dpNatBrs []*datapath.NatBridge) error {
+func (r *Reconciler) replayDnatFlows() error {
 	bkObjList := r.backendCache.List()
 	for i := range bkObjList {
 		if bkObjList[i] == nil {
 			continue
 		}
 		bk := bkObjList[i].(*proxycache.Backend)
-		for i := range dpNatBrs {
-			if err := dpNatBrs[i].AddDnatFlow(bk.IP, bk.Protocol, bk.Port); err != nil {
-				klog.Errorf("Failed to add a dnat flow for backend %+v, err: %s", bk, err)
-				return err
-			}
+		if err := r.NatBr.AddDnatFlow(bk.IP, bk.Protocol, bk.Port); err != nil {
+			klog.Errorf("Failed to add a dnat flow for backend %+v, err: %s", bk, err)
+			return err
 		}
 	}
 	return nil

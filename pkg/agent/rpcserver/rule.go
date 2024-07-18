@@ -66,11 +66,8 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 
 	svcInfo := &v1alpha1.SvcInfo{SvcCache: svcCache}
 
-	natBrs := g.dpManager.GetNatBridges()
-	if len(natBrs) == 0 {
-		return svcInfo, fmt.Errorf("there is no nat bridge")
-	}
-	svcDpCache := natBrs[0].GetSvcIndexCache().GetSvcOvsInfo(svcID.ID)
+	natBr := g.dpManager.GetNatBridge()
+	svcDpCache := natBr.GetSvcIndexCache().GetSvcOvsInfo(svcID.ID)
 	groupEntries := svcDpCache.GetAllGroups()
 	for i := range groupEntries {
 		svcInfo.SvcGroup = append(svcInfo.SvcGroup, &v1alpha1.SvcGroup{
@@ -99,7 +96,7 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 	}
 	for i := range backends {
 		dnatKey := backends[i].IP + "-" + strconv.Itoa(int(backends[i].Port)) + "-" + string(backends[i].Protocol)
-		backendFlowID := natBrs[0].GetSvcIndexCache().GetDnatFlow(dnatKey)
+		backendFlowID := natBr.GetSvcIndexCache().GetDnatFlow(dnatKey)
 		svcFlow.DnatFlows = append(svcFlow.DnatFlows, &v1alpha1.SvcDnatFlowEntry{
 			Backend: &v1alpha1.Backend{
 				IP:       backends[i].IP,

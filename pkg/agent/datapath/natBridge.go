@@ -77,6 +77,9 @@ const (
 type NatBridge struct {
 	BaseBridge
 
+	// lock for replay
+	initLock sync.RWMutex
+
 	inputTable                *ofctrl.Table
 	inPortTable               *ofctrl.Table
 	ctZoneTable               *ofctrl.Table
@@ -113,6 +116,9 @@ func NewNatBridge(brName string, datapathManager *DpManager) *NatBridge {
 func (n *NatBridge) BridgeInit() {}
 
 func (n *NatBridge) BridgeInitCNI() {
+	n.initLock.Lock()
+	defer n.initLock.Unlock()
+
 	if !n.datapathManager.IsEnableProxy() {
 		return
 	}
@@ -168,6 +174,9 @@ func (n *NatBridge) BridgeInitCNI() {
 func (n *NatBridge) BridgeReset() {}
 
 func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	if endpoint == nil {
 		return nil
 	}
@@ -222,6 +231,9 @@ func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 }
 
 func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	if endpoint == nil {
 		return nil
 	}
@@ -238,10 +250,16 @@ func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 }
 
 func (n *NatBridge) GetSvcIndexCache() *cache.SvcIndex {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	return n.svcIndexCache
 }
 
 func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	svcID := svcLB.SvcID
 	var ipDa net.IP
 	if svcLB.IP != "" {
@@ -303,6 +321,9 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 }
 
 func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	svcID := svcLB.SvcID
 	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
 		log.Infof("Has no lb flow for svcID: %s", svcID)
@@ -325,6 +346,9 @@ func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
 }
 
 func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	if svcLB.SessionAffinity == corev1.ServiceAffinityNone {
 		return nil
 	}
@@ -361,6 +385,9 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 }
 
 func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	svcID := svcLB.SvcID
 	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
 		log.Infof("Has no lb flow for svcID: %s", svcID)
@@ -382,6 +409,13 @@ func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 }
 
 func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc.Backend, tp ertype.TrafficPolicyType) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
+	return n.updateLBGroup(svcID, portName, backends, tp)
+}
+
+func (n *NatBridge) updateLBGroup(svcID, portName string, backends []everoutesvc.Backend, tp ertype.TrafficPolicyType) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	var err error
 	gpID, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
@@ -411,6 +445,9 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 }
 
 func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
 		log.Infof("The Service %s has no related ovs group for port %s, skip", svcID, portName)
@@ -422,7 +459,7 @@ func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
 		if gpID == cache.UnexistGroupID {
 			continue
 		}
-		if err := n.UpdateLBGroup(svcID, portName, nil, tp); err != nil {
+		if err := n.updateLBGroup(svcID, portName, nil, tp); err != nil {
 			log.Errorf("Failed to reset svc %s lb group for port %s with traffic policy type %s, err: %s", svcID, portName, tp, err)
 			return err
 		}
@@ -432,6 +469,9 @@ func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
 }
 
 func (n *NatBridge) DelLBGroup(svcID, portName string) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
 		log.Infof("The Service %s has no related ovs group for port %s, skip delete group", svcID, portName)
@@ -449,6 +489,9 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 }
 
 func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	ipByte := net.ParseIP(ip)
 	if ipByte == nil {
 		log.Errorf("Invalid dnat ip %s", ip)
@@ -505,6 +548,9 @@ func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32)
 }
 
 func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32) error {
+	n.initLock.RLock()
+	defer n.initLock.RUnlock()
+
 	ipByte := net.ParseIP(ip)
 	if ipByte == nil {
 		log.Errorf("Invalid dnat ip %s", ip)
