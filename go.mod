@@ -40,7 +40,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
-	golang.org/x/crypto v0.14.0
+	golang.org/x/crypto v0.22.0
 	golang.org/x/sys v0.19.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.51.0
@@ -106,13 +106,13 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/ti-mo/netfilter v0.3.1 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
-	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8 // indirect
+	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/tools v0.9.1 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/term v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/tools v0.20.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
@@ -129,9 +129,9 @@ require (
 
 replace (
 	github.com/agiledragon/gomonkey/v2 => github.com/wu-cl/gomonkey/v2 v2.0.0-20240528081215-1f91eb14f8d5
-	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20231031073250-15a479e83363
+	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20240416045045-690b2d15bfbe
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20231123100718-d071171cf898
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20240723044542-ef6943345b75
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 )
