@@ -1527,6 +1527,7 @@ func parseIPBlock(ipBlock string, excepts []string) ([]*networkingv1.IPBlock, er
 		exceptAll = append(exceptAll, cidr...)
 	}
 
+	ipBlock = strings.Trim(ipBlock, ",")
 	ipBlockList := strings.Split(ipBlock, ",")
 	for _, item := range ipBlockList {
 		cidrs, err := formatIPBlock(item)
@@ -1628,6 +1629,7 @@ func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) (*v1alpha1.Se
 		portRange := ""
 		if port.Port != nil {
 			portRange = strings.ReplaceAll(*port.Port, " ", "")
+			portRange = strings.Trim(portRange, ",")
 		}
 		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}, nil
 	}
