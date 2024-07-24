@@ -213,23 +213,11 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	ctEstState.UnsetNew()
 	ctEstState.SetEst()
 	ctStateFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Priority: MID_MATCH_FLOW_PRIORITY,
 		CtStates: ctEstState,
 	})
 	if err := ctStateFlow.Next(p.ctCommitTable); err != nil {
 		return fmt.Errorf("failed to install ct est state flow, error: %v", err)
-	}
-
-	// Table 1, ctState table, invalid state flow
-	ctInvState := openflow13.NewCTStates()
-	ctInvState.SetInv()
-	ctInvState.SetTrk()
-	ctInvFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY,
-		CtStates: ctInvState,
-	})
-	if err := ctInvFlow.Next(sw.DropAction()); err != nil {
-		return fmt.Errorf("failed to install ct invalid state flow, error: %v", err)
 	}
 
 	// Table 1. default flow
@@ -531,7 +519,7 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	ctRelState.SetRel()
 	ctRelState.SetTrk()
 	ctRelFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Priority: MID_MATCH_FLOW_PRIORITY,
 		CtStates: ctRelState,
 	})
 	if err := ctRelFlow.Next(p.ctCommitTable); err != nil {
