@@ -204,7 +204,7 @@ var _ = Describe("PolicyController", func() {
 
 				BeforeEach(func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
-					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100", Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24"}})
+					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100,", Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24"}})
 					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24,192.168.4.1-192.168.4.100"})
 					policy.Ingress = append(policy.Ingress, *ingress)
 					policy.Egress = append(policy.Egress, *egress)
@@ -952,7 +952,7 @@ var _ = Describe("PolicyController", func() {
 				var ingressBlock []*networkingv1.IPBlock
 
 				BeforeEach(func() {
-					ingress = NewNetworkPolicyRule("tcp", "22-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.3.1-192.168.3.100", Except: []string{"192.168.3.0/26", "192.168.0.0"}})
+					ingress = NewNetworkPolicyRule("tcp", "22-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.3.1-192.168.3.100,", Except: []string{"192.168.3.0/26", "192.168.0.0"}})
 					policy.Ingress = []schema.NetworkPolicyRule{*ingress}
 
 					ingressBlock = []*networkingv1.IPBlock{
@@ -1333,7 +1333,7 @@ var _ = Describe("PolicyController", func() {
 				var ipBlock1 *networkingv1.IPBlock
 				BeforeEach(func() {
 					By("create service")
-					svc = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23"))
+					svc = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23,"))
 					server.TrackerFactory().Service().Create(svc)
 
 					cluster.GlobalWhitelist.Ingress = nil
