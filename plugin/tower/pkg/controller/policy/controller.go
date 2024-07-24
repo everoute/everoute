@@ -1526,6 +1526,7 @@ func parseNetworkPolicyRulePort(port schema.NetworkPolicyRulePort) (*v1alpha1.Se
 		portRange := ""
 		if port.Port != nil {
 			portRange = strings.ReplaceAll(*port.Port, " ", "")
+			portRange = strings.Trim(portRange, ",")
 		}
 		return &v1alpha1.SecurityPolicyPort{Protocol: v1alpha1.Protocol(port.Protocol), PortRange: portRange}, nil
 	}

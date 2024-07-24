@@ -1094,7 +1094,7 @@ var _ = Describe("PolicyController", func() {
 				var ipBlock1 *networkingv1.IPBlock
 				BeforeEach(func() {
 					By("create service")
-					svc = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23"))
+					svc = NewService(*NewNetworkPolicyRulePort("UDP", "", "12,23,"))
 					server.TrackerFactory().Service().Create(svc)
 
 					cluster.GlobalWhitelist.Ingress = nil
