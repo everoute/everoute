@@ -157,6 +157,7 @@ func TestBridgeInitCNI(t *testing.T) {
 		if !res {
 			t.Errorf("test %s failed for not match flow, allflows: %v", tests[i].name, allFlows)
 		}
+		uplinkBr.OfSwitch.Disconnect()
 		uplinkDpMgr.ControllerMap["testuplink"]["uplink"].Delete()
 		delUplinkBridge()
 	}
