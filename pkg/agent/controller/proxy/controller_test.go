@@ -313,7 +313,10 @@ var _ = Describe("proxy controller", func() {
 			}
 			svcCopy.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
 			Expect(k8sClient.Create(ctx, svcCopy)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, svcCopy)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, svcCopy)).Should(Succeed())
+			}, Timeout, Interval).Should(Succeed())
+			
 			svcCopy.Status.LoadBalancer = corev1.LoadBalancerStatus{
 				Ingress: []corev1.LoadBalancerIngress{
 					{
@@ -452,7 +455,10 @@ var _ = Describe("proxy controller", func() {
 		BeforeEach(func() {
 			svcCopy = *svc.DeepCopy()
 			Expect(k8sClient.Create(ctx, &svcCopy)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, &svcCopy))
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: svcNs, Name: svcName}, &svcCopy)).Should(Succeed())
+			}, Timeout, Interval).Should(Succeed())
+			
 			svcCopy.Status.LoadBalancer = corev1.LoadBalancerStatus{
 				Ingress: []corev1.LoadBalancerIngress{
 					{
