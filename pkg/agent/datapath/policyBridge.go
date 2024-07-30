@@ -515,7 +515,6 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	// Table 1, ctState table, rel state flow
 	ctRelState := openflow13.NewCTStates()
-	ctRelState.UnsetInv()
 	ctRelState.SetRel()
 	ctRelState.SetTrk()
 	ctRelFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
