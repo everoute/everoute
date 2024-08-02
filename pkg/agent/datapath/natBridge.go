@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/contiv/libOpenflow/openflow13"
+	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,7 @@ var (
 	NatBrDnatTable                 uint8 = 50
 	NatBrL3ForwardTable            uint8 = 90
 	NatBrOutputTable               uint8 = 100
+	NatBrSvcEmptyTable             uint8 = 200
 )
 
 var (
@@ -87,6 +89,7 @@ type NatBridge struct {
 	dnatTable                 *ofctrl.Table
 	l3ForwardTable            *ofctrl.Table
 	outputTable               *ofctrl.Table
+	svcEmptyTable             *ofctrl.Table
 
 	svcIndexCache *cache.SvcIndex // service flow and group database
 	// l3FlowMap the key is interface uuid, the value is l3ForwardTable flow
@@ -135,6 +138,7 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.dnatTable, _ = sw.NewTable(NatBrDnatTable)
 	n.l3ForwardTable, _ = sw.NewTable(NatBrL3ForwardTable)
 	n.outputTable, _ = sw.NewTable(NatBrOutputTable)
+	n.svcEmptyTable, _ = sw.NewTable(NatBrSvcEmptyTable)
 
 	if err := n.initInputTable(); err != nil {
 		log.Fatalf("Init Input table %d of nat bridge failed: %s", NatBrInputTable, err)
@@ -162,6 +166,9 @@ func (n *NatBridge) BridgeInitCNI() {
 	}
 	if err := n.initOutputTable(); err != nil {
 		log.Fatalf("Init Output table %d of nat bridge failed: %s", NatBrOutputTable, err)
+	}
+	if err := n.initSvcEmptyTable(); err != nil {
+		log.Fatalf("Init Svc Empty table %d of nat bridge failed: %s", NatBrSvcEmptyTable, err)
 	}
 }
 
@@ -404,6 +411,9 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 		}
 		buckets = append(buckets, b)
 	}
+	if len(buckets) == 0 {
+		buckets = append(buckets, n.getDefaultBucket())
+	}
 	gp.ResetBuckets(buckets)
 
 	log.Infof("Dp success to update LB group for service %s port %s, backends: %+v", svcID, portName, backends)
@@ -604,7 +614,18 @@ func (n *NatBridge) createEmptyGroup() (*ofctrl.Group, error) {
 		log.Errorf("Failed to install group: %+v, err: %s", *newGp, err)
 		return nil, err
 	}
+
+	newGp.ResetBuckets([]*ofctrl.Bucket{n.getDefaultBucket()})
+
 	return newGp, nil
+}
+
+func (n *NatBridge) getDefaultBucket() *ofctrl.Bucket {
+	defaultBucket := ofctrl.NewBucket(SelectGroupWeight)
+	defaultBucket.AddAction(ofctrl.NewControllerAction(n.OfSwitch.ControllerID, 0))
+	defaultBucket.AddAction(ofctrl.NewResubmitAction(nil, &NatBrSvcEmptyTable))
+
+	return defaultBucket
 }
 
 func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
@@ -860,6 +881,21 @@ func (n *NatBridge) initServiceLBTable() error {
 		return fmt.Errorf("failed to add no need choose endpoint flow in clusterIP svc lb table: %s", err)
 	}
 	return nil
+}
+
+func (n *NatBridge) initSvcEmptyTable() error {
+	defaultFlow, err := n.svcEmptyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	})
+	if err != nil {
+		log.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
+		return err
+	}
+	if err = defaultFlow.SendToController(ofctrl.NewControllerAction(n.OfSwitch.ControllerID, 0)); err != nil {
+		return err
+	}
+
+	return defaultFlow.Next(ofctrl.NewEmptyElem())
 }
 
 func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, learnActionTimeout int32, isNP bool) (*ofctrl.LearnAction, error) {
@@ -1307,4 +1343,52 @@ func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
 	act3 := ofctrl.NewResubmitAction(nil, &NatBrSessionAffinityLearnTable)
 	bucket.AddAction(act3)
 	return bucket, nil
+}
+
+func (n *NatBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+	if pkt.Data.Ethertype != protocol.IPv4_MSG {
+		return
+	}
+	if pkt.Match.Type != openflow13.MatchType_OXM {
+		return
+	}
+
+	var inport uint32
+inport_check:
+	for _, field := range pkt.Match.Fields {
+		if field.Class != openflow13.OXM_CLASS_OPENFLOW_BASIC ||
+			field.Field != openflow13.OXM_FIELD_IN_PORT {
+			continue
+		}
+		switch t := field.Value.(type) {
+		case *openflow13.InPortField:
+			inport = t.InPort
+			break inport_check
+		}
+	}
+	if inport == 0 {
+		return
+	}
+
+	newPkt := &ofctrl.Packet{
+		SrcMac:     pkt.Data.HWDst,
+		DstMac:     pkt.Data.HWSrc,
+		SrcIP:      pkt.Data.Data.(*protocol.IPv4).NWDst,
+		DstIP:      pkt.Data.Data.(*protocol.IPv4).NWSrc,
+		IPProtocol: PROTOCOL_ICMP,
+		TTL:        0xff,
+		ICMPType:   0x3, // unreachable
+		ICMPCode:   0x3, // destination port unreachable
+	}
+	pktOut := ofctrl.ConstructPacketOut(newPkt)
+	pktOut.OutPort = &inport
+	originData, _ := pkt.Data.Data.MarshalBinary()
+	originLen := 20 + 8 // ip header and 8 bytes for nested pkt
+	if len(originData) > originLen {
+		originData = originData[:originLen]
+	}
+	pktOut.Header.ICMPHeader.Data = originData
+	if err := ofctrl.SendPacket(n.OfSwitch, pktOut); err != nil {
+		log.Errorf("failed to send pkt %+v, err = %s", newPkt, err)
+	}
 }

@@ -131,7 +131,7 @@ replace (
 	github.com/agiledragon/gomonkey/v2 => github.com/wu-cl/gomonkey/v2 v2.0.0-20240528081215-1f91eb14f8d5
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20240416045045-690b2d15bfbe
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20240723044542-ef6943345b75
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20240802100056-85f93340424a
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 )
