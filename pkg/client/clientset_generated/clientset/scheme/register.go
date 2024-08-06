@@ -27,6 +27,7 @@ import (
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
@@ -37,6 +38,7 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	agentv1alpha1.AddToScheme,
 	groupv1alpha1.AddToScheme,
+	podv1alpha1.AddToScheme,
 	securityv1alpha1.AddToScheme,
 	servicev1alpha1.AddToScheme,
 }

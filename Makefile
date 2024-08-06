@@ -120,7 +120,8 @@ codegen: manifests
 		--api-versions agent/v1alpha1 \
 		--api-versions group/v1alpha1 \
 		--api-versions security/v1alpha1 \
-		--api-versions service/v1alpha1
+		--api-versions service/v1alpha1 \
+		--api-versions pod/v1alpha1
 	deepcopy-gen --go-header-file hack/boilerplate.generatego.txt -O zz_generated.deepcopy --input-dirs ./pkg/labels/...
 
 # Generate plugin-tower gql codes
