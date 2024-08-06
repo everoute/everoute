@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -61,11 +62,11 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	var withPrefix = func(name string) string { return flagPrefix + name }
 
 	flagset.BoolVar(opts.Enable, withPrefix("enable"), false, "If true, tower plugin will start (default false)")
-	flagset.StringVar(&opts.Client.URL, withPrefix("address"), "", "Tower connection address")
-	flagset.StringVar(&opts.Client.UserInfo.Username, withPrefix("username"), "", "Tower user name for authenticate")
+	flagset.StringVar(&opts.Client.URL, withPrefix("endpoint"), os.Getenv("TOWER_ENDPOINT"), "Tower connection address")
+	flagset.StringVar(&opts.Client.UserInfo.Username, withPrefix("username"), os.Getenv("TOWER_USERNAME"), "Tower user name for authenticate")
 	flagset.BoolVar(&opts.Client.AllowInsecure, withPrefix("allow-insecure"), true, "Tower allow-insecure for authenticate")
-	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), "", "Tower user source for authenticate")
-	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), "", "Tower user password for authenticate")
+	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), os.Getenv("TOWER_USERSOURCE"), "Tower user source for authenticate")
+	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), os.Getenv("TOWER_PASSWORD"), "Tower user password for authenticate")
 	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
 	flagset.StringVar(&opts.EverouteCluster, withPrefix("everoute-cluster"), "", "Which EverouteCluster should synchronize SecurityPolicy from")
 	flagset.UintVar(&opts.WorkerNumber, withPrefix("worker-number"), 10, "Controller worker number")
