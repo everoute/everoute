@@ -47,7 +47,7 @@ func TestInitFlags(t *testing.T) {
 			flagPrefix: "plugins.tower.",
 			args: []string{
 				"--plugins.tower.enable=true",
-				"--plugins.tower.address=127.0.0.1:8800",
+				"--plugins.tower.endpoint=https://127.0.0.1:8800/api",
 				"--plugins.tower.resync-period=1s",
 				"--plugins.tower.worker-number=1",
 				"--plugins.tower.allow-insecure=false",
@@ -56,7 +56,7 @@ func TestInitFlags(t *testing.T) {
 			expectOptions: &Options{
 				Enable: &boolTrue,
 				Client: &client.Client{
-					URL:      "127.0.0.1:8800",
+					URL:      "https://127.0.0.1:8800/api",
 					UserInfo: &client.UserInfo{},
 				},
 				ResyncPeriod: time.Second,
