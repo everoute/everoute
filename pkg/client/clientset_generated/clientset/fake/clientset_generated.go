@@ -30,6 +30,8 @@ import (
 	fakeagentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1/fake"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
 	fakegroupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1/fake"
+	podv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/pod/v1alpha1"
+	fakepodv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/pod/v1alpha1/fake"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	fakesecurityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1"
@@ -91,6 +93,11 @@ func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {
 // GroupV1alpha1 retrieves the GroupV1alpha1Client
 func (c *Clientset) GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface {
 	return &fakegroupv1alpha1.FakeGroupV1alpha1{Fake: &c.Fake}
+}
+
+// PodV1alpha1 retrieves the PodV1alpha1Client
+func (c *Clientset) PodV1alpha1() podv1alpha1.PodV1alpha1Interface {
+	return &fakepodv1alpha1.FakePodV1alpha1{Fake: &c.Fake}
 }
 
 // SecurityV1alpha1 retrieves the SecurityV1alpha1Client

@@ -26,6 +26,7 @@ import (
 
 	v1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 )
@@ -67,6 +68,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMemberses().Informer()}, nil
 	case groupv1alpha1.SchemeGroupVersion.WithResource("groupmemberspatches"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Group().V1alpha1().GroupMembersPatches().Informer()}, nil
+
+		// Group=pod.everoute.io, Version=v1alpha1
+	case podv1alpha1.SchemeGroupVersion.WithResource("k8scluster"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Pod().V1alpha1().K8sClusters().Informer()}, nil
 
 		// Group=security.everoute.io, Version=v1alpha1
 	case securityv1alpha1.SchemeGroupVersion.WithResource("endpoints"):

@@ -27,6 +27,7 @@ import (
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/group/v1alpha1"
+	podv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1"
 )
@@ -35,6 +36,7 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface
 	GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface
+	PodV1alpha1() podv1alpha1.PodV1alpha1Interface
 	SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interface
 	ServiceV1alpha1() servicev1alpha1.ServiceV1alpha1Interface
 }
@@ -45,6 +47,7 @@ type Clientset struct {
 	*discovery.DiscoveryClient
 	agentV1alpha1    *agentv1alpha1.AgentV1alpha1Client
 	groupV1alpha1    *groupv1alpha1.GroupV1alpha1Client
+	podV1alpha1      *podv1alpha1.PodV1alpha1Client
 	securityV1alpha1 *securityv1alpha1.SecurityV1alpha1Client
 	serviceV1alpha1  *servicev1alpha1.ServiceV1alpha1Client
 }
@@ -57,6 +60,11 @@ func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {
 // GroupV1alpha1 retrieves the GroupV1alpha1Client
 func (c *Clientset) GroupV1alpha1() groupv1alpha1.GroupV1alpha1Interface {
 	return c.groupV1alpha1
+}
+
+// PodV1alpha1 retrieves the PodV1alpha1Client
+func (c *Clientset) PodV1alpha1() podv1alpha1.PodV1alpha1Interface {
+	return c.podV1alpha1
 }
 
 // SecurityV1alpha1 retrieves the SecurityV1alpha1Client
@@ -98,6 +106,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.podV1alpha1, err = podv1alpha1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.securityV1alpha1, err = securityv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -120,6 +132,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.agentV1alpha1 = agentv1alpha1.NewForConfigOrDie(c)
 	cs.groupV1alpha1 = groupv1alpha1.NewForConfigOrDie(c)
+	cs.podV1alpha1 = podv1alpha1.NewForConfigOrDie(c)
 	cs.securityV1alpha1 = securityv1alpha1.NewForConfigOrDie(c)
 	cs.serviceV1alpha1 = servicev1alpha1.NewForConfigOrDie(c)
 
@@ -132,6 +145,7 @@ func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.agentV1alpha1 = agentv1alpha1.New(c)
 	cs.groupV1alpha1 = groupv1alpha1.New(c)
+	cs.podV1alpha1 = podv1alpha1.New(c)
 	cs.securityV1alpha1 = securityv1alpha1.New(c)
 	cs.serviceV1alpha1 = servicev1alpha1.New(c)
 
