@@ -108,7 +108,8 @@ func (r *reflector) LastSyncResourceVersion() string {
 func (r *reflector) reflectWorker(stopCh <-chan struct{}) func() {
 	return func() {
 		defer runtime.HandleCrash()
-		r.watchErrorHandler(listAndWatchWithTimeout(stopCh, r.listAndWatch, r.reconnectMin, r.reconnectMax))
+		res, err := listAndWatchWithTimeout(stopCh, r.listAndWatch, r.reconnectMin, r.reconnectMax)
+		r.watchErrorHandler(stopCh, res, err)
 	}
 }
 
@@ -228,7 +229,7 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	return err
 }
 
-func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error) {
+func (r *reflector) watchErrorHandler(stopch <-chan struct{}, respErrs []client.ResponseError, err error) {
 	switch {
 	case err == nil, err == io.EOF:
 		// watch closed normally
@@ -260,7 +261,7 @@ func (r *reflector) watchErrorHandler(respErrs []client.ResponseError, err error
 	if client.HasAuthError(respErrs) {
 		klog.Errorf("receive auth failed error: %+v, try to login %s", respErrs, r.client.URL)
 
-		if _, err = r.client.Auth(); err != nil {
+		if _, err = r.client.Auth(stopch); err != nil {
 			klog.Errorf("failed to login %s, got error: %s", r.client.URL, err)
 			return
 		}

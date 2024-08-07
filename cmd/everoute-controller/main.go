@@ -92,6 +92,7 @@ func main() {
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
 
+	ctrl.SetLogger(klog.Background())
 	stopCtx := ctrl.SetupSignalHandler()
 	if err := opts.complete(); err != nil {
 		klog.Fatalf("Failed to complete Options, err: %v", err)

@@ -15,4 +15,9 @@ const (
 	SKSLabelKeyCluster         = "sks-cluster"
 	SKSLabelKeyObjectName      = "sks-object-name"
 	SKSLabelKeyObjectNamespace = "sks-object-namespace"
+
+	// k8s management platform kubeconfig
+	K8sMPKubeconfigNameInCloudPlatform = "sks-mgmt-kubeconfig"
+	K8sMPKubeconfigNsInCloudPlatform   = "default"
+	K8sMPKubeconfigName                = "k8s-mgmt-kubeconfig"
 )

@@ -17,6 +17,7 @@ limitations under the License.
 package client_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -63,7 +64,9 @@ func TestClient_Auth(t *testing.T) {
 	towerClient := server.NewClient()
 	towerClient.UserInfo = getUserInfo(user)
 
-	Eventually(towerClient.Auth).Should(Equal(user.Token))
+	token, err := towerClient.Auth(context.Background().Done())
+	Expect(err).Should(BeNil())
+	Expect(token).Should(Equal(user.Token))
 }
 
 func getUserInfo(user *model.User) *client.UserInfo {

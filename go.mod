@@ -20,6 +20,7 @@ require (
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
+	github.com/golang/mock v1.4.1
 	github.com/gonetx/ipset v0.1.0
 	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/websocket v1.5.0
