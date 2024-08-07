@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 )
 
@@ -37,7 +38,7 @@ func TestInitFlags(t *testing.T) {
 		"should prase default options": {
 			expectOptions: &Options{
 				Enable:       &boolFalse,
-				Client:       &client.Client{UserInfo: &client.UserInfo{}, AllowInsecure: true},
+				Client:       &client.Client{UserInfo: &client.UserInfo{}, AllowInsecure: true, TokenFile: msconst.DefaultTowerTokenFile},
 				ResyncPeriod: 10 * time.Hour,
 				WorkerNumber: 10,
 				Namespace:    "tower-space",
@@ -52,12 +53,14 @@ func TestInitFlags(t *testing.T) {
 				"--plugins.tower.worker-number=1",
 				"--plugins.tower.allow-insecure=false",
 				"--plugins.tower.namespace=test-namespace",
+				"--plugins.tower.token-file=/tmp/test",
 			},
 			expectOptions: &Options{
 				Enable: &boolTrue,
 				Client: &client.Client{
-					URL:      "https://127.0.0.1:8800/api",
-					UserInfo: &client.UserInfo{},
+					URL:       "https://127.0.0.1:8800/api",
+					UserInfo:  &client.UserInfo{},
+					TokenFile: "/tmp/test",
 				},
 				ResyncPeriod: time.Second,
 				WorkerNumber: 1,

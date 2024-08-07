@@ -26,6 +26,9 @@ const (
 	// globalRule
 	GlobalRuleFirstDelayTime = 20 * time.Second
 	GlobalRuleDelayTimeout   = 5 * time.Minute
+
+	// #nosec G101
+	DefaultTowerTokenFile = "/tmp/towertoken"
 )
 
 const (

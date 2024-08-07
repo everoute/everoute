@@ -23,7 +23,7 @@ image-test-pull:
 yaml:
 	helm template -n kube-system deploy/chart > deploy/everoute.yaml
 
-generate: codegen gqlgen protopb manifests yaml apidocs-gen
+generate: codegen mock gqlgen protopb manifests yaml apidocs-gen
 	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
 
 docker-generate: image-generate
@@ -113,6 +113,10 @@ docker-e2e-test-ci:
 docker-golint-check:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) golangci/golangci-lint:v1.53 golangci-lint run ./...
+
+mock:
+	rm -rf tests/mocks
+	mockgen -destination=tests/mocks/mock_client.go -package mocks sigs.k8s.io/controller-runtime/pkg/client Client,StatusWriter
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests
