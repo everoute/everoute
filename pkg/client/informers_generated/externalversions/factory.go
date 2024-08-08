@@ -32,6 +32,7 @@ import (
 	agent "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/agent"
 	group "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/group"
 	internalinterfaces "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/internalinterfaces"
+	pod "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/pod"
 	security "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/security"
 	service "github.com/everoute/everoute/pkg/client/informers_generated/externalversions/service"
 )
@@ -178,6 +179,7 @@ type SharedInformerFactory interface {
 
 	Agent() agent.Interface
 	Group() group.Interface
+	Pod() pod.Interface
 	Security() security.Interface
 	Service() service.Interface
 }
@@ -188,6 +190,10 @@ func (f *sharedInformerFactory) Agent() agent.Interface {
 
 func (f *sharedInformerFactory) Group() group.Interface {
 	return group.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Pod() pod.Interface {
+	return pod.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Security() security.Interface {

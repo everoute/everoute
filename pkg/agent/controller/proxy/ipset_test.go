@@ -121,8 +121,16 @@ var _ = Describe("ipset controller", func() {
 			g.Expect(ipSetIsEmpty(ipsetCtrl.TCPSet)).Should(BeTrue())
 			g.Expect(ipSetIsEmpty(ipsetCtrl.UDPSet)).Should(BeTrue())
 			g.Expect(ipSetIsEmpty(ipsetCtrl.LBSet)).Should(BeTrue())
-			g.Expect(len(ipsetCtrl.lbIPPorts)).Should(Equal(0))
-			g.Expect(len(ipsetCtrl.nodePorts)).Should(Equal(0))
+
+			ipsetCtrl.lbLock.RLock()
+			llb := len(ipsetCtrl.lbIPPorts)
+			ipsetCtrl.lbLock.RUnlock()
+			g.Expect(llb).Should(Equal(0))
+
+			ipsetCtrl.npLock.RLock()
+			lnp := len(ipsetCtrl.nodePorts)
+			ipsetCtrl.npLock.RUnlock()
+			g.Expect(lnp).Should(Equal(0))
 		}, Timeout, Interval).Should(Succeed())
 	})
 
