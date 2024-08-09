@@ -235,9 +235,10 @@ type DpManager struct {
 	Rules                     cache.Indexer // store *EveroutePolicyRuleEntry
 	flowReplayMutex           *lock.CASMutex
 
-	flushMutex         *lock.ChanMutex
-	needFlush          bool                    // need to flush
-	cleanConntrackChan chan EveroutePolicyRule // clean conntrack entries for rule in chan
+	flushMutex             *lock.ChanMutex
+	needFlush              bool                    // need to flush
+	cleanConntrackChan     chan EveroutePolicyRule // clean conntrack entries for rule in chan
+	firstProcessGlobalRule sync.Once
 
 	ArpChan    chan ArpInfo
 	ArpLimiter *rate.Limiter
@@ -1199,6 +1200,15 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	return nil
 }
 
+func (d *DpManager) isFirstProcessGlobalRule() bool {
+	res := false
+	d.firstProcessGlobalRule.Do(func() {
+		res = true
+	})
+
+	return res
+}
+
 func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
@@ -1229,7 +1239,12 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 		ruleFlowMap[vdsID] = flowEntry
 	}
 
-	datapathManager.cleanConntrackFlow(rule)
+	// fix er-872, can't swap expressions on either side of the && symbol
+	if rule.Priority == constants.GlobalDefaultPolicyRulePriority && datapathManager.isFirstProcessGlobalRule() {
+		log.Info("Doesn't clean ct for first add global default policy rule")
+	} else {
+		datapathManager.cleanConntrackFlow(rule)
+	}
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	if ruleEntry == nil {
