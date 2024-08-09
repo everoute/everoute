@@ -16,8 +16,20 @@ type BaseBridge struct {
 	//nolint: structcheck
 	datapathManager *DpManager
 
-	isSwitchConnected bool
-	switchStatusMutex sync.RWMutex
+	isSwitchConnected   bool
+	isSwitchInitialized bool
+	switchStatusMutex   sync.RWMutex
+	disconnectChan      chan struct{}
+	disconnectChanMutex sync.Mutex
+}
+
+func (b *BaseBridge) getDisconnectChan() chan struct{} {
+	b.disconnectChanMutex.Lock()
+	defer b.disconnectChanMutex.Unlock()
+	if b.disconnectChan == nil {
+		b.disconnectChan = make(chan struct{}, 1000)
+	}
+	return b.disconnectChan
 }
 
 func (b *BaseBridge) GetName() string {
@@ -25,23 +37,46 @@ func (b *BaseBridge) GetName() string {
 }
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
+	b.switchStatusMutex.Lock()
 	log.Infof("Switch %s connected", b.name)
-
 	b.OfSwitch = sw
 
-	b.switchStatusMutex.Lock()
 	b.isSwitchConnected = true
+	if b.isSwitchInitialized {
+		b.getDisconnectChan() <- struct{}{}
+	} else {
+		b.isSwitchInitialized = true
+	}
 	b.switchStatusMutex.Unlock()
 }
 
 func (b *BaseBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
-	log.Infof("Switch %s disconnected", b.name)
-
 	b.switchStatusMutex.Lock()
+	log.Infof("Switch %s disconnected", b.name)
 	b.isSwitchConnected = false
 	b.switchStatusMutex.Unlock()
+}
 
-	b.OfSwitch = nil
+func (b *BaseBridge) DisconnectedNotify() chan struct{} {
+	c := make(chan struct{})
+	go func() {
+		for {
+			log.Infof("wait for disconnect event for switch %s", b.name)
+			<-b.getDisconnectChan()
+			log.Infof("receive disconnect event for switch %s", b.name)
+		clearChan:
+			for {
+				select {
+				case <-b.getDisconnectChan():
+				default:
+					break clearChan
+				}
+			}
+			log.Infof("send disconnect event notify to dp for switch %s", b.name)
+			c <- struct{}{}
+		}
+	}()
+	return c
 }
 
 func (b *BaseBridge) IsSwitchConnected() bool {

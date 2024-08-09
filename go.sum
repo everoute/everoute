@@ -287,8 +287,8 @@ github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991 h1:pgZ5WgLyTOCF
 github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991/go.mod h1:YdIf7ANCOIBGgxnyN7SZkQjUBHmOw0UZSV9O43A6PXs=
 github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99 h1:ACUaMP14gg2INkSMUrcyK91qb1s+v9aa7Jp74/cF2bM=
 github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99/go.mod h1:tVA1ktFobpf679E6GU3b3VoXpkyWtNbU5ZkaGinxgzI=
-github.com/everoute/libOpenflow v1.0.1-0.20240416045045-690b2d15bfbe h1:W0KWiySZYM78vBoV/mt9/WPVhFzYa1Ti71vnW8iyBC0=
-github.com/everoute/libOpenflow v1.0.1-0.20240416045045-690b2d15bfbe/go.mod h1:Glli90eKTMhkETRmgjf2DgHTf+PDCQUv6nZvubrLuuA=
+github.com/everoute/libOpenflow v1.0.1-0.20240809085943-d64f3b694acf h1:KTA7sslXLZBpPBJ5Z85wfdLazsIe8x6hxb+zxrQC0zY=
+github.com/everoute/libOpenflow v1.0.1-0.20240809085943-d64f3b694acf/go.mod h1:Glli90eKTMhkETRmgjf2DgHTf+PDCQUv6nZvubrLuuA=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155 h1:JwthEk9kaDQF2W1R5PVR19Unwj3e55FUVG3YM6409Dw=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155/go.mod h1:qV7bn/XogGqNiuk52aU4x8WqOb2JEU1CYDpf8D1jkRg=
 github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe h1:3++NPEpYdP4ccpnN7t5Mi/DJMqzQM19NbpO4orkeJT8=
