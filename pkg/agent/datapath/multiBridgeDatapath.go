@@ -171,6 +171,7 @@ type Bridge interface {
 	RemoveMicroSegmentRule(rule *EveroutePolicyRule) error
 
 	IsSwitchConnected() bool
+	DisconnectedNotify() chan struct{}
 
 	// of control app interface
 	// A Switch connected to the controller
@@ -380,7 +381,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 			bridgeKeyword := bridgeKeyword
 
 			go func() {
-				for range datapathManager.ControllerMap[vdsID][bridgeKeyword].DisconnChan {
+				for range datapathManager.BridgeChainMap[vdsID][bridgeKeyword].DisconnectedNotify() {
 					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
 					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
 						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)

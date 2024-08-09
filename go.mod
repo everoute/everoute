@@ -120,9 +120,10 @@ require (
 )
 
 replace (
-	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v0.0.0-20240126065010-bb3667928a99
-	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230109020235-5be40f26b455
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20230427054041-ff0df4640027
+	github.com/agiledragon/gomonkey/v2 => github.com/wu-cl/gomonkey/v2 v2.0.0-20240528081215-1f91eb14f8d5
+	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20240809085943-d64f3b694acf
+	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20240723044542-ef6943345b75
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20221013091203-83dd58b9dc66
 	k8s.io/api v0.22.2 => k8s.io/api v0.20.6
