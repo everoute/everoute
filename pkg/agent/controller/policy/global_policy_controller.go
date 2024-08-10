@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,6 +37,12 @@ const (
 // so we full sync PolicyRules every reconcile.
 func (r *Reconciler) ReconcileGlobalPolicy(_ ctrl.Request) (ctrl.Result, error) {
 	var newPolicyRule, oldPolicyRule []cache.PolicyRule
+
+	if !r.isReadyToProcessGlobalRule() {
+		klog.V(4).Info("Doesn't ready to process global rule, keep waiting")
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
+	klog.Info("Ready to process global rule")
 
 	oldPolicyRuleList := r.globalRuleCache.List()
 	for _, rule := range oldPolicyRuleList {

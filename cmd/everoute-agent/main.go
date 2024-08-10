@@ -60,6 +60,7 @@ func main() {
 	// parse cmd param
 	flag.StringVar(&opts.metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&opts.disableProbeTimeoutIP, "disable-probe-timeout-ip", false, "Disable probe timeout ip with arp.")
+	flag.BoolVar(&opts.readyToProcessGlobalRule, "ready-to-process-global-rule", false, "Is ready to process global rule when agent start.")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
@@ -190,9 +191,10 @@ func startManager(mgr manager.Manager, datapathManager *datapath.DpManager, stop
 	var err error
 	// Policy controller: watch policy related resource and update
 	if err = (&policy.Reconciler{
-		Client:          mgr.GetClient(),
-		Scheme:          mgr.GetScheme(),
-		DatapathManager: datapathManager,
+		Client:                   mgr.GetClient(),
+		Scheme:                   mgr.GetScheme(),
+		DatapathManager:          datapathManager,
+		ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
