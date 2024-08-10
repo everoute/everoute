@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policy_test
+package policy
 
 import (
 	"context"
@@ -34,7 +34,6 @@ import (
 	storecache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -1704,7 +1703,7 @@ func TestFlattenPorts(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ports, err := policy.FlattenPorts([]securityv1alpha1.SecurityPolicyPort{*tc.portRange})
+			ports, err := FlattenPorts([]securityv1alpha1.SecurityPolicyPort{*tc.portRange})
 			if tc.expectError && err == nil || !tc.expectError && err != nil {
 				t.Fatalf("expect error: %t, but get error: %s", tc.expectError, err)
 			}
