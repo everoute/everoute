@@ -69,6 +69,12 @@ type Reconciler struct {
 	groupCache *policycache.GroupCache
 
 	DatapathManager *datapath.DpManager
+
+	sysProcessedPolicyLock sync.RWMutex
+	sysProcessedPolicy     sets.Set[k8stypes.NamespacedName]
+
+	ReadyToProcessGlobalRule     bool
+	globalRuleFirstProcessedTime *time.Time
 }
 
 func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -170,6 +176,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.groupCache == nil {
 		r.groupCache = policycache.NewGroupCache()
 	}
+
+	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
 
 	if policyController, err = controller.New("policy-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -279,6 +287,7 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
 	}
 
+	r.addProcessedSysPolicy(k8stypes.NamespacedName{Namespace: policy.Namespace, Name: policy.Name})
 	return ctrl.Result{}, nil
 }
 
@@ -687,3 +696,44 @@ func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.Po
 // 	}
 // 	return &sp
 // }
+
+func (r *Reconciler) isReadyToProcessGlobalRule() bool {
+	if r.ReadyToProcessGlobalRule {
+		return true
+	}
+	if r.globalRuleFirstProcessedTime == nil {
+		curT := time.Now()
+		r.globalRuleFirstProcessedTime = &curT
+		klog.Infof("At least wait %s when first process global rule", constants.GlobalRuleFirstDelayTime)
+		time.Sleep(constants.GlobalRuleFirstDelayTime)
+	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(constants.GlobalRuleDelayTimeout)) {
+		r.ReadyToProcessGlobalRule = true
+		return true
+	}
+
+	r.sysProcessedPolicyLock.RLock()
+	defer r.sysProcessedPolicyLock.RUnlock()
+	if !r.sysProcessedPolicy.Has(constants.SysEPPolicy) {
+		return false
+	}
+	if !r.sysProcessedPolicy.Has(constants.ERvmPolicy) {
+		return false
+	}
+	if !r.sysProcessedPolicy.Has(constants.LBPolicy) {
+		return false
+	}
+	r.ReadyToProcessGlobalRule = true
+	return true
+}
+
+func (r *Reconciler) addProcessedSysPolicy(p k8stypes.NamespacedName) {
+	sysPolicy := make(sets.Set[k8stypes.NamespacedName])
+	sysPolicy.Insert(constants.SysEPPolicy, constants.ERvmPolicy, constants.LBPolicy)
+	if !sysPolicy.Has(p) {
+		return
+	}
+
+	r.sysProcessedPolicyLock.Lock()
+	defer r.sysProcessedPolicyLock.Unlock()
+	r.sysProcessedPolicy.Insert(p)
+}
