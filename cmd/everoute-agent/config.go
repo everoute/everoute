@@ -44,9 +44,10 @@ const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 type Options struct {
 	Config *agentConfig
 
-	metricsAddr           string
-	namespace             string
-	disableProbeTimeoutIP bool
+	metricsAddr              string
+	namespace                string
+	disableProbeTimeoutIP    bool
+	readyToProcessGlobalRule bool
 
 	svcTCPSet ipset.IPSet
 	svcUDPSet ipset.IPSet
