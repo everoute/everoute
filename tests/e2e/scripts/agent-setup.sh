@@ -76,4 +76,4 @@ mkdir -p "$(dirname ${AGENT_NAME_PATH})"
 cat /proc/sys/kernel/random/uuid > ${AGENT_NAME_PATH}
 
 echo "start everoute-agent"
-nohup /usr/local/bin/everoute-agent --kubeconfig "${KUBECONFIG_PATH}" > /var/log/everoute-agent.log 2>&1 &
+nohup /usr/local/bin/everoute-agent --kubeconfig "${KUBECONFIG_PATH}" --ready-to-process-global-rule true > /var/log/everoute-agent.log 2>&1 &

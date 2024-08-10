@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policy_test
+package policy
 
 import (
 	"context"
@@ -33,10 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
@@ -52,7 +52,7 @@ var (
 	globalRuleCacheLister informer.Lister
 	useExistingCluster    bool
 	ctx, cancel           = context.WithCancel(ctrl.SetupSignalHandler())
-	pCtrl                 *policy.Reconciler
+	pCtrl                 *Reconciler
 )
 
 const (
@@ -127,13 +127,18 @@ var _ = BeforeSuite(func() {
 		}}, updateChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(ctx.Done())
 
-	pCtrl = &policy.Reconciler{
+	pCtrl = &Reconciler{
 		Client:          k8sManager.GetClient(),
 		Scheme:          k8sManager.GetScheme(),
 		DatapathManager: datapathManager,
 	}
 	err = (pCtrl).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
+	cutT := time.Now()
+	pCtrl.globalRuleFirstProcessedTime = &cutT
+	pCtrl.sysProcessedPolicy.Insert(constants.ERvmPolicy)
+	pCtrl.sysProcessedPolicy.Insert(constants.SysEPPolicy)
+	pCtrl.sysProcessedPolicy.Insert(constants.LBPolicy)
 
 	ruleCacheLister = pCtrl.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())
