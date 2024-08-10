@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package policy_test
+package policy
 
 import (
 	"os"
@@ -29,9 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
@@ -45,6 +45,7 @@ var (
 	ruleCacheLister       informer.Lister
 	globalRuleCacheLister informer.Lister
 	useExistingCluster    bool
+	policyController      *Reconciler
 )
 
 const (
@@ -120,13 +121,18 @@ var _ = BeforeSuite(func() {
 		}}, updateChan)
 	datapathManager.InitializeDatapath(stopCh)
 
-	policyController := &policy.Reconciler{
+	policyController = &Reconciler{
 		Client:          k8sManager.GetClient(),
 		Scheme:          k8sManager.GetScheme(),
 		DatapathManager: datapathManager,
 	}
 	err = (policyController).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
+	cutT := time.Now()
+	policyController.globalRuleFirstProcessedTime = &cutT
+	policyController.sysProcessedPolicy.Insert(constants.ERvmPolicy)
+	policyController.sysProcessedPolicy.Insert(constants.SysEPPolicy)
+	policyController.sysProcessedPolicy.Insert(constants.LBPolicy)
 
 	ruleCacheLister = policyController.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())

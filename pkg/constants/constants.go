@@ -16,7 +16,11 @@ limitations under the License.
 
 package constants
 
-import "time"
+import (
+	"time"
+
+	"k8s.io/apimachinery/pkg/types"
+)
 
 const (
 	// InternalWhitelistPriority is the priority of internal whitelist IP, we set different priorities
@@ -71,6 +75,10 @@ const (
 
 	// endpoint
 	EndpointExternalIDKey = "iface-id"
+
+	// globalRule
+	GlobalRuleFirstDelayTime = 20 * time.Second
+	GlobalRuleDelayTimeout   = 5 * time.Minute
 )
 
 const (
@@ -82,4 +90,18 @@ const (
 
 var (
 	AlgNeedModules = []string{"nf_nat_ftp", "nf_conntrack_ftp", "nf_nat_tftp", "nf_conntrack_tftp"}
+
+	// system policy
+	ERvmPolicy = types.NamespacedName{
+		Namespace: "tower-space",
+		Name:      "tower.sp.internal-controller",
+	}
+	LBPolicy = types.NamespacedName{
+		Namespace: "everoute-space",
+		Name:      "internal-lb",
+	}
+	SysEPPolicy = types.NamespacedName{
+		Namespace: "tower-space",
+		Name:      "tower.sp.internal-system.endpoints",
+	}
 )
