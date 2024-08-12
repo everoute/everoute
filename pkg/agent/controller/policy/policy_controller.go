@@ -727,13 +727,10 @@ func (r *Reconciler) isReadyToProcessGlobalRule() bool {
 }
 
 func (r *Reconciler) addProcessedSysPolicy(p k8stypes.NamespacedName) {
-	sysPolicy := make(sets.Set[k8stypes.NamespacedName])
-	sysPolicy.Insert(constants.SysEPPolicy, constants.ERvmPolicy, constants.LBPolicy)
-	if !sysPolicy.Has(p) {
-		return
-	}
-
 	r.sysProcessedPolicyLock.Lock()
 	defer r.sysProcessedPolicyLock.Unlock()
-	r.sysProcessedPolicy.Insert(p)
+
+	if p == constants.SysEPPolicy || p == constants.ERvmPolicy || p == constants.LBPolicy {
+		r.sysProcessedPolicy.Insert(p)
+	}
 }
