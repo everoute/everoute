@@ -29,6 +29,8 @@ const (
 
 	// #nosec G101
 	DefaultTowerTokenFile = "/tmp/towertoken"
+
+	CompluteClustersConfigMapName = "associate-complute-clusters"
 )
 
 const (

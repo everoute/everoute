@@ -49,6 +49,11 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AgentELFCluster struct {
+		ID      func(childComplexity int) int
+		LocalID func(childComplexity int) int
+	}
+
 	EverouteCluster struct {
 		AgentELFClusters    func(childComplexity int) int
 		AgentELFVDSes       func(childComplexity int) int
@@ -346,6 +351,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AgentELFCluster.id":
+		if e.complexity.AgentELFCluster.ID == nil {
+			break
+		}
+
+		return e.complexity.AgentELFCluster.ID(childComplexity), true
+
+	case "AgentELFCluster.local_id":
+		if e.complexity.AgentELFCluster.LocalID == nil {
+			break
+		}
+
+		return e.complexity.AgentELFCluster.LocalID(childComplexity), true
 
 	case "EverouteCluster.agent_elf_clusters":
 		if e.complexity.EverouteCluster.AgentELFClusters == nil {
@@ -1773,12 +1792,17 @@ type Label {
 
 type EverouteCluster {
     id: ID!
-    agent_elf_clusters: [ObjectReference!]
+    agent_elf_clusters: [AgentELFCluster!]
     agent_elf_vdses: [ObjectReference!]
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
     enable_logging: Boolean
+}
+
+type AgentELFCluster {
+    id: ID!
+    local_id: String!
 }
 
 type EverouteClusterWhitelist {
@@ -1909,6 +1933,94 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _AgentELFCluster_id(ctx context.Context, field graphql.CollectedField, obj *schema.AgentELFCluster) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentELFCluster_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentELFCluster_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentELFCluster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentELFCluster_local_id(ctx context.Context, field graphql.CollectedField, obj *schema.AgentELFCluster) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentELFCluster_local_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LocalID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentELFCluster_local_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentELFCluster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EverouteCluster_id(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_EverouteCluster_id(ctx, field)
 	if err != nil {
@@ -1976,9 +2088,9 @@ func (ec *executionContext) _EverouteCluster_agent_elf_clusters(ctx context.Cont
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.([]schema.ObjectReference)
+	res := resTmp.([]schema.AgentELFCluster)
 	fc.Result = res
-	return ec.marshalOObjectReference2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐObjectReferenceᚄ(ctx, field.Selections, res)
+	return ec.marshalOAgentELFCluster2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFClusterᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_EverouteCluster_agent_elf_clusters(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1990,9 +2102,11 @@ func (ec *executionContext) fieldContext_EverouteCluster_agent_elf_clusters(ctx 
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_ObjectReference_id(ctx, field)
+				return ec.fieldContext_AgentELFCluster_id(ctx, field)
+			case "local_id":
+				return ec.fieldContext_AgentELFCluster_local_id(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type ObjectReference", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type AgentELFCluster", field.Name)
 		},
 	}
 	return fc, nil
@@ -10932,6 +11046,41 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj in
 
 // region    **************************** object.gotpl ****************************
 
+var agentELFClusterImplementors = []string{"AgentELFCluster"}
+
+func (ec *executionContext) _AgentELFCluster(ctx context.Context, sel ast.SelectionSet, obj *schema.AgentELFCluster) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, agentELFClusterImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AgentELFCluster")
+		case "id":
+
+			out.Values[i] = ec._AgentELFCluster_id(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "local_id":
+
+			out.Values[i] = ec._AgentELFCluster_local_id(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var everouteClusterImplementors = []string{"EverouteCluster"}
 
 func (ec *executionContext) _EverouteCluster(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteCluster) graphql.Marshaler {
@@ -13000,6 +13149,10 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAgentELFCluster2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFCluster(ctx context.Context, sel ast.SelectionSet, v schema.AgentELFCluster) graphql.Marshaler {
+	return ec._AgentELFCluster(ctx, sel, &v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -14333,6 +14486,53 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalOAgentELFCluster2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFClusterᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.AgentELFCluster) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAgentELFCluster2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFCluster(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
