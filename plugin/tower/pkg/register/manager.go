@@ -26,6 +26,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sinformers "k8s.io/client-go/informers"
+	k8sclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,6 +38,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/computecluster"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/global"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
@@ -103,6 +106,11 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		return err
 	}
 
+	k8sClient, err := k8sclientset.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
+	k8sFactory := k8sinformers.NewSharedInformerFactoryWithOptions(k8sClient, opts.ResyncPeriod, k8sinformers.WithNamespace(opts.Namespace))
 	if opts.SharedFactory == nil {
 		opts.SharedFactory = informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
 	}
@@ -111,6 +119,10 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
 	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
+	elfController := &computecluster.Controller{EverouteClusterID: opts.EverouteCluster, ConfigMapNamespace: opts.Namespace}
+	if err := elfController.Setup(opts.SharedFactory, k8sFactory, k8sClient); err != nil {
+		return err
+	}
 
 	if err := setupSecretManager(mgr, towerMgr, opts.Namespace); err != nil {
 		return err
@@ -118,6 +130,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	err = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		opts.SharedFactory.Start(ctx.Done())
 		crdFactory.Start(ctx.Done())
+		k8sFactory.Start(ctx.Done())
 		go func() {
 			err := towerMgr.Start(ctx)
 			if err != nil {
@@ -128,6 +141,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		go endpointController.Run(opts.WorkerNumber, ctx.Done())
 		go policyController.Run(opts.WorkerNumber, ctx.Done())
 		go globalController.Run(opts.WorkerNumber, ctx.Done())
+		go elfController.Run(ctx)
 
 		<-ctx.Done()
 		return nil
@@ -180,8 +194,9 @@ func setupSecretManager(erMgr, towerMgr ctrl.Manager, towerSpace string) error {
 	}
 
 	err := (&secret.Process{
-		ERCli:    erMgr.GetClient(),
-		TowerCli: towerMgr.GetClient(),
+		ERCli:     erMgr.GetClient(),
+		TowerCli:  towerMgr.GetClient(),
+		Namespace: towerSpace,
 	}).SetupWithManager(erMgr, secretChan, erMgr.GetCache(), towerMgr.GetCache())
 	return err
 }

@@ -41,6 +41,10 @@ func (p *Process) SetupWithManager(mgr ctrl.Manager, queue chan event.GenericEve
 		klog.Errorf("Can't setup secret-process controller, Invalid param client, networkCluster cli %v, cloudPlatform cli %v", p.ERCli, p.TowerCli)
 		return fmt.Errorf("invalid param")
 	}
+	if p.Namespace == "" {
+		klog.Error("Can't setup secret-process controller, param Namespace can't be empty")
+		return fmt.Errorf("invalid param")
+	}
 	cm, err := controller.New("secret-process", mgr, controller.Options{
 		Reconciler: p,
 	})

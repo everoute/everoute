@@ -57,12 +57,17 @@ type Label {
 
 type EverouteCluster {
     id: ID!
-    agent_elf_clusters: [ObjectReference!]
+    agent_elf_clusters: [AgentELFCluster!]
     agent_elf_vdses: [ObjectReference!]
     controller_instances: [EverouteControllerInstance!]!
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
     enable_logging: Boolean
+}
+
+type AgentELFCluster {
+    id: ID!
+    local_id: String!
 }
 
 type EverouteClusterWhitelist {
