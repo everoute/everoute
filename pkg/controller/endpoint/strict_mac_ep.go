@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/ms"
 )
 
 type StrictMacController struct {

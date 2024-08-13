@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 func TestGetRuleSpecByIPSet(t *testing.T) {
@@ -30,10 +30,10 @@ func TestGetRuleSpecByIPSet(t *testing.T) {
 		},
 	}
 
-	for _, c := range tests{
+	for _, c := range tests {
 		res := getRuleSpecByIPSet(c.arg)
 		if strings.Join(res, " ") != c.exp {
-			t.Errorf("test %s failed, res is %s, exp is %s", c.name, strings.Join(res, " ") , c.exp)
+			t.Errorf("test %s failed, res is %s, exp is %s", c.name, strings.Join(res, " "), c.exp)
 		}
 	}
 }

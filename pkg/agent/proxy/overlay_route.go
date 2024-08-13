@@ -9,7 +9,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/utils"
 )
 

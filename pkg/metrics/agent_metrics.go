@@ -9,7 +9,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 )
 

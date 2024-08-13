@@ -3,7 +3,7 @@ package utils
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 func GetGwEndpointName(nodeName string) string {

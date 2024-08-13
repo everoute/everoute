@@ -41,6 +41,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/pkg/constants"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
@@ -1671,10 +1672,10 @@ func getGlobalWhitelistPolicyEnforceMode(enable bool) v1alpha1.PolicyMode {
 func NewLoggingOptionsFrom(obj schema.Object, vmLister informer.Lister) *v1alpha1.Logging {
 	switch t := obj.(type) {
 	case *schema.EverouteCluster:
-		return newLoggingOptions(t.EnableLogging, t.ID, "", constants.LoggingTagPolicyTypeGlobalPolicy)
+		return newLoggingOptions(t.EnableLogging, t.ID, "", msconst.LoggingTagPolicyTypeGlobalPolicy)
 	case *schema.SecurityPolicy:
-		pt := lo.If(t.IsBlocklist, constants.LoggingTagPolicyTypeSecurityPolicyDeny).
-			Else(constants.LoggingTagPolicyTypeSecurityPolicyAllow)
+		pt := lo.If(t.IsBlocklist, msconst.LoggingTagPolicyTypeSecurityPolicyDeny).
+			Else(msconst.LoggingTagPolicyTypeSecurityPolicyAllow)
 		return newLoggingOptions(t.EnableLogging, t.ID, t.Name, pt)
 	case *schema.IsolationPolicy:
 		var name string
@@ -1683,7 +1684,7 @@ func NewLoggingOptionsFrom(obj schema.Object, vmLister informer.Lister) *v1alpha
 				name = vm.(*schema.VM).Name
 			}
 		}
-		return newLoggingOptions(t.EnableLogging, t.ID, name, constants.LoggingTagPolicyTypeQuarantinePolicy)
+		return newLoggingOptions(t.EnableLogging, t.ID, name, msconst.LoggingTagPolicyTypeQuarantinePolicy)
 	default:
 		return newLoggingOptions(false, "", "", "")
 	}
@@ -1693,9 +1694,9 @@ func newLoggingOptions(enabled bool, policyID, policyName, policyType string) *v
 	return &v1alpha1.Logging{
 		Enabled: enabled,
 		Tags: map[string]string{
-			constants.LoggingTagPolicyID:   policyID,
-			constants.LoggingTagPolicyName: policyName,
-			constants.LoggingTagPolicyType: policyType,
+			msconst.LoggingTagPolicyID:   policyID,
+			msconst.LoggingTagPolicyName: policyName,
+			msconst.LoggingTagPolicyType: policyType,
 		},
 	}
 }

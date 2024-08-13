@@ -55,6 +55,7 @@ import (
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	evehealthz "github.com/everoute/everoute/pkg/healthz"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/monitor"
@@ -412,7 +413,7 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 				Spec: v1alpha1.EndpointSpec{
 					Type: v1alpha1.EndpointStatic,
 					Reference: v1alpha1.EndpointReference{
-						ExternalIDName:  constants.GwEpExternalIDName,
+						ExternalIDName:  cniconst.GwEpExternalIDName,
 						ExternalIDValue: datapathManager.Info.NodeName,
 					},
 				},
@@ -485,18 +486,18 @@ func initIPSet() {
 		klog.Fatalf("IPSet check failed: %s", err)
 	}
 
-	opts.svcTCPSet, err = ipset.New(constants.IPSetNameNPSvcTCP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
+	opts.svcTCPSet, err = ipset.New(cniconst.IPSetNameNPSvcTCP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
 	if err != nil {
-		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcTCP, err)
+		klog.Fatalf("Failed to create ipset %s, err: %s", cniconst.IPSetNameNPSvcTCP, err)
 	}
 
-	opts.svcUDPSet, err = ipset.New(constants.IPSetNameNPSvcUDP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
+	opts.svcUDPSet, err = ipset.New(cniconst.IPSetNameNPSvcUDP, ipset.BitmapPort, ipset.Exist(true), ipset.Comment(true), ipset.PortRange("0-65535"))
 	if err != nil {
-		klog.Fatalf("Failed to create ipset %s, err: %s", constants.IPSetNameNPSvcUDP, err)
+		klog.Fatalf("Failed to create ipset %s, err: %s", cniconst.IPSetNameNPSvcUDP, err)
 	}
 
-	opts.lbSvcSet, err = ipset.New(constants.IPSetNameLBSvc, ipset.HashIpPort, ipset.Exist(true), ipset.Comment(true))
+	opts.lbSvcSet, err = ipset.New(cniconst.IPSetNameLBSvc, ipset.HashIpPort, ipset.Exist(true), ipset.Comment(true))
 	if err != nil {
-		klog.Fatalf("Failed to crate ipset %s, err: %s", constants.IPSetNameLBSvc, err)
+		klog.Fatalf("Failed to crate ipset %s, err: %s", cniconst.IPSetNameLBSvc, err)
 	}
 }

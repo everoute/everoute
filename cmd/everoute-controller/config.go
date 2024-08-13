@@ -9,6 +9,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 const configPath = "/var/lib/everoute/controllerconfig.yaml"
@@ -62,7 +63,7 @@ func (o *Options) IsEnableOverlay() bool {
 		return false
 	}
 
-	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
+	return o.Config.CNIConf.EncapMode == cniconst.EncapModeGeneve
 }
 
 func (o *Options) getAPIServer() string {
@@ -74,7 +75,7 @@ func (o *Options) useEverouteIPAM() bool {
 		return false
 	}
 
-	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
+	return o.Config.CNIConf.IPAM == cniconst.EverouteIPAM
 }
 
 func (o *Options) getIPAMCleanPeriod() int {
@@ -108,7 +109,7 @@ func (o *Options) cniConfigCheck() error {
 		return nil
 	}
 
-	if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
+	if o.Config.CNIConf.IPAM == cniconst.EverouteIPAM {
 		if !o.IsEnableOverlay() || !o.IsEnableProxy() {
 			return fmt.Errorf("everoute ipam can only used in overlay mode with everoute proxy")
 		}

@@ -36,6 +36,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -109,7 +110,7 @@ func (o *Options) IsEnableOverlay() bool {
 		return false
 	}
 
-	return o.Config.CNIConf.EncapMode == constants.EncapModeGeneve
+	return o.Config.CNIConf.EncapMode == cniconst.EncapModeGeneve
 }
 
 func (o *Options) UseEverouteIPAM() bool {
@@ -117,7 +118,7 @@ func (o *Options) UseEverouteIPAM() bool {
 		return false
 	}
 
-	return o.Config.CNIConf.IPAM == constants.EverouteIPAM
+	return o.Config.CNIConf.IPAM == cniconst.EverouteIPAM
 }
 
 func (o *Options) getAPIServer() string {
@@ -148,7 +149,7 @@ func (o *Options) cniConfigCheck() error {
 		return nil
 	}
 
-	if o.Config.CNIConf.IPAM == constants.EverouteIPAM {
+	if o.Config.CNIConf.IPAM == cniconst.EverouteIPAM {
 		if !o.IsEnableOverlay() || !o.IsEnableProxy() {
 			return fmt.Errorf("everoute ipam can only used in overlay mode with everoute proxy")
 		}
@@ -365,7 +366,7 @@ func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) er
 	netconf := &ipam.NetConf{
 		AllocateIdentify: agentInfo.NodeName,
 		Type:             ipamv1alpha1.AllocateTypeCNIUsed,
-		Pool:             constants.GwIPPoolName,
+		Pool:             cniconst.GwIPPoolName,
 	}
 	if ip != nil {
 		netconf.IP = ip.String()
@@ -412,7 +413,7 @@ func getPodMTU(node *corev1.Node) (int, error) {
 
 	podMTU := nodeMTU
 	if opts.IsEnableOverlay() {
-		podMTU = nodeMTU - constants.GeneveHeaderLen
+		podMTU = nodeMTU - cniconst.GeneveHeaderLen
 	}
 
 	if podMTU <= 0 {

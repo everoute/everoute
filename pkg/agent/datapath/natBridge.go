@@ -32,6 +32,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
 	everoutesvc "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	ertype "github.com/everoute/everoute/pkg/types"
 )
 
@@ -288,7 +289,7 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	if svcLB.TrafficPolicy == ertype.TrafficPolicyLocal && svcLB.IsExternal() {
-		ofRange := openflow13.NewNXRange(constants.SvcLocalPktMarkBit, constants.SvcLocalPktMarkBit)
+		ofRange := openflow13.NewNXRange(cniconst.SvcLocalPktMarkBit, cniconst.SvcLocalPktMarkBit)
 		if err := lbFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, ofRange); err != nil {
 			log.Errorf("Failed to setup set pkt mark for svc lb info %v with ExternalTrafficPolicy=Local flow load field action: %s", *svcLB, err)
 			return err
@@ -539,7 +540,7 @@ func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32)
 }
 
 func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int32) (*ofctrl.Flow, error) {
-	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	var pktMask uint32 = 1 << cniconst.ExternalSvcPktMarkBit
 	if protocol == corev1.ProtocolTCP {
 		newFlow, err := n.serviceLBTable.NewFlow(ofctrl.FlowMatch{
 			Priority:       LbFlowForNPPri,
@@ -547,7 +548,7 @@ func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int3
 			IpProto:        PROTOCOL_TCP,
 			TcpDstPort:     uint16(nodePort),
 			TcpDstPortMask: PortMaskMatchFullBit,
-			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMark:        1 << cniconst.ExternalSvcPktMarkBit,
 			PktMarkMask:    &pktMask,
 		})
 		return newFlow, err
@@ -560,7 +561,7 @@ func (n *NatBridge) newLBFlowForNodePort(protocol corev1.Protocol, nodePort int3
 			IpProto:        PROTOCOL_UDP,
 			UdpDstPort:     uint16(nodePort),
 			UdpDstPortMask: PortMaskMatchFullBit,
-			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMark:        1 << cniconst.ExternalSvcPktMarkBit,
 			PktMarkMask:    &pktMask,
 		})
 		return newFlow, err
@@ -705,12 +706,12 @@ func (n *NatBridge) setCTZone(zone uint64, portType string) error {
 }
 
 func (n *NatBridge) initInPortTable() error {
-	if err := n.setCTZone(constants.CTZoneNatBrFromLocal, NatToLocalSuffix); err != nil {
+	if err := n.setCTZone(cniconst.CTZoneNatBrFromLocal, NatToLocalSuffix); err != nil {
 		return fmt.Errorf("failed to set from local ct zone: %s", err)
 	}
 
 	if n.kubeProxyReplace {
-		if err := n.setCTZone(constants.CTZoneNatBrFromUplink, NatToUplinkSuffix); err != nil {
+		if err := n.setCTZone(cniconst.CTZoneNatBrFromUplink, NatToUplinkSuffix); err != nil {
 			return fmt.Errorf("failed to set from uplink ct zone: %s", err)
 		}
 	}
@@ -793,11 +794,11 @@ func (n *NatBridge) initCTStateTable() error {
 	}
 
 	if n.kubeProxyReplace {
-		var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+		var pktMask uint32 = 1 << cniconst.ExternalSvcPktMarkBit
 		svcPktFlow, _ := n.ctStateTable.NewFlow(ofctrl.FlowMatch{
 			Priority:    NORMAL_MATCH_FLOW_PRIORITY,
 			InputPort:   n.datapathManager.BridgeChainPortMap[n.ovsBrName][NatToUplinkSuffix],
-			PktMark:     1 << constants.ExternalSvcPktMarkBit,
+			PktMark:     1 << cniconst.ExternalSvcPktMarkBit,
 			PktMarkMask: &pktMask,
 		})
 		if err := svcPktFlow.Resubmit(nil, &NatBrSessionAffinityTable); err != nil {
@@ -910,8 +911,8 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, lear
 	backendIPField := ofctrl.LearnField{Name: BackendIPReg, Start: 0}
 	backendPortField := ofctrl.LearnField{Name: BackendPortReg, Start: 0}
 	chooseBackendFlagField := ofctrl.LearnField{Name: ChooseBackendFlagReg, Start: uint16(ChooseBackendFlagStart)}
-	unsnatFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: constants.SvcLocalPktMarkBit}
-	externalFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: constants.ExternalSvcPktMarkBit}
+	unsnatFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: cniconst.SvcLocalPktMarkBit}
+	externalFlagField := ofctrl.LearnField{Name: "nxm_nx_pkt_mark", Start: cniconst.ExternalSvcPktMarkBit}
 
 	cookieID, err := getLearnCookieID()
 	if err != nil {
@@ -1023,7 +1024,7 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 	var flow *ofctrl.Flow
 	var ipProto uint8
 	var err error
-	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	var pktMask uint32 = 1 << cniconst.ExternalSvcPktMarkBit
 	switch protocol {
 	case corev1.ProtocolTCP:
 		ipProto = PROTOCOL_TCP
@@ -1033,7 +1034,7 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 			IpProto:        ipProto,
 			TcpDstPort:     uint16(dstNodePort),
 			TcpDstPortMask: PortMaskMatchFullBit,
-			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMark:        1 << cniconst.ExternalSvcPktMarkBit,
 			PktMarkMask:    &pktMask,
 		})
 		if err != nil {
@@ -1048,7 +1049,7 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 			IpProto:        ipProto,
 			UdpDstPort:     uint16(dstNodePort),
 			UdpDstPortMask: PortMaskMatchFullBit,
-			PktMark:        1 << constants.ExternalSvcPktMarkBit,
+			PktMark:        1 << cniconst.ExternalSvcPktMarkBit,
 			PktMarkMask:    &pktMask,
 		})
 		if err != nil {
@@ -1179,12 +1180,12 @@ func (n *NatBridge) initGroupIDConfig() error {
 		return err
 	}
 	nextIter := gpIDs.GetNextIter()
-	if nextIter > constants.MaxGroupIter || gpIDs.TooManyGroups() {
+	if nextIter > cniconst.MaxGroupIter || gpIDs.TooManyGroups() {
 		log.Infof("No available groupid iter or there is too many groups to be deleted, so delete all groups for bridge %s", n.GetName())
 		// no available groupid iter
 		_ = ofctrl.DeleteGroup(n.OfSwitch, openflow13.OFPG_ALL)
 		nextIter = 0
-		n.curMaxGroupID = constants.GroupIDUpdateUnit
+		n.curMaxGroupID = cniconst.GroupIDUpdateUnit
 		n.groupIDAllocator = NewGroupIDAllocate(nextIter)
 		newGpIDs := &GroupIDInfo{Exists: make(map[uint32]uint32)}
 		newGpIDs.Exists[nextIter] = n.curMaxGroupID
@@ -1196,7 +1197,7 @@ func (n *NatBridge) initGroupIDConfig() error {
 	}
 
 	n.groupIDAllocator = NewGroupIDAllocate(nextIter)
-	n.curMaxGroupID = nextIter<<(32-constants.BitWidthGroupIter) + constants.GroupIDUpdateUnit
+	n.curMaxGroupID = nextIter<<(32-cniconst.BitWidthGroupIter) + cniconst.GroupIDUpdateUnit
 	newGpIDs := gpIDs.Clone()
 	if newGpIDs.Exists == nil {
 		newGpIDs.Exists = make(map[uint32]uint32, 1)
@@ -1245,7 +1246,7 @@ func (n *NatBridge) cleanStaleGroupIDsByIter(curIter, delIter uint32) bool {
 		return false
 	}
 	log.Infof("Bridge %s begin to delete group for iter %d", n.GetName(), delIter)
-	start := delIter<<(32-constants.BitWidthGroupIter) + 1
+	start := delIter<<(32-cniconst.BitWidthGroupIter) + 1
 	for curGp := start; curGp <= end; curGp++ {
 		_ = ofctrl.DeleteGroup(n.OfSwitch, curGp)
 	}
@@ -1295,8 +1296,8 @@ func (n *NatBridge) updateMaxGroupID(curGpID uint32) error {
 	}
 
 	newMax := n.groupIDAllocator.Max()
-	if n.groupIDAllocator.Max()-n.curMaxGroupID > constants.GroupIDUpdateUnit {
-		newMax = n.curMaxGroupID + constants.GroupIDUpdateUnit
+	if n.groupIDAllocator.Max()-n.curMaxGroupID > cniconst.GroupIDUpdateUnit {
+		newMax = n.curMaxGroupID + cniconst.GroupIDUpdateUnit
 	}
 	curIter := n.groupIDAllocator.GetIter()
 	gpIDs, err := GetGroupIDInfo(n.GetName())

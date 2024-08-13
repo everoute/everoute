@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 var (
@@ -485,7 +486,7 @@ func (l *LocalBridgeOverlay) initFromLocalTable() error {
 			return fmt.Errorf("failed to setup from local table pod flow resubmit action, err: %v", err)
 		}
 	} else {
-		var cniConntrackZone uint16 = constants.CTZoneLocalBr
+		var cniConntrackZone uint16 = cniconst.CTZoneLocalBr
 		ctAction := ofctrl.NewConntrackAction(true, false, &LBOOutputTable, &cniConntrackZone)
 		_ = podFlow.SetConntrack(ctAction)
 	}

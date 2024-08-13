@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/ms"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/global"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
