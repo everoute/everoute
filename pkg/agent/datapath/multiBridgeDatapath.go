@@ -49,6 +49,7 @@ import (
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
@@ -1457,7 +1458,7 @@ func (datapathManager *DpManager) IsEnableOverlay() bool {
 		return false
 	}
 
-	return datapathManager.Config.CNIConfig.EncapMode == constants.EncapModeGeneve
+	return datapathManager.Config.CNIConfig.EncapMode == cniconst.EncapModeGeneve
 }
 
 func (datapathManager *DpManager) UseEverouteIPAM() bool {
@@ -1465,7 +1466,7 @@ func (datapathManager *DpManager) UseEverouteIPAM() bool {
 		return false
 	}
 
-	return datapathManager.Config.CNIConfig.IPAMType == constants.EverouteIPAM
+	return datapathManager.Config.CNIConfig.IPAMType == cniconst.EverouteIPAM
 }
 
 func (datapathManager *DpManager) HandleEndpointIPTimeout(_ context.Context, endpointIP *types.EndpointIP) error {

@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -46,15 +47,15 @@ const (
 	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
 	P_NONE                             = 0xffff
 
-	InternalSvcPktMark uint32 = 1 << constants.InternalSvcPktMarkBit
+	InternalSvcPktMark uint32 = 1 << cniconst.InternalSvcPktMarkBit
 )
 
 var (
 	vlanIDAndFlagMask      uint16 = 0x1fff
 	VlanFlagMask           uint16 = 0x1000
-	InternalSvcPktMarkMask uint32 = 1 << constants.InternalSvcPktMarkBit
+	InternalSvcPktMarkMask uint32 = 1 << cniconst.InternalSvcPktMarkBit
 
-	InternalSvcPktMarkRange *openflow13.NXRange = openflow13.NewNXRange(constants.InternalSvcPktMarkBit, constants.InternalSvcPktMarkBit)
+	InternalSvcPktMarkRange *openflow13.NXRange = openflow13.NewNXRange(cniconst.InternalSvcPktMarkBit, cniconst.InternalSvcPktMarkBit)
 )
 
 type LocalBridge struct {
@@ -455,7 +456,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	// Commit CT for traffic from Pod (These traffic will bypass local gateway)
 
 	// Bypass default with higher priority, transmit all ip pkt to ct commit table
-	var cniConntrackZone uint16 = constants.CTZoneLocalBr
+	var cniConntrackZone uint16 = cniconst.CTZoneLocalBr
 	var cniCommitTalbe uint8 = CNI_CT_COMMIT_TABLE
 	ctAction := ofctrl.NewConntrackAction(false, false, &cniCommitTalbe, &cniConntrackZone)
 	cniDefaultNoraml, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{

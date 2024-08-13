@@ -33,6 +33,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -738,7 +739,7 @@ var _ = Describe("PolicyController", func() {
 					NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
-				assertLogging(ctx, Default, true, policy.ID, policy.Name, constants.LoggingTagPolicyTypeSecurityPolicyAllow)
+				assertLogging(ctx, Default, true, policy.ID, policy.Name, msconst.LoggingTagPolicyTypeSecurityPolicyAllow)
 			})
 
 			When("update SecurityPolicy with disable logging", func() {
@@ -750,7 +751,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should update policy with disable logging", func() {
 					Eventually(func(g Gomega) {
-						assertLogging(ctx, g, false, policy.ID, policy.Name, constants.LoggingTagPolicyTypeSecurityPolicyAllow)
+						assertLogging(ctx, g, false, policy.ID, policy.Name, msconst.LoggingTagPolicyTypeSecurityPolicyAllow)
 					}, timeout, interval).Should(Succeed())
 				})
 			})
@@ -796,7 +797,7 @@ var _ = Describe("PolicyController", func() {
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
-				assertLogging(ctx, Default, true, policy.ID, policy.Name, constants.LoggingTagPolicyTypeSecurityPolicyDeny)
+				assertLogging(ctx, Default, true, policy.ID, policy.Name, msconst.LoggingTagPolicyTypeSecurityPolicyDeny)
 			})
 
 			When("update SecurityPolicy with disable logging", func() {
@@ -808,7 +809,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should update policy with disable logging", func() {
 					Eventually(func(g Gomega) {
-						assertLogging(ctx, g, false, policy.ID, policy.Name, constants.LoggingTagPolicyTypeSecurityPolicyDeny)
+						assertLogging(ctx, g, false, policy.ID, policy.Name, msconst.LoggingTagPolicyTypeSecurityPolicyDeny)
 					}, timeout, interval).Should(Succeed())
 				})
 			})
@@ -1084,7 +1085,7 @@ var _ = Describe("PolicyController", func() {
 					NewSecurityPolicyApplyPeer(vnicA.GetID()),
 					NewSecurityPolicyApplyPeer(vnicB.GetID()),
 				)
-				assertLogging(ctx, Default, true, policy.ID, vm.Name, constants.LoggingTagPolicyTypeQuarantinePolicy)
+				assertLogging(ctx, Default, true, policy.ID, vm.Name, msconst.LoggingTagPolicyTypeQuarantinePolicy)
 			})
 
 			When("update IsolationPolicy with disable logging", func() {
@@ -1096,7 +1097,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should update policy with disable logging", func() {
 					Eventually(func(g Gomega) {
-						assertLogging(ctx, g, false, policy.ID, vm.Name, constants.LoggingTagPolicyTypeQuarantinePolicy)
+						assertLogging(ctx, g, false, policy.ID, vm.Name, msconst.LoggingTagPolicyTypeQuarantinePolicy)
 					}, timeout, interval).Should(Succeed())
 				})
 			})
@@ -1382,7 +1383,7 @@ var _ = Describe("PolicyController", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 						nil, NewSecurityPolicyRuleEgress("TCP", "27", []*networkingv1.IPBlock{ipBlock}))
-					assertLogging(ctx, Default, false, cluster.ID, "", constants.LoggingTagPolicyTypeGlobalPolicy)
+					assertLogging(ctx, Default, false, cluster.ID, "", msconst.LoggingTagPolicyTypeGlobalPolicy)
 				})
 
 				When("update everouteCluster with enable logging", func() {
@@ -1394,7 +1395,7 @@ var _ = Describe("PolicyController", func() {
 
 					It("should update policy with disable logging", func() {
 						Eventually(func(g Gomega) {
-							assertLogging(ctx, g, true, cluster.ID, "", constants.LoggingTagPolicyTypeGlobalPolicy)
+							assertLogging(ctx, g, true, cluster.ID, "", msconst.LoggingTagPolicyTypeGlobalPolicy)
 						}, timeout, interval).Should(Succeed())
 					})
 				})
@@ -1653,9 +1654,9 @@ func assertLogging(ctx context.Context, g Gomega, enabled bool, policyID, policy
 		g.Expect(policy.Spec.Logging).ShouldNot(BeNil())
 		g.Expect(policy.Spec.Logging.Enabled).Should(Equal(enabled))
 		g.Expect(policy.Spec.Logging.Tags).Should(HaveLen(3))
-		g.Expect(policy.Spec.Logging.Tags[constants.LoggingTagPolicyID]).Should(Equal(policyID))
-		g.Expect(policy.Spec.Logging.Tags[constants.LoggingTagPolicyName]).Should(Equal(policyName))
-		g.Expect(policy.Spec.Logging.Tags[constants.LoggingTagPolicyType]).Should(Equal(policyType))
+		g.Expect(policy.Spec.Logging.Tags[msconst.LoggingTagPolicyID]).Should(Equal(policyID))
+		g.Expect(policy.Spec.Logging.Tags[msconst.LoggingTagPolicyName]).Should(Equal(policyName))
+		g.Expect(policy.Spec.Logging.Tags[msconst.LoggingTagPolicyType]).Should(Equal(policyType))
 	}
 }
 

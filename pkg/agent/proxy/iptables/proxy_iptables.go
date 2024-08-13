@@ -7,7 +7,7 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 	klog "k8s.io/klog/v2"
 
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 type proxyIPtables interface {

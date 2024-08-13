@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 var (
@@ -382,10 +383,10 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 }
 
 func (u *UplinkBridgeOverlay) initSvcForwardTable() error {
-	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	var pktMask uint32 = 1 << cniconst.ExternalSvcPktMarkBit
 	svcFromNat, _ := u.svcForwardTable.NewFlow(ofctrl.FlowMatch{
 		InputPort:   u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToNatSuffix],
-		PktMark:     1 << constants.ExternalSvcPktMarkBit,
+		PktMark:     1 << cniconst.ExternalSvcPktMarkBit,
 		PktMarkMask: &pktMask,
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 	})
@@ -411,7 +412,7 @@ func (u *UplinkBridgeOverlay) initSvcForwardTable() error {
 		Ethertype: PROTOCOL_IP,
 		Priority:  DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	var zone uint16 = constants.CTZoneUplinkBr
+	var zone uint16 = cniconst.CTZoneUplinkBr
 	ctAct := ofctrl.NewConntrackAction(false, false, &UBOSvcMatchTable, &zone)
 	_ = defaultFlow.SetConntrack(ctAct)
 	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -435,7 +436,7 @@ func (u *UplinkBridgeOverlay) initSvcMatchTable() error {
 	if err := matchCTFlow.LoadField(UBOOutputPortReg, toNatPort, UBOOutputPortRange); err != nil {
 		return fmt.Errorf("failed to setup loadfield action for match ct flow, err: %s", err)
 	}
-	var zone uint16 = constants.CTZoneUplinkBr
+	var zone uint16 = cniconst.CTZoneUplinkBr
 	natAct, _ := ofctrl.NewNatAction().ToOfAction()
 	ctAct := ofctrl.NewConntrackAction(true, false, &UBOOutputTable, &zone, natAct)
 	_ = matchCTFlow.SetConntrack(ctAct)
@@ -459,10 +460,10 @@ func (u *UplinkBridgeOverlay) initSvcMatchTable() error {
 		return fmt.Errorf("failed to install clusterIP svc flow, err: %s", err)
 	}
 
-	var pktMask uint32 = 1 << constants.ExternalSvcPktMarkBit
+	var pktMask uint32 = 1 << cniconst.ExternalSvcPktMarkBit
 	svcFlow, _ := u.svcMatchTable.NewFlow(ofctrl.FlowMatch{
 		InputPort:   u.datapathManager.Info.GatewayOfPort,
-		PktMark:     1 << constants.ExternalSvcPktMarkBit,
+		PktMark:     1 << cniconst.ExternalSvcPktMarkBit,
 		PktMarkMask: &pktMask,
 		Priority:    MID_MATCH_FLOW_PRIORITY,
 	})
@@ -489,7 +490,7 @@ func (u *UplinkBridgeOverlay) initResetSvcMarkTable() error {
 	flow, _ := u.resetSvcMarkTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	ofRange := openflow.NewNXRange(constants.ExternalSvcPktMarkBit, constants.ExternalSvcPktMarkBit)
+	ofRange := openflow.NewNXRange(cniconst.ExternalSvcPktMarkBit, cniconst.ExternalSvcPktMarkBit)
 	if err := flow.LoadField("nxm_nx_pkt_mark", constants.PktMarkResetValue, ofRange); err != nil {
 		return fmt.Errorf("failed to setup reset pkt mark svc flow load field action: %s", err)
 	}
@@ -504,7 +505,7 @@ func (u *UplinkBridgeOverlay) initResetSvcMarkTable() error {
 }
 
 func (u *UplinkBridgeOverlay) addSnatToGwFlow(podCIDR *net.IPNet) error {
-	var zone uint16 = constants.CTZoneUplinkBr
+	var zone uint16 = cniconst.CTZoneUplinkBr
 	cidrMask := (net.IP)(podCIDR.Mask)
 	flow, _ := u.svcSnatTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
@@ -522,16 +523,16 @@ func (u *UplinkBridgeOverlay) addSnatToGwFlow(podCIDR *net.IPNet) error {
 }
 
 func (u *UplinkBridgeOverlay) initSvcSnatTable() error {
-	var zone uint16 = constants.CTZoneUplinkBr
+	var zone uint16 = cniconst.CTZoneUplinkBr
 
-	var pktMask uint32 = 1 << constants.SvcLocalPktMarkBit
+	var pktMask uint32 = 1 << cniconst.SvcLocalPktMarkBit
 	noSnat, _ := u.svcSnatTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype:   PROTOCOL_IP,
-		PktMark:     1 << constants.SvcLocalPktMarkBit,
+		PktMark:     1 << cniconst.SvcLocalPktMarkBit,
 		PktMarkMask: &pktMask,
 	})
-	ofRange := openflow.NewNXRange(constants.SvcLocalPktMarkBit, constants.SvcLocalPktMarkBit)
+	ofRange := openflow.NewNXRange(cniconst.SvcLocalPktMarkBit, cniconst.SvcLocalPktMarkBit)
 	if err := noSnat.LoadField("nxm_nx_pkt_mark", constants.PktMarkResetValue, ofRange); err != nil {
 		return fmt.Errorf("failed to setup reset pkt mark for svc with ExternalTrafficPolicy=Local flow load field action: %s", err)
 	}
@@ -695,7 +696,7 @@ func (u *UplinkBridgeOverlay) initSetSvcMarkTable() error {
 	flow, _ := u.setSvcMarkTable.NewFlow(ofctrl.FlowMatch{
 		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
-	pktRange := openflow.NewNXRange(constants.ExternalSvcPktMarkBit, constants.ExternalSvcPktMarkBit)
+	pktRange := openflow.NewNXRange(cniconst.ExternalSvcPktMarkBit, cniconst.ExternalSvcPktMarkBit)
 	if err := flow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktRange); err != nil {
 		return fmt.Errorf("failed to setup svc flow set pkt mark action: %s", err)
 	}

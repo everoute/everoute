@@ -41,6 +41,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	eriptables "github.com/everoute/everoute/pkg/agent/proxy/iptables"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -120,7 +121,7 @@ func RouteEqual(r1, r2 netlink.Route) bool {
 func ChangeLocalRulePriority() error {
 	newLocalRule := netlink.NewRule()
 	newLocalRule.Table = unix.RT_TABLE_LOCAL
-	newLocalRule.Priority = constants.LocalRulePriority
+	newLocalRule.Priority = cniconst.LocalRulePriority
 	if err := utils.RuleAdd(newLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
 		klog.Errorf("Failed to add rule %s, err: %s", newLocalRule, err)
 		return err
@@ -139,7 +140,7 @@ func ChangeLocalRulePriority() error {
 
 func AddRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
 	route := &netlink.Route{
-		Table: constants.FromGwLocalRouteTable,
+		Table: cniconst.FromGwLocalRouteTable,
 		Gw:    agentInfo.LocalGwIP,
 		Dst: &net.IPNet{
 			IP:   net.IPv4(0, 0, 0, 0),
@@ -160,8 +161,8 @@ func AddRouteForTableLocalGw(agentInfo *datapath.DpManagerInfo) error {
 
 	rule := netlink.NewRule()
 	rule.IifName = agentInfo.LocalGwName
-	rule.Table = constants.FromGwLocalRouteTable
-	rule.Priority = constants.FromGwLocalRulePriority
+	rule.Table = cniconst.FromGwLocalRouteTable
+	rule.Priority = cniconst.FromGwLocalRulePriority
 	if err := utils.RuleAdd(rule, netlink.RT_FILTER_IIF|netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
 		klog.Errorf("Failed to add rule %s, err: %s", rule, err)
 		return err

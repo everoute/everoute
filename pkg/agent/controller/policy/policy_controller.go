@@ -44,6 +44,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/utils"
@@ -704,22 +705,22 @@ func (r *Reconciler) isReadyToProcessGlobalRule() bool {
 	if r.globalRuleFirstProcessedTime == nil {
 		curT := time.Now()
 		r.globalRuleFirstProcessedTime = &curT
-		klog.Infof("At least wait %s when first process global rule", constants.GlobalRuleFirstDelayTime)
-		time.Sleep(constants.GlobalRuleFirstDelayTime)
-	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(constants.GlobalRuleDelayTimeout)) {
+		klog.Infof("At least wait %s when first process global rule", msconst.GlobalRuleFirstDelayTime)
+		time.Sleep(msconst.GlobalRuleFirstDelayTime)
+	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(msconst.GlobalRuleDelayTimeout)) {
 		r.ReadyToProcessGlobalRule = true
 		return true
 	}
 
 	r.sysProcessedPolicyLock.RLock()
 	defer r.sysProcessedPolicyLock.RUnlock()
-	if !r.sysProcessedPolicy.Has(constants.SysEPPolicy) {
+	if !r.sysProcessedPolicy.Has(msconst.SysEPPolicy) {
 		return false
 	}
-	if !r.sysProcessedPolicy.Has(constants.ERvmPolicy) {
+	if !r.sysProcessedPolicy.Has(msconst.ERvmPolicy) {
 		return false
 	}
-	if !r.sysProcessedPolicy.Has(constants.LBPolicy) {
+	if !r.sysProcessedPolicy.Has(msconst.LBPolicy) {
 		return false
 	}
 	r.ReadyToProcessGlobalRule = true
@@ -730,7 +731,7 @@ func (r *Reconciler) addProcessedSysPolicy(p k8stypes.NamespacedName) {
 	r.sysProcessedPolicyLock.Lock()
 	defer r.sysProcessedPolicyLock.Unlock()
 
-	if p == constants.SysEPPolicy || p == constants.ERvmPolicy || p == constants.LBPolicy {
+	if p == msconst.SysEPPolicy || p == msconst.ERvmPolicy || p == msconst.LBPolicy {
 		r.sysProcessedPolicy.Insert(p)
 	}
 }

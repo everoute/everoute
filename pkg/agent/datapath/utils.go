@@ -33,7 +33,7 @@ import (
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 )
@@ -167,10 +167,10 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 		dpConfig.CNIConfig.EnableProxy = true
 	}
 	if enableOverlay {
-		dpConfig.CNIConfig.EncapMode = constants.EncapModeGeneve
+		dpConfig.CNIConfig.EncapMode = cniconst.EncapModeGeneve
 	}
 	if enableIPAM {
-		dpConfig.CNIConfig.IPAMType = constants.EverouteIPAM
+		dpConfig.CNIConfig.IPAMType = cniconst.EverouteIPAM
 	}
 
 	updateChan := make(chan *types.EndpointIP, 10)

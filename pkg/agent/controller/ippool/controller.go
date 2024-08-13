@@ -25,6 +25,7 @@ import (
 	eproxy "github.com/everoute/everoute/pkg/agent/proxy"
 	eipt "github.com/everoute/everoute/pkg/agent/proxy/iptables"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 )
 
 type Reconciler struct {
@@ -219,7 +220,7 @@ func (r *Reconciler) addIPPool(ippool *ipamv1alpha1.IPPool) error {
 func getPredicateFunc(builtInIPPoolNs string) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if e.Object.GetNamespace() == builtInIPPoolNs && e.Object.GetName() == constants.GwIPPoolName {
+			if e.Object.GetNamespace() == builtInIPPoolNs && e.Object.GetName() == cniconst.GwIPPoolName {
 				return false
 			}
 			return true
@@ -228,7 +229,7 @@ func getPredicateFunc(builtInIPPoolNs string) predicate.Predicate {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			if e.Object.GetNamespace() == builtInIPPoolNs && e.Object.GetName() == constants.GwIPPoolName {
+			if e.Object.GetNamespace() == builtInIPPoolNs && e.Object.GetName() == cniconst.GwIPPoolName {
 				return false
 			}
 			return true

@@ -36,7 +36,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
-	"github.com/everoute/everoute/pkg/constants"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
@@ -136,9 +136,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	cutT := time.Now()
 	pCtrl.globalRuleFirstProcessedTime = &cutT
-	pCtrl.sysProcessedPolicy.Insert(constants.ERvmPolicy)
-	pCtrl.sysProcessedPolicy.Insert(constants.SysEPPolicy)
-	pCtrl.sysProcessedPolicy.Insert(constants.LBPolicy)
+	pCtrl.sysProcessedPolicy.Insert(msconst.ERvmPolicy)
+	pCtrl.sysProcessedPolicy.Insert(msconst.SysEPPolicy)
+	pCtrl.sysProcessedPolicy.Insert(msconst.LBPolicy)
 
 	ruleCacheLister = pCtrl.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())

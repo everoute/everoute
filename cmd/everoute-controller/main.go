@@ -48,6 +48,7 @@ import (
 
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/controller/common"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
@@ -341,7 +342,7 @@ func startIPAM(ctx context.Context, mgr ctrl.Manager) {
 	if err = (&ctrlipam.Reconciler{
 		Client:       mgr.GetClient(),
 		GWIPPoolNs:   selfNs,
-		GWIPPoolName: constants.GwIPPoolName,
+		GWIPPoolName: cniconst.GwIPPoolName,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create ipam controller %v", err)
 	}
@@ -356,6 +357,6 @@ func startIPAM(ctx context.Context, mgr ctrl.Manager) {
 		klog.Fatalf("invalid ipam stale ip clean period %d", opts.getIPAMCleanPeriod())
 	}
 	cleanStaleIP := ipamcron.NewCleanStaleIP(time.Duration(opts.getIPAMCleanPeriod())*time.Minute, mgr.GetClient(), mgr.GetAPIReader())
-	cleanStaleIP.RegistryCleanFunc(ipam.NewCleanStaleIP(selfNs, constants.GwIPPoolName, selfNs).Process)
+	cleanStaleIP.RegistryCleanFunc(ipam.NewCleanStaleIP(selfNs, cniconst.GwIPPoolName, selfNs).Process)
 	cleanStaleIP.Run(ctx)
 }

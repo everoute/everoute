@@ -37,7 +37,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
-	"github.com/everoute/everoute/pkg/constants"
+	constants "github.com/everoute/everoute/pkg/constants/cni"
 	eripam "github.com/everoute/everoute/pkg/ipam"
 	etypes "github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
