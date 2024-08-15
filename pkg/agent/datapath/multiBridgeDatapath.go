@@ -51,7 +51,7 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-// nolint
+//nolint:all
 const (
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
@@ -62,7 +62,7 @@ const (
 	FLOW_MATCH_OFFSET                   = 3
 )
 
-// nolint
+//nolint:all
 const (
 	POLICY_TIER1    = 50
 	POLICY_TIER2    = 100
@@ -70,19 +70,19 @@ const (
 	POLICY_TIER3    = 150
 )
 
-// nolint
+//nolint:all
 const (
 	POLICY_DIRECTION_OUT = 0
 	POLICY_DIRECTION_IN  = 1
 )
 
-// nolint
+//nolint:all
 const (
 	IP_BROADCAST_ADDR = "255.255.255.255"
 	LOOP_BACK_ADDR    = "127.0.0.1"
 )
 
-// nolint
+//nolint:all
 const (
 	FLOW_ROUND_NUM_LENGTH           = 4
 	FLOW_SEQ_NUM_LENGTH             = 28
@@ -91,7 +91,7 @@ const (
 	DEFAULT_POLICY_ENFORCEMENT_MODE = "work"
 )
 
-// nolint
+//nolint:all
 const (
 	PROTOCOL_ARP = 0x0806
 	PROTOCOL_IP  = 0x0800
@@ -99,7 +99,7 @@ const (
 	PROTOCOL_TCP = 0x06
 )
 
-// nolint
+//nolint:all
 const (
 	LOCAL_BRIDGE_KEYWORD  = "local"
 	POLICY_BRIDGE_KEYWORD = "policy"
@@ -563,7 +563,7 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go natControl.Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, natBr.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
-// nolint
+//nolint:all
 func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	// initialize vds bridge chain
 	localBridge := NewLocalBridge(ovsbrname, datapathManager)
@@ -789,7 +789,8 @@ func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string, keyWo
 
 		bridge := datapathManager.BridgeChainMap[vdsID][keyWord]
 		if err := bridge.AddLocalEndpoint(endpoint); err != nil {
-			return fmt.Errorf("failed to add local endpoint %s to vds %s, bridge %s, error: %v", endpoint.InterfaceUUID, vdsID, bridge.GetName(), err)
+			return fmt.Errorf("failed to add local endpoint %s to vds %s, bridge %s, error: %v",
+				endpoint.InterfaceUUID, vdsID, bridge.GetName(), err)
 		}
 	}
 
@@ -802,7 +803,8 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 		flowEntry, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(erPolicyRuleEntry.EveroutePolicyRule,
 			erPolicyRuleEntry.Direction, erPolicyRuleEntry.Tier, erPolicyRuleEntry.Mode)
 		if err != nil {
-			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].GetName(), err)
+			return fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v",
+				vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].GetName(), err)
 		}
 		// udpate new policy rule flow to datapath flow cache
 		datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = flowEntry
@@ -864,12 +866,14 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 			datapathManager.localEndpointDB.Set(endpoint.InterfaceUUID, endpoint)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(endpoint)
 			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to add local endpoint %s to vds %v, bridge %v, error: %v",
+					endpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.AddLocalEndpoint(endpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v",
+						endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
 				}
 			}
 			break
@@ -911,13 +915,15 @@ func (datapathManager *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *
 			datapathManager.localEndpointDB.Set(newEndpoint.InterfaceUUID, newEndpoint)
 			err = datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].AddLocalEndpoint(newEndpoint)
 			if err != nil {
-				return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v",
+					newEndpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 			// endpoint update may change ipaddr in cni(endpoint doesn't get ipaddr from interface external-ids first), so try to add local endpoint when update endpoint
 			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.AddLocalEndpoint(newEndpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", newEndpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v",
+						newEndpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
 				}
 			}
 
@@ -946,13 +952,15 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 			datapathManager.localEndpointDB.Remove(endpoint.InterfaceUUID)
 			err := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].RemoveLocalEndpoint(endpoint)
 			if err != nil {
-				return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, ovsbrname, err)
+				return fmt.Errorf("failed to remove local endpoint %v to vds %v, bridge %v, error: %v",
+					endpoint.InterfaceUUID, vdsID, ovsbrname, err)
 			}
 
 			if datapathManager.IsEnableProxy() {
 				natBr := datapathManager.BridgeChainMap[vdsID][NAT_BRIDGE_KEYWORD]
 				if err := natBr.RemoveLocalEndpoint(endpoint); err != nil {
-					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v", endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
+					return fmt.Errorf("failed to add local endpoint %v to vds %v, bridge %v, error: %v",
+						endpoint.InterfaceUUID, vdsID, natBr.GetName(), err)
 				}
 			}
 
@@ -989,7 +997,8 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier, mode)
 		if err != nil {
-			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
+			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v",
+				vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry

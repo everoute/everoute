@@ -27,6 +27,10 @@ docker-generate: image-generate
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 
+docker-generate-ci:
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) registry.smtx.io/everoute/generate make generate
+
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/main.go
 
@@ -50,13 +54,17 @@ agent-uuid:
 test: agent-uuid
 	go test --gcflags=all=-l ./plugin/... ./pkg/...
 
+debug-test: image-test
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test bash
+
 docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
 
 docker-test-ci: image-test-pull
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /tmp:/tmp -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
 cover-test: agent-uuid
 	go test --gcflags=all=-l ./plugin/... ./pkg/... -coverprofile=coverage.out \
@@ -68,7 +76,7 @@ docker-cover-test: image-test
 
 docker-cover-test-ci: image-test-pull
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /tmp:/tmp -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
 
 race-test: agent-uuid
 	go test --gcflags=all=-l ./plugin/... ./pkg/... -race
@@ -79,7 +87,7 @@ docker-race-test: image-test
 
 docker-race-test-ci: image-test-pull
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make race-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /tmp:/tmp -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make race-test
 
 e2e-test:
 	go test ./tests/e2e/...
@@ -94,6 +102,10 @@ docker-e2e-test-entry: setup-e2e-env
 docker-e2e-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make docker-e2e-test-entry
+
+docker-e2e-test-ci:
+	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
+	docker run --rm -iu 0:0 -e USER=root -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /tmp:/tmp -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make docker-e2e-test-entry
 
 # Generate deepcopy, client, openapi codes
 codegen: manifests

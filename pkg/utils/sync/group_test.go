@@ -59,7 +59,16 @@ func TestGroup(t *testing.T) {
 			group.Go(generator.newGoroutineFunc(nil))
 		}
 		Expect(group.WaitResult()).ShouldNot(HaveOccurred())
-		Expect(generator.data).Should(Equal([]int{0, 0, 1, 0, 1, 0, 1, 0, 1, 1}))
+		maxCnt := 0
+		for _, item := range generator.data {
+			switch item {
+			case 0:
+				maxCnt++
+			case 1:
+				maxCnt--
+			}
+			Expect(maxCnt >= 0 && maxCnt <= 2).Should(BeTrue())
+		}
 	})
 
 	t.Run("start group with goroutines return error", func(t *testing.T) {

@@ -3,8 +3,8 @@ package cache
 import (
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 )
 
 type SvcFlowEntry struct {

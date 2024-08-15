@@ -47,7 +47,7 @@ func listenAndDialWithTestingT(t *testing.T, ld conn.ListenerDialer) {
 	RegisterTestingT(t)
 	server := newServer()
 
-	go server.Serve(ld) // nolint: errcheck
+	go server.Serve(ld) //nolint: errcheck
 	defer func() {
 		Expect(server.Shutdown(context.Background())).Should(Succeed())
 	}()

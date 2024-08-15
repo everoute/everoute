@@ -24,16 +24,16 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 )
 
-//nolint
+//nolint:all
 const (
 	VLAN_INPUT_TABLE                   = 0
 	VLAN_FILTER_TABLE                  = 1
@@ -451,6 +451,9 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 	})
 	_ = cniDefaultNoraml.SetConntrack(ctAction)
+	if err := cniDefaultNoraml.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install cniDefaultNormal flow , error: %v", err)
+	}
 
 	// Commit all traffic to CNI CT zone
 	// This CT commit is in OVS, but the reverse traffic will process by netfilter.
@@ -463,6 +466,9 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	})
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &cniRedirectTable, &cniConntrackZone)
 	_ = cniCommitCT.SetConntrack(ctCommitAction)
+	if err := cniCommitCT.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install cniCommitCT flow, error: %v", err)
+	}
 
 	// Redirect traffic back to policy bridge
 	cniConntrackRedirect, _ := l.cniConntrackRedirectTable.NewFlow(ofctrl.FlowMatch{
