@@ -24,7 +24,7 @@ import (
 	"k8s.io/klog"
 )
 
-// nolint: funlen
+//nolint: funlen
 func TestOvsDbEventHandler(t *testing.T) {
 	RegisterTestingT(t)
 

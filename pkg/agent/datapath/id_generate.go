@@ -4,21 +4,19 @@ import (
 	"errors"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl/cookie"
+	log "github.com/sirupsen/logrus"
 )
 
 const InvalidGroupID uint32 = 0
 
-//nolint
 type idGenerate struct {
 	lock     sync.RWMutex
 	idUint32 uint32
 	idUint64 uint64
 }
 
-//nolint
 func (i *idGenerate) ascendUint32() {
 	i.lock.Lock()
 	defer i.lock.Unlock()

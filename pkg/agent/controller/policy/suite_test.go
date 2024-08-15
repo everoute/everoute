@@ -130,9 +130,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	cutT := time.Now()
 	policyController.globalRuleFirstProcessedTime = &cutT
-	policyController.sysProcessedPolicy.Insert(constants.ERvmPolicy)
-	policyController.sysProcessedPolicy.Insert(constants.SysEPPolicy)
-	policyController.sysProcessedPolicy.Insert(constants.LBPolicy)
+	policyController.sysProcessedPolicy.Insert(constants.ERvmPolicy.String())
+	policyController.sysProcessedPolicy.Insert(constants.SysEPPolicy.String())
+	policyController.sysProcessedPolicy.Insert(constants.LBPolicy.String())
 
 	ruleCacheLister = policyController.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())

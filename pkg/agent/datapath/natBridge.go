@@ -21,9 +21,9 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
@@ -703,9 +703,9 @@ func (n *NatBridge) AddDNATFlow(ip string, protocol corev1.Protocol, port int32)
 		log.Errorf("Failed to new a conntrack action for ip %s, protocol %s, port %d, err: %s", ip, protocol, port, err)
 		return err
 	}
-	err = flow.SetConntrack(ctAct)
-	if err != nil {
-		log.Errorf("Faile to SetConntrack for flow: %+v, err: %s", flow, err)
+	_ = flow.SetConntrack(ctAct)
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
 		return err
 	}
 
@@ -906,8 +906,9 @@ func (n *NatBridge) initCTZoneTable() error {
 		log.Errorf("Failed to new a ct action: %s", err)
 		return err
 	}
-	if err = flow.SetConntrack(ctAct); err != nil {
-		log.Errorf("Failed to set conntrack in CTZone table %d: %s", NatBrCTZoneTable, err)
+	_ = flow.SetConntrack(ctAct)
+	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow in CTZone table %d: %s", NatBrCTZoneTable, err)
 		return err
 	}
 	return nil
@@ -933,8 +934,9 @@ func (n *NatBridge) initCTStateTable() error {
 		log.Errorf("Failed to new a ct action with nat: %s", err)
 		return err
 	}
-	if err = trkFlow.SetConntrack(ctAct); err != nil {
-		log.Errorf("Failed to set conntrack to flow in CTState table %d: %s", NatBrCTStateTable, err)
+	_ = trkFlow.SetConntrack(ctAct)
+	if err = trkFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		log.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 

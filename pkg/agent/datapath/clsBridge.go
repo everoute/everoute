@@ -22,21 +22,21 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
 
-//nolint
+//nolint:all
 const (
 	CLSBRIDGE_LEARNING_TABLE_ID   = 0
 	CLSBRIDGE_FORWARDING_TABLE_ID = 2
 	CLSBRIDGE_OUTPUT_TABLE_ID     = 3
 )
 
-//nolint
+//nolint:all
 const (
 	BROADCAST_MAC_ADDRESS_MASK = "01:00:00:00:00:00"
 )

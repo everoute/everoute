@@ -10,6 +10,7 @@ import (
 	"github.com/everoute/everoute/plugin/tower/pkg/server/fake/graph/generated"
 )
 
+// Vms is the resolver for the vms field.
 func (r *labelResolver) Vms(ctx context.Context, obj *schema.Label) ([]schema.VM, error) {
 	vmList := make([]schema.VM, len(obj.VMs))
 

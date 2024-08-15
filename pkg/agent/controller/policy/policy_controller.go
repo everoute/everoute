@@ -71,7 +71,7 @@ type Reconciler struct {
 	DatapathManager *datapath.DpManager
 
 	sysProcessedPolicyLock sync.RWMutex
-	sysProcessedPolicy     sets.Set[k8stypes.NamespacedName]
+	sysProcessedPolicy     sets.String
 
 	ReadyToProcessGlobalRule     bool
 	globalRuleFirstProcessedTime *time.Time
@@ -169,7 +169,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.groupCache = policycache.NewGroupCache()
 	}
 
-	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
+	r.sysProcessedPolicy = make(sets.String)
 
 	if policyController, err = controller.New("policy-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -191,9 +191,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if err = patchController.Watch(&source.Kind{Type: &groupv1alpha1.GroupMembersPatch{}}, &handler.Funcs{
 		CreateFunc: r.addPatch,
-		DeleteFunc: func(_ context.Context, e event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+		DeleteFunc: func(e event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 			if e.DeleteStateUnknown {
-				klog.Fatalf("groupmemberpatch %s delete state is unknown, fatal agent", e.Object.GetName())
+				klog.Fatalf("groupmemberpatch %s delete state is unknown, fatal agent", e.Meta.GetName())
 			}
 		},
 	}); err != nil {
@@ -693,13 +693,13 @@ func (r *Reconciler) isReadyToProcessGlobalRule() bool {
 
 	r.sysProcessedPolicyLock.RLock()
 	defer r.sysProcessedPolicyLock.RUnlock()
-	if !r.sysProcessedPolicy.Has(constants.SysEPPolicy) {
+	if !r.sysProcessedPolicy.Has(constants.SysEPPolicy.String()) {
 		return false
 	}
-	if !r.sysProcessedPolicy.Has(constants.ERvmPolicy) {
+	if !r.sysProcessedPolicy.Has(constants.ERvmPolicy.String()) {
 		return false
 	}
-	if !r.sysProcessedPolicy.Has(constants.LBPolicy) {
+	if !r.sysProcessedPolicy.Has(constants.LBPolicy.String()) {
 		return false
 	}
 	r.ReadyToProcessGlobalRule = true
@@ -707,13 +707,13 @@ func (r *Reconciler) isReadyToProcessGlobalRule() bool {
 }
 
 func (r *Reconciler) addProcessedSysPolicy(p k8stypes.NamespacedName) {
-	sysPolicy := make(sets.Set[k8stypes.NamespacedName])
-	sysPolicy.Insert(constants.SysEPPolicy, constants.ERvmPolicy, constants.LBPolicy)
-	if !sysPolicy.Has(p) {
+	sysPolicy := make(sets.String)
+	sysPolicy.Insert(constants.SysEPPolicy.String(), constants.ERvmPolicy.String(), constants.LBPolicy.String())
+	if !sysPolicy.Has(p.String()) {
 		return
 	}
 
 	r.sysProcessedPolicyLock.Lock()
 	defer r.sysProcessedPolicyLock.Unlock()
-	r.sysProcessedPolicy.Insert(p)
+	r.sysProcessedPolicy.Insert(p.String())
 }

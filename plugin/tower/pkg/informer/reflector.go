@@ -119,7 +119,7 @@ func listAndWatchWithTimeout(stopCh <-chan struct{},
 	if maxTimeout > minTimeout {
 		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec,G404
 	}
-	pctx := wait.ContextForChannel(stopCh)
+	pctx := channelContext{stopCh: stopCh}
 
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -442,3 +442,23 @@ func unmarshalSlice(originObjectType reflect.Type, raw json.RawMessage, slice in
 		return json.Unmarshal(raw, slice)
 	}
 }
+
+var _ context.Context = channelContext{}
+
+// channelContext will behave as if the context were cancelled when stopCh is
+// closed.
+type channelContext struct {
+	stopCh <-chan struct{}
+}
+
+func (c channelContext) Done() <-chan struct{} { return c.stopCh }
+func (c channelContext) Err() error {
+	select {
+	case <-c.stopCh:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+func (c channelContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c channelContext) Value(_ any) any             { return nil }

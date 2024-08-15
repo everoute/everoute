@@ -1,6 +1,6 @@
-FROM golang:1.17
+FROM golang:1.19
 
-RUN go install github.com/99designs/gqlgen@v0.13.0 && \
+RUN go install github.com/99designs/gqlgen@v0.17.16 && \
     go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.2 && \
     go install github.com/golang/protobuf/protoc-gen-go@v1.5.2 && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1 && \

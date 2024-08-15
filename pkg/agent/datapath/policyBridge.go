@@ -6,14 +6,14 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
 
-// //nolint
+//nolint:all
 const (
 	INPUT_TABLE                 = 0
 	CT_STATE_TABLE              = 1
@@ -172,6 +172,9 @@ func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 	})
 	_ = inputIPRedirectFlow.SetConntrack(ctAction)
+	if err := inputIPRedirectFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install input ip redirect flow, error: %v", err)
+	}
 
 	// Table 0, from local bridge flow
 	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
@@ -282,6 +285,9 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
 	_ = ctCommitFlow.SetConntrack(ctCommitAction)
+	if err := ctCommitFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+	}
 
 	ctCommitTableDefaultFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
@@ -542,6 +548,9 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	ftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
 	ftpAction.SetAlg(FTPPort)
 	_ = ftpFlow.SetConntrack(ftpAction)
+	if err := ftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install ftp flow, err: %v", err)
+	}
 
 	// Table 70 commit ct with alg=tftp
 	tftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
@@ -555,6 +564,9 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	tftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
 	tftpAction.SetAlg(TFTPPort)
 	_ = tftpFlow.SetConntrack(tftpAction)
+	if err := tftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install tftp flow, err: %v", err)
+	}
 	return nil
 }
 
