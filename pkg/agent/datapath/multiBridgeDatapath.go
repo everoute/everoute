@@ -918,7 +918,7 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 		if err != nil {
 			errs = errors.Join(errs,
 				fmt.Errorf("failed to add microsegment rule to vdsID %v, bridge %s, error: %v",
-					vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD], err))
+					vdsID, datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].GetName(), err))
 			continue
 		}
 
@@ -1225,7 +1225,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier, mode)
 		if err != nil {
-			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD], err)
+			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry
