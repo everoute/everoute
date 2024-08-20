@@ -38,7 +38,7 @@ var _ = Describe("secret-process", func() {
 		Eventually(func(g Gomega) {
 			ns := corev1.Namespace{}
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: msconst.K8sMPKubeconfigNsInCloudPlatform}, &ns)).Should(Succeed())
-		})
+		}, timeout, interval).Should(Succeed())
 	})
 
 	AfterEach(func() {
@@ -222,7 +222,7 @@ var _ = Describe("secret-process", func() {
 				err := k8sClient.Get(ctx, towerKey, &obj)
 				g.Expect(err).Should(BeNil())
 				g.Expect(obj.ObjectMeta.DeletionTimestamp).ShouldNot(BeNil())
-			})
+			}, timeout, interval).Should(Succeed())
 
 			queue <- event.GenericEvent{Object: &ev}
 			Eventually(func(g Gomega) {
