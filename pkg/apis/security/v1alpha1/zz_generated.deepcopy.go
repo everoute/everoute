@@ -42,6 +42,11 @@ func (in *ApplyToPeer) DeepCopyInto(out *ApplyToPeer) {
 		*out = new(labels.Selector)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.IPBlock != nil {
+		in, out := &in.IPBlock, &out.IPBlock
+		*out = new(v1.IPBlock)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

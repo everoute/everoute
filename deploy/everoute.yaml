@@ -1309,6 +1309,24 @@ spec:
                             set to true
                           type: boolean
                       type: object
+                    ipBlock:
+                      description: IPBlock defines policy on a particular IPBlock.
+                      properties:
+                        cidr:
+                          description: cidr is a string representing the IPBlock Valid
+                            examples are "192.168.1.0/24" or "2001:db8::/64"
+                          type: string
+                        except:
+                          description: except is a slice of CIDRs that should not
+                            be included within an IPBlock Valid examples are "192.168.1.0/24"
+                            or "2001:db8::/64" Except values will be rejected if they
+                            are outside the cidr range
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - cidr
+                      type: object
                   type: object
                 type: array
               defaultRule:

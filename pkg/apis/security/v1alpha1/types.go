@@ -158,6 +158,9 @@ type ApplyToPeer struct {
 	// If this field is set then neither of the other fields can be.
 	// +optional
 	EndpointSelector *labels.Selector `json:"endpointSelector,omitempty"`
+
+	// IPBlock defines policy on a particular IPBlock.
+	IPBlock *networkingv1.IPBlock `json:"ipBlock,omitempty"`
 }
 
 // Rule describes a particular set of traffic that is allowed from/to the endpoints

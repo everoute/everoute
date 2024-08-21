@@ -254,6 +254,7 @@ func appliedAsEndpointGroup(namespace string, applied securityv1alpha1.ApplyToPe
 func AppliedAsSecurityPeer(namespace string, applied securityv1alpha1.ApplyToPeer) securityv1alpha1.SecurityPolicyPeer {
 	securityPolicyPeer := securityv1alpha1.SecurityPolicyPeer{
 		EndpointSelector: applied.EndpointSelector,
+		IPBlock:          applied.IPBlock,
 	}
 
 	if applied.Endpoint != nil {

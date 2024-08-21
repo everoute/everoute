@@ -78,7 +78,7 @@ var _ = Describe("PolicyController", func() {
 	})
 
 	Context("policy needed endpoints and groups has been create", func() {
-		var group1, group2, group3 *testGroup
+		var group1, group2, group3, group4 *testGroup
 		var ep1, ep2, ep3 *securityv1alpha1.Endpoint
 
 		BeforeEach(func() {
@@ -94,6 +94,14 @@ var _ = Describe("PolicyController", func() {
 			group1 = newTestGroupMembers(0, endpointToMember(ep1))
 			group2 = newTestGroupMembers(0, endpointToMember(ep2))
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
+			group4 = &testGroup{
+				ipBlock: &networkingv1.IPBlock{
+					CIDR:   "10.0.0.0/8",
+					Except: []string{"10.0.0.0/10"},
+					// 10.128.0.0/9
+					// 10.64.0.0/10
+				},
+			}
 
 			By(fmt.Sprintf("create endpoints %s and groups %v", []string{ep1.Name, ep2.Name, ep3.Name}, []string{group1.Name, group2.Name, group3.Name}))
 			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
@@ -213,6 +221,49 @@ var _ = Describe("PolicyController", func() {
 				assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "192.168.1.1/32",
 					0, 0, "192.168.3.1/32", 0x4e, 0xffff, "UDP")
 			})
+		})
+
+		When("create a sample policy apply to ip block", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				policy = newTestPolicy(group4, group1, group2, newTestPort("UDP", "80", "number"), newTestPort("UDP", "80", "number"))
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 8)
+
+				assertHasPolicyRuleWithPortRange(policy, "Ingress", "Allow", "192.168.1.1/32",
+					0, 0, "10.128.0.0/9", 0x50, 0xffff, "UDP")
+				assertHasPolicyRuleWithPortRange(policy, "Ingress", "Allow", "192.168.1.1/32",
+					0, 0, "10.64.0.0/10", 0x50, 0xffff, "UDP")
+				assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.128.0.0/9",
+					0, 0, "192.168.2.1/32", 0x50, 0xffff, "UDP")
+				assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.64.0.0/10",
+					0, 0, "192.168.2.1/32", 0x50, 0xffff, "UDP")
+			})
+			When("update apply ip blocks", func() {
+				BeforeEach(func() {
+					policy.Spec.AppliedTo[0].IPBlock.Except = []string{"10.192.0.0/10"}
+					mustUpdatePolicy(ctx, policy)
+				})
+				It("should flatten policy to rules", func() {
+					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(policy, 8)
+
+					assertHasPolicyRuleWithPortRange(policy, "Ingress", "Allow", "192.168.1.1/32",
+						0, 0, "10.0.0.0/9", 0x50, 0xffff, "UDP")
+					assertHasPolicyRuleWithPortRange(policy, "Ingress", "Allow", "192.168.1.1/32",
+						0, 0, "10.128.0.0/10", 0x50, 0xffff, "UDP")
+					assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.0.0.0/9",
+						0, 0, "192.168.2.1/32", 0x50, 0xffff, "UDP")
+					assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.128.0.0/10",
+						0, 0, "192.168.2.1/32", 0x50, 0xffff, "UDP")
+				})
+			})
+
 		})
 
 		When("create blocklist policy with named and number port", func() {
@@ -1742,6 +1793,7 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 			AppliedTo: []securityv1alpha1.ApplyToPeer{
 				{
 					EndpointSelector: appliedTo.endpointSelector,
+					IPBlock:          appliedTo.ipBlock,
 				},
 			},
 			IngressRules: []securityv1alpha1.Rule{
@@ -1806,6 +1858,7 @@ func newTestEndpoint(ip types.IPAddress, agent []string, namedPorts []securityv1
 type testGroup struct {
 	*groupv1alpha1.GroupMembers
 	endpointSelector *labels.Selector
+	ipBlock          *networkingv1.IPBlock
 }
 
 func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) *testGroup {
