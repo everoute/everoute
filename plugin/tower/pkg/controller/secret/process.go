@@ -52,9 +52,9 @@ func (p *Process) SetupWithManager(mgr ctrl.Manager, queue chan event.GenericEve
 		klog.Errorf("Failed to new secret-process controller: %s", err)
 		return err
 	}
-	err = cm.Watch(&ersource.SyncingChannel{
+	err = cm.Watch(&ersource.WithSyncCache{
 		Name:       "syncSKSKubeconfig",
-		Channel:    source.Channel{Source: queue},
+		Source:     &source.Channel{Source: queue},
 		SyncCaches: syncCaches,
 	}, &handler.EnqueueRequestForObject{})
 	if err != nil {
