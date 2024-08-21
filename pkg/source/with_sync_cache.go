@@ -12,15 +12,15 @@ type SyncCache interface {
 	WaitForCacheSync(ctx context.Context) bool
 }
 
-var _ source.SyncingSource = &SyncingChannel{}
+var _ source.SyncingSource = &WithSyncCache{}
 
-type SyncingChannel struct {
+type WithSyncCache struct {
 	Name string
-	source.Channel
+	source.Source
 	SyncCaches []SyncCache
 }
 
-func (s *SyncingChannel) WaitForSync(ctx context.Context) error {
+func (s *WithSyncCache) WaitForSync(ctx context.Context) error {
 	var wg sync.WaitGroup
 	for i := range s.SyncCaches {
 		wg.Add(1)
@@ -30,6 +30,6 @@ func (s *SyncingChannel) WaitForSync(ctx context.Context) error {
 		}(i)
 	}
 	wg.Wait()
-	klog.Infof("Success sync cache for channel %s", s.Name)
+	klog.Infof("Success sync cache for source %s", s.Name)
 	return nil
 }
