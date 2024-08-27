@@ -30,11 +30,6 @@ import (
 	"github.com/everoute/everoute/plugin/tower/pkg/utils"
 )
 
-/*
-   createVm(data: VmCreateInput!, effect: CreateVmEffect!): Vm!
-   updateVm(data: VmUpdateInput!, where: VmWhereUniqueInput!): Vm
-   deleteVm(where: VmWhereUniqueInput!): Vm
-*/
 func mutationCreateVM(c *client.Client, data *VMCreateInput, effect *CreateVMEffect) (*VM, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
@@ -97,11 +92,6 @@ func mutationDeleteVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) 
 	return &vm, err
 }
 
-/*
-   createLabel(data: LabelCreateInput!): Label!
-   updateLabel(data: LabelUpdateInput!, where: LabelWhereUniqueInput!): Label
-   deleteLabel(where: LabelWhereUniqueInput!): Label
-*/
 func mutationCreateLabel(c *client.Client, data *LabelCreateInput) (*Label, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
 
@@ -143,42 +133,19 @@ func mutationUpdateLabel(c *client.Client, data *LabelUpdateInput, where *LabelW
 	return &label, err
 }
 
-func mutationDeleteLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
-
-	request := client.Request{
-		Query: fmt.Sprintf("mutation deleteLabel($where: LabelWhereUniqueInput!) {deleteLabel(where: $where) %s}", queryFields),
-		Variables: map[string]interface{}{
-			"where": where,
-		},
-	}
-
-	resp, err := c.Query(&request)
-	if err != nil || len(resp.Errors) != 0 {
-		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
-	}
-
-	var label Label
-	err = json.Unmarshal(utils.LookupJSONRaw(resp.Data, "deleteLabel"), &label)
-	return &label, err
-}
-
 func adaptMutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) {
 	vlan, err := mutationCreateVlan(c, data)
 	if err == nil {
 		return vlan, nil
 	}
 
-	// add required property network_identities to adapt SMTXOS 504
+	// add required property network_identities to adapt ELF 504
 	deepcopyData := &(*data)
 	deepcopyData.NetworkIdentities = &NetworkIdentities{Set: []int{data.VlanID}}
 	deepcopyData.NetworkIDs = &NetworkIDs{Set: []string{fmt.Sprintf("%d", data.VlanID)}}
 	return mutationCreateVlan(c, deepcopyData)
 }
 
-/*
-   createVlan(data: VlanCreateInput!): Vlan!
-*/
 func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), nil, true)
 
@@ -199,10 +166,6 @@ func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) 
 	return &vlan, err
 }
 
-/*
-   vm(where: VmWhereUniqueInput!): Vm
-   vms: [Vm!]!
-*/
 func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VM{}), nil, true)
 
@@ -220,7 +183,7 @@ func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
 
 	data := utils.LookupJSONRaw(resp.Data, "vm")
 	if string(data) == "null" {
-		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "vm"}, *where.ID)
+		return nil, errors.NewNotFound(schema.GroupResource{Group: "virtualization.extensions.everoute.io", Resource: "vm"}, *where.ID)
 	}
 
 	var vm VM
@@ -248,35 +211,6 @@ func queryVMs(c *client.Client, where *VMWhereInput) ([]VM, error) {
 	return vm, err
 }
 
-/*
-   label(where: LabelWhereUniqueInput!): Label
-   labels: [Label!]!
-*/
-func queryLabel(c *client.Client, where *LabelWhereUniqueInput) (*Label, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Label{}), nil, true)
-
-	request := client.Request{
-		Query: fmt.Sprintf("query label($where: LabelWhereUniqueInput!) {label(where: $where) %s}", queryFields),
-		Variables: map[string]interface{}{
-			"where": where,
-		},
-	}
-
-	resp, err := c.Query(&request)
-	if err != nil || len(resp.Errors) != 0 {
-		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
-	}
-
-	data := utils.LookupJSONRaw(resp.Data, "label")
-	if string(data) == "null" {
-		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "label"}, *where.ID)
-	}
-
-	var label Label
-	err = json.Unmarshal(data, &label)
-	return &label, err
-}
-
 func queryLabels(c *client.Client) ([]Label, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf([]Label{}), nil, true)
 
@@ -293,35 +227,6 @@ func queryLabels(c *client.Client) ([]Label, error) {
 	var labels []Label
 	err = json.Unmarshal(utils.LookupJSONRaw(resp.Data, "labels"), &labels)
 	return labels, err
-}
-
-/*
-   vlan(where: VlanWhereUniqueInput!): Vlan
-   vlans: [Vlan!]
-*/
-func queryVlan(c *client.Client, where *VlanWhereUniqueInput) (*Vlan, error) {
-	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Vlan{}), nil, true)
-
-	request := client.Request{
-		Query: fmt.Sprintf("query vlan($where: VlanWhereUniqueInput!) {vlan(where: $where) %s}", queryFields),
-		Variables: map[string]interface{}{
-			"where": where,
-		},
-	}
-
-	resp, err := c.Query(&request)
-	if err != nil || len(resp.Errors) != 0 {
-		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
-	}
-
-	data := utils.LookupJSONRaw(resp.Data, "vlan")
-	if string(data) == "null" {
-		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "vlan"}, *where.ID)
-	}
-
-	var vlan Vlan
-	err = json.Unmarshal(data, &vlan)
-	return &vlan, err
 }
 
 func queryVlans(c *client.Client) ([]Vlan, error) {
@@ -342,9 +247,6 @@ func queryVlans(c *client.Client) ([]Vlan, error) {
 	return vlans, err
 }
 
-/*
-   vmTemplate(where: VmTemplateWhereUniqueInput!): VmTemplate
-*/
 func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTemplate, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(VMTemplate{}), nil, true)
 
@@ -362,7 +264,7 @@ func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTe
 
 	data := utils.LookupJSONRaw(resp.Data, "vmTemplate")
 	if string(data) == "null" {
-		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "vmTemplate"}, *where.ID)
+		return nil, errors.NewNotFound(schema.GroupResource{Group: "virtualization.extensions.everoute.io", Resource: "vmTemplate"}, *where.ID)
 	}
 
 	var vmTemplate VMTemplate
@@ -370,9 +272,6 @@ func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTe
 	return &vmTemplate, err
 }
 
-/*
-   host(where: HostWhereUniqueInput!): Host
-*/
 func queryHost(c *client.Client, where *HostWhereUniqueInput) (*Host, error) {
 	var queryFields = utils.GqlTypeMarshal(reflect.TypeOf(Host{}), nil, true)
 
@@ -390,7 +289,7 @@ func queryHost(c *client.Client, where *HostWhereUniqueInput) (*Host, error) {
 
 	data := utils.LookupJSONRaw(resp.Data, "host")
 	if string(data) == "null" {
-		return nil, errors.NewNotFound(schema.GroupResource{Group: "tower.smartx.com", Resource: "host"}, *where.ID)
+		return nil, errors.NewNotFound(schema.GroupResource{Group: "virtualization.extensions.everoute.io", Resource: "host"}, *where.ID)
 	}
 
 	var host Host

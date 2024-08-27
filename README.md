@@ -42,7 +42,7 @@ based on the [Kube API Server](https://github.com/kubernetes/apiserver)
 and [etcd](https://etcd.io). Everoute supports controllers' high availability
 and scalability through cluster.
 The main task of control service is to manage network and security policies.
-It generates network transimit policy rules according to resource types,
+It generates network transmit policy rules according to resource types,
 security policies and discovered IP addresses.
 
 * **Everoute Distributed Agent**: The Everoute Agent is deployed in each
@@ -56,26 +56,18 @@ networking and security features. Everoute uses Open vSwitch openflow mode to
 control the network forwarding and security rules.
 
 * **3rd party plugins**: Everoute provides a plugin framework to integrate
-within 3rd party platforms, such as [SmartX](https://www.smartx.com/global) -
-[SMTX OS](https://www.smartx.com/global/smtx-os) virtualization platform or other
-cloud platform.
+within 3rd party platforms, such as a cloud platform.
 
 
 ## Main functions
 
 In the current phase, Everoute support native Kubernetes platform and
-SmartX virtualization platform [SMTX OS](https://www.smartx.com/global/smtx-os).
+3rd party platforms with integrate plugins.
 
 * **Kubernetes Platform**: For the Kubernetes platform, Everoute provides
 the native K8s CNI network plug-in. The Everoute CNI supports Pod connection
 management, Network Policies, cluster service and NodePort etc. Details please
 refer to [Everoute CNI](https://github.com/everoute/everoute/blob/main/docs/cni/README.md) 
-
-* **Virtualization Platform**: [SMTX OS](https://www.smartx.com/global/smtx-os)
-is [SmartX](https://www.smartx.com/global) native virtualization platform.
-Everoute can be integrated with SMTX OS through the
-[CloudTower](https://www.smartx.com/global/cloud-tower) plugin to provide the
-Micro-Segmentation service.
 
 ## Roadmap
 
