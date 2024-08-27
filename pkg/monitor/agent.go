@@ -581,7 +581,7 @@ func convertToIPMap(ifaceMac string, endpointMap map[types.IPAddress]*types.Endp
 }
 
 func getPacketOutVlanTag(port agentv1alpha1.OVSPort, vlanTag uint16) uint16 {
-	// todo: handle vlan mode // vlan mode alway be empty under smartxos
+	// todo: handle vlan mode // vlan mode always be empty on ELF
 	if port.VlanConfig.Trunk == "" {
 		return 0
 	}
