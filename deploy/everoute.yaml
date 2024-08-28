@@ -907,6 +907,8 @@ spec:
               cni:
                 description: K8sClusterCNIType is cni type.
                 type: string
+              controlPlaneAvailabel:
+                type: boolean
               managedBy:
                 description: K8sClusterManagedPlatform the platform that a k8scluster
                   managedby.
@@ -923,6 +925,7 @@ spec:
                 type: object
             required:
             - cni
+            - controlPlaneAvailabel
             - managedBy
             type: object
         required:
