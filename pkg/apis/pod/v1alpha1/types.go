@@ -37,8 +37,9 @@ type K8sCluster struct {
 }
 
 type K8sClusterSpec struct {
-	CNI       K8sClusterCNIType         `json:"cni"`
-	ManagedBy K8sClusterManagedPlatform `json:"managedBy"`
+	ControlPlaneAvailable bool                      `json:"controlPlaneAvailabel"`
+	CNI                   K8sClusterCNIType         `json:"cni"`
+	ManagedBy             K8sClusterManagedPlatform `json:"managedBy"`
 
 	SksOption *SksOption `json:"sksOption,omitempty"`
 }
