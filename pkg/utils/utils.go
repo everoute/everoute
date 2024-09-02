@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	coretypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
@@ -191,4 +192,11 @@ func IsK8sLabelDiff(l1, l2 map[string]string) bool {
 	}
 
 	return false
+}
+
+func GetValidLabelString(label string) string {
+	if len(validation.IsValidLabelValue(label)) != 0 {
+		return Base64AndSha256(label)[:32]
+	}
+	return label
 }

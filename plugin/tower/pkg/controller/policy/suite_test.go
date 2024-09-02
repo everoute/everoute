@@ -37,6 +37,7 @@ var (
 	crdClient       clientset.Interface
 	server          *fakeserver.Server
 	namespace       = metav1.NamespaceDefault
+	podNamespace    = metav1.NamespaceSystem
 	stopCh          = make(chan struct{})
 	everouteCluster = rand.String(10)
 )
@@ -61,7 +62,7 @@ var _ = BeforeSuite(func() {
 	crdFactory := externalversions.NewSharedInformerFactory(crdClient, 0)
 
 	By("create and start PolicyController")
-	controller := controller.New(towerFactory, crdFactory, crdClient, 0, namespace, everouteCluster)
+	controller := controller.New(towerFactory, crdFactory, crdClient, 0, namespace, podNamespace, everouteCluster)
 	go controller.Run(10, stopCh)
 
 	By("start towerFactory and crdFactory")

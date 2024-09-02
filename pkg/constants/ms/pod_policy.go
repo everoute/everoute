@@ -11,10 +11,15 @@ const (
 	// eic networkpolicy prefix
 	SKSNetworkpolicyPrefix = "np.sks-"
 
-	// eic pod label
-	SKSLabelKeyCluster         = "sks-cluster"
-	SKSLabelKeyObjectName      = "sks-object-name"
-	SKSLabelKeyObjectNamespace = "sks-object-namespace"
+	// sks label
+	SKSLabelKeyCluster          = "sks-cluster"
+	SKSLabelKeyClusterName      = "everoute.io/ksc-name"
+	SKSLabelKeyClusterNamespace = "everoute.io/ksc-namespace"
+	SKSLabelKeyObjectName       = "sks-object-name"
+	SKSLabelKeyObjectNamespace  = "sks-object-namespace"
+
+	EICLabelKeyObjectNamespace = "everoute.io/eic-object-namespace"
+	EICLabelKeyClusterID       = "everoute.io/k8scluster"
 
 	// k8s management platform kubeconfig
 	K8sMPKubeconfigNameInCloudPlatform = "sks-mgmt-kubeconfig"
