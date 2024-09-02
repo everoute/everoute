@@ -196,8 +196,13 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock []*networkingv1
 	}
 
 	if len(selectors) != 0 {
+		namespaceSelector := make(map[string]string, 1)
+		namespaceSelector["kubernetes.io/metadata.name"] = "default"
 		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{
 			EndpointSelector: LabelsAsSelector(selectors...),
+			NamespaceSelector: &metav1.LabelSelector{
+				MatchLabels: namespaceSelector,
+			},
 		})
 	}
 
@@ -221,8 +226,13 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock []*networkingv1.
 	}
 
 	if len(selectors) != 0 {
+		namespaceSelector := make(map[string]string, 1)
+		namespaceSelector["kubernetes.io/metadata.name"] = "default"
 		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{
 			EndpointSelector: LabelsAsSelector(selectors...),
+			NamespaceSelector: &metav1.LabelSelector{
+				MatchLabels: namespaceSelector,
+			},
 		})
 	}
 

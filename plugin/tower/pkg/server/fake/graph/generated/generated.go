@@ -119,6 +119,11 @@ type ComplexityRoot struct {
 		PreviousValues func(childComplexity int) int
 	}
 
+	KSCNamespacedName struct {
+		Name      func(childComplexity int) int
+		Namespace func(childComplexity int) int
+	}
+
 	Label struct {
 		ID    func(childComplexity int) int
 		Key   func(childComplexity int) int
@@ -178,6 +183,17 @@ type ComplexityRoot struct {
 		ID func(childComplexity int) int
 	}
 
+	PodLabel struct {
+		Key   func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
+	PodLabelGroup struct {
+		KSC        func(childComplexity int) int
+		Namespaces func(childComplexity int) int
+		PodLabels  func(childComplexity int) int
+	}
+
 	Query struct {
 		EverouteClusters          func(childComplexity int) int
 		Hosts                     func(childComplexity int) int
@@ -195,6 +211,8 @@ type ComplexityRoot struct {
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
 		LabelGroups     func(childComplexity int) int
+		MemberType      func(childComplexity int) int
+		PodLabelGroups  func(childComplexity int) int
 		VMs             func(childComplexity int) int
 	}
 
@@ -611,6 +629,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.IsolationPolicyEvent.PreviousValues(childComplexity), true
 
+	case "KSCNamespacedName.name":
+		if e.complexity.KSCNamespacedName.Name == nil {
+			break
+		}
+
+		return e.complexity.KSCNamespacedName.Name(childComplexity), true
+
+	case "KSCNamespacedName.namespace":
+		if e.complexity.KSCNamespacedName.Namespace == nil {
+			break
+		}
+
+		return e.complexity.KSCNamespacedName.Namespace(childComplexity), true
+
 	case "Label.id":
 		if e.complexity.Label.ID == nil {
 			break
@@ -819,6 +851,41 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ObjectReference.ID(childComplexity), true
 
+	case "PodLabel.key":
+		if e.complexity.PodLabel.Key == nil {
+			break
+		}
+
+		return e.complexity.PodLabel.Key(childComplexity), true
+
+	case "PodLabel.value":
+		if e.complexity.PodLabel.Value == nil {
+			break
+		}
+
+		return e.complexity.PodLabel.Value(childComplexity), true
+
+	case "PodLabelGroup.ksc":
+		if e.complexity.PodLabelGroup.KSC == nil {
+			break
+		}
+
+		return e.complexity.PodLabelGroup.KSC(childComplexity), true
+
+	case "PodLabelGroup.namespaces":
+		if e.complexity.PodLabelGroup.Namespaces == nil {
+			break
+		}
+
+		return e.complexity.PodLabelGroup.Namespaces(childComplexity), true
+
+	case "PodLabelGroup.pod_labels":
+		if e.complexity.PodLabelGroup.PodLabels == nil {
+			break
+		}
+
+		return e.complexity.PodLabelGroup.PodLabels(childComplexity), true
+
 	case "Query.everouteClusters":
 		if e.complexity.Query.EverouteClusters == nil {
 			break
@@ -914,6 +981,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.SecurityGroup.LabelGroups(childComplexity), true
+
+	case "SecurityGroup.member_type":
+		if e.complexity.SecurityGroup.MemberType == nil {
+			break
+		}
+
+		return e.complexity.SecurityGroup.MemberType(childComplexity), true
+
+	case "SecurityGroup.pod_label_groups":
+		if e.complexity.SecurityGroup.PodLabelGroups == nil {
+			break
+		}
+
+		return e.complexity.SecurityGroup.PodLabelGroups(childComplexity), true
 
 	case "SecurityGroup.vms":
 		if e.complexity.SecurityGroup.VMs == nil {
@@ -1700,13 +1781,36 @@ type IPPortSystemEndpoint {
 
 type SecurityGroup {
     id: ID!
+    member_type: GroupMemberType
     everoute_cluster: ObjectReference!
     label_groups: [LabelGroup!]
     vms: [ObjectReference!]!
+    pod_label_groups: [PodLabelGroup!]
+}
+
+enum GroupMemberType {
+    VM
+    POD
 }
 
 type LabelGroup {
     labels: [ObjectReference!]!
+}
+
+type PodLabelGroup {
+    ksc: KSCNamespacedName!
+    namespaces: [String!]
+    pod_labels: [PodLabel!]
+}
+
+type KSCNamespacedName {
+    name: String!
+    namespace: String!
+}
+
+type PodLabel {
+    key: String!
+    value: String
 }
 
 type NetworkPolicyRuleService {
@@ -3685,6 +3789,94 @@ func (ec *executionContext) fieldContext_IsolationPolicyEvent_previousValues(ctx
 	return fc, nil
 }
 
+func (ec *executionContext) _KSCNamespacedName_name(ctx context.Context, field graphql.CollectedField, obj *schema.KSCNamespacedName) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_KSCNamespacedName_name(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_KSCNamespacedName_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KSCNamespacedName",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KSCNamespacedName_namespace(ctx context.Context, field graphql.CollectedField, obj *schema.KSCNamespacedName) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_KSCNamespacedName_namespace(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Namespace, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_KSCNamespacedName_namespace(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KSCNamespacedName",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Label_id(ctx context.Context, field graphql.CollectedField, obj *schema.Label) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Label_id(ctx, field)
 	if err != nil {
@@ -4996,6 +5188,229 @@ func (ec *executionContext) fieldContext_ObjectReference_id(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _PodLabel_key(ctx context.Context, field graphql.CollectedField, obj *schema.PodLabel) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PodLabel_key(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Key, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PodLabel_key(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PodLabel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PodLabel_value(ctx context.Context, field graphql.CollectedField, obj *schema.PodLabel) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PodLabel_value(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Value, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PodLabel_value(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PodLabel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PodLabelGroup_ksc(ctx context.Context, field graphql.CollectedField, obj *schema.PodLabelGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PodLabelGroup_ksc(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.KSC, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(schema.KSCNamespacedName)
+	fc.Result = res
+	return ec.marshalNKSCNamespacedName2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐKSCNamespacedName(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PodLabelGroup_ksc(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PodLabelGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_KSCNamespacedName_name(ctx, field)
+			case "namespace":
+				return ec.fieldContext_KSCNamespacedName_namespace(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type KSCNamespacedName", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PodLabelGroup_namespaces(ctx context.Context, field graphql.CollectedField, obj *schema.PodLabelGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PodLabelGroup_namespaces(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Namespaces, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalOString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PodLabelGroup_namespaces(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PodLabelGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PodLabelGroup_pod_labels(ctx context.Context, field graphql.CollectedField, obj *schema.PodLabelGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PodLabelGroup_pod_labels(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PodLabels, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.PodLabel)
+	fc.Result = res
+	return ec.marshalOPodLabel2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PodLabelGroup_pod_labels(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PodLabelGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "key":
+				return ec.fieldContext_PodLabel_key(ctx, field)
+			case "value":
+				return ec.fieldContext_PodLabel_value(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PodLabel", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_vms(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_vms(ctx, field)
 	if err != nil {
@@ -5507,12 +5922,16 @@ func (ec *executionContext) fieldContext_Query_securityGroups(ctx context.Contex
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SecurityGroup_id(ctx, field)
+			case "member_type":
+				return ec.fieldContext_SecurityGroup_member_type(ctx, field)
 			case "everoute_cluster":
 				return ec.fieldContext_SecurityGroup_everoute_cluster(ctx, field)
 			case "label_groups":
 				return ec.fieldContext_SecurityGroup_label_groups(ctx, field)
 			case "vms":
 				return ec.fieldContext_SecurityGroup_vms(ctx, field)
+			case "pod_label_groups":
+				return ec.fieldContext_SecurityGroup_pod_label_groups(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityGroup", field.Name)
 		},
@@ -5743,6 +6162,47 @@ func (ec *executionContext) fieldContext_SecurityGroup_id(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _SecurityGroup_member_type(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityGroup_member_type(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MemberType, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*schema.GroupMemberType)
+	fc.Result = res
+	return ec.marshalOGroupMemberType2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGroupMemberType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityGroup_member_type(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type GroupMemberType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SecurityGroup_everoute_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityGroup) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SecurityGroup_everoute_cluster(ctx, field)
 	if err != nil {
@@ -5884,6 +6344,55 @@ func (ec *executionContext) fieldContext_SecurityGroup_vms(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _SecurityGroup_pod_label_groups(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityGroup_pod_label_groups(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PodLabelGroups, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.PodLabelGroup)
+	fc.Result = res
+	return ec.marshalOPodLabelGroup2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelGroupᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityGroup_pod_label_groups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ksc":
+				return ec.fieldContext_PodLabelGroup_ksc(ctx, field)
+			case "namespaces":
+				return ec.fieldContext_PodLabelGroup_namespaces(ctx, field)
+			case "pod_labels":
+				return ec.fieldContext_PodLabelGroup_pod_labels(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PodLabelGroup", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SecurityGroupEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.SecurityGroupEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SecurityGroupEvent_mutation(ctx, field)
 	if err != nil {
@@ -5969,12 +6478,16 @@ func (ec *executionContext) fieldContext_SecurityGroupEvent_node(ctx context.Con
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SecurityGroup_id(ctx, field)
+			case "member_type":
+				return ec.fieldContext_SecurityGroup_member_type(ctx, field)
 			case "everoute_cluster":
 				return ec.fieldContext_SecurityGroup_everoute_cluster(ctx, field)
 			case "label_groups":
 				return ec.fieldContext_SecurityGroup_label_groups(ctx, field)
 			case "vms":
 				return ec.fieldContext_SecurityGroup_vms(ctx, field)
+			case "pod_label_groups":
+				return ec.fieldContext_SecurityGroup_pod_label_groups(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityGroup", field.Name)
 		},
@@ -11494,6 +12007,41 @@ func (ec *executionContext) _IsolationPolicyEvent(ctx context.Context, sel ast.S
 	return out
 }
 
+var kSCNamespacedNameImplementors = []string{"KSCNamespacedName"}
+
+func (ec *executionContext) _KSCNamespacedName(ctx context.Context, sel ast.SelectionSet, obj *schema.KSCNamespacedName) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, kSCNamespacedNameImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("KSCNamespacedName")
+		case "name":
+
+			out.Values[i] = ec._KSCNamespacedName_name(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "namespace":
+
+			out.Values[i] = ec._KSCNamespacedName_namespace(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var labelImplementors = []string{"Label"}
 
 func (ec *executionContext) _Label(ctx context.Context, sel ast.SelectionSet, obj *schema.Label) graphql.Marshaler {
@@ -11889,6 +12437,74 @@ func (ec *executionContext) _ObjectReference(ctx context.Context, sel ast.Select
 	return out
 }
 
+var podLabelImplementors = []string{"PodLabel"}
+
+func (ec *executionContext) _PodLabel(ctx context.Context, sel ast.SelectionSet, obj *schema.PodLabel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, podLabelImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PodLabel")
+		case "key":
+
+			out.Values[i] = ec._PodLabel_key(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "value":
+
+			out.Values[i] = ec._PodLabel_value(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var podLabelGroupImplementors = []string{"PodLabelGroup"}
+
+func (ec *executionContext) _PodLabelGroup(ctx context.Context, sel ast.SelectionSet, obj *schema.PodLabelGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, podLabelGroupImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PodLabelGroup")
+		case "ksc":
+
+			out.Values[i] = ec._PodLabelGroup_ksc(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "namespaces":
+
+			out.Values[i] = ec._PodLabelGroup_namespaces(ctx, field, obj)
+
+		case "pod_labels":
+
+			out.Values[i] = ec._PodLabelGroup_pod_labels(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -12175,6 +12791,10 @@ func (ec *executionContext) _SecurityGroup(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "member_type":
+
+			out.Values[i] = ec._SecurityGroup_member_type(ctx, field, obj)
+
 		case "everoute_cluster":
 
 			out.Values[i] = ec._SecurityGroup_everoute_cluster(ctx, field, obj)
@@ -12193,6 +12813,10 @@ func (ec *executionContext) _SecurityGroup(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "pod_label_groups":
+
+			out.Values[i] = ec._SecurityGroup_pod_label_groups(ctx, field, obj)
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13517,6 +14141,10 @@ func (ec *executionContext) marshalNIsolationPolicyEvent2ᚖgithubᚗcomᚋevero
 	return ec._IsolationPolicyEvent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNKSCNamespacedName2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐKSCNamespacedName(ctx context.Context, sel ast.SelectionSet, v schema.KSCNamespacedName) graphql.Marshaler {
+	return ec._KSCNamespacedName(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNLabel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐLabel(ctx context.Context, sel ast.SelectionSet, v schema.Label) graphql.Marshaler {
 	return ec._Label(ctx, sel, &v)
 }
@@ -13792,6 +14420,14 @@ func (ec *executionContext) marshalNObjectReference2ᚕgithubᚗcomᚋeveroute�
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNPodLabel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabel(ctx context.Context, sel ast.SelectionSet, v schema.PodLabel) graphql.Marshaler {
+	return ec._PodLabel(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPodLabelGroup2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelGroup(ctx context.Context, sel ast.SelectionSet, v schema.PodLabelGroup) graphql.Marshaler {
+	return ec._PodLabelGroup(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNSecurityGroup2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSecurityGroup(ctx context.Context, sel ast.SelectionSet, v schema.SecurityGroup) graphql.Marshaler {
@@ -14565,6 +15201,23 @@ func (ec *executionContext) marshalOEverouteClusterWhitelist2githubᚗcomᚋever
 	return ec._EverouteClusterWhitelist(ctx, sel, &v)
 }
 
+func (ec *executionContext) unmarshalOGroupMemberType2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGroupMemberType(ctx context.Context, v interface{}) (*schema.GroupMemberType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.GroupMemberType(tmp)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOGroupMemberType2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐGroupMemberType(ctx context.Context, sel ast.SelectionSet, v *schema.GroupMemberType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalString(string(*v))
+	return res
+}
+
 func (ec *executionContext) marshalOIDSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpointᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IDSystemEndpoint) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -14926,6 +15579,100 @@ func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋeveroute�
 		return graphql.Null
 	}
 	return ec._ObjectReference(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPodLabel2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.PodLabel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPodLabel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabel(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalOPodLabelGroup2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.PodLabelGroup) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPodLabelGroup2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelGroup(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOPolicyMode2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPolicyMode(ctx context.Context, v interface{}) (schema.PolicyMode, error) {

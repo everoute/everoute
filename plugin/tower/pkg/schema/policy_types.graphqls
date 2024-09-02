@@ -97,13 +97,36 @@ type IPPortSystemEndpoint {
 
 type SecurityGroup {
     id: ID!
+    member_type: GroupMemberType
     everoute_cluster: ObjectReference!
     label_groups: [LabelGroup!]
     vms: [ObjectReference!]!
+    pod_label_groups: [PodLabelGroup!]
+}
+
+enum GroupMemberType {
+    VM
+    POD
 }
 
 type LabelGroup {
     labels: [ObjectReference!]!
+}
+
+type PodLabelGroup {
+    ksc: KSCNamespacedName!
+    namespaces: [String!]
+    pod_labels: [PodLabel!]
+}
+
+type KSCNamespacedName {
+    name: String!
+    namespace: String!
+}
+
+type PodLabel {
+    key: String!
+    value: String
 }
 
 type NetworkPolicyRuleService {

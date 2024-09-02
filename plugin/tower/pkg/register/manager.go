@@ -53,6 +53,7 @@ type Options struct {
 	ResyncPeriod time.Duration
 	WorkerNumber uint
 	Namespace    string
+	PodNamespace string
 	// which EverouteCluster should synchronize SecurityPolicy from
 	EverouteCluster string
 	SharedFactory   informer.SharedInformerFactory
@@ -81,6 +82,7 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), os.Getenv("TOWER_PASSWORD"), "Tower user password for authenticate")
 	flagset.StringVar(&opts.Client.TokenFile, withPrefix("token-file"), msconst.DefaultTowerTokenFile, "The file to write cloudPlatform token")
 	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
+	flagset.StringVar(&opts.PodNamespace, withPrefix("pod-namespace"), "sks-sync-object", "Namespace which pod endpoint and security policy in")
 	flagset.StringVar(&opts.EverouteCluster, withPrefix("everoute-cluster"), "", "Which EverouteCluster should synchronize SecurityPolicy from")
 	flagset.UintVar(&opts.WorkerNumber, withPrefix("worker-number"), 10, "Controller worker number")
 	flagset.DurationVar(&opts.ResyncPeriod, withPrefix("resync-period"), 10*time.Hour, "Controller resync period")
@@ -117,7 +119,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
 	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
-	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.EverouteCluster)
+	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.PodNamespace, opts.EverouteCluster)
 	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 	elfController := &computecluster.Controller{EverouteClusterID: opts.EverouteCluster, ConfigMapNamespace: opts.Namespace}
 	if err := elfController.Setup(opts.SharedFactory, k8sFactory, k8sClient); err != nil {

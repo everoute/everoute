@@ -124,13 +124,38 @@ const (
 type SecurityGroup struct {
 	ObjectMeta
 
+	MemberType      *GroupMemberType  `json:"member_type"`
 	EverouteCluster ObjectReference   `json:"everoute_cluster"`
 	LabelGroups     []LabelGroup      `json:"label_groups"`
 	VMs             []ObjectReference `json:"vms"`
+	PodLabelGroups  []PodLabelGroup   `json:"pod_label_groups"`
 }
+
+type GroupMemberType string
+
+const (
+	VMGroupType  GroupMemberType = "VM"
+	PodGroupType GroupMemberType = "POD"
+)
 
 type LabelGroup struct {
 	Labels []ObjectReference `json:"labels"`
+}
+
+type PodLabelGroup struct {
+	KSC        KSCNamespacedName `json:"ksc"`
+	Namespaces []string          `json:"namespaces"`
+	PodLabels  []PodLabel        `json:"pod_labels"`
+}
+
+type KSCNamespacedName struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+type PodLabel struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // SystemEndpoints contains all internal system endpoints

@@ -22,12 +22,14 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -36,6 +38,7 @@ import (
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
+	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
 )
@@ -59,6 +62,11 @@ var _ = Describe("PolicyController", func() {
 	AfterEach(func() {
 		server.TrackerFactory().ResetAll()
 		err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).DeleteCollection(ctx,
+			metav1.DeleteOptions{},
+			metav1.ListOptions{},
+		)
+		Expect(err).Should(Succeed())
+		err = crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).DeleteCollection(ctx,
 			metav1.DeleteOptions{},
 			metav1.ListOptions{},
 		)
@@ -1610,13 +1618,658 @@ var _ = Describe("PolicyController", func() {
 			})
 		})
 	})
+
+	Context("Pod SecurityPolicy", func() {
+		var vmGroup, vmGroup2, podKscGroup, podNsGroup, podLabelGroup *schema.SecurityGroup
+		var vm *schema.VM
+		var vnicA *schema.VMNic
+		var p *schema.SecurityPolicy
+		var expExtendLabel map[string][]string
+		var expVMLabel, expPodNsGroupL, expPodLabelGroupL map[string]string
+		var expPodNsGroupE, expPodLabelGroupE []metav1.LabelSelectorRequirement
+
+		ksc1 := types.NamespacedName{
+			Namespace: "ksc-ns1",
+			Name:      "ksc1",
+		}
+		ksc2 := types.NamespacedName{
+			Namespace: "ksc-ns2",
+			Name:      "ksc2",
+		}
+		podL1 := schema.PodLabel{Key: "a", Value: ""}
+		podL2 := schema.PodLabel{Key: "b", Value: "true"}
+
+		podNsSelector := &metav1.LabelSelector{
+			MatchLabels: make(map[string]string, 1),
+		}
+		podNsSelector.MatchLabels[policy.K8sNsNameLabel] = podNamespace
+		vmNsSelector := &metav1.LabelSelector{
+			MatchLabels: make(map[string]string, 1),
+		}
+		vmNsSelector.MatchLabels[policy.K8sNsNameLabel] = namespace
+
+		BeforeEach(func() {
+			vm = NewRandomVM()
+			vnicA = NewRandomVMNicAttachedTo(vm)
+
+			expExtendLabel = make(map[string][]string, 1)
+			expExtendLabel["@中文标签"] = []string{"=>中文标签值", "@#!@$%^*)"}
+			expVMLabel = make(map[string]string)
+			expVMLabel[labelA.Key] = labelA.Value
+
+			vmGroup = NewSecurityGroup(everouteCluster)
+			vmType := schema.VMGroupType
+			vmGroup.MemberType = &vmType
+			vmGroup.LabelGroups = append(vmGroup.LabelGroups, schema.LabelGroup{
+				Labels: LabelAsReference(labelA, labelB, labelC),
+			})
+			vmGroup.VMs = append(vmGroup.VMs, schema.ObjectReference{ID: vm.ID})
+			vmGroup2 = NewSecurityGroup(everouteCluster)
+			vmGroup2.MemberType = &vmType
+			vmGroup2.LabelGroups = append(vmGroup2.LabelGroups, schema.LabelGroup{
+				Labels: LabelAsReference(labelA, labelB, labelC),
+			})
+
+			podType := schema.PodGroupType
+			podKscGroup = NewSecurityGroup(everouteCluster)
+			podKscGroup.MemberType = &podType
+			podKscGroup.PodLabelGroups = append(podKscGroup.PodLabelGroups, schema.PodLabelGroup{
+				KSC: schema.KSCNamespacedName{
+					Namespace: ksc1.Namespace,
+					Name:      ksc1.Name,
+				},
+			})
+			podNsGroup = NewSecurityGroup(everouteCluster)
+			podNsGroup.MemberType = &podType
+			podNsGroup.PodLabelGroups = append(podNsGroup.PodLabelGroups, schema.PodLabelGroup{
+				KSC: schema.KSCNamespacedName{
+					Namespace: ksc2.Namespace,
+					Name:      ksc2.Name,
+				},
+				Namespaces: []string{"w-ns1", "w-ns2"},
+			})
+			podLabelGroup = NewSecurityGroup(everouteCluster)
+			podLabelGroup.MemberType = &podType
+			podLabelGroup.PodLabelGroups = append(podLabelGroup.PodLabelGroups, schema.PodLabelGroup{
+				KSC: schema.KSCNamespacedName{
+					Namespace: ksc2.Namespace,
+					Name:      ksc2.Name,
+				},
+				Namespaces: []string{"w-ns1"},
+				PodLabels:  append([]schema.PodLabel{}, podL1, podL2),
+			})
+
+			expPodNsGroupL = make(map[string]string, 2)
+			expPodNsGroupL[msconst.SKSLabelKeyClusterName] = ksc2.Name
+			expPodNsGroupL[msconst.SKSLabelKeyClusterNamespace] = ksc2.Namespace
+			expPodNsGroupE = make([]metav1.LabelSelectorRequirement, 1)
+			expPodNsGroupE[0] = metav1.LabelSelectorRequirement{Key: msconst.EICLabelKeyObjectNamespace,
+				Operator: metav1.LabelSelectorOpIn, Values: []string{"w-ns1", "w-ns2"}}
+
+			expPodLabelGroupL = make(map[string]string, 4)
+			expPodLabelGroupL[msconst.SKSLabelKeyClusterName] = ksc2.Name
+			expPodLabelGroupL[msconst.SKSLabelKeyClusterNamespace] = ksc2.Namespace
+			expPodLabelGroupL[podL1.Key] = podL1.Value
+			expPodLabelGroupL[podL2.Key] = podL2.Value
+			expPodLabelGroupE = make([]metav1.LabelSelectorRequirement, 1)
+			expPodLabelGroupE[0] = metav1.LabelSelectorRequirement{Key: msconst.EICLabelKeyObjectNamespace,
+				Operator: metav1.LabelSelectorOpIn, Values: []string{"w-ns1"}}
+
+			server.TrackerFactory().VM().CreateOrUpdate(vm)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(vmGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(vmGroup2)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(podKscGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(podNsGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(podLabelGroup)
+		})
+		Context("apply to vm", func() {
+			BeforeEach(func() {
+				p = NewSecurityPolicy(everouteCluster, false, vmGroup)
+				p.Egress = []schema.NetworkPolicyRule{
+					{
+						Type:     schema.NetworkPolicyRuleTypeSelector,
+						Selector: LabelAsReference(labelA),
+					},
+				}
+				port1 := "22"
+				p.Ingress = []schema.NetworkPolicyRule{
+					{
+						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
+						SecurityGroup: (*schema.ObjectReference)(&podKscGroup.ObjectMeta),
+						Ports: []schema.NetworkPolicyRulePort{
+							{
+								Port:     &port1,
+								Protocol: schema.NetworkPolicyRulePortProtocolTCP,
+							},
+							{
+								AlgProtocol: schema.NetworkPolicyRulePortAlgProtocolTFTP,
+							},
+						},
+					},
+				}
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(p)
+			})
+			It("create securitypolicy", func() {
+				assertPoliciesNum(ctx, 1)
+				Eventually(func(g Gomega) {
+					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{SymmetricMode: true}, &sp.Spec)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(2))
+					for i := range sp.Spec.AppliedTo {
+						if sp.Spec.AppliedTo[i].Endpoint != nil {
+							g.Expect(*sp.Spec.AppliedTo[i].Endpoint).Should(Equal(vnicA.ID))
+						} else {
+							exp := v1alpha1.ApplyToPeer{
+								EndpointSelector: &labels.Selector{
+									ExtendMatchLabels: expExtendLabel,
+									LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+								},
+							}
+							matchApplyTo(g, &exp, &sp.Spec.AppliedTo[i])
+						}
+					}
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expRule := v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: make(map[string]string),
+									},
+								},
+							},
+						},
+						Ports: []v1alpha1.SecurityPolicyPort{
+							{
+								Protocol:  v1alpha1.ProtocolTCP,
+								PortRange: "22",
+								Type:      v1alpha1.PortTypeNumber,
+							},
+							{
+								Protocol:  v1alpha1.ProtocolTCP,
+								PortRange: "69",
+								Type:      v1alpha1.PortTypeNumber,
+							},
+						},
+					}
+					expRule.From[0].EndpointSelector.MatchLabels[msconst.SKSLabelKeyClusterName] = ksc1.Name
+					expRule.From[0].EndpointSelector.MatchLabels[msconst.SKSLabelKeyClusterNamespace] = ksc1.Namespace
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 := v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: expVMLabel,
+									},
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+				}, timeout, interval).Should(Succeed())
+			})
+
+		})
+
+		Context("apply to pod", func() {
+			BeforeEach(func() {
+				p = NewSecurityPolicy(everouteCluster, false, podNsGroup)
+				p.IsBlocklist = true
+				p.PolicyMode = schema.PolicyModeWork
+				p.Egress = []schema.NetworkPolicyRule{
+					{
+						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
+						SecurityGroup: (*schema.ObjectReference)(&vmGroup2.ObjectMeta),
+					},
+				}
+				port1 := "22"
+				p.Ingress = []schema.NetworkPolicyRule{
+					{
+						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
+						SecurityGroup: (*schema.ObjectReference)(&podLabelGroup.ObjectMeta),
+						Ports: []schema.NetworkPolicyRulePort{
+							{
+								Port:     &port1,
+								Protocol: schema.NetworkPolicyRulePortProtocolTCP,
+							},
+							{
+								AlgProtocol: schema.NetworkPolicyRulePortAlgProtocolTFTP,
+							},
+						},
+					},
+				}
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(p)
+			})
+
+			It("create policy", func() {
+				assertPoliciesNum(ctx, 1)
+				Eventually(func(g Gomega) {
+					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{IsBlocklist: true, Priority: 50,
+						SecurityPolicyEnforcementMode: v1alpha1.WorkMode, DefaultRule: v1alpha1.DefaultRuleNone}, &sp.Spec)
+					expTag := make(map[string]string, 3)
+					expTag["PolicyID"] = p.ID
+					expTag["PolicyName"] = ""
+					expTag["PolicyType"] = "SecurityPolicyDeny"
+					matchLogging(g, &v1alpha1.Logging{Tags: expTag}, sp.Spec.Logging)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp := v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							LabelSelector: metav1.LabelSelector{MatchLabels: expPodNsGroupL, MatchExpressions: expPodNsGroupE},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expRule := v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{MatchLabels: expPodLabelGroupL, MatchExpressions: expPodLabelGroupE},
+								},
+							},
+						},
+						Ports: []v1alpha1.SecurityPolicyPort{
+							{
+								Protocol:  v1alpha1.ProtocolTCP,
+								PortRange: "22",
+								Type:      v1alpha1.PortTypeNumber,
+							},
+							{
+								Protocol:  v1alpha1.ProtocolTCP,
+								PortRange: "69",
+								Type:      v1alpha1.PortTypeNumber,
+							},
+						},
+					}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 := v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+									ExtendMatchLabels: expExtendLabel,
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		Context("apply to pod and vm", func() {
+			BeforeEach(func() {
+				p = NewSecurityPolicy(everouteCluster, true, vmGroup2)
+				p.Name = "test1"
+				p.ApplyTo = append(p.ApplyTo, schema.SecurityPolicyApply{Type: schema.SecurityPolicyTypeSecurityGroup,
+					SecurityGroup: &schema.ObjectReference{ID: podLabelGroup.GetID()}})
+				p.Egress = []schema.NetworkPolicyRule{
+					{
+						Type:     schema.NetworkPolicyRuleTypeSelector,
+						Selector: LabelAsReference(labelA),
+					},
+				}
+				p.Ingress = []schema.NetworkPolicyRule{
+					{
+						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
+						SecurityGroup: (*schema.ObjectReference)(&podKscGroup.ObjectMeta),
+					},
+				}
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(p)
+			})
+
+			It("create policy", func() {
+				assertPoliciesNum(ctx, 3)
+				Eventually(func(g Gomega) {
+					By("check vm policy")
+					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{SymmetricMode: true}, &sp.Spec)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp := v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					l1 := make(map[string]string, 2)
+					l1[msconst.SKSLabelKeyClusterName] = ksc1.Name
+					l1[msconst.SKSLabelKeyClusterNamespace] = ksc1.Namespace
+					expRule := v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector:  &labels.Selector{LabelSelector: metav1.LabelSelector{MatchLabels: l1}},
+							}}}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 := v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: expVMLabel,
+									},
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+
+					By("check pod policy")
+					sp, err = crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{SymmetricMode: true}, &sp.Spec)
+					expTag := make(map[string]string, 3)
+					expTag["PolicyID"] = p.ID
+					expTag["PolicyName"] = "test1"
+					expTag["PolicyType"] = "SecurityPolicyAllow"
+					matchLogging(g, &v1alpha1.Logging{Tags: expTag}, sp.Spec.Logging)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp = v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							LabelSelector: metav1.LabelSelector{MatchLabels: expPodLabelGroupL, MatchExpressions: expPodLabelGroupE},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expRule = v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector:  &labels.Selector{LabelSelector: metav1.LabelSelector{MatchLabels: l1}},
+							}}}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 = v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: expVMLabel,
+									},
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+
+					By("check vm inner communicable policy")
+					policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					sp = nil
+					for i := range policyList.Items {
+						if strings.HasPrefix(policyList.Items[i].Name, "tower.sp.communicable-") {
+							sp = &policyList.Items[i]
+							break
+						}
+					}
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{}, &sp.Spec)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp = v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expPeer := v1alpha1.SecurityPolicyPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+						NamespaceSelector: vmNsSelector,
+					}
+					exp2 := v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{expPeer}}
+					matchRule(g, exp2, sp.Spec.IngressRules[0])
+					//egress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					exp1 = v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{expPeer}}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+				}, timeout, interval).Should(Succeed())
+			})
+
+			It("update pod group", func() {
+				podKscGroup.PodLabelGroups[0].PodLabels = append(podKscGroup.PodLabelGroups[0].PodLabels, schema.PodLabel{
+					Key:   "new.io/test",
+					Value: "yes",
+				})
+				server.TrackerFactory().SecurityGroup().CreateOrUpdate(podKscGroup)
+				assertPoliciesNum(ctx, 3)
+				Eventually(func(g Gomega) {
+					By("check vm policy")
+					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{SymmetricMode: true}, &sp.Spec)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp := v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					l1 := make(map[string]string, 2)
+					l1[msconst.SKSLabelKeyClusterName] = ksc1.Name
+					l1[msconst.SKSLabelKeyClusterNamespace] = ksc1.Namespace
+					l1["new.io/test"] = "yes"
+					expRule := v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector:  &labels.Selector{LabelSelector: metav1.LabelSelector{MatchLabels: l1}},
+							}}}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 := v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: expVMLabel,
+									},
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+
+					By("check pod policy")
+					sp, err = crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).Get(ctx, "tower.sp-"+p.ID, metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{SymmetricMode: true}, &sp.Spec)
+					expTag := make(map[string]string, 3)
+					expTag["PolicyID"] = p.ID
+					expTag["PolicyName"] = "test1"
+					expTag["PolicyType"] = "SecurityPolicyAllow"
+					matchLogging(g, &v1alpha1.Logging{Tags: expTag}, sp.Spec.Logging)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp = v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							LabelSelector: metav1.LabelSelector{MatchLabels: expPodLabelGroupL, MatchExpressions: expPodLabelGroupE},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expRule = v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{
+							{
+								NamespaceSelector: podNsSelector,
+								EndpointSelector:  &labels.Selector{LabelSelector: metav1.LabelSelector{MatchLabels: l1}},
+							}}}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					exp1 = v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{
+							{
+								EndpointSelector: &labels.Selector{
+									LabelSelector: metav1.LabelSelector{
+										MatchLabels: expVMLabel,
+									},
+								},
+								NamespaceSelector: vmNsSelector,
+							},
+						},
+					}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+
+					By("check vm inner communicable policy")
+					policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					sp = nil
+					for i := range policyList.Items {
+						if strings.HasPrefix(policyList.Items[i].Name, "tower.sp.communicable-") {
+							sp = &policyList.Items[i]
+							break
+						}
+					}
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{}, &sp.Spec)
+					//applyto
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
+					exp = v1alpha1.ApplyToPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+					}
+					matchApplyTo(g, &exp, &sp.Spec.AppliedTo[0])
+					//ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expPeer := v1alpha1.SecurityPolicyPeer{
+						EndpointSelector: &labels.Selector{
+							ExtendMatchLabels: expExtendLabel,
+							LabelSelector:     metav1.LabelSelector{MatchLabels: expVMLabel},
+						},
+						NamespaceSelector: vmNsSelector,
+					}
+					exp2 := v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{expPeer}}
+					matchRule(g, exp2, sp.Spec.IngressRules[0])
+					//egress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					exp1 = v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{expPeer}}
+					matchRule(g, exp1, sp.Spec.EgressRules[0])
+				}, timeout, interval).Should(Succeed())
+			})
+
+			It("delete securitypolicy", func() {
+				assertPoliciesNum(ctx, 3)
+				server.TrackerFactory().SecurityPolicy().Delete(p.ID)
+				assertPoliciesNum(ctx, 0)
+			})
+		})
+
+		Context("apply to user-defined global whitelist", func() {
+			var ip1 *networkingv1.IPBlock
+			BeforeEach(func() {
+				cluster := NewEverouteCluster(everouteCluster, schema.GlobalPolicyActionAllow)
+				cluster.ControllerInstances = nil
+				ip1 = &networkingv1.IPBlock{
+					CIDR: "10.10.1.0/24",
+				}
+				cluster.GlobalWhitelist = schema.EverouteClusterWhitelist{
+					Enable: true,
+					Egress: []schema.NetworkPolicyRule{
+						*NewNetworkPolicyRule("", "", ip1),
+					},
+					Ingress: []schema.NetworkPolicyRule{
+						{
+							Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
+							SecurityGroup: (*schema.ObjectReference)(&podNsGroup.ObjectMeta),
+						},
+					},
+				}
+				server.TrackerFactory().EverouteCluster().CreateOrUpdate(cluster)
+			})
+
+			It("should generate policy", func() {
+				assertPoliciesNum(ctx, 1)
+				Eventually(func(g Gomega) {
+					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp.global-user.whitelist", metav1.GetOptions{})
+					g.Expect(err).ShouldNot(HaveOccurred())
+					g.Expect(sp).ShouldNot(BeNil())
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{DefaultRule: v1alpha1.DefaultRuleNone, SecurityPolicyEnforcementMode: v1alpha1.WorkMode}, &sp.Spec)
+					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(0))
+					// ingress
+					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
+					expPeer := v1alpha1.SecurityPolicyPeer{
+						EndpointSelector: &labels.Selector{
+							LabelSelector: metav1.LabelSelector{MatchLabels: expPodNsGroupL, MatchExpressions: expPodNsGroupE},
+						},
+						NamespaceSelector: podNsSelector,
+					}
+					expRule := v1alpha1.Rule{
+						From: []v1alpha1.SecurityPolicyPeer{expPeer},
+					}
+					matchRule(g, expRule, sp.Spec.IngressRules[0])
+					//egress
+					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
+					expRule = v1alpha1.Rule{
+						To: []v1alpha1.SecurityPolicyPeer{{IPBlock: ip1}},
+					}
+					matchRule(g, expRule, sp.Spec.EgressRules[0])
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+	})
 })
 
 func assertPoliciesNum(ctx context.Context, numOfPolicies int) {
 	Eventually(func() int {
 		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		return len(policyList.Items)
+		policyList2, err := crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).List(ctx, metav1.ListOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+		return len(policyList.Items) + len(policyList2.Items)
 	}, timeout, interval).Should(Equal(numOfPolicies))
 }
 
@@ -1696,6 +2349,7 @@ func matchPolicy(policy *v1alpha1.SecurityPolicy, tier string, symmetricMode boo
 		if len(p1) != len(p2) {
 			return false
 		}
+
 		for i := range p1 {
 			if p1[i].DisableSymmetric != p2[i].DisableSymmetric ||
 				(p1[i].IPBlock == nil && p2[i].IPBlock != nil) ||
@@ -1788,4 +2442,145 @@ func (s ApplyPeers) Less(i, j int) bool {
 	rawI, _ := json.Marshal(s[i])
 	rawJ, _ := json.Marshal(s[j])
 	return string(rawI) < string(rawJ)
+}
+
+func matchApplyTo(g Gomega, expApply *v1alpha1.ApplyToPeer, res *v1alpha1.ApplyToPeer) {
+	if expApply == nil {
+		g.Expect(res).Should(BeNil())
+		return
+	}
+	if expApply.Endpoint == nil {
+		g.Expect(res.Endpoint).Should(BeNil())
+	} else {
+		g.Expect(res.Endpoint).Should(Equal(expApply.Endpoint))
+	}
+
+	matchEndpointSelector(g, expApply.EndpointSelector, res.EndpointSelector)
+	matchIPBlock(g, expApply.IPBlock, res.IPBlock)
+}
+
+func matchEndpointSelector(g Gomega, exp, res *labels.Selector) {
+	if exp == nil {
+		g.Expect(res).Should(BeNil())
+		return
+	}
+
+	g.Expect(res.MatchNothing).Should(Equal(exp.MatchNothing))
+	matchLabelSelector(g, exp.LabelSelector, res.LabelSelector)
+
+	g.Expect(len(res.ExtendMatchLabels)).Should(Equal(len(exp.ExtendMatchLabels)))
+	for k, v := range exp.ExtendMatchLabels {
+		g.Expect(res.ExtendMatchLabels).Should(HaveKey(k))
+		resV := res.ExtendMatchLabels[k]
+		g.Expect(len(resV)).Should(Equal(len(v)))
+		for i := range v {
+			g.Expect(resV).Should(ContainElement(v[i]))
+		}
+	}
+}
+
+func matchLabelSelector(g Gomega, exp, res metav1.LabelSelector) {
+	g.Expect(len(res.MatchLabels)).Should(Equal(len(exp.MatchLabels)))
+	for k, v := range exp.MatchLabels {
+		g.Expect(res.MatchLabels).Should(HaveKeyWithValue(k, v))
+	}
+
+	g.Expect(len(res.MatchExpressions)).Should(Equal(len(exp.MatchExpressions)))
+	for i := range exp.MatchExpressions {
+		g.Expect(res.MatchExpressions).Should(ContainElement(exp.MatchExpressions[i]))
+	}
+}
+
+func matchIPBlock(g Gomega, exp, res *networkingv1.IPBlock) {
+	if exp == nil {
+		g.Expect(res).Should(BeNil())
+		return
+	}
+	g.Expect(res.CIDR).Should(Equal(exp.CIDR))
+	g.Expect(len(res.Except)).Should(Equal(len(exp.Except)))
+	for i := range exp.Except {
+		g.Expect(res.Except).Should(ContainElement(exp.Except[i]))
+	}
+}
+
+func matchSpBase(g Gomega, exp, res *v1alpha1.SecurityPolicySpec) {
+	if exp == nil {
+		g.Expect(res).Should(BeNil())
+		return
+	}
+
+	defaultRule := v1alpha1.DefaultRuleDrop
+	if exp.DefaultRule != "" {
+		defaultRule = exp.DefaultRule
+	}
+	g.Expect(res.DefaultRule).Should(Equal(defaultRule))
+
+	tier := "tier2"
+	if exp.Tier != "" {
+		tier = exp.Tier
+	}
+	g.Expect(res.Tier).Should(Equal(tier))
+
+	priority := int32(30)
+	if exp.Priority != 0 {
+		priority = exp.Priority
+	}
+	g.Expect(res.Priority).Should(Equal(priority))
+
+	g.Expect(res.SecurityPolicyEnforcementMode).Should(Equal(exp.SecurityPolicyEnforcementMode))
+
+	g.Expect(res.SymmetricMode).Should(Equal(exp.SymmetricMode))
+	g.Expect(res.IsBlocklist).Should(Equal(exp.IsBlocklist))
+
+	pTypes := []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress}
+	if exp.PolicyTypes != nil {
+		pTypes = exp.PolicyTypes
+	}
+	g.Expect(len(res.PolicyTypes)).Should(Equal(len(pTypes)))
+	for _, p := range pTypes {
+		g.Expect(res.PolicyTypes).Should(ContainElement(p))
+	}
+}
+
+func matchLogging(g Gomega, exp, res *v1alpha1.Logging) {
+	if exp == nil {
+		g.Expect(res).Should(BeNil())
+		return
+	}
+	g.Expect(res.Enabled).Should(Equal(exp.Enabled))
+	g.Expect(len(res.Tags)).Should(Equal(len(exp.Tags)))
+	for k, v := range exp.Tags {
+		g.Expect(res.Tags).Should(HaveKeyWithValue(k, v))
+	}
+}
+
+func matchSecurityPolicyPeer(g Gomega, exp, res v1alpha1.SecurityPolicyPeer) {
+	g.Expect(res.DisableSymmetric).Should(Equal(exp.DisableSymmetric))
+	matchIPBlock(g, exp.IPBlock, res.IPBlock)
+	matchEndpointSelector(g, exp.EndpointSelector, res.EndpointSelector)
+	if exp.NamespaceSelector == nil {
+		g.Expect(res.NamespaceSelector).Should(BeNil())
+	} else {
+		matchLabelSelector(g, *exp.NamespaceSelector, *res.NamespaceSelector)
+	}
+
+	if exp.Endpoint == nil {
+		g.Expect(res.Endpoint).Should(BeNil())
+		return
+	}
+	g.Expect(res.Endpoint).Should(Equal(exp.Endpoint))
+}
+
+func matchRule(g Gomega, exp, res v1alpha1.Rule) {
+	if exp.From == nil {
+		g.Expect(res.From).Should(BeNil())
+	} else {
+		g.Expect(len(res.From)).Should(Equal(1))
+		matchSecurityPolicyPeer(g, exp.From[0], res.From[0])
+	}
+
+	g.Expect(len(exp.Ports)).Should(Equal(len(res.Ports)))
+	for i := range exp.Ports {
+		g.Expect(exp.Ports).Should(ContainElement(exp.Ports[i]))
+	}
 }

@@ -43,6 +43,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/labels"
+	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -72,6 +73,8 @@ const (
 	securityPolicyIndex  = "towerSecurityPolicyIndex"
 	isolationPolicyIndex = "towerIsolationPolicyIndex"
 	serviceIndex         = "serviceIndex"
+
+	K8sNsNameLabel = "kubernetes.io/metadata.name"
 )
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
@@ -86,7 +89,8 @@ type Controller struct {
 	name string
 
 	// namespace which endpoint and security policy should create in
-	namespace string
+	namespace    string
+	podNamespace string
 	// everouteCluster which should synchronize SecurityPolicy from
 	everouteCluster string
 
@@ -143,6 +147,7 @@ func New(
 	crdClient clientset.Interface,
 	resyncPeriod time.Duration,
 	namespace string,
+	podNamespace string,
 	everouteCluster string,
 ) *Controller {
 	crdPolicyInformer := crdFactory.Security().V1alpha1().SecurityPolicies().Informer()
@@ -158,6 +163,7 @@ func New(
 	c := &Controller{
 		name:                          "PolicyController",
 		namespace:                     namespace,
+		podNamespace:                  podNamespace,
 		everouteCluster:               everouteCluster,
 		crdClient:                     crdClient,
 		vmInformer:                    vmInformer,
@@ -944,6 +950,7 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
+			Priority:                      AllowlistPriority,
 			SecurityPolicyEnforcementMode: getGlobalWhitelistPolicyEnforceMode(cluster.GlobalWhitelist.Enable),
 			Tier:                          constants.Tier2,
 			DefaultRule:                   v1alpha1.DefaultRuleNone,
@@ -1030,40 +1037,54 @@ func (c *Controller) parseSecurityPolicy(securityPolicy *schema.SecurityPolicy) 
 	var policyList []v1alpha1.SecurityPolicy
 	var policyMode = parseEnforcementMode(securityPolicy.PolicyMode)
 
-	applyToPeers, err := c.parseSecurityPolicyApplys(securityPolicy.ApplyTo)
+	applyToVMs, applyToPods, err := c.parseSecurityPolicyApplys(securityPolicy.ApplyTo)
 	if err != nil {
 		return nil, err
 	}
-	if len(applyToPeers) == 0 {
+	if len(applyToVMs) == 0 && len(applyToPods) == 0 {
 		return nil, nil
 	}
-
 	ingress, egress, err := c.parseNetworkPolicyRules(securityPolicy.Ingress, securityPolicy.Egress)
 	if err != nil {
 		return nil, err
 	}
 	loggingOptions := NewLoggingOptionsFrom(securityPolicy, c.vmLister)
 
-	policy := v1alpha1.SecurityPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      SecurityPolicyPrefix + securityPolicy.GetID(),
-			Namespace: c.namespace,
-		},
-		Spec: v1alpha1.SecurityPolicySpec{
-			IsBlocklist:                   securityPolicy.IsBlocklist,
-			Tier:                          constants.Tier2,
-			Priority:                      c.getPolicyPriority(securityPolicy),
-			SecurityPolicyEnforcementMode: policyMode,
-			SymmetricMode:                 c.getPolicySymmetricMode(securityPolicy),
-			AppliedTo:                     applyToPeers,
-			IngressRules:                  ingress,
-			EgressRules:                   egress,
-			DefaultRule:                   c.getPolicyDefaultRule(securityPolicy),
-			Logging:                       loggingOptions,
-			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-		},
+	for _, ns := range []string{c.namespace, c.podNamespace} {
+		var applyToPeers []v1alpha1.ApplyToPeer
+		if ns == c.namespace {
+			if len(applyToVMs) == 0 {
+				continue
+			}
+			applyToPeers = append([]v1alpha1.ApplyToPeer{}, applyToVMs...)
+		} else {
+			if len(applyToPods) == 0 {
+				continue
+			}
+			applyToPeers = append([]v1alpha1.ApplyToPeer{}, applyToPods...)
+		}
+
+		policy := v1alpha1.SecurityPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      SecurityPolicyPrefix + securityPolicy.GetID(),
+				Namespace: ns,
+			},
+			Spec: v1alpha1.SecurityPolicySpec{
+				IsBlocklist:                   securityPolicy.IsBlocklist,
+				Tier:                          constants.Tier2,
+				Priority:                      c.getPolicyPriority(securityPolicy),
+				SecurityPolicyEnforcementMode: policyMode,
+				SymmetricMode:                 c.getPolicySymmetricMode(securityPolicy),
+				AppliedTo:                     applyToPeers,
+				IngressRules:                  ingress,
+				EgressRules:                   egress,
+				DefaultRule:                   c.getPolicyDefaultRule(securityPolicy),
+				Logging:                       loggingOptions,
+				PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+			},
+		}
+		policyList = append(policyList, policy)
 	}
-	policyList = append(policyList, policy)
 
 	for item := range securityPolicy.ApplyTo {
 		if !securityPolicy.ApplyTo[item].Communicable {
@@ -1221,7 +1242,7 @@ func (c *Controller) generateIntragroupPolicy(
 ) (*v1alpha1.SecurityPolicy, error) {
 	peerHash := nameutil.HashName(10, appliedPeer)
 
-	appliedPeers, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
+	appliedPeers, _, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
 	if err != nil {
 		return nil, err
 	}
@@ -1237,13 +1258,14 @@ func (c *Controller) generateIntragroupPolicy(
 		Spec: v1alpha1.SecurityPolicySpec{
 			Tier:      constants.Tier2,
 			AppliedTo: appliedPeers,
+			Priority:  AllowlistPriority,
 			IngressRules: []v1alpha1.Rule{{
 				Name: "ingress",
-				From: c.appliedPeersAsPolicyPeers(appliedPeers, false),
+				From: c.appliedPeersAsPolicyPeers(appliedPeers, false, false),
 			}},
 			EgressRules: []v1alpha1.Rule{{
 				Name: "egress",
-				To:   c.appliedPeersAsPolicyPeers(appliedPeers, false),
+				To:   c.appliedPeersAsPolicyPeers(appliedPeers, false, false),
 			}},
 			SecurityPolicyEnforcementMode: policyMode,
 			DefaultRule:                   v1alpha1.DefaultRuleDrop,
@@ -1255,34 +1277,38 @@ func (c *Controller) generateIntragroupPolicy(
 	return &policy, nil
 }
 
-func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPolicyApply) ([]v1alpha1.ApplyToPeer, error) {
-	var applyToPeers []v1alpha1.ApplyToPeer
+func (c *Controller) parseSecurityPolicyApplys(policyApplies []schema.SecurityPolicyApply) ([]v1alpha1.ApplyToPeer, []v1alpha1.ApplyToPeer, error) {
+	var applyToVMs, applyToPods []v1alpha1.ApplyToPeer
 
 	for _, policyApply := range policyApplies {
 		switch policyApply.Type {
 		case "", schema.SecurityPolicyTypeSelector:
 			endpointSelector, err := c.parseSelectors(policyApply.Selector)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			applyToPeers = append(applyToPeers, v1alpha1.ApplyToPeer{
+			applyToVMs = append(applyToVMs, v1alpha1.ApplyToPeer{
 				EndpointSelector: endpointSelector,
 			})
 		case schema.SecurityPolicyTypeSecurityGroup:
 			if policyApply.SecurityGroup == nil {
-				return nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.SecurityPolicyTypeSecurityGroup)
+				return nil, nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.SecurityPolicyTypeSecurityGroup)
 			}
-			peers, err := c.parseSecurityGroup(policyApply.SecurityGroup)
+			peers, isPod, err := c.parseSecurityGroup(policyApply.SecurityGroup)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			applyToPeers = append(applyToPeers, peers...)
+			if isPod {
+				applyToPods = append(applyToPods, peers...)
+			} else {
+				applyToVMs = append(applyToVMs, peers...)
+			}
 		default:
-			return nil, fmt.Errorf("unknown policy peer type %s", policyApply.Type)
+			return nil, nil, fmt.Errorf("unknown policy peer type %s", policyApply.Type)
 		}
 	}
 
-	return applyToPeers, nil
+	return applyToVMs, applyToPods, nil
 }
 
 func (c *Controller) vmAsAppliedTo(vmKey string) ([]v1alpha1.ApplyToPeer, error) {
@@ -1399,18 +1425,19 @@ func (c *Controller) parseNetworkPolicyRule(rule *schema.NetworkPolicyRule) ([]v
 			return nil, nil, err
 		}
 		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
-			EndpointSelector: endpointSelector,
-			DisableSymmetric: disableSymmetric,
+			EndpointSelector:  endpointSelector,
+			DisableSymmetric:  disableSymmetric,
+			NamespaceSelector: c.genNamespaceSelector(false),
 		})
 	case schema.NetworkPolicyRuleTypeSecurityGroup:
 		if rule.SecurityGroup == nil {
 			return nil, nil, fmt.Errorf("receive rule.Type %s but empty SecurityGroup", schema.NetworkPolicyRuleTypeSecurityGroup)
 		}
-		peers, err := c.parseSecurityGroup(rule.SecurityGroup)
+		peers, isPod, err := c.parseSecurityGroup(rule.SecurityGroup)
 		if err != nil {
 			return nil, nil, err
 		}
-		policyPeers = append(policyPeers, c.appliedPeersAsPolicyPeers(peers, disableSymmetric)...)
+		policyPeers = append(policyPeers, c.appliedPeersAsPolicyPeers(peers, disableSymmetric, isPod)...)
 	}
 
 	return policyPeers, policyPorts, nil
@@ -1453,13 +1480,7 @@ func (c *Controller) parseSelectors(selectors []schema.ObjectReference) (*labels
 	return &labelSelector, nil
 }
 
-func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference) ([]v1alpha1.ApplyToPeer, error) {
-	obj, exist, err := c.securityGroupLister.GetByKey(securityGroupRef.ID)
-	if err != nil || !exist {
-		return nil, fmt.Errorf("security group %s not found", securityGroupRef.ID)
-	}
-	securityGroup := obj.(*schema.SecurityGroup)
-
+func (c *Controller) parseVMSecurityGroup(securityGroup *schema.SecurityGroup) ([]v1alpha1.ApplyToPeer, error) {
 	var appliedPeers []v1alpha1.ApplyToPeer
 
 	for _, vm := range securityGroup.VMs {
@@ -1483,9 +1504,75 @@ func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference
 	return appliedPeers, nil
 }
 
-func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPeer, disableSymmetric bool) []v1alpha1.SecurityPolicyPeer {
+func (c *Controller) parsePodSecurityGroup(securityGroup *schema.SecurityGroup) ([]v1alpha1.ApplyToPeer, error) {
+	var appliedPeers []v1alpha1.ApplyToPeer
+	for _, podLabelGroup := range securityGroup.PodLabelGroups {
+		matchLabels := make(map[string]string, 2)
+		matchLabels[msconst.SKSLabelKeyClusterName] = utils.GetValidLabelString(podLabelGroup.KSC.Name)
+		matchLabels[msconst.SKSLabelKeyClusterNamespace] = utils.GetValidLabelString(podLabelGroup.KSC.Namespace)
+		for _, podLabel := range podLabelGroup.PodLabels {
+			matchLabels[podLabel.Key] = podLabel.Value
+		}
+		selector := &labels.Selector{
+			LabelSelector: metav1.LabelSelector{
+				MatchLabels: matchLabels,
+			},
+		}
+		if len(podLabelGroup.Namespaces) > 0 {
+			matchExpre := metav1.LabelSelectorRequirement{
+				Key:      msconst.EICLabelKeyObjectNamespace,
+				Operator: metav1.LabelSelectorOpIn,
+			}
+			for _, ns := range podLabelGroup.Namespaces {
+				matchExpre.Values = append(matchExpre.Values, utils.GetValidLabelString(ns))
+			}
+			selector.LabelSelector.MatchExpressions = []metav1.LabelSelectorRequirement{matchExpre}
+		}
+		appliedPeers = append(appliedPeers, v1alpha1.ApplyToPeer{
+			EndpointSelector: selector,
+		})
+	}
+	return appliedPeers, nil
+}
+
+func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference) ([]v1alpha1.ApplyToPeer, bool, error) {
+	obj, exist, err := c.securityGroupLister.GetByKey(securityGroupRef.ID)
+	if err != nil || !exist {
+		return nil, false, fmt.Errorf("security group %s not found", securityGroupRef.ID)
+	}
+	securityGroup := obj.(*schema.SecurityGroup)
+	memberType := schema.VMGroupType
+	if securityGroup.MemberType != nil {
+		memberType = *securityGroup.MemberType
+	}
+	switch memberType {
+	case schema.VMGroupType:
+		vmPeers, err := c.parseVMSecurityGroup(securityGroup)
+		return vmPeers, false, err
+	case schema.PodGroupType:
+		podPeers, err := c.parsePodSecurityGroup(securityGroup)
+		return podPeers, true, err
+	default:
+		return nil, false, fmt.Errorf("unknow securityGroup memberType")
+	}
+}
+
+func (c *Controller) genNamespaceSelector(isPod bool) *metav1.LabelSelector {
+	peerNs := c.namespace
+	if isPod {
+		peerNs = c.podNamespace
+	}
+	namespaceSelector := make(map[string]string, 1)
+	namespaceSelector[K8sNsNameLabel] = peerNs
+	return &metav1.LabelSelector{
+		MatchLabels: namespaceSelector,
+	}
+}
+
+func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPeer, disableSymmetric bool, isPod bool) []v1alpha1.SecurityPolicyPeer {
 	policyPeers := make([]v1alpha1.SecurityPolicyPeer, 0, len(appliedPeers))
 
+	nsSelector := c.genNamespaceSelector(isPod)
 	for _, appliedPeer := range appliedPeers {
 		var namespacedEndpoint *v1alpha1.NamespacedName
 		if appliedPeer.Endpoint != nil {
@@ -1494,11 +1581,16 @@ func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPe
 				Namespace: c.namespace,
 			}
 		}
-		policyPeers = append(policyPeers, v1alpha1.SecurityPolicyPeer{
+
+		peer := v1alpha1.SecurityPolicyPeer{
 			Endpoint:         namespacedEndpoint,
 			EndpointSelector: appliedPeer.EndpointSelector,
 			DisableSymmetric: disableSymmetric,
-		})
+		}
+		if appliedPeer.EndpointSelector != nil && !appliedPeer.EndpointSelector.MatchNothing {
+			peer.NamespaceSelector = nsSelector
+		}
+		policyPeers = append(policyPeers, peer)
 	}
 
 	return policyPeers

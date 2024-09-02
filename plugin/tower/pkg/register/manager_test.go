@@ -42,6 +42,7 @@ func TestInitFlags(t *testing.T) {
 				ResyncPeriod: 10 * time.Hour,
 				WorkerNumber: 10,
 				Namespace:    "tower-space",
+				PodNamespace: "sks-sync-object",
 			},
 		},
 		"should prase normal options with prefix": {
@@ -54,6 +55,7 @@ func TestInitFlags(t *testing.T) {
 				"--plugins.tower.allow-insecure=false",
 				"--plugins.tower.namespace=test-namespace",
 				"--plugins.tower.token-file=/tmp/test",
+				"-plugins.tower.pod-namespace=test-pod",
 			},
 			expectOptions: &Options{
 				Enable: &boolTrue,
@@ -65,6 +67,7 @@ func TestInitFlags(t *testing.T) {
 				ResyncPeriod: time.Second,
 				WorkerNumber: 1,
 				Namespace:    "test-namespace",
+				PodNamespace: "test-pod",
 			},
 		},
 	}
