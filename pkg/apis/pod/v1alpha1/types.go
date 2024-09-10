@@ -28,7 +28,8 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="cni",type="string",JSONPath=".spec.cni"
 // +kubebuilder:printcolumn:name="managedBy",type="string",JSONPath=".spec.managedBy"
-
+// +kubebuilder:printcolumn:name="kscname",type="string",JSONPath=".spec.sksOption.kscName"
+// +kubebuilder:printcolumn:name="kscnamespace",type="string",JSONPath=".spec.sksOption.kscNamespace"
 type K8sCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
