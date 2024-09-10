@@ -886,6 +886,12 @@ spec:
     - jsonPath: .spec.managedBy
       name: managedBy
       type: string
+    - jsonPath: .spec.sksOption.kscName
+      name: kscname
+      type: string
+    - jsonPath: .spec.sksOption.kscNamespace
+      name: kscnamespace
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
