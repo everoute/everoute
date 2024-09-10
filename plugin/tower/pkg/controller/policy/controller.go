@@ -455,9 +455,15 @@ func (c *Controller) serviceIndexFunc(obj interface{}) ([]string, error) {
 	return serviceIDs, nil
 }
 
+func (c *Controller) skipByNamespace(obj metav1.Object) bool {
+	return !(obj.GetNamespace() == c.namespace || obj.GetNamespace() == c.podNamespace)
+}
+
 func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) {
 	policy := obj.(*v1alpha1.SecurityPolicy)
-
+	if c.skipByNamespace(policy) {
+		return nil, nil
+	}
 	if strings.HasPrefix(policy.GetName(), SecurityPolicyPrefix) {
 		securityPolicyKey := strings.TrimPrefix(policy.GetName(), SecurityPolicyPrefix)
 		return []string{securityPolicyKey}, nil
@@ -475,6 +481,9 @@ func (c *Controller) securityPolicyIndexFunc(obj interface{}) ([]string, error) 
 func (c *Controller) isolationPolicyIndexFunc(obj interface{}) ([]string, error) {
 	policy := obj.(*v1alpha1.SecurityPolicy)
 
+	if c.skipByNamespace(policy) {
+		return nil, nil
+	}
 	if strings.HasPrefix(policy.GetName(), strings.TrimSuffix(IsolationPolicyPrefix, "-")) {
 		if strings.HasPrefix(policy.GetName(), IsolationPolicyIngressPrefix) {
 			return []string{strings.TrimPrefix(policy.GetName(), IsolationPolicyIngressPrefix)}, nil

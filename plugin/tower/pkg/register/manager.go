@@ -117,7 +117,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		opts.SharedFactory = informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
 	}
 	// cache endpoints and security policies in the namespace
-	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod, externalversions.WithNamespace(opts.Namespace))
+	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod)
 	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
 	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.PodNamespace, opts.EverouteCluster)
 	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)

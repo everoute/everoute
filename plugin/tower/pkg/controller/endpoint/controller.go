@@ -302,6 +302,9 @@ func (c *Controller) enqueueVMNics(vm *schema.VM) {
 
 func (c *Controller) addEndpoint(new interface{}) {
 	obj := new.(*v1alpha1.Endpoint)
+	if obj.GetNamespace() != c.namespace {
+		return
+	}
 	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
 		c.staticEndpointQueue.Add(obj.GetName())
 	} else {
@@ -311,6 +314,9 @@ func (c *Controller) addEndpoint(new interface{}) {
 
 func (c *Controller) updateEndpoint(old interface{}, new interface{}) {
 	obj := new.(*v1alpha1.Endpoint)
+	if obj.GetNamespace() != c.namespace {
+		return
+	}
 	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
 		c.staticEndpointQueue.Add(obj.GetName())
 	} else {
@@ -323,6 +329,9 @@ func (c *Controller) deleteEndpoint(old interface{}) {
 		old = d.Obj
 	}
 	obj := old.(*v1alpha1.Endpoint)
+	if obj.GetNamespace() != c.namespace {
+		return
+	}
 	if strings.HasPrefix(obj.GetName(), StaticEndpointPrefix) {
 		c.staticEndpointQueue.Add(obj.GetName())
 	} else {
