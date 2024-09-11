@@ -7,6 +7,22 @@ type VM {
     vm_nics: [VMNic!]
     status: VMStatus!
     cluster: ELFCluster!
+    vm_usage: VMUsage
+    internal: Boolean!
+}
+
+enum VMUsage {
+    EVEROUTE_CONTROLLER
+    BACKUP_CONTROLLER
+    ADVANCED_MONITORING
+    CLOUDTOWER
+    REGISTRY
+    SHARE_REGISTRY
+    SKS_MANAGEMENT
+    BUNDLE_APPLICATION
+    AGENT_MESH_NODE
+    REPLICATION_CONTROLLER
+    SFS_CONTROLLER
 }
 
 type ELFCluster {

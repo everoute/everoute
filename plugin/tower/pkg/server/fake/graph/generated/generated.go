@@ -275,10 +275,12 @@ type ComplexityRoot struct {
 		Cluster     func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
+		Internal    func(childComplexity int) int
 		Memory      func(childComplexity int) int
 		Name        func(childComplexity int) int
 		Status      func(childComplexity int) int
 		VMNics      func(childComplexity int) int
+		VMUsage     func(childComplexity int) int
 		Vcpu        func(childComplexity int) int
 	}
 
@@ -1267,6 +1269,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.VM.ID(childComplexity), true
 
+	case "VM.internal":
+		if e.complexity.VM.Internal == nil {
+			break
+		}
+
+		return e.complexity.VM.Internal(childComplexity), true
+
 	case "VM.memory":
 		if e.complexity.VM.Memory == nil {
 			break
@@ -1294,6 +1303,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.VM.VMNics(childComplexity), true
+
+	case "VM.vm_usage":
+		if e.complexity.VM.VMUsage == nil {
+			break
+		}
+
+		return e.complexity.VM.VMUsage(childComplexity), true
 
 	case "VM.vcpu":
 		if e.complexity.VM.Vcpu == nil {
@@ -1758,6 +1774,22 @@ enum TaskStatus {
     vm_nics: [VMNic!]
     status: VMStatus!
     cluster: ELFCluster!
+    vm_usage: VMUsage
+    internal: Boolean!
+}
+
+enum VMUsage {
+    EVEROUTE_CONTROLLER
+    BACKUP_CONTROLLER
+    ADVANCED_MONITORING
+    CLOUDTOWER
+    REGISTRY
+    SHARE_REGISTRY
+    SKS_MANAGEMENT
+    BUNDLE_APPLICATION
+    AGENT_MESH_NODE
+    REPLICATION_CONTROLLER
+    SFS_CONTROLLER
 }
 
 type ELFCluster {
@@ -3934,6 +3966,10 @@ func (ec *executionContext) fieldContext_Label_vms(ctx context.Context, field gr
 				return ec.fieldContext_VM_status(ctx, field)
 			case "cluster":
 				return ec.fieldContext_VM_cluster(ctx, field)
+			case "vm_usage":
+				return ec.fieldContext_VM_vm_usage(ctx, field)
+			case "internal":
+				return ec.fieldContext_VM_internal(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VM", field.Name)
 		},
@@ -5121,6 +5157,10 @@ func (ec *executionContext) fieldContext_Query_vms(ctx context.Context, field gr
 				return ec.fieldContext_VM_status(ctx, field)
 			case "cluster":
 				return ec.fieldContext_VM_cluster(ctx, field)
+			case "vm_usage":
+				return ec.fieldContext_VM_vm_usage(ctx, field)
+			case "internal":
+				return ec.fieldContext_VM_internal(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VM", field.Name)
 		},
@@ -8629,6 +8669,91 @@ func (ec *executionContext) fieldContext_VM_cluster(ctx context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _VM_vm_usage(ctx context.Context, field graphql.CollectedField, obj *schema.VM) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_VM_vm_usage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VMUsage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.VMUsage)
+	fc.Result = res
+	return ec.marshalOVMUsage2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMUsage(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_VM_vm_usage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VM",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type VMUsage does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VM_internal(ctx context.Context, field graphql.CollectedField, obj *schema.VM) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_VM_internal(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Internal, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_VM_internal(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VM",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _VMEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.VMEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_VMEvent_mutation(ctx, field)
 	if err != nil {
@@ -8728,6 +8853,10 @@ func (ec *executionContext) fieldContext_VMEvent_node(ctx context.Context, field
 				return ec.fieldContext_VM_status(ctx, field)
 			case "cluster":
 				return ec.fieldContext_VM_cluster(ctx, field)
+			case "vm_usage":
+				return ec.fieldContext_VM_vm_usage(ctx, field)
+			case "internal":
+				return ec.fieldContext_VM_internal(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VM", field.Name)
 		},
@@ -12809,6 +12938,17 @@ func (ec *executionContext) _VM(ctx context.Context, sel ast.SelectionSet, obj *
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "vm_usage":
+
+			out.Values[i] = ec._VM_vm_usage(ctx, field, obj)
+
+		case "internal":
+
+			out.Values[i] = ec._VM_internal(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15220,6 +15360,17 @@ func (ec *executionContext) unmarshalOVMNicModel2githubᚗcomᚋeverouteᚋevero
 }
 
 func (ec *executionContext) marshalOVMNicModel2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMNicModel(ctx context.Context, sel ast.SelectionSet, v schema.VMNicModel) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	return res
+}
+
+func (ec *executionContext) unmarshalOVMUsage2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMUsage(ctx context.Context, v interface{}) (schema.VMUsage, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := schema.VMUsage(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOVMUsage2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐVMUsage(ctx context.Context, sel ast.SelectionSet, v schema.VMUsage) graphql.Marshaler {
 	res := graphql.MarshalString(string(v))
 	return res
 }
