@@ -27,8 +27,26 @@ type VM struct {
 	Status       VMStatus        `json:"status"`
 	VMNics       []VMNic         `json:"vm_nics,omitempty"`
 	Cluster      ELFCluster      `json:"cluster"`
+	VMUsage      VMUsage         `json:"vm_usage"`
+	Internal     bool            `json:"internal"`
 	Host         ObjectReference `json:"host"`
 }
+
+type VMUsage string
+
+const (
+	VMUsageEverouteController    VMUsage = "EVEROUTE_CONTROLLER"
+	VMUsageBackupController      VMUsage = "BACKUP_CONTROLLER"
+	VMUsageAdvancedMonitoring    VMUsage = "ADVANCED_MONITORING"
+	VMUsageCloudtower            VMUsage = "CLOUDTOWER"
+	VMUsageRegistry              VMUsage = "REGISTRY"
+	VMUsageShareRegistry         VMUsage = "SHARE_REGISTRY"
+	VMUsageSksManagement         VMUsage = "SKS_MANAGEMENT"
+	VMUsageBundleApplication     VMUsage = "BUNDLE_APPLICATION"
+	VMUsageAgentMeshNode         VMUsage = "AGENT_MESH_NODE"
+	VMUsageReplicationController VMUsage = "REPLICATION_CONTROLLER"
+	VMUsageSfsController         VMUsage = "SFS_CONTROLLER"
+)
 
 // VMStatus is enumeration of vm status
 type VMStatus string
