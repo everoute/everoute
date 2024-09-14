@@ -1743,6 +1743,7 @@ var _ = Describe("PolicyController", func() {
 							},
 							{
 								AlgProtocol: schema.NetworkPolicyRulePortAlgProtocolTFTP,
+								Protocol:    schema.NetworkPolicyRulePortProtocolALG,
 							},
 						},
 					},
@@ -1788,12 +1789,10 @@ var _ = Describe("PolicyController", func() {
 							{
 								Protocol:  v1alpha1.ProtocolTCP,
 								PortRange: "22",
-								Type:      v1alpha1.PortTypeNumber,
 							},
 							{
-								Protocol:  v1alpha1.ProtocolTCP,
+								Protocol:  v1alpha1.ProtocolUDP,
 								PortRange: "69",
-								Type:      v1alpha1.PortTypeNumber,
 							},
 						},
 					}
@@ -1844,6 +1843,7 @@ var _ = Describe("PolicyController", func() {
 							},
 							{
 								AlgProtocol: schema.NetworkPolicyRulePortAlgProtocolTFTP,
+								Protocol:    schema.NetworkPolicyRulePortProtocolALG,
 							},
 						},
 					},
@@ -1887,12 +1887,10 @@ var _ = Describe("PolicyController", func() {
 							{
 								Protocol:  v1alpha1.ProtocolTCP,
 								PortRange: "22",
-								Type:      v1alpha1.PortTypeNumber,
 							},
 							{
-								Protocol:  v1alpha1.ProtocolTCP,
+								Protocol:  v1alpha1.ProtocolUDP,
 								PortRange: "69",
-								Type:      v1alpha1.PortTypeNumber,
 							},
 						},
 					}
@@ -2581,6 +2579,6 @@ func matchRule(g Gomega, exp, res v1alpha1.Rule) {
 
 	g.Expect(len(exp.Ports)).Should(Equal(len(res.Ports)))
 	for i := range exp.Ports {
-		g.Expect(exp.Ports).Should(ContainElement(exp.Ports[i]))
+		g.Expect(res.Ports).Should(ContainElement(exp.Ports[i]))
 	}
 }
