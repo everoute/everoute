@@ -1474,7 +1474,7 @@ func (datapathManager *DpManager) HandleEndpointIPTimeout(_ context.Context, end
 	if ofSwitch == nil {
 		return fmt.Errorf("connect to bridge %s break", endpointIP.BridgeName)
 	}
-	setARPRequest(ofSwitch, endpointIP.OfPort, endpointIP.VlanID, endpointIP.Mac, endpointIP.IP)
+	sendARPRequest(ofSwitch, endpointIP.OfPort, endpointIP.VlanID, endpointIP.Mac, endpointIP.IP)
 	return nil
 }
 
@@ -1490,7 +1490,7 @@ func (datapathManager *DpManager) getOfSwitchByBridge(bridgeName, bridgeKeyword 
 	return nil
 }
 
-func setARPRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) {
+func sendARPRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) {
 	arp, _ := protocol.NewARP(protocol.Type_Request)
 	arp.IPDst = dstIP
 	arp.HWSrc = srcMac
