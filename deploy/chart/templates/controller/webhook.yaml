@@ -47,6 +47,16 @@ webhooks:
           - DELETE
         resources:
           - endpointgroups
+      - apiGroups:
+          - pod.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - k8sclusters
 
 {{ if eq .Values.webhook.type "Service" }}
 ---

@@ -2551,6 +2551,14 @@ rules:
   - get
   - watch
   - list
+- apiGroups:
+  - pod.everoute.io
+  resources:
+  - k8sclusters
+  verbs:
+  - update
+  - get
+  - list
 ---
 # Source: everoute/templates/agent/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2896,3 +2904,13 @@ webhooks:
           - DELETE
         resources:
           - endpointgroups
+      - apiGroups:
+          - pod.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - k8sclusters

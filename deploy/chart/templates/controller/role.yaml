@@ -130,3 +130,11 @@ rules:
   - get
   - watch
   - list
+- apiGroups:
+  - pod.everoute.io
+  resources:
+  - k8sclusters
+  verbs:
+  - update
+  - get
+  - list
