@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/labels"
@@ -571,6 +572,83 @@ var _ = Describe("CRD Validate", func() {
 		})
 		It("Delete GlobalPolicy should always allowed", func() {
 			Expect(validate.Validate(fakeAdmissionReview(nil, globalPolicy, "")).Allowed).Should(BeTrue())
+		})
+	})
+
+	Context("Validate on K8sCluster", func() {
+		c := podv1alpha1.K8sCluster{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "K8sCluster",
+				APIVersion: "pod.everoute.io/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster1",
+				Namespace: "ns1",
+			},
+			Spec: podv1alpha1.K8sClusterSpec{
+				ControlPlaneAvailable: true,
+				CNI:                   podv1alpha1.CNITypeEIC,
+				ManagedBy:             podv1alpha1.SKSPlatForm,
+				SksOption: &podv1alpha1.SksOption{
+					KscName:      "ksc1",
+					KscNamespace: "ksc1-ns",
+				},
+			},
+		}
+		It("create normal k8scluster managedby sks is allowed", func() {
+			cur := c.DeepCopy()
+			Expect(validate.Validate(fakeAdmissionReview(cur, nil, "")).Allowed).Should(BeTrue())
+		})
+		It("create normal k8scluster managedby other platform is allowed", func() {
+			cur := c.DeepCopy()
+			cur.Spec.ManagedBy = podv1alpha1.K8sClusterManagedPlatform("other")
+			cur.Spec.SksOption = nil
+			Expect(validate.Validate(fakeAdmissionReview(cur, nil, "")).Allowed).Should(BeTrue())
+		})
+		It("create k8scluster without managedBy is not allowed", func() {
+			cur := c.DeepCopy()
+			cur.Spec.ManagedBy = ""
+			cur.Spec.SksOption = nil
+			Expect(validate.Validate(fakeAdmissionReview(cur, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create k8scluster managedby sks without sksoption is not allowed", func() {
+			cur := c.DeepCopy()
+			cur.Spec.SksOption = nil
+			Expect(validate.Validate(fakeAdmissionReview(cur, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Create k8scluster managedby other platform with sksoption is not allowed", func() {
+			cur := c.DeepCopy()
+			cur.Spec.ManagedBy = podv1alpha1.K8sClusterManagedPlatform("other")
+			Expect(validate.Validate(fakeAdmissionReview(cur, nil, "")).Allowed).Should(BeFalse())
+		})
+		It("Update cni from empty is allowed", func() {
+			old := c.DeepCopy()
+			old.Spec.CNI = ""
+			cur := c.DeepCopy()
+			Expect(validate.Validate(fakeAdmissionReview(cur, old, "")).Allowed).Should(BeTrue())
+		})
+		It("update managedBy is not allowed", func() {
+			old := c.DeepCopy()
+			cur := c.DeepCopy()
+			cur.Spec.ManagedBy = "other"
+			cur.Spec.SksOption = nil
+			Expect(validate.Validate(fakeAdmissionReview(cur, old, "")).Allowed).Should(BeFalse())
+		})
+		It("update cni from nonempty is not allowed", func() {
+			old := c.DeepCopy()
+			cur := c.DeepCopy()
+			cur.Spec.CNI = podv1alpha1.CNITypeOther
+			Expect(validate.Validate(fakeAdmissionReview(cur, old, "")).Allowed).Should(BeFalse())
+		})
+		It("update sksOption to nil for managedBy sks is not allowed", func() {
+			old := c.DeepCopy()
+			cur := c.DeepCopy()
+			cur.Spec.SksOption = nil
+			Expect(validate.Validate(fakeAdmissionReview(cur, old, "")).Allowed).Should(BeFalse())
+		})
+		It("delete is allowed", func() {
+			old := c.DeepCopy()
+			Expect(validate.Validate(fakeAdmissionReview(nil, old, "")).Allowed).Should(BeTrue())
 		})
 	})
 })

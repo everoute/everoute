@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	kwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -71,6 +72,7 @@ func init() {
 	utilruntime.Must(networkingv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(appsv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(ipamv1alpha1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(podv1alpha1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {

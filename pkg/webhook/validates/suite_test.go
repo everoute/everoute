@@ -31,6 +31,7 @@ import (
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
+	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/webhook/validates"
 )
@@ -96,6 +97,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	err = groupv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	Expect(podv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 	//+kubebuilder:scaffold:scheme
 
 	/*
