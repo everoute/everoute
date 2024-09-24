@@ -351,8 +351,16 @@ func (v *securityPolicyValidator) validatePolicy(policy *securityv1alpha1.Securi
 
 func (v *securityPolicyValidator) validateAppliedTo(appliedTo []securityv1alpha1.ApplyToPeer) error {
 	for _, peer := range appliedTo {
-		if peer.Endpoint == nil && peer.EndpointSelector == nil {
-			return fmt.Errorf("must specific one of Endpoint or EndpointSelector")
+		if peer.Endpoint == nil && peer.EndpointSelector == nil && peer.IPBlock == nil {
+			return fmt.Errorf("must specific one of Endpoint or EndpointSelector or IPBlock")
+		}
+		if peer.IPBlock != nil {
+			if peer.Endpoint != nil || peer.EndpointSelector != nil {
+				return fmt.Errorf("ipBlock is set then neither of the other fields can be")
+			}
+			if err := validateIPBlock(*peer.IPBlock); err != nil {
+				return fmt.Errorf("%+v not a available ipblock: %s", peer.IPBlock, err)
+			}
 		}
 		if peer.Endpoint != nil && peer.EndpointSelector != nil {
 			return fmt.Errorf("cannot both set Endpoint and EndpointSelector")
