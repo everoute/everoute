@@ -400,7 +400,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 		return fmt.Errorf("failed to install ingress tier2 default flow, error: %v", err)
 	}
 	ingressTier3MonitorDropMatchFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
-		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		Priority:    constants.MaxSecurityPolicyRulePriority + 100,
 		Ethertype:   PROTOCOL_IP,
 		CTLabel:     &MonitorTier3PolicyActionDenyMatchCTLabel,
 		CTLabelMask: &MonitorTier3PolicyActionDenyMatchCTLabelMask,
