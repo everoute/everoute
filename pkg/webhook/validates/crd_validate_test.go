@@ -413,6 +413,13 @@ var _ = Describe("CRD Validate", func() {
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
 			})
+			It("Create policy with ipblock ApplyTo and other fields should not allowed", func() {
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
+					EndpointSelector: &labels.Selector{},
+					IPBlock:          &networkingv1.IPBlock{CIDR: "192.168.1.0/24", Except: []string{"192.168.1.128/25"}},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeFalse())
+			})
 			It("Create policy with available applied to peers should allowed", func() {
 				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
 					Endpoint: &endpointA.Name,
@@ -421,6 +428,11 @@ var _ = Describe("CRD Validate", func() {
 
 				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
 					EndpointSelector: &labels.Selector{},
+				}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.AppliedTo[0] = securityv1alpha1.ApplyToPeer{
+					IPBlock: &networkingv1.IPBlock{CIDR: "192.168.1.0/24", Except: []string{"192.168.1.128/25"}},
 				}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 			})
