@@ -27,6 +27,8 @@ const (
 	NormalPolicyRuleStartPriority   = 100
 	DefaultPolicyRulePriority       = 70
 	GlobalDefaultPolicyRulePriority = 40
+	// max rule flow priority from securitypolicy api
+	MaxSecurityPolicyRulePriority = 503
 
 	IfaceIPTimeoutDuration = 30 * time.Minute
 
