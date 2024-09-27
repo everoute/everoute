@@ -263,7 +263,37 @@ var _ = Describe("PolicyController", func() {
 						0, 0, "192.168.2.1/32", 0x50, 0xffff, "UDP")
 				})
 			})
+		})
+		When("create a sample policy with same ipblock in src and dst", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+			BeforeEach(func() {
+				group4.ipBlock.Except = []string{}
+				policy = newTestPolicy(group4, group4, group4, newTestPort("UDP", "80", "number"), newTestPort("UDP", "80", "number"))
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+			It("should flatten policy to rules", func() {
+				assertCompleteRuleNum(4)
+				assertPolicyRulesNum(policy, 4)
 
+				assertHasPolicyRuleWithPortRange(policy, "Ingress", "Allow", "10.0.0.0/8",
+					0, 0, "10.0.0.0/8", 0x50, 0xffff, "UDP")
+				assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.0.0.0/8",
+					0, 0, "10.0.0.0/8", 0x50, 0xffff, "UDP")
+			})
+			When("update ipblock to /32 ip", func() {
+				BeforeEach(func() {
+					policy.Spec.AppliedTo[0].IPBlock.CIDR = "10.0.0.1/32"
+					policy.Spec.IngressRules[0].From[0].IPBlock.CIDR = "10.0.0.1/32"
+					mustUpdatePolicy(ctx, policy)
+				})
+				It("should not generate rules", func() {
+					assertCompleteRuleNum(4)
+					assertPolicyRulesNum(policy, 3)
+
+					assertHasPolicyRuleWithPortRange(policy, "Egress", "Allow", "10.0.0.1/32",
+						0, 0, "10.0.0.0/8", 0x50, 0xffff, "UDP")
+				})
+			})
 		})
 
 		When("create blocklist policy with named and number port", func() {
@@ -1805,6 +1835,7 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 					From: []securityv1alpha1.SecurityPolicyPeer{
 						{
 							EndpointSelector: ingress.endpointSelector,
+							IPBlock:          ingress.ipBlock,
 						},
 					},
 				},
@@ -1818,6 +1849,7 @@ func newTestPolicy(appliedTo, ingress, egress *testGroup, ingressPort, egressPor
 					To: []securityv1alpha1.SecurityPolicyPeer{
 						{
 							EndpointSelector: egress.endpointSelector,
+							IPBlock:          egress.ipBlock,
 						},
 					},
 				},
