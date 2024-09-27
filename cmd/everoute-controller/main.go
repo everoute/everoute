@@ -210,12 +210,6 @@ func main() {
 		if opts.useEverouteIPAM() {
 			startIPAM(stopCtx, mgr)
 		}
-	} else {
-		if err := (&endpointctrl.StrictMacController{
-			Client: mgr.GetClient(),
-		}).SetupWithManager(mgr); err != nil {
-			klog.Fatalf("unable to create strictMac endpoint controller %s", err)
-		}
 	}
 
 	// register validate handle

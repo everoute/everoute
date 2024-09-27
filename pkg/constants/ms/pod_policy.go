@@ -1,10 +1,6 @@
 package ms
 
 const (
-	// sks vm label
-	SksManagedLabelKey   = "sks-managed"
-	SksManagedLabelValue = "true"
-
 	// eic pod namespace
 	SKSObjectNamespace = "sks-sync-object"
 
