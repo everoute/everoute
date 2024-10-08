@@ -90,7 +90,7 @@ func (c *Controller) handleConfigMap(obj interface{}) {
 		obj = unknow.Obj
 	}
 	elfCfg := obj.(*corev1.ConfigMap)
-	if elfCfg.Name == msconst.CompluteClustersConfigMapName && elfCfg.Namespace == c.ConfigMapNamespace {
+	if elfCfg.Name == msconst.ComputeClustersConfigMapName && elfCfg.Namespace == c.ConfigMapNamespace {
 		c.reconcileQueue.Add(c.EverouteClusterID)
 	}
 }
@@ -98,7 +98,7 @@ func (c *Controller) handleConfigMap(obj interface{}) {
 func (c *Controller) handleConfigMapUpdate(oldObj, newObj interface{}) {
 	oldCfg := oldObj.(*corev1.ConfigMap)
 	newCfg := newObj.(*corev1.ConfigMap)
-	if newCfg.Name != msconst.CompluteClustersConfigMapName || newCfg.Namespace != c.ConfigMapNamespace {
+	if newCfg.Name != msconst.ComputeClustersConfigMapName || newCfg.Namespace != c.ConfigMapNamespace {
 		return
 	}
 	if len(oldCfg.Data) == 0 && len(newCfg.Data) == 0 {
@@ -153,7 +153,7 @@ func (c *Controller) reconcile(id string) error {
 		return nil
 	}
 
-	obj, exists, err := c.ConfigMapLister.GetByKey(c.ConfigMapNamespace + "/" + msconst.CompluteClustersConfigMapName)
+	obj, exists, err := c.ConfigMapLister.GetByKey(c.ConfigMapNamespace + "/" + msconst.ComputeClustersConfigMapName)
 	if err != nil {
 		klog.Errorf("Failed to get configMap store computeClusters: %s", err)
 		return err
@@ -173,7 +173,7 @@ func (c *Controller) create() error {
 	ConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: c.ConfigMapNamespace,
-			Name:      msconst.CompluteClustersConfigMapName,
+			Name:      msconst.ComputeClustersConfigMapName,
 		},
 	}
 	if exists {
