@@ -17,10 +17,10 @@ import (
 var _ = Describe("elf controller", func() {
 	AfterEach(func() {
 		server.TrackerFactory().ResetAll()
-		err := erClient.CoreV1().ConfigMaps(towerSpace).Delete(ctx, msconst.CompluteClustersConfigMapName, metav1.DeleteOptions{})
+		err := erClient.CoreV1().ConfigMaps(towerSpace).Delete(ctx, msconst.ComputeClustersConfigMapName, metav1.DeleteOptions{})
 		Expect(err).Should(BeNil())
 		Eventually(func(g Gomega) {
-			res, _ := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+			res, _ := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 			g.Expect(res).Should(BeNil())
 		}, timeout, interval).Should(Succeed())
 	})
@@ -39,7 +39,7 @@ var _ = Describe("elf controller", func() {
 			server.TrackerFactory().EverouteCluster().Create(erCluster)
 
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(2))
@@ -58,7 +58,7 @@ var _ = Describe("elf controller", func() {
 			server.TrackerFactory().EverouteCluster().Create(erCluster)
 
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
@@ -78,7 +78,7 @@ var _ = Describe("elf controller", func() {
 			}
 			server.TrackerFactory().EverouteCluster().Create(erCluster)
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(2))
@@ -102,7 +102,7 @@ var _ = Describe("elf controller", func() {
 			server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
 
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(3))
@@ -123,7 +123,7 @@ var _ = Describe("elf controller", func() {
 			}
 			server.TrackerFactory().EverouteCluster().CreateOrUpdate(erCluster)
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(1))
@@ -133,19 +133,19 @@ var _ = Describe("elf controller", func() {
 
 		It("update ConfigMap", func() {
 			By("update ConfigMap")
-			res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+			res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 			Expect(err).Should(BeNil())
 			res.Data["test"] = ""
 			_, err = erClient.CoreV1().ConfigMaps(towerSpace).Update(ctx, res, metav1.UpdateOptions{})
 			Expect(err).Should(BeNil())
 
 			By("check ConfigMap has been updated")
-			res, err = erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+			res, err = erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 			Expect(err).Should(BeNil())
 			Expect(res.Data).Should(HaveKey("test"))
 
 			Eventually(func(g Gomega) {
-				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.CompluteClustersConfigMapName, metav1.GetOptions{})
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(2))
@@ -167,7 +167,7 @@ func TestHandleConfigMap(t *testing.T) {
 			name: "normal",
 			arg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 			},
@@ -187,7 +187,7 @@ func TestHandleConfigMap(t *testing.T) {
 			name: "unexpect ConfigMap namespace",
 			arg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: "test-error-ns",
 				},
 			},
@@ -198,7 +198,7 @@ func TestHandleConfigMap(t *testing.T) {
 			arg: cache.DeletedFinalStateUnknown{
 				Obj: &corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      msconst.CompluteClustersConfigMapName,
+						Name:      msconst.ComputeClustersConfigMapName,
 						Namespace: ns,
 					},
 				},
@@ -238,14 +238,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "normal",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k2"),
 			},
 			newArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k3"),
@@ -256,14 +256,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "unexpect ConfigMap namespace",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k2"),
 			},
 			newArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: "test-error-ns",
 				},
 				Data: makeConfigMapData("k1", "k3"),
@@ -274,7 +274,7 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "unexpect ConfigMap name",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k2"),
@@ -292,14 +292,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "data is all empty",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: nil,
 			},
 			newArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: make(map[string]string),
@@ -310,14 +310,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "old data is empty",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: make(map[string]string),
 			},
 			newArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1"),
@@ -328,14 +328,14 @@ func TestHandleConfigMapUpdate(t *testing.T) {
 			name: "data is same",
 			oldArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k2"),
 			},
 			newArg: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.CompluteClustersConfigMapName,
+					Name:      msconst.ComputeClustersConfigMapName,
 					Namespace: ns,
 				},
 				Data: makeConfigMapData("k1", "k2"),
@@ -449,7 +449,7 @@ func TestHandleClusterUpdate(t *testing.T) {
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
 				},
-				AgentELFClusters: []schema. AgentELFCluster{
+				AgentELFClusters: []schema.AgentELFCluster{
 					{
 						LocalID: "elf1",
 					},
