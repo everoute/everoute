@@ -306,6 +306,7 @@ type SecurityPolicyList struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-VALUE",type="string",JSONPath=".spec.reference.externalIDValue"
 // +kubebuilder:printcolumn:name="IPADDR",type="string",JSONPath=".status.ips"
 // +kubebuilder:printcolumn:name="EXTEND-LABELS",type="string",JSONPath=".spec.extendLabels"
+// +kubebuilder:printcolumn:name="VMID",type="string",JSONPath=".spec.vmID"
 
 // Endpoint is a network communication entity. It's provided by the endpoint provider,
 // it could be a virtual network interface, a pod, an ovs port or other entities.
@@ -337,6 +338,7 @@ const (
 type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
 	VID uint32 `json:"vid"`
+	VMID string `json:"vmID,omitempty"`
 
 	// ExtendLabels contains extend labels of endpoint. Each key in the labels
 	// could have multiple values, but at least one should be specified.

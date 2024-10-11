@@ -17,6 +17,8 @@ type IPMigrateCount struct {
 	// key is ip, value is update time
 	index sync.Map
 	data  *prometheus.CounterVec
+	// key is ip, value is the vm to which the ip belongs to
+	lastLowner sync.Map
 }
 
 func NewIPMigrateCount() *IPMigrateCount {
@@ -30,10 +32,16 @@ func NewIPMigrateCount() *IPMigrateCount {
 	}
 }
 
-func (i *IPMigrateCount) Inc(ip string) {
+func (i *IPMigrateCount) Inc(ip, vm string) {
 	i.lock.RLock()
 	defer i.lock.RUnlock()
 
+	last, _ := i.lastLowner.Swap(ip, vm)
+	if last != nil {
+		if last.(string) == vm {
+			return
+		}
+	}
 	l := make(map[string]string, 1)
 	l[constants.MetricIPLabel] = ip
 	i.data.With(l).Inc()
@@ -64,6 +72,7 @@ func (i *IPMigrateCount) clean(context.Context) {
 		klog.Info("Reset all IPMigrateCount")
 		i.data.Reset()
 		i.index = sync.Map{}
+		i.lastLowner = sync.Map{}
 		return
 	}
 
@@ -73,5 +82,6 @@ func (i *IPMigrateCount) clean(context.Context) {
 		label[constants.MetricIPLabel] = ip
 		_ = i.data.Delete(label)
 		i.index.Delete(ip)
+		i.lastLowner.Delete(ip)
 	}
 }
