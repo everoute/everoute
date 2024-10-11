@@ -521,7 +521,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 
 	if !exists {
 		ep := &v1alpha1.Endpoint{}
-		c.setEndpoint(ep, vnic, vmLabels, extendLables)
+		c.setEndpoint(ep, vnic, vmLabels, extendLables, vm.GetID())
 
 		klog.Infof("will add endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
 		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Create(context.Background(), ep, metav1.CreateOptions{})
@@ -529,7 +529,7 @@ func (c *Controller) processEndpointUpdate(vm *schema.VM, vnicKey string) error 
 	}
 
 	ep := obj.(*v1alpha1.Endpoint).DeepCopy()
-	if c.setEndpoint(ep, vnic, vmLabels, extendLables) {
+	if c.setEndpoint(ep, vnic, vmLabels, extendLables, vm.GetID()) {
 		klog.Infof("will update endpoint from vm %s vnic %s: %+v", vm.ID, vnicKey, ep)
 
 		_, err = c.crdClient.SecurityV1alpha1().Endpoints(c.namespace).Update(context.Background(), ep, metav1.UpdateOptions{})
@@ -648,13 +648,14 @@ func GetSystemEndpointName(key string) string {
 }
 
 // set endpoint return false if endpoint not changes
-func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labels map[string]string, extendLabels map[string][]string) bool {
+func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labels map[string]string, extendLabels map[string][]string, vmID string) bool {
 	var epCopy = ep.DeepCopy()
 
 	ep.Name = vnic.ID
 	ep.Labels = labels
 	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
+	ep.Spec.VMID = vmID
 	ep.Spec.ExtendLabels = extendLabels
 	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID

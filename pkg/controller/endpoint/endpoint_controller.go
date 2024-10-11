@@ -105,7 +105,7 @@ func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	r.ipMigrateCountUpdate(endpoint.Status.IPs, expectStatus.IPs)
+	r.ipMigrateCountUpdate(endpoint.Status.IPs, expectStatus.IPs, endpoint.Spec.VMID)
 	endpoint.Status = *expectStatus
 	if err := r.Status().Update(ctx, &endpoint); err != nil {
 		klog.Errorf("failed to update endpoint %s status: %s", endpoint.Name, err.Error())
@@ -258,11 +258,11 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 	r.updateCachedAgentInfo(newAgentInfo, q)
 }
 
-func (r *EndpointReconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress) {
+func (r *EndpointReconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
 	srcSets := sets.New[types.IPAddress](srcIPs...)
 	for _, ip := range expIPs {
 		if !srcSets.Has(ip) {
-			r.IPMigrateCount.Inc(ip.String())
+			r.IPMigrateCount.Inc(ip.String(), vmID)
 		}
 	}
 }

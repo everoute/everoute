@@ -29,6 +29,9 @@ spec:
     - jsonPath: .spec.extendLabels
       name: EXTEND-LABELS
       type: string
+    - jsonPath: .spec.vmID
+      name: VMID
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -116,6 +119,8 @@ spec:
                 description: VID describe the endpoint in which VLAN
                 format: int32
                 type: integer
+              vmID:
+                type: string
             required:
             - reference
             - vid
