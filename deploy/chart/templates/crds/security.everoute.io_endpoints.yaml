@@ -116,6 +116,8 @@ spec:
                 description: VID describe the endpoint in which VLAN
                 format: int32
                 type: integer
+              vmID:
+                type: string
             required:
             - reference
             - vid
