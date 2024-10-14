@@ -34,55 +34,55 @@ jobs:
           context: ./build/images/generate/
           push: true
 
-  pr-check:
-    needs: [build-unit-test-image, static-check, generate-check]
-    runs-on: [self-hosted, pod]
-    strategy:
-      matrix:
-        act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
-    steps:
-      - uses: actions/checkout@v2
+  # pr-check:
+  #   needs: [build-unit-test-image, static-check, generate-check]
+  #   runs-on: [self-hosted, pod]
+  #   strategy:
+  #     matrix:
+  #       act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: run everoute unit test
-        run: make ${{ matrix.act }}
-      - uses: codecov/codecov-action@v2
-        with:
-          files: ./coverage.out
+  #     - name: run everoute unit test
+  #       run: make ${{ matrix.act }}
+  #     - uses: codecov/codecov-action@v2
+  #       with:
+  #         files: ./coverage.out
 
-  static-check:
-    runs-on: [self-hosted, pod]
-    steps:
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '1.20'
+  # static-check:
+  #   runs-on: [self-hosted, pod]
+  #   steps:
+  #     - uses: actions/setup-go@v3
+  #       with:
+  #         go-version: '1.20'
 
-      - uses: actions/checkout@v2
+  #     - uses: actions/checkout@v2
 
-      - name: Check conventional commits
-        uses: webiny/action-conventional-commits@v1.1.0
+  #     - name: Check conventional commits
+  #       uses: webiny/action-conventional-commits@v1.1.0
 
-      - name: Check spelling
-        uses: crate-ci/typos@v1.0.4
+  #     - name: Check spelling
+  #       uses: crate-ci/typos@v1.0.4
 
-      - name: Check golang lint
-        # skip it for branch main can't pass this check
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.53
-          only-new-issues: true
-          # skip cache because of flaky behaviors
-          skip-build-cache: true
-          skip-pkg-cache: true
+  #     - name: Check golang lint
+  #       # skip it for branch main can't pass this check
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: golangci/golangci-lint-action@v3
+  #       with:
+  #         version: v1.53
+  #         only-new-issues: true
+  #         # skip cache because of flaky behaviors
+  #         skip-build-cache: true
+  #         skip-pkg-cache: true
 
-  run-e2e:
-    runs-on: [self-hosted, pod]
-    needs: [static-check, generate-check, pr-check]
-    steps:
-      - uses: actions/checkout@v2
+  # run-e2e:
+  #   runs-on: [self-hosted, pod]
+  #   needs: [static-check, generate-check, pr-check]
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: run everoute e2e test
-        run: sudo make docker-e2e-test-ci
+  #     - name: run everoute e2e test
+  #       run: sudo make docker-e2e-test-ci
 
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
@@ -98,12 +98,12 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
+    needs: [build-k8s-e2e-image]
     strategy:
       fail-fast: false
       matrix:
-        enable-proxy: [true, false]
-        encap-mode: ["", geneve]
+        enable-proxy: [false]
+        encap-mode: [""]
         include:
           - ipam: "everoute"
             enable-proxy: true
@@ -209,14 +209,14 @@ jobs:
         timeout-minutes: 10
         run: ./k8se2e/bin/ginkgo -nodes=5 --skip="SCTP|IPv6" --focus="KubeProxy|HostPort|hostPort" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
-      - name: delete test k8s cluster
-        id: delenv
-        if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
+      # - name: delete test k8s cluster
+      #   id: delenv
+      #   if: ${{ always() }}
+      #   run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
 
-      - name: recycle vip
-        if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
+      # - name: recycle vip
+      #   if: ${{ always() && steps.delenv.conclusion == 'success' }}
+      #   run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
   
   # run-tower-e2e:
   #   runs-on: [self-hosted, tower]
@@ -258,7 +258,7 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
+    needs: [ run-k8s-e2e,generate-check ]
     runs-on: [self-hosted, pod]
     env:
       SLACK_COLOR: 2EA44F

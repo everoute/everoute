@@ -978,10 +978,10 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: endpoint.PortNo,
 	})
-	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-		openflow13.NewNXRange(0, 15)); err != nil {
-		return err
-	}
+	// if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+	// 	openflow13.NewNXRange(0, 15)); err != nil {
+	// 	return err
+	// }
 	if endpoint.VlanID != 0 {
 		if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
 			return err
@@ -1034,10 +1034,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			Priority:  MID_MATCH_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
 			InputPort: endpoint.PortNo,
 		})
-		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
-			return err
-		}
+		// if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+		// 	openflow13.NewNXRange(0, 15)); err != nil {
+		// 	return err
+		// }
 		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
 			return err
 		}
@@ -1057,10 +1057,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			VlanId:     VlanFlagMask,
 			VlanIdMask: &VlanFlagMask,
 		})
-		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
-			return err
-		}
+		// if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+		// 	openflow13.NewNXRange(0, 15)); err != nil {
+		// 	return err
+		// }
 		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_reg3", uint64(1),
 			openflow13.NewNXRange(0, 1)); err != nil {
 			return err
@@ -1080,10 +1080,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			Priority:  MID_MATCH_FLOW_PRIORITY,
 			InputPort: endpoint.PortNo,
 		})
-		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
-			return err
-		}
+		// if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+		// 	openflow13.NewNXRange(0, 15)); err != nil {
+		// 	return err
+		// }
 		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_reg3", uint64(1),
 			openflow13.NewNXRange(0, 1)); err != nil {
 			return err
