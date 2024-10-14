@@ -978,8 +978,7 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: endpoint.PortNo,
 	})
-	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-		openflow13.NewNXRange(0, 15)); err != nil {
+	if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
 		return err
 	}
 	if endpoint.VlanID != 0 {
@@ -1034,10 +1033,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			Priority:  MID_MATCH_FLOW_PRIORITY - FLOW_MATCH_OFFSET,
 			InputPort: endpoint.PortNo,
 		})
-		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
+		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
 			return err
 		}
+
 		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
 			return err
 		}
@@ -1057,10 +1056,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			VlanId:     VlanFlagMask,
 			VlanIdMask: &VlanFlagMask,
 		})
-		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
+		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow1, endpoint); err != nil {
 			return err
 		}
+
 		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_reg3", uint64(1),
 			openflow13.NewNXRange(0, 1)); err != nil {
 			return err
@@ -1080,10 +1079,10 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			Priority:  MID_MATCH_FLOW_PRIORITY,
 			InputPort: endpoint.PortNo,
 		})
-		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-			openflow13.NewNXRange(0, 15)); err != nil {
+		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
 			return err
 		}
+
 		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_reg3", uint64(1),
 			openflow13.NewNXRange(0, 1)); err != nil {
 			return err
@@ -1136,4 +1135,12 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 	}
 
 	return nil
+}
+
+func (l *LocalBridge) storePortNumberByPktMark(f *ofctrl.Flow, ep *Endpoint) error {
+	if l.datapathManager.IsEnableCNI() {
+		return nil
+	}
+
+	return f.LoadField("nxm_nx_pkt_mark", uint64(ep.PortNo), openflow13.NewNXRange(0, 15))
 }
