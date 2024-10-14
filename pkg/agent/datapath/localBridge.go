@@ -30,7 +30,7 @@ import (
 	"github.com/contiv/ofnet/ofctrl"
 )
 
-//nolint
+//nolint:all
 const (
 	VLAN_INPUT_TABLE                   = 0
 	L2_FORWARDING_TABLE                = 5
@@ -68,6 +68,8 @@ type LocalBridge struct {
 
 	localSwitchStatusMuxtex sync.RWMutex
 	isLocalSwitchConnected  bool
+
+	enableCNI bool
 }
 
 type IPAddressReference struct {
@@ -75,9 +77,10 @@ type IPAddressReference struct {
 	updateTimes    int
 }
 
-func NewLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
+func NewLocalBridge(brName string, datapathManager *DpManager, enableCNI bool) *LocalBridge {
 	localBridge := new(LocalBridge)
 	localBridge.name = brName
+	localBridge.enableCNI = enableCNI
 	localBridge.datapathManager = datapathManager
 	localBridge.fromLocalEndpointFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
@@ -725,9 +728,11 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 			return err
 		}
 	}
-	if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
-		openflow13.NewNXRange(0, 15)); err != nil {
-		return err
+	if !l.enableCNI {
+		if err := vlanInputTableFromLocalFlow.LoadField("nxm_nx_pkt_mark", uint64(endpoint.PortNo),
+			openflow13.NewNXRange(0, 15)); err != nil {
+			return err
+		}
 	}
 	if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
 		return err

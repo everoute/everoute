@@ -63,7 +63,7 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Failed to get datapath config. error: %v. ", err)
 	}
-	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan)
+	datapathManager := datapath.NewDatapathManager(datapathConfig, ofPortIPAddrMoniotorChan, enableCNI)
 	datapathManager.InitializeDatapath(stopChan)
 
 	ovsdbMonitor, err := monitor.NewOVSDBMonitor()

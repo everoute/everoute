@@ -280,7 +280,7 @@ type PolicyItem struct {
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
-func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP) *DpManager {
+func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan map[string]net.IP, enableCNI bool) *DpManager {
 	datapathManager := new(DpManager)
 	datapathManager.BridgeChainMap = make(map[string]map[string]Bridge)
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
@@ -302,7 +302,7 @@ func NewDatapathManager(datapathConfig *Config, ofPortIPAddressUpdateChan chan m
 		wg.Add(1)
 		go func(vdsID, ovsbrname string) {
 			defer wg.Done()
-			NewVDSForConfig(datapathManager, vdsID, ovsbrname)
+			NewVDSForConfig(datapathManager, vdsID, ovsbrname, enableCNI)
 		}(vdsID, ovsbrname)
 	}
 	wg.Wait()
@@ -447,9 +447,10 @@ func (datapathManager *DpManager) InitializeCNI() {
 	wg.Wait()
 }
 
-func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
+//nolint:all
+func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string, enableCNI bool) {
 	// initialize vds bridge chain
-	localBridge := NewLocalBridge(ovsbrname, datapathManager)
+	localBridge := NewLocalBridge(ovsbrname, datapathManager, enableCNI)
 	policyBridge := NewPolicyBridge(ovsbrname, datapathManager)
 	clsBridge := NewClsBridge(ovsbrname, datapathManager)
 	uplinkBridge := NewUplinkBridge(ovsbrname, datapathManager)
