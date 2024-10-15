@@ -17,12 +17,12 @@ spec:
           password: ""
           server: ""
           username: ""
-      elfCluster: ef8a4866-4764-4cc5-a213-699e7aecad10
+      elfCluster: 77f087d3-1347-4f66-abab-7367a802efdd
       vmTemplate: clwg7v20mi1zp0958px2md1dx
       zbsVip: ""
     name: cloudtower
   clusterConfiguration:
-    customImageRegistry: 192.168.69.168/sks
+    customImageRegistry: registry.smtx.io/kubesmart
     kubernetes:
       controlPlane:
         clusterConfiguration:
@@ -182,7 +182,7 @@ spec:
           devices:
           - networkType: IPV4_DHCP
             tag: default
-            vlan: clg9ooxpx00wn0958aq97kssi
+            vlan: cll1r3hb3bs6r09589fiyvarn
       nodeDrainTimeout: 5m0s
       replicas: 1
     workers:
@@ -195,7 +195,7 @@ spec:
           devices:
           - networkType: IPV4_DHCP
             tag: default
-            vlan: clg9ooxpx00wn0958aq97kssi
+            vlan: cll1r3hb3bs6r09589fiyvarn
       nodeDrainTimeout: 5m0s
       replicas: 5
   version: v1.25.15
