@@ -85,9 +85,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - focus: NetworkPolicy
-    runs-on: [self-hosted, pod]
+        enable-proxy: [true, false]
+    runs-on: [self-hosted, pod-k8s-e2e-v2]
     steps:
       - uses: actions/checkout@v2
 
@@ -96,18 +95,20 @@ jobs:
           mkdir -p /runner/_work/bin/
           echo "/runner/_work/bin/" >> $GITHUB_PATH
 
+      - name: set env
+        run: |
+          echo "PoolName=$PoolName" >> $GITHUB_ENV
+          echo "Tmpl=$Tmpl" >> $GITHUB_ENV
+
       - name: install helm
         run: cp /home/runner/tool/helm /runner/_work/bin/
 
       - name: install k8se2e binary
         run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
 
-      - name: specific proxy related param
-        if: ${{ matrix.feature == 'Proxy'}}
-        run: sed -i s#enableProxy:\ false#enableProxy:\ true#g deploy/chart/values.yaml
-      
       - name: generate everoute cni deploy yaml
         run: |
+          sed -i s#enableProxy:\ false#enableProxy:${{ matrix.enable-proxy }}#g deploy/chart/values.yaml
           sed -i s#everoute/release#registry.smtx.io/everoute/everoute_release#g deploy/chart/values.yaml
           sed -i s#latest#${{ github.sha }}#g deploy/chart/values.yaml
           cat deploy/chart/values.yaml
@@ -118,11 +119,16 @@ jobs:
 
       - name: allocate cluster vip
         run: |
-          out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=sdn1')
-          success=$(echo $out | grep "fullSuccess" |wc -l)
-          if [ $success != 1 ]; then exit 1; fi
-          ipright=${out#*\"ips\":[\"}
-          ip=${ipright%\"],\"ipNets\"*}
+          while true;do
+            out=$(curl -X POST  'https://ip.dev.smtx.io/v1/ips?name=${{ env.PoolName }}')
+            success=$(echo $out | grep "fullSuccess" |wc -l)
+            if [ $success != 1 ]; then exit 1; fi
+            ipright=${out#*\"ips\":[\"}
+            ip=${ipright%\"],\"ipNets\"*}
+            success=$(ping $ip -c 4 -W 1; echo $?)
+            if [[ $success == 0 ]];then continue; fi
+            break
+          done
           echo "VIP=$ip" >> $GITHUB_ENV
       
       - name: gen k8s cluster name
@@ -131,10 +137,10 @@ jobs:
       - name: create k8s cluster...
         run: |
           echo "new k8s cluster name is ${{ env.CLUSTER_NAME }}"
-          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/kubesmartcluster.yaml.tmpl
+          sed -i s/{{k8s-e2e-cluster-name}}/${{ env.CLUSTER_NAME }}/g hack/${{ env.Tmpl }}
           echo "k8s cluster vip is ${{ env.VIP }}"
-          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/kubesmartcluster.yaml.tmpl
-          kubectl --v=9 apply -f hack/kubesmartcluster.yaml.tmpl --kubeconfig /home/runner/sksconfig/sksconfig
+          sed -i s/{{k8s-e2e-cluster-vip}}/${{ env.VIP }}/g hack/${{ env.Tmpl }}
+          kubectl --v=9 apply -f hack/${{ env.Tmpl }} --kubeconfig /home/runner/sksconfig/sksconfig
           kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlaneAvailable}'=true KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=10m
 
       - name: get new k8s cluster kubeconfig and test connection
@@ -148,28 +154,47 @@ jobs:
         run: |
           kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule --all --overwrite=true
           kubectl taint node node-role.kubernetes.io/control-plane=:NoSchedule- --all
+          kubectl taint node node-role.kubernetes.io/master=:NoSchedule --all --overwrite=true
+          kubectl taint node node-role.kubernetes.io/master=:NoSchedule- --all
 
       - name: deploy everoute cni
         run: kubectl apply -f deploy/everoute.yaml
 
       - name: wait k8s cluster ready
+        timeout-minutes: 30
         run: |
-          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
-          kubectl wait --for=condition=Ready nodes --all --timeout=5m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.phase}'=Ready KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=20m
+          mastercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.controlPlanes.totalCount}})
+          workercount=$(kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }} -o template --template={{.status.workers.totalCount}})
+          echo "mastercount: $mastercount, workercount: $workercount"
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.controlPlanes.readyCount}'=$mastercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=5m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig wait --for=jsonpath='{.status.workers.readyCount}'=$workercount KubeSmartCluster/${{ env.CLUSTER_NAME }} --timeout=20m
+          kubectl wait --for=condition=Ready nodes --all --timeout=20m
+          kubectl wait --for=condition=Ready pods --all -A  --timeout=10m
+          kubectl --kubeconfig /home/runner/sksconfig/sksconfig get ksc ${{ env.CLUSTER_NAME }}
           kubectl get nodes -owide
 
-      - name: run test cases
-        timeout-minutes: 40
-        run: ./k8se2e/bin/ginkgo -nodes=15 --skip="named port|SCTP" --focus="${{ matrix.focus }}" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+      - name: run ServiceProxy cases
+        if: matrix.enable-proxy == true
+        timeout-minutes: 20
+        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="NodePort|SCTP|hairpin|ProxyTerminatingEndpoints|IPv6|Networking|rejected|PublishNotReadyAddresses|unready" --focus="Services" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+
+      - name: run NetworkPolicy case
+        timeout-minutes: 30
+        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="SCTP|NetworkPolicyLegacy|named port" --focus="NetworkPolicy" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
+
+      - name: run hostport cases
+        timeout-minutes: 10
+        run: ./k8se2e/bin/ginkgo -nodes=5 --skip="SCTP|IPv6" --focus="KubeProxy|HostPort|hostPort" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: delete test k8s cluster
         id: delenv
         if: ${{ always() }}
-        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/kubesmartcluster.yaml.tmpl
+        run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
 
       - name: recycle vip
         if: ${{ always() && steps.delenv.conclusion == 'success' }}
-        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name=sdn1&ip="${{ env.VIP }}
+        run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
 
   generate-check:
     runs-on: [ubuntu-20.04]
