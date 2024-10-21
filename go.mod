@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/99designs/gqlgen v0.17.16
-	github.com/agiledragon/gomonkey/v2 v2.10.1
+	github.com/agiledragon/gomonkey/v2 v2.12.0
 	github.com/alessio/shellescape v1.4.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/samber/lo v1.39.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.6.0
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
@@ -100,6 +100,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
+	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
@@ -129,10 +130,9 @@ require (
 )
 
 replace (
-	github.com/agiledragon/gomonkey/v2 => github.com/wu-cl/gomonkey/v2 v2.0.0-20240528081215-1f91eb14f8d5
-	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20240809085943-d64f3b694acf
+	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20240802100056-85f93340424a
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20241023084702-528f0b573b3c
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 )
