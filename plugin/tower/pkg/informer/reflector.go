@@ -213,6 +213,7 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 			return fmt.Errorf("unable marshal %s into object %T", string(event.PreviousValues), r.expectType.TypeName())
 		}
 		obj = newObj.Elem().Interface()
+		klog.V(4).Infof("-------get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
 	}
 
 	switch event.Mutation {
