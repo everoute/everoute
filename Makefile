@@ -26,7 +26,7 @@ yaml:
 generate: codegen mock gqlgen protopb manifests yaml apidocs-gen
 	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
 
-docker-generate: image-generate
+docker-generate:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) everoute/generate make generate
 

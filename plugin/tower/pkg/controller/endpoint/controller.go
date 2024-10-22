@@ -244,7 +244,6 @@ func (c *Controller) updateVM(old interface{}, new interface{}) {
 	newVM := new.(*schema.VM)
 
 	if newVM.Status == schema.VMStatusDeleted {
-		klog.Infof("---ignorevmdelete---, vm=%s", newVM.ID)
 		// ignore vm that status has been updated to deleted
 		return
 	}
@@ -262,8 +261,6 @@ func (c *Controller) deleteVM(old interface{}) {
 	if ok {
 		old = unknown.Obj
 	}
-	vm := old.(*schema.VM)
-	klog.Infof("----delvm----vm= %s", vm.ID)
 	c.enqueueVMNics(old.(*schema.VM))
 }
 
@@ -298,9 +295,7 @@ func (c *Controller) enqueueVMNicsByVMReference(references ...schema.ObjectRefer
 }
 
 func (c *Controller) enqueueVMNics(vm *schema.VM) {
-	klog.Infof("---enqueuevm----, vm=%s", vm.ID)
 	for _, vnic := range vm.VMNics {
-		klog.Infof("---enqueuevnic----, vm=%s, vnic=%s", vm.ID, vnic.ID)
 		c.endpointQueue.Add(vnic.ID)
 	}
 }
@@ -476,7 +471,6 @@ func (c *Controller) syncEndpoint(key string) error {
 		return err
 	}
 
-	klog.Infof("----ep----, vnic=%s, vms=%v", key, vms)
 	switch len(vms) {
 	case 0:
 		// delete this endpoint

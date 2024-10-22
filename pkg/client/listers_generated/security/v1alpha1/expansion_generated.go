@@ -37,3 +37,7 @@ type SecurityPolicyListerExpansion interface{}
 // SecurityPolicyNamespaceListerExpansion allows custom methods to be added to
 // SecurityPolicyNamespaceLister.
 type SecurityPolicyNamespaceListerExpansion interface{}
+
+// ShareIPListerExpansion allows custom methods to be added to
+// ShareIPLister.
+type ShareIPListerExpansion interface{}
