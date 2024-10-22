@@ -1,0 +1,160 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: endpoints.security.everoute.io
+spec:
+  group: security.everoute.io
+  names:
+    kind: Endpoint
+    listKind: EndpointList
+    plural: endpoints
+    singular: endpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.reference.externalIDName
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .spec.reference.externalIDValue
+      name: EXTERNAL-VALUE
+      type: string
+    - jsonPath: .status.ips
+      name: IPADDR
+      type: string
+    - jsonPath: .spec.extendLabels
+      name: EXTEND-LABELS
+      type: string
+    - jsonPath: .spec.vmID
+      name: VMID
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Endpoint is a network communication entity. It's provided by
+          the endpoint provider, it could be a virtual network interface, a pod, an
+          ovs port or other entities.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec contains description of the endpoint
+            properties:
+              extendLabels:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                description: ExtendLabels contains extend labels of endpoint. Each
+                  key in the labels could have multiple values, but at least one should
+                  be specified. The ExtendLabels could be selected by selector in
+                  SecurityPolicy or EndpointGroup.
+                type: object
+              ports:
+                items:
+                  description: NamedPort represents a Port with a name on Pod.
+                  properties:
+                    name:
+                      description: Name represents the associated name with this Port
+                        number.
+                      type: string
+                    port:
+                      description: Port represents the Port number.
+                      format: int32
+                      type: integer
+                    protocol:
+                      description: Protocol for port. Must be UDP, TCP  TODO not icmp
+                        webhook
+                      enum:
+                      - TCP
+                      - UDP
+                      - ICMP
+                      - IPIP
+                      - VRRP
+                      type: string
+                  type: object
+                type: array
+              reference:
+                description: Reference of an endpoint, also the external_id of an
+                  ovs interface. We map between endpoint and ovs interface use the
+                  Reference.
+                properties:
+                  externalIDName:
+                    description: ExternalIDName of an endpoint.
+                    type: string
+                  externalIDValue:
+                    description: ExternalIDValue of an endpoint.
+                    type: string
+                required:
+                - externalIDName
+                - externalIDValue
+                type: object
+              strictMac:
+                description: 'StrictMac is a ip filter switch true: filter ip which
+                  src mac does not equal interface mac false: no action'
+                type: boolean
+              type:
+                default: dynamic
+                description: Type of this Endpoint
+                enum:
+                - dynamic
+                - static
+                - static-ip
+                type: string
+              vid:
+                description: VID describe the endpoint in which VLAN
+                format: int32
+                type: integer
+              vmID:
+                type: string
+            required:
+            - reference
+            - vid
+            type: object
+          status:
+            description: Status is the current state of the Endpoint
+            properties:
+              agents:
+                description: Agents where this endpoint is currently located
+                items:
+                  type: string
+                type: array
+              ips:
+                description: IPs of an endpoint, can be IPV4 or IPV6.
+                items:
+                  description: IPAddress is net ip address, can be ipv4 or ipv6. Format
+                    like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                  type: string
+                type: array
+              macAddress:
+                description: MacAddress of an endpoint.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

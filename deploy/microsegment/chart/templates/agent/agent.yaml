@@ -1,0 +1,169 @@
+{{ if .Values.deployment_enabled }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: everoute-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: everoute
+    component: everoute-agent
+spec:
+  selector:
+    matchLabels:
+      app: everoute
+      component: everoute-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1024
+  template:
+    metadata:
+      labels:
+        app: everoute
+        component: everoute-agent
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: everoute-agent
+      containers:
+        - name: init-agent
+          command: ["init_agent"]
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+              - NET_RAW
+              - NET_ADMIN
+            privileged: true
+          volumeMounts:
+            - name: everoute-run
+              mountPath: /var/run/everoute/
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: cni-conf
+              mountPath: /etc/cni/net.d
+            - name: everoute-config
+              mountPath: /var/lib/everoute/cni-conf.conflist
+              subPath: cni-conf.conflist
+            - name: openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - mountPath: /lib/modules
+              name: host-lib-modules
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            exec:
+              command: ["/usr/share/openvswitch/scripts/ovs-ctl", "status"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.quota.initAgent | nindent 12 }}
+        - name: everoute-agent
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: IfNotPresent
+          command: ["start-everoute-agent"]
+          args:
+            - -v=0
+            - --metrics-addr=127.0.0.1:30002
+            - --disable-probe-timeout-ip
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          securityContext:
+            privileged: true
+          livenessProbe:
+            httpGet:
+              host: 127.0.0.1
+              port: 30002
+              path: /metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 5
+          volumeMounts:
+            - name: everoute-run
+              mountPath: /var/run/everoute/
+            - name: everoute-agent
+              mountPath: /var/lib/everoute/
+            - name: everoute-config
+              mountPath: /var/lib/everoute/agentconfig.yaml
+              subPath: agentconfig.yaml
+            - name: openvswitch
+              mountPath: /var/run/openvswitch/
+            - name: host-proc
+              mountPath: /host/proc/
+            - name: host-netns
+              mountPath: /host/var/run/netns/
+              mountPropagation: HostToContainer
+            - name: cni-bin
+              mountPath: /opt/cni/bin/
+            - name: everoute-ipam
+              mountPath: /var/lib/cni/networks/everoute
+            - name: tmp
+              mountPath: /tmp
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
+          resources:
+            {{- toYaml .Values.quota.agent | nindent 12 }}
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config
+        - name: openvswitch
+          emptyDir: {}
+        - name: everoute-run
+          hostPath:
+            path: /var/run/everoute
+        - name: tmp
+          emptyDir: {}
+        - hostPath:
+            path: /var/lib/everoute/
+          name: everoute-agent
+        - hostPath:
+            path: /var/lib/cni/networks/everoute
+          name: everoute-ipam
+        - hostPath:
+            path: /opt/cni/bin/
+          name: cni-bin
+        - hostPath:
+            path: /etc/cni/net.d
+          name: cni-conf
+        - hostPath:
+            path: /proc
+          name: host-proc
+        - hostPath:
+            path: /var/run/netns
+          name: host-netns
+        - hostPath:
+            path: /lib/modules
+          name: host-lib-modules
+        - hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+          name: xtables-lock
+{{ end }}

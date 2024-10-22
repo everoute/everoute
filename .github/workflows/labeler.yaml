@@ -30,6 +30,8 @@ jobs:
             Note this PR might be rejected due to its size.
           files_to_ignore: |
             "deploy/chart/templates/crds/*"
+            "deploy/base/*"
+            "deploy/microsegment/*"
             "*generated*.go"
             "*.pb.go"
             "pkg/client/*"
