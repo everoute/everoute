@@ -1,0 +1,114 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: groupmembers.group.everoute.io
+spec:
+  group: group.everoute.io
+  names:
+    kind: GroupMembers
+    listKind: GroupMembersList
+    plural: groupmembers
+    singular: groupmembers
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .revision
+      name: Revision
+      type: string
+    - jsonPath: .groupMembers[*].ips
+      name: Members
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          groupMembers:
+            items:
+              description: GroupMember represents resource member to be populated
+                in Groups.
+              properties:
+                endpointAgent:
+                  description: EndpointAgent means where this groupMember may appear.
+                    if this field is empty, this group member will apply to all agents.
+                  items:
+                    type: string
+                  type: array
+                endpointReference:
+                  description: EndpointReference maintains the reference to the Endpoint.
+                  properties:
+                    externalIDName:
+                      type: string
+                    externalIDValue:
+                      type: string
+                  required:
+                  - externalIDName
+                  - externalIDValue
+                  type: object
+                ips:
+                  items:
+                    description: IPAddress is net ip address, can be ipv4 or ipv6.
+                      Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
+                    pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
+                    type: string
+                  type: array
+                ports:
+                  items:
+                    description: NamedPort represents a Port with a name on Pod.
+                    properties:
+                      name:
+                        description: Name represents the associated name with this
+                          Port number.
+                        type: string
+                      port:
+                        description: Port represents the Port number.
+                        format: int32
+                        type: integer
+                      protocol:
+                        description: Protocol for port. Must be UDP, TCP  TODO not
+                          icmp webhook
+                        enum:
+                        - TCP
+                        - UDP
+                        - ICMP
+                        - IPIP
+                        - VRRP
+                        type: string
+                    type: object
+                  type: array
+              required:
+              - endpointReference
+              type: object
+            type: array
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          revision:
+            description: Revision should change when group members change.
+            format: int32
+            type: integer
+        required:
+        - revision
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

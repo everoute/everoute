@@ -1,0 +1,17 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: everoute-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: everoute-agent
+subjects:
+  - kind: ServiceAccount
+    name: everoute-agent
+    namespace: {{ .Release.Namespace }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    # support use certs authentication
+    name: everoute-agent

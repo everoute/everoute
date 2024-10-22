@@ -1,0 +1,109 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validator.everoute.io
+webhooks:
+  - admissionReviewVersions: ["v1"]
+    sideEffects: None
+    objectSelector:
+      matchExpressions:
+      - key: everoute-skip-webhook
+        operator: DoesNotExist
+    clientConfig:
+      # CaBundle must set as the ca for secret everoute-controller-tls.
+      caBundle: {{ .Values.webhook.caBundle }}
+    {{- if eq .Values.webhook.type "Service" }}
+      service:
+        name: everoute-validator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate/crds
+        port: {{ .Values.webhook.port }}
+    {{- else if eq .Values.webhook.type "URL" }}
+      url: https://127.0.0.1:{{ .Values.webhook.port }}/validate/crds
+    {{- end }}
+    failurePolicy: Fail
+    name: validator.everoute.io
+    rules:
+      - apiGroups:
+          - security.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - securitypolicies
+          - endpoints
+          - globalpolicies
+      - apiGroups:
+          - group.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - endpointgroups
+      - apiGroups:
+          - pod.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - k8sclusters
+
+{{ if eq .Values.webhook.type "Service" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: everoute-validator-webhook
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.webhook.port }}
+      protocol: TCP
+      # This port should match port everoute-controller exposed.
+      targetPort: 9443
+  selector:
+    app: everoute
+    component: everoute-controller
+{{ end }}
+{{- if eq .Values.CNIConf.ipam "everoute" }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: vipam.everoute.io
+webhooks:
+  - admissionReviewVersions: ["v1beta1"]
+    sideEffects: None
+    clientConfig:
+      # CaBundle must set as the ca for secret everoute-controller-tls.
+      caBundle:
+      service:
+        name: everoute-validator-webhook
+        path: /validate-ipam-everoute-io-v1alpha1-ippool
+        port: {{ .Values.webhook.port }}
+        namespace: {{ .Release.Namespace }}
+    failurePolicy: Fail
+    name: vipam.everoute.io
+    rules:
+      - apiGroups:
+          - ipam.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - ippools
+{{- end }}

@@ -80,6 +80,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().GlobalPolicies().Informer()}, nil
 	case securityv1alpha1.SchemeGroupVersion.WithResource("securitypolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().SecurityPolicies().Informer()}, nil
+	case securityv1alpha1.SchemeGroupVersion.WithResource("shareips"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Security().V1alpha1().ShareIPs().Informer()}, nil
 
 		// Group=service.everoute.io, Version=v1alpha1
 	case servicev1alpha1.SchemeGroupVersion.WithResource("serviceports"):

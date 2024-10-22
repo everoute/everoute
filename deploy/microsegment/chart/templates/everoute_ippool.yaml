@@ -1,0 +1,13 @@
+{{- if eq .Values.CNIConf.ipam "everoute" }}
+---
+apiVersion: ipam.everoute.io/v1alpha1
+kind: IPPool
+metadata:
+  name: everoute-built-in
+  namespace: {{ .Release.Namespace }}
+spec:
+  private: true
+  cidr: {{ .Values.CNIConf.gwIPPool.cidr }}
+  subnet: {{ .Values.CNIConf.gwIPPool.subnet }}
+  gateway: {{ .Values.CNIConf.gwIPPool.gateway }}
+{{- end }}

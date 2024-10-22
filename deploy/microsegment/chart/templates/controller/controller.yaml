@@ -1,0 +1,70 @@
+{{ if .Values.deployment_enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: everoute-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: everoute
+    component: everoute-controller
+spec:
+  strategy:
+    # Ensure the existing Pod is killed before the new one is created.
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: everoute
+      component: everoute-controller
+  template:
+    metadata:
+      labels:
+        app: everoute
+        component: everoute-controller
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      serviceAccountName: everoute-controller
+      containers:
+        - name: everoute-controller
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: IfNotPresent
+          command: ["everoute-controller"]
+          args:
+            - --enable-leader-election=true
+            - --port=9443
+            - -v=0
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              port: 9443
+              path: /healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: everoute-config
+              mountPath: /var/lib/everoute/controllerconfig.yaml
+              subPath: controllerconfig.yaml
+          resources:
+            {{- toYaml .Values.quota.controller | nindent 12 }}  
+      volumes:
+        - configMap:
+            name: everoute-config-xu73od84d3
+          name: everoute-config
+{{ end }}
