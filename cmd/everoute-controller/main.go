@@ -141,13 +141,15 @@ func main() {
 		}
 	}
 
-	// endpoint controller sync endpoint status from agentinfo.
-	if err = (&endpointctrl.EndpointReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		IPMigrateCount: controllerMetric.GetIPMigrateCount(),
-	}).SetupWithManager(mgr); err != nil {
-		klog.Fatalf("unable to create endpoint controller: %s", err.Error())
+	if !opts.IsEnableCNI() {
+		// endpoint controller sync endpoint status from agentinfo.
+		if err = (&endpointctrl.EndpointReconciler{
+			Client:         mgr.GetClient(),
+			Scheme:         mgr.GetScheme(),
+			IPMigrateCount: controllerMetric.GetIPMigrateCount(),
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create endpoint controller: %s", err.Error())
+		}
 	}
 
 	// group controller sync & manager group members.
