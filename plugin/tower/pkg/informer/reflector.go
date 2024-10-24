@@ -204,16 +204,16 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	}
 
 	var obj = newObj.Elem().Interface()
-	klog.V(4).Infof("get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
 
 	// delete object may got nil object, read object from previous values
 	if reflect.ValueOf(obj).IsNil() && event.Mutation == schema.DeleteEvent {
 		err = json.Unmarshal(event.PreviousValues, newObj.Interface())
 		if err != nil {
-			return fmt.Errorf("unable marshal %s into object %T", string(event.PreviousValues), r.expectType.TypeName())
+			return fmt.Errorf("unable marshal %s into object %T for delete event", string(event.PreviousValues), r.expectType.TypeName())
 		}
 		obj = newObj.Elem().Interface()
 	}
+	klog.V(4).Infof("get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
 
 	switch event.Mutation {
 	case schema.CreateEvent:
