@@ -139,6 +139,10 @@ func New(
 		vmIndex: c.vmIndexFunc,
 	})
 
+	_ = endpointInforer.AddIndexers(cache.Indexers{
+		vmIndex: c.vmIndexFuncForEndpoint,
+	})
+
 	vmInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addVM,
@@ -221,6 +225,14 @@ func (c *Controller) vmIndexFunc(obj interface{}) ([]string, error) {
 	return vms, nil
 }
 
+func (c *Controller) vmIndexFuncForEndpoint(obj interface{}) ([]string, error) {
+	vm := obj.(*v1alpha1.Endpoint).Spec.VMID
+	if vm != "" {
+		return []string{vm}, nil
+	}
+	return []string{}, nil
+}
+
 func (c *Controller) vnicIndexFunc(obj interface{}) ([]string, error) {
 	var vnics []string
 	for _, vnic := range obj.(*schema.VM).VMNics {
@@ -261,7 +273,12 @@ func (c *Controller) deleteVM(old interface{}) {
 	if ok {
 		old = unknown.Obj
 	}
-	c.enqueueVMNics(old.(*schema.VM))
+	vm := old.(*schema.VM)
+	c.enqueueVMNics(vm)
+	eps, _ := c.endpointLister.ByIndex(vmIndex, vm.ID)
+	for _, ep := range eps {
+		c.endpointQueue.Add(ep.(*v1alpha1.Endpoint).Name)
+	}
 }
 
 func (c *Controller) addLabel(new interface{}) {
