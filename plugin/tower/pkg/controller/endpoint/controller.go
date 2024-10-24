@@ -102,7 +102,7 @@ func New(
 ) *Controller {
 	vmInformer := towerFactory.VM()
 	labelInformer := towerFactory.Label()
-	endpointInforer := crdFactory.Security().V1alpha1().Endpoints().Informer()
+	endpointInformer := crdFactory.Security().V1alpha1().Endpoints().Informer()
 	systemEndpointInformer := towerFactory.SystemEndpoints()
 	erClusterInformer := towerFactory.EverouteCluster()
 
@@ -116,9 +116,9 @@ func New(
 		labelInformer:          labelInformer,
 		labelLister:            labelInformer.GetIndexer(),
 		labelInformerSynced:    labelInformer.HasSynced,
-		endpointInformer:       endpointInforer,
-		endpointLister:         endpointInforer.GetIndexer(),
-		endpointInformerSynced: endpointInforer.HasSynced,
+		endpointInformer:       endpointInformer,
+		endpointLister:         endpointInformer.GetIndexer(),
+		endpointInformerSynced: endpointInformer.HasSynced,
 		endpointQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 
 		systemEndpointInformer:        systemEndpointInformer,
@@ -137,6 +137,10 @@ func New(
 
 	_ = labelInformer.AddIndexers(cache.Indexers{
 		vmIndex: c.vmIndexFunc,
+	})
+
+	_ = endpointInformer.AddIndexers(cache.Indexers{
+		vmIndex: c.vmIndexFuncForEndpoint,
 	})
 
 	vmInformer.AddEventHandlerWithResyncPeriod(
@@ -160,7 +164,7 @@ func New(
 	// Why we handle endpoint events ?
 	// 1. When controller restart, vm delete event may lose. The handler would enqueue all endpoints for synchronization.
 	// 2. If endpoints unexpectedly modified by other applications, the controller would find and resync them.
-	endpointInforer.AddEventHandlerWithResyncPeriod(
+	endpointInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addEndpoint,
 			UpdateFunc: c.updateEndpoint,
@@ -221,6 +225,14 @@ func (c *Controller) vmIndexFunc(obj interface{}) ([]string, error) {
 	return vms, nil
 }
 
+func (c *Controller) vmIndexFuncForEndpoint(obj interface{}) ([]string, error) {
+	vm := obj.(*v1alpha1.Endpoint).Spec.VMID
+	if vm != "" {
+		return []string{vm}, nil
+	}
+	return []string{}, nil
+}
+
 func (c *Controller) vnicIndexFunc(obj interface{}) ([]string, error) {
 	var vnics []string
 	for _, vnic := range obj.(*schema.VM).VMNics {
@@ -261,7 +273,12 @@ func (c *Controller) deleteVM(old interface{}) {
 	if ok {
 		old = unknown.Obj
 	}
-	c.enqueueVMNics(old.(*schema.VM))
+	vm := old.(*schema.VM)
+	c.enqueueVMNics(vm)
+	eps, _ := c.endpointLister.ByIndex(vmIndex, vm.ID)
+	for _, ep := range eps {
+		c.endpointQueue.Add(ep.(*v1alpha1.Endpoint).Name)
+	}
 }
 
 func (c *Controller) addLabel(new interface{}) {
