@@ -1,0 +1,50 @@
+# Default values for chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+  repository: everoute/release
+  tag: "latest"
+
+bridgeName: cnibr0
+enableCNI: true
+CNIConf:
+  localGwIP: 100.64.254.254
+  enableProxy: true
+  encapMode: "geneve"
+  mtu: 0
+  vni: 5000
+  ipam: ""
+  ipamCleanPeriod: 30
+  gwIPPool:
+    gateway: 240.100.0.1
+    subnet: 240.100.0.0/16
+    cidr: 240.100.0.0/24
+  kubeProxyReplace: false
+  svcInternalIP: 169.254.0.254
+
+apiServer: ""
+
+webhook:
+  type: Service # enum: Service, URL
+  port: 9443
+  caBundle: Cg==
+
+deployment_enabled: true
+
+quota:
+  initAgent:
+    requests:
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  agent:
+    requests:
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  controller:
+    requests:
+      memory: 64Mi
+    limits:
+      memory: 128Mi

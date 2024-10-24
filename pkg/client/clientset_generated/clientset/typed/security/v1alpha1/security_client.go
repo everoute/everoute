@@ -30,6 +30,7 @@ type SecurityV1alpha1Interface interface {
 	EndpointsGetter
 	GlobalPoliciesGetter
 	SecurityPoliciesGetter
+	ShareIPsGetter
 }
 
 // SecurityV1alpha1Client is used to interact with features provided by the security.everoute.io group.
@@ -47,6 +48,10 @@ func (c *SecurityV1alpha1Client) GlobalPolicies() GlobalPolicyInterface {
 
 func (c *SecurityV1alpha1Client) SecurityPolicies(namespace string) SecurityPolicyInterface {
 	return newSecurityPolicies(c, namespace)
+}
+
+func (c *SecurityV1alpha1Client) ShareIPs() ShareIPInterface {
+	return newShareIPs(c)
 }
 
 // NewForConfig creates a new SecurityV1alpha1Client for the given config.

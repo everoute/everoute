@@ -30,6 +30,8 @@ type Interface interface {
 	GlobalPolicies() GlobalPolicyInformer
 	// SecurityPolicies returns a SecurityPolicyInformer.
 	SecurityPolicies() SecurityPolicyInformer
+	// ShareIPs returns a ShareIPInformer.
+	ShareIPs() ShareIPInformer
 }
 
 type version struct {
@@ -56,4 +58,9 @@ func (v *version) GlobalPolicies() GlobalPolicyInformer {
 // SecurityPolicies returns a SecurityPolicyInformer.
 func (v *version) SecurityPolicies() SecurityPolicyInformer {
 	return &securityPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ShareIPs returns a ShareIPInformer.
+func (v *version) ShareIPs() ShareIPInformer {
+	return &shareIPInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

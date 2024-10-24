@@ -1,0 +1,85 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: k8sclusters.pod.everoute.io
+spec:
+  group: pod.everoute.io
+  names:
+    kind: K8sCluster
+    listKind: K8sClusterList
+    plural: k8sclusters
+    singular: k8scluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.cni
+      name: cni
+      type: string
+    - jsonPath: .spec.managedBy
+      name: managedBy
+      type: string
+    - jsonPath: .spec.sksOption.kscName
+      name: kscname
+      type: string
+    - jsonPath: .spec.sksOption.kscNamespace
+      name: kscnamespace
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              cni:
+                description: K8sClusterCNIType is cni type.
+                type: string
+              controlPlaneAvailabel:
+                type: boolean
+              managedBy:
+                description: K8sClusterManagedPlatform the platform that a k8scluster
+                  managedby.
+                type: string
+              sksOption:
+                properties:
+                  kscName:
+                    type: string
+                  kscNamespace:
+                    type: string
+                required:
+                - kscName
+                - kscNamespace
+                type: object
+            required:
+            - cni
+            - controlPlaneAvailabel
+            - managedBy
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

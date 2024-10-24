@@ -458,3 +458,31 @@ type NamedPort struct {
 func (p *NamedPort) ToString() string {
 	return strings.Join([]string{p.Name, string(p.Port), string(p.Protocol)}, "-")
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:openapi-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ips",type="string",JSONPath=".spec.ips"
+// +kubebuilder:printcolumn:name="interfaceIDs",type="string",JSONPath=".spec.interfaceIDs"
+type ShareIP struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              ShareIPSpec `json:"spec"`
+}
+
+type ShareIPSpec struct {
+	IPs []string `json:"ips"`
+	// ips can belongs to these nics at the same time
+	InterfaceIDs []string `json:"interfaceIDs"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ShareIPList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ShareIP `json:"items"`
+}

@@ -1,0 +1,1056 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  creationTimestamp: null
+  name: securitypolicies.security.everoute.io
+spec:
+  group: security.everoute.io
+  names:
+    kind: SecurityPolicy
+    listKind: SecurityPolicyList
+    plural: securitypolicies
+    singular: securitypolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.isBlocklist
+      name: IsBlocklist
+      type: boolean
+    - jsonPath: .spec.tier
+      name: Tier
+      type: string
+    - jsonPath: .spec.priority
+      name: Priority
+      type: integer
+    - jsonPath: .spec.symmetricMode
+      name: SymmetricMode
+      type: boolean
+    - jsonPath: .spec.policyTypes
+      name: PolicyTypes
+      type: string
+    - jsonPath: .spec.securityPolicyEnforcementMode
+      name: Enforcement
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: SecurityPolicy describes what network traffic is allowed for
+          a set of Endpoint. Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Specification of the desired behavior for this SecurityPolicy.
+            properties:
+              appliedTo:
+                description: 'Selects the endpoints to which this SecurityPolicy object
+                  applies. Empty or nil means select all endpoints. Notice: if AppliedTo
+                  is empty, IngressRule''s Ports can''t be namedPorts.'
+                items:
+                  description: ApplyToPeer describes sets of endpoints which this
+                    SecurityPolicy object applies At least one field (Endpoint or
+                    EndpointSelector) should be set.
+                  properties:
+                    endpoint:
+                      description: "Endpoint defines policy on a specific Endpoint.
+                        \n If Endpoint is set, then the SecurityPolicy would apply
+                        to the endpoint in the SecurityPolicy Namespace. If Endpoint
+                        doesnot exist OR has empty IPAddr, the ApplyToPeer would be
+                        ignored. If this field is set then neither of the other fields
+                        can be."
+                      type: string
+                    endpointSelector:
+                      description: "EndpointSelector selects endpoints. This field
+                        follows extend label selector semantics; if present but empty,
+                        it selects all endpoints. \n If EndpointSelector is set, then
+                        the SecurityPolicy would apply to the endpoints matching EndpointSelector
+                        in the SecurityPolicy Namespace. If this field is set then
+                        neither of the other fields can be."
+                      properties:
+                        extendMatchLabels:
+                          additionalProperties:
+                            items:
+                              type: string
+                            type: array
+                          description: 'ExtendMatchLabels allows match labels with
+                            the same key but different value. e.g. {key: [v1, v2]}
+                            matches labels: {key: v1, key: v2} and {key: v1, key:
+                            v2, key: v3}'
+                          type: object
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: A label selector requirement is a selector
+                              that contains values, a key, and an operator that relates
+                              the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: operator represents a key's relationship
+                                  to a set of values. Valid operators are In, NotIn,
+                                  Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: values is an array of string values.
+                                  If the operator is In or NotIn, the values array
+                                  must be non-empty. If the operator is Exists or
+                                  DoesNotExist, the values array must be empty. This
+                                  array is replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels map is equivalent
+                            to an element of matchExpressions, whose key field is
+                            "key", the operator is "In", and the values array contains
+                            only "value". The requirements are ANDed.
+                          type: object
+                        matchNothing:
+                          description: MatchNothing does not match any labels when
+                            set to true
+                          type: boolean
+                      type: object
+                    ipBlock:
+                      description: IPBlock defines policy on a particular IPBlock.
+                      properties:
+                        cidr:
+                          description: cidr is a string representing the IPBlock Valid
+                            examples are "192.168.1.0/24" or "2001:db8::/64"
+                          type: string
+                        except:
+                          description: except is a slice of CIDRs that should not
+                            be included within an IPBlock Valid examples are "192.168.1.0/24"
+                            or "2001:db8::/64" Except values will be rejected if they
+                            are outside the cidr range
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - cidr
+                      type: object
+                  type: object
+                type: array
+              defaultRule:
+                default: drop
+                description: DefaultRule will generate default rule for policy
+                enum:
+                - drop
+                - allow
+                - none
+                type: string
+              egressRules:
+                description: List of egress rules to be applied to the selected endpoints.
+                  If this field is empty then this SecurityPolicy limits all outgoing
+                  traffic.
+                items:
+                  description: Rule describes a particular set of traffic that is
+                    allowed from/to the endpoints matched by a SecurityPolicySpec's
+                    AppliedTo.
+                  properties:
+                    from:
+                      description: List of sources which should be able to access
+                        the endpoints selected for this rule. Items in this list are
+                        combined using a logical OR operation. If this field is empty
+                        or missing, this rule matches all sources (traffic not restricted
+                        by source). If this field is present and contains at least
+                        one item, this rule allows traffic only if the traffic matches
+                        at least one item in the from list. This field only works
+                        when rule is ingress.
+                      items:
+                        description: SecurityPolicyPeer describes a peer to allow
+                          traffic to/from. Only certain combinations of fields are
+                          allowed
+                        properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
+                          endpoint:
+                            description: Endpoint defines policy on a specific Endpoint.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              name:
+                                description: Name is unique within a namespace to
+                                  reference a resource.
+                                type: string
+                              namespace:
+                                description: Namespace defines the space within which
+                                  the resource name must be unique.
+                                type: string
+                            required:
+                            - name
+                            - namespace
+                            type: object
+                          endpointSelector:
+                            description: "EndpointSelector selects endpoints. This
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
+                              is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected
+                              by NamespaceSelector. Otherwise, it selects the Endpoints
+                              matching EndpointSelector in the policy's own Namespace."
+                            properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
+                                type: object
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
+                            type: object
+                          ipBlock:
+                            description: IPBlock defines policy on a particular IPBlock.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              cidr:
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                type: string
+                              except:
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - cidr
+                            type: object
+                          namespaceSelector:
+                            description: "NamespaceSelector selects namespaces. This
+                              field follows standard label selector semantics; if
+                              present but empty, it selects all namespaces. \n If
+                              EndpointSelector is also set, then the Rule would select
+                              the endpoints matching EndpointSelector in the Namespaces
+                              selected by NamespaceSelector. Otherwise, it selects
+                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                        type: object
+                      type: array
+                    name:
+                      description: Name must be unique within the policy and conforms
+                        RFC 1123.
+                      type: string
+                    ports:
+                      description: List of ports which should be made accessible on
+                        the endpoints selected for this rule. Each item in this list
+                        is combined using a logical OR. If this field is empty or
+                        missing, this rule matches all ports (traffic not restricted
+                        by port). If this field is present and contains at least one
+                        item, then this rule allows traffic only if the traffic matches
+                        at least one port in the list.
+                      items:
+                        description: SecurityPolicyPort describes the port and protocol
+                          to match in a rule.
+                        properties:
+                          portRange:
+                            description: PortRange is a range of port. If you want
+                              match all ports, you should set empty. If you want match
+                              single port, you should write like 22. If you want match
+                              a range of port, you should write like 20-80, ports
+                              between 20 and 80 (include 20 and 80) will matches.
+                              If you want match multiple ports, you should write like
+                              20,22-24,90.
+                            type: string
+                          protocol:
+                            description: The ip protocol which traffic must match.
+                            enum:
+                            - TCP
+                            - UDP
+                            - ICMP
+                            - IPIP
+                            - VRRP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
+                            type: string
+                        required:
+                        - protocol
+                        type: object
+                      type: array
+                    to:
+                      description: List of destinations for outgoing traffic of endpoints
+                        selected for this rule. Items in this list are combined using
+                        a logical OR operation. If this field is empty or missing,
+                        this rule matches all destinations (traffic not restricted
+                        by destination). If this field is present and contains at
+                        least one item, this rule allows traffic only if the traffic
+                        matches at least one item in the to list. This field only
+                        works when rule is egress.
+                      items:
+                        description: SecurityPolicyPeer describes a peer to allow
+                          traffic to/from. Only certain combinations of fields are
+                          allowed
+                        properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
+                          endpoint:
+                            description: Endpoint defines policy on a specific Endpoint.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              name:
+                                description: Name is unique within a namespace to
+                                  reference a resource.
+                                type: string
+                              namespace:
+                                description: Namespace defines the space within which
+                                  the resource name must be unique.
+                                type: string
+                            required:
+                            - name
+                            - namespace
+                            type: object
+                          endpointSelector:
+                            description: "EndpointSelector selects endpoints. This
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
+                              is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected
+                              by NamespaceSelector. Otherwise, it selects the Endpoints
+                              matching EndpointSelector in the policy's own Namespace."
+                            properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
+                                type: object
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
+                            type: object
+                          ipBlock:
+                            description: IPBlock defines policy on a particular IPBlock.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              cidr:
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                type: string
+                              except:
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - cidr
+                            type: object
+                          namespaceSelector:
+                            description: "NamespaceSelector selects namespaces. This
+                              field follows standard label selector semantics; if
+                              present but empty, it selects all namespaces. \n If
+                              EndpointSelector is also set, then the Rule would select
+                              the endpoints matching EndpointSelector in the Namespaces
+                              selected by NamespaceSelector. Otherwise, it selects
+                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                        type: object
+                      type: array
+                  required:
+                  - name
+                  type: object
+                type: array
+              ingressRules:
+                description: List of ingress rules to be applied to the selected endpoints.
+                  If this field is empty then this SecurityPolicy does not allow any
+                  traffic.
+                items:
+                  description: Rule describes a particular set of traffic that is
+                    allowed from/to the endpoints matched by a SecurityPolicySpec's
+                    AppliedTo.
+                  properties:
+                    from:
+                      description: List of sources which should be able to access
+                        the endpoints selected for this rule. Items in this list are
+                        combined using a logical OR operation. If this field is empty
+                        or missing, this rule matches all sources (traffic not restricted
+                        by source). If this field is present and contains at least
+                        one item, this rule allows traffic only if the traffic matches
+                        at least one item in the from list. This field only works
+                        when rule is ingress.
+                      items:
+                        description: SecurityPolicyPeer describes a peer to allow
+                          traffic to/from. Only certain combinations of fields are
+                          allowed
+                        properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
+                          endpoint:
+                            description: Endpoint defines policy on a specific Endpoint.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              name:
+                                description: Name is unique within a namespace to
+                                  reference a resource.
+                                type: string
+                              namespace:
+                                description: Namespace defines the space within which
+                                  the resource name must be unique.
+                                type: string
+                            required:
+                            - name
+                            - namespace
+                            type: object
+                          endpointSelector:
+                            description: "EndpointSelector selects endpoints. This
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
+                              is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected
+                              by NamespaceSelector. Otherwise, it selects the Endpoints
+                              matching EndpointSelector in the policy's own Namespace."
+                            properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
+                                type: object
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
+                            type: object
+                          ipBlock:
+                            description: IPBlock defines policy on a particular IPBlock.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              cidr:
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                type: string
+                              except:
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - cidr
+                            type: object
+                          namespaceSelector:
+                            description: "NamespaceSelector selects namespaces. This
+                              field follows standard label selector semantics; if
+                              present but empty, it selects all namespaces. \n If
+                              EndpointSelector is also set, then the Rule would select
+                              the endpoints matching EndpointSelector in the Namespaces
+                              selected by NamespaceSelector. Otherwise, it selects
+                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                        type: object
+                      type: array
+                    name:
+                      description: Name must be unique within the policy and conforms
+                        RFC 1123.
+                      type: string
+                    ports:
+                      description: List of ports which should be made accessible on
+                        the endpoints selected for this rule. Each item in this list
+                        is combined using a logical OR. If this field is empty or
+                        missing, this rule matches all ports (traffic not restricted
+                        by port). If this field is present and contains at least one
+                        item, then this rule allows traffic only if the traffic matches
+                        at least one port in the list.
+                      items:
+                        description: SecurityPolicyPort describes the port and protocol
+                          to match in a rule.
+                        properties:
+                          portRange:
+                            description: PortRange is a range of port. If you want
+                              match all ports, you should set empty. If you want match
+                              single port, you should write like 22. If you want match
+                              a range of port, you should write like 20-80, ports
+                              between 20 and 80 (include 20 and 80) will matches.
+                              If you want match multiple ports, you should write like
+                              20,22-24,90.
+                            type: string
+                          protocol:
+                            description: The ip protocol which traffic must match.
+                            enum:
+                            - TCP
+                            - UDP
+                            - ICMP
+                            - IPIP
+                            - VRRP
+                            type: string
+                          type:
+                            default: number
+                            description: Type defines the PortRange is real port numbers
+                              or port names which needed resolve. If it is empty,
+                              the effect is equal to "number" for compatibility.
+                            enum:
+                            - number
+                            - name
+                            type: string
+                        required:
+                        - protocol
+                        type: object
+                      type: array
+                    to:
+                      description: List of destinations for outgoing traffic of endpoints
+                        selected for this rule. Items in this list are combined using
+                        a logical OR operation. If this field is empty or missing,
+                        this rule matches all destinations (traffic not restricted
+                        by destination). If this field is present and contains at
+                        least one item, this rule allows traffic only if the traffic
+                        matches at least one item in the to list. This field only
+                        works when rule is egress.
+                      items:
+                        description: SecurityPolicyPeer describes a peer to allow
+                          traffic to/from. Only certain combinations of fields are
+                          allowed
+                        properties:
+                          disableSymmetric:
+                            description: DisableSymmetric if set true, won't generate
+                              symmetric rules for the peer even if SymmetricMode of
+                              policy set true, the default value is false
+                            type: boolean
+                          endpoint:
+                            description: Endpoint defines policy on a specific Endpoint.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              name:
+                                description: Name is unique within a namespace to
+                                  reference a resource.
+                                type: string
+                              namespace:
+                                description: Namespace defines the space within which
+                                  the resource name must be unique.
+                                type: string
+                            required:
+                            - name
+                            - namespace
+                            type: object
+                          endpointSelector:
+                            description: "EndpointSelector selects endpoints. This
+                              field follows extend label selector semantics; if present
+                              but empty, it selects all endpoints. \n If NamespaceSelector
+                              is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected
+                              by NamespaceSelector. Otherwise, it selects the Endpoints
+                              matching EndpointSelector in the policy's own Namespace."
+                            properties:
+                              extendMatchLabels:
+                                additionalProperties:
+                                  items:
+                                    type: string
+                                  type: array
+                                description: 'ExtendMatchLabels allows match labels
+                                  with the same key but different value. e.g. {key:
+                                  [v1, v2]} matches labels: {key: v1, key: v2} and
+                                  {key: v1, key: v2, key: v3}'
+                                type: object
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                              matchNothing:
+                                description: MatchNothing does not match any labels
+                                  when set to true
+                                type: boolean
+                            type: object
+                          ipBlock:
+                            description: IPBlock defines policy on a particular IPBlock.
+                              If this field is set then neither of the other fields
+                              can be.
+                            properties:
+                              cidr:
+                                description: cidr is a string representing the IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                type: string
+                              except:
+                                description: except is a slice of CIDRs that should
+                                  not be included within an IPBlock Valid examples
+                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
+                                  will be rejected if they are outside the cidr range
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - cidr
+                            type: object
+                          namespaceSelector:
+                            description: "NamespaceSelector selects namespaces. This
+                              field follows standard label selector semantics; if
+                              present but empty, it selects all namespaces. \n If
+                              EndpointSelector is also set, then the Rule would select
+                              the endpoints matching EndpointSelector in the Namespaces
+                              selected by NamespaceSelector. Otherwise, it selects
+                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                        type: object
+                      type: array
+                  required:
+                  - name
+                  type: object
+                type: array
+              isBlocklist:
+                description: IsBlocklist specify the SecurityPolicy is allowlist or
+                  blocklist Default is false
+                type: boolean
+              logging:
+                description: Logging defines the policy logging configuration.
+                properties:
+                  enabled:
+                    description: Enabled would log connections when the policy matched.
+                    type: boolean
+                  tags:
+                    additionalProperties:
+                      type: string
+                    description: Tags should be logging when the policy matched.
+                    type: object
+                required:
+                - enabled
+                type: object
+              policyTypes:
+                description: List of rule types that the Security relates to. Valid
+                  options are "Ingress", "Egress", or "Ingress,Egress". If this field
+                  is not specified, it will default based on the existence of Ingress
+                  or Egress rules; policies that contain an Egress section are assumed
+                  to affect Egress, and all policies (whether or not they contain
+                  an Ingress section) are assumed to affect Ingress. If you want to
+                  write an egress-only policy, you must explicitly specify policyTypes
+                  [ "Egress" ]. Likewise, if you want to write a policy that specifies
+                  that no egress is allowed, you must specify a policyTypes value
+                  that include "Egress" (since such a policy would not include an
+                  Egress section and would otherwise default to just [ "Ingress" ]).
+                items:
+                  description: PolicyType string describes the NetworkPolicy type
+                    This type is beta-level in 1.8
+                  type: string
+                type: array
+              priority:
+                default: 30
+                description: Priority Specifies the priority of the SecurityPolicy
+                  on the tier to which it belongs (only valid when spec.tier=tier2)
+                  Blocklist and Allowlist can't set same priority
+                format: int32
+                maximum: 100
+                minimum: 1
+                type: integer
+              securityPolicyEnforcementMode:
+                default: work
+                description: 'Work mode specify the policy enforcement state: monitor
+                  or work'
+                type: string
+              symmetricMode:
+                description: SymmetricMode will generate symmetry rules for the policy.
+                  Defaults to false.
+                type: boolean
+              tier:
+                description: Tier specifies the tier to which this SecurityPolicy
+                  belongs to. In v1alpha1, Tier only support tier0, tier1, tier2,
+                  tier-ecp.
+                type: string
+            required:
+            - tier
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

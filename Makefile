@@ -147,6 +147,8 @@ apidocs-gen:
 # Generate CRD manifests
 manifests:
 	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/chart/templates/crds output:stdout
+	rm -rf deploy/microsegment && mkdir deploy/microsegment && cp -r deploy/chart deploy/microsegment/chart
+	mkdir -p deploy/base/chart/templates/crds && mv deploy/microsegment/chart/templates/crds/security.everoute.io_shareips.yaml deploy/base/chart/templates/crds/
 
 # Run go fmt against code
 fmt:

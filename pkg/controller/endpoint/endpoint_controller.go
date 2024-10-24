@@ -19,9 +19,11 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -35,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
@@ -55,13 +58,52 @@ type EndpointReconciler struct {
 
 	ifaceCacheLock sync.RWMutex
 	ifaceCache     cache.Indexer
+
+	shareIPCacheLock sync.RWMutex
+	shareIPCache     map[string]shareIP
+}
+
+type shareIP struct {
+	ips          sets.Set[string]
+	ipNets       []net.IPNet
+	interfaceIDs sets.Set[string]
+}
+
+func (s *shareIP) containsIP(ip string) bool {
+	for _, ipNet := range s.ipNets {
+		if ipNet.Contains(net.ParseIP(ip)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *shareIP) containsInterface(interfaceID string) bool {
+	return s.interfaceIDs.Has(interfaceID)
+}
+
+func (s *shareIP) complete() error {
+	if s.ips.Len() == 0 {
+		return fmt.Errorf("shareIP must set spec.ips")
+	}
+	s.ipNets = []net.IPNet{}
+	for _, ipCidr := range s.ips.UnsortedList() {
+		_, ipNet, err := net.ParseCIDR(ipCidr)
+		if err != nil {
+			return err
+		}
+		if ipNet == nil {
+			return fmt.Errorf("parse cidr %s is nil", ipCidr)
+		}
+		s.ipNets = append(s.ipNets, *ipNet)
+	}
+	return nil
 }
 
 const (
 	externalIDIndex              = "externalIDIndex"
 	ipAddrIndex                  = "ipaddrIndex"
 	agentIndex                   = "agentIndex"
-	k8sEndpointExternalIDKey     = "pod-uuid"
 	IfaceIPAddrCleanInterval int = 5
 )
 
@@ -116,6 +158,49 @@ func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
+func (r *EndpointReconciler) ReconcileShareIP(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(4).Info("Reconcile start")
+	defer log.V(4).Info("Reconcile end")
+
+	sip := &securityv1alpha1.ShareIP{}
+	if err := r.Client.Get(ctx, req.NamespacedName, sip); err != nil {
+		if apierrors.IsNotFound(err) {
+			r.shareIPCacheLock.Lock()
+			defer r.shareIPCacheLock.Unlock()
+			delete(r.shareIPCache, req.Name)
+			log.Info("Delete shareIP from cache")
+			return ctrl.Result{}, nil
+		}
+		log.Error(err, "Failed to get shareIP")
+		return ctrl.Result{}, err
+	}
+
+	r.updateShareIPCache(ctx, sip)
+	return ctrl.Result{}, nil
+}
+
+func (r *EndpointReconciler) updateShareIPCache(ctx context.Context, sip *securityv1alpha1.ShareIP) {
+	log := ctrl.LoggerFrom(ctx)
+	r.shareIPCacheLock.Lock()
+	defer r.shareIPCacheLock.Unlock()
+	sipC := shareIP{ips: sets.New[string](sip.Spec.IPs...), interfaceIDs: sets.New[string](sip.Spec.InterfaceIDs...)}
+	if sipC.interfaceIDs.Len() <= 1 {
+		delete(r.shareIPCache, sip.GetName())
+		log.Error(fmt.Errorf("shareIP interfaceIDs is invalid"), "ShareIP only set one interfaceID in spec.interfaceIDs, delete it from cache",
+			"interfaceIDs", sip.Spec.InterfaceIDs)
+		return
+	}
+	if err := sipC.complete(); err != nil {
+		delete(r.shareIPCache, sip.GetName())
+		log.Error(err, "Failed to complete shareIP, delete it from cache", "ips", sip.Spec.IPs)
+		return
+	}
+
+	r.shareIPCache[sip.GetName()] = sipC
+	log.Info("Success to update shareIP to cache", "spec", sip.Spec)
+}
+
 // SetupWithManager create and add Endpoint Controller to the manager.
 func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
@@ -154,6 +239,18 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		CreateFunc: r.addEndpoint,
 		UpdateFunc: r.updateEndpoint,
 	})
+	if err != nil {
+		return err
+	}
+
+	if r.shareIPCache == nil {
+		r.shareIPCache = make(map[string]shareIP)
+	}
+	shareIPC, err := controller.New("shareIP-controller", mgr, controller.Options{Reconciler: reconcile.Func(r.ReconcileShareIP)})
+	if err != nil {
+		return err
+	}
+	err = shareIPC.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.ShareIP{}), &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -333,6 +430,7 @@ func (r *EndpointReconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.Agen
 }
 
 func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.Set[string] {
+	interfaceID := getEndpointIfaceIDFromOvsIface(ovsInterface)
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
@@ -341,13 +439,39 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 				}
 				ipNeedDelete := toIPStringSet(ovsIface.IPMap).Intersection(toIPStringSet(ovsInterface.IPMap))
 				if ipNeedDelete.Len() != 0 {
-					return ipNeedDelete
+					curInterfaceID := getEndpointIfaceIDFromOvsIface(ovsIface)
+					return r.filterIPNeedDeleteByShareIP(ipNeedDelete, interfaceID, curInterfaceID)
 				}
 			}
 		}
 	}
 
 	return sets.Set[string]{}
+}
+
+func (r *EndpointReconciler) filterIPNeedDeleteByShareIP(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
+	if interfaceID1 == "" || interfaceID2 == "" {
+		return ipNeedDelete
+	}
+	r.shareIPCacheLock.RLock()
+	defer r.shareIPCacheLock.RUnlock()
+
+	res := sets.New[string]()
+	for _, ip := range ipNeedDelete.UnsortedList() {
+		needDel := true
+		for k, v := range r.shareIPCache {
+			if v.containsInterface(interfaceID1) && v.containsInterface(interfaceID2) && v.containsIP(ip) {
+				needDel = false
+				klog.V(3).Infof("ip %s belongs to shareIP %s with interface %s,%s, skip delete ip from old interface", ip, k, interfaceID1, interfaceID2)
+				break
+			}
+		}
+		if needDel {
+			res.Insert(ip)
+		}
+	}
+
+	return res
 }
 
 // If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
@@ -369,6 +493,7 @@ func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alph
 					Name:      ep.GetName(),
 					Namespace: ep.GetNamespace(),
 				}})
+				break
 			}
 		}
 	}
@@ -544,11 +669,6 @@ func getEndpointIfaceIDFromIfaceCache(iface *iface) string {
 	if ifaceID, ok := iface.externalIDs[constants.EndpointExternalIDKey]; ok {
 		return ifaceID
 	}
-	// if k8s endpoint attached to interface: endpointID k-v pair is
-	// k8sEndpointExternalIDKey : endpointID
-	if ifaceID, ok := iface.externalIDs[k8sEndpointExternalIDKey]; ok {
-		return ifaceID
-	}
 
 	return ""
 }
@@ -557,11 +677,6 @@ func getEndpointIfaceIDFromOvsIface(ovsIface agentv1alpha1.OVSInterface) string 
 	// if normal vm endpoint attached to interface: endpointID k-v pair is
 	// endpointExternalIDKey: endpointID
 	if ifaceID, ok := ovsIface.ExternalIDs[constants.EndpointExternalIDKey]; ok {
-		return ifaceID
-	}
-	// if k8s endpoint attached to interface: endpointID k-v pair is
-	// k8sEndpointExternalIDKey : endpointID
-	if ifaceID, ok := ovsIface.ExternalIDs[k8sEndpointExternalIDKey]; ok {
 		return ifaceID
 	}
 
