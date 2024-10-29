@@ -29,8 +29,8 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/rand"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/metrics"
@@ -164,7 +164,7 @@ func TestMain(m *testing.M) {
 
 func setupEverouteDp() {
 	if err := ExcuteCommand(SetupBridgeChain, "ovsbr0"); err != nil {
-		log.Fatalf("Failed to setup bridgechain, error: %v", err)
+		klog.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
 	stopChan := make(<-chan struct{})
@@ -174,20 +174,20 @@ func setupEverouteDp() {
 
 func setupOverlayDp() {
 	if err := ExcuteCommand(SetupBridgeChain, cniBrName); err != nil {
-		log.Fatalf("Failed to setup bridgechain, error: %v", err)
+		klog.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 	if err := ExcuteCommand(SetupCNIBridgeChain, cniBrName); err != nil {
-		log.Fatalf("Failed to setup cni bridgechain, error: %v", err)
+		klog.Fatalf("Failed to setup cni bridgechain, error: %v", err)
 	}
 	if err := ExcuteCommand(SetupTunnelBridgeChain, cniBrName); err != nil {
-		log.Fatalf("Failed to setup tunnel bridgechain, error: %v", err)
+		klog.Fatalf("Failed to setup tunnel bridgechain, error: %v", err)
 	}
 
 	stopChan := make(<-chan struct{})
 	var err error
 	cniDpMgr, err = InitCNIDpMgrUT(stopChan, cniBrName, false, true, false)
 	if err != nil || cniDpMgr == nil {
-		log.Fatalf("Failed to init cni dp mgr, err: %v", err)
+		klog.Fatalf("Failed to init cni dp mgr, err: %v", err)
 	}
 }
 
@@ -206,7 +206,7 @@ func TestOverlayDp(t *testing.T) {
 func TestEverouteDp(t *testing.T) {
 	var err error
 	if defaultFlowList, err = dumpAllFlows(); err != nil {
-		log.Fatalf("Failed to dump default flow while test env setup")
+		klog.Fatalf("Failed to dump default flow while test env setup")
 	}
 	RegisterTestingT(t)
 
@@ -482,7 +482,7 @@ func testFlowReplay(t *testing.T) {
 	}
 	t.Run("add ER policy rule", func(t *testing.T) {
 		Eventually(func() error {
-			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER3)
+			klog.Infof("add policy rule to datapath, tier: %d", POLICY_TIER3)
 			return datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		}, timeout, interval).Should(Succeed())
 	})

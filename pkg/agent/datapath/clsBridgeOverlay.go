@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 )
 
 type ClsBridgeOverlay struct {
@@ -13,7 +13,7 @@ type ClsBridgeOverlay struct {
 
 func newClsBridgeOverlay(brName string, datapathManager *DpManager) *ClsBridgeOverlay {
 	if !datapathManager.IsEnableOverlay() {
-		log.Fatalf("Can't new overlay cls bridge when disable overlay")
+		klog.Fatalf("Can't new overlay cls bridge when disable overlay")
 	}
 	clsBridge := new(ClsBridgeOverlay)
 	clsBridge.name = fmt.Sprintf("%s-cls", brName)
@@ -33,7 +33,7 @@ func (c *ClsBridgeOverlay) BridgeInitCNI() {
 	})
 	uplinkOutport, _ := sw.OutputPort(c.datapathManager.BridgeChainPortMap[c.ovsBrName][ClsToUplinkSuffix])
 	if err := fromPolicy.Next(uplinkOutport); err != nil {
-		log.Fatalf("Failed to install table 0 policy to uplink flow, err: %v", err)
+		klog.Fatalf("Failed to install table 0 policy to uplink flow, err: %v", err)
 	}
 
 	fromUplink, _ := defaultTable.NewFlow(ofctrl.FlowMatch{
@@ -42,6 +42,6 @@ func (c *ClsBridgeOverlay) BridgeInitCNI() {
 	})
 	policyOutport, _ := sw.OutputPort(c.datapathManager.BridgeChainPortMap[c.ovsBrName][ClsToPolicySuffix])
 	if err := fromUplink.Next(policyOutport); err != nil {
-		log.Fatalf("Failed to install table 0 uplink to policy flow, err: %v", err)
+		klog.Fatalf("Failed to install table 0 uplink to policy flow, err: %v", err)
 	}
 }

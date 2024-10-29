@@ -5,7 +5,7 @@ import (
 	"path"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 	"gopkg.in/yaml.v3"
 
 	constants "github.com/everoute/everoute/pkg/constants/cni"
@@ -109,14 +109,14 @@ func GetGroupIDInfo(brName string) (*GroupIDInfo, error) {
 	file := getGroupIDFile(brName)
 	data, err := os.ReadFile(file)
 	if err != nil && !os.IsNotExist(err) {
-		log.Errorf("Failed to read file %s, err: %s", file, err)
+		klog.Errorf("Failed to read file %s, err: %s", file, err)
 		return nil, err
 	}
 	existsGroupID := &GroupIDInfo{}
 	if data != nil {
 		err := yaml.Unmarshal(data, existsGroupID)
 		if err != nil {
-			log.Errorf("Failed to unmarshal ExistsGroupID, err: %s", err)
+			klog.Errorf("Failed to unmarshal ExistsGroupID, err: %s", err)
 			return nil, err
 		}
 	}
@@ -130,12 +130,12 @@ func SetGroupIDInfo(brName string, gpIDs *GroupIDInfo) error {
 	}
 	data, err := yaml.Marshal(gpIDs)
 	if err != nil {
-		log.Errorf("Failed to marshal ExistsGroupID %v, err: %s", gpIDs, err)
+		klog.Errorf("Failed to marshal ExistsGroupID %v, err: %s", gpIDs, err)
 		return err
 	}
 	err = os.WriteFile(file, data, 0600)
 	if err != nil {
-		log.Errorf("Failed to write data %v to file %s, err: %s", gpIDs, file, err)
+		klog.Errorf("Failed to write data %v to file %s, err: %s", gpIDs, file, err)
 		return err
 	}
 	return nil
@@ -148,7 +148,7 @@ func getGroupIDFile(brName string) string {
 
 func getStartGroupIDByIter(iter uint32) uint32 {
 	if iter > constants.MaxGroupIter {
-		log.Panicf("The groupID's iter %d is bigger than %d", iter, constants.MaxGroupIter)
+		klog.Fatalf("The groupID's iter %d is bigger than %d", iter, constants.MaxGroupIter)
 	}
 	return iter << (32 - constants.BitWidthGroupIter)
 }

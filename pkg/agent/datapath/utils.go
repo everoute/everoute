@@ -27,9 +27,9 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
+	klog "k8s.io/klog/v2"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -342,7 +342,7 @@ func uintToByteBigEndian(src interface{}) []byte {
 		res = make([]byte, 8)
 		binary.BigEndian.PutUint64(res, src)
 	default:
-		log.Errorf("Not support convert type %T to []byte", src)
+		klog.Errorf("Not support convert type %T to []byte", src)
 	}
 
 	return res
@@ -515,28 +515,28 @@ func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*o
 		IpDa:      ip,
 	})
 	if err := f.SetMacSa(net.HardwareAddr(FACK_MAC)); err != nil {
-		log.Errorf("Failed to add the action that set src mac for icmp proxy ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to add the action that set src mac for icmp proxy ip %s: %v", ipStr, err)
 		return nil, err
 	}
 	if err := f.SetIPField(*ip, "Src"); err != nil {
-		log.Errorf("Failed to add the action that set src ip for icmp proxy ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to add the action that set src ip for icmp proxy ip %s: %v", ipStr, err)
 		return nil, err
 	}
 	if err := f.LoadField("nxm_of_icmp_type", uint64(IcmpTypeReply), IcmpTypeRange); err != nil {
-		log.Errorf("Failed to add load field: icmp type action for icmp proxy ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to add load field: icmp type action for icmp proxy ip %s: %v", ipStr, err)
 		return nil, err
 	}
 	if err := f.MoveField(IPv4Lenth, 0, 0, "nxm_of_ip_src", "nxm_of_ip_dst", false); err != nil {
-		log.Errorf("Failed to add the action that move src ip to dst ip for icmp proxy ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to add the action that move src ip to dst ip for icmp proxy ip %s: %v", ipStr, err)
 		return nil, err
 	}
 	if err := f.MoveField(MacLength, 0, 0, "nxm_of_eth_src", "nxm_of_eth_dst", false); err != nil {
-		log.Errorf("Failed to add the action that move src mac to dst mac for icmp proxy ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to add the action that move src mac to dst mac for icmp proxy ip %s: %v", ipStr, err)
 		return nil, err
 	}
 
 	if err := f.Next(next); err != nil {
-		log.Errorf("Failed to install icmp reply flow for ip %s: %v", ipStr, err)
+		klog.Errorf("Failed to install icmp reply flow for ip %s: %v", ipStr, err)
 		return nil, err
 	}
 

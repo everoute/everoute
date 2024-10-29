@@ -25,8 +25,8 @@ import (
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	klog "k8s.io/klog/v2"
 
 	proxycache "github.com/everoute/everoute/pkg/agent/controller/proxy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath/cache"
@@ -124,7 +124,7 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.l3FlowMap = make(map[string]*ofctrl.Flow)
 	n.kubeProxyReplace = n.datapathManager.Config.CNIConfig.KubeProxyReplace
 	if err := n.initGroupIDConfig(); err != nil {
-		log.Fatalf("Bridge %s init group ID related config failed: %s", n.GetName(), err)
+		klog.Fatalf("Bridge %s init group ID related config failed: %s", n.GetName(), err)
 	}
 
 	sw := n.OfSwitch
@@ -142,34 +142,34 @@ func (n *NatBridge) BridgeInitCNI() {
 	n.svcEmptyTable, _ = sw.NewTable(NatBrSvcEmptyTable)
 
 	if err := n.initInputTable(); err != nil {
-		log.Fatalf("Init Input table %d of nat bridge failed: %s", NatBrInputTable, err)
+		klog.Fatalf("Init Input table %d of nat bridge failed: %s", NatBrInputTable, err)
 	}
 	if err := n.initInPortTable(); err != nil {
-		log.Fatalf("Init InPort table %d of nat bridge failed: %s", NatBrInPortTable, err)
+		klog.Fatalf("Init InPort table %d of nat bridge failed: %s", NatBrInPortTable, err)
 	}
 	if err := n.initCTZoneTable(); err != nil {
-		log.Fatalf("Init CTZone table %d of nat bridge failed: %s", NatBrCTZoneTable, err)
+		klog.Fatalf("Init CTZone table %d of nat bridge failed: %s", NatBrCTZoneTable, err)
 	}
 	if err := n.initCTStateTable(); err != nil {
-		log.Fatalf("Init CTState table %d of nat bridge failed: %s", NatBrCTStateTable, err)
+		klog.Fatalf("Init CTState table %d of nat bridge failed: %s", NatBrCTStateTable, err)
 	}
 	if err := n.initSessionAffinityTable(); err != nil {
-		log.Fatalf("Init SessionAffinity table %d of nat bridge failed: %s", NatBrSessionAffinityTable, err)
+		klog.Fatalf("Init SessionAffinity table %d of nat bridge failed: %s", NatBrSessionAffinityTable, err)
 	}
 	if err := n.initServiceLBTable(); err != nil {
-		log.Fatalf("Init ServiceLB table %d of nat bridge failed: %s", NatBrServiceLBTable, err)
+		klog.Fatalf("Init ServiceLB table %d of nat bridge failed: %s", NatBrServiceLBTable, err)
 	}
 	if err := n.initSessionAffinityLearnTable(); err != nil {
-		log.Fatalf("Init SessionAffinityLearn table %d of nat bridge failed: %s", NatBrSessionAffinityLearnTable, err)
+		klog.Fatalf("Init SessionAffinityLearn table %d of nat bridge failed: %s", NatBrSessionAffinityLearnTable, err)
 	}
 	if err := n.initL3ForwardTable(); err != nil {
-		log.Fatalf("Init L3Forward table %d of nat bridge failed: %s", NatBrL3ForwardTable, err)
+		klog.Fatalf("Init L3Forward table %d of nat bridge failed: %s", NatBrL3ForwardTable, err)
 	}
 	if err := n.initOutputTable(); err != nil {
-		log.Fatalf("Init Output table %d of nat bridge failed: %s", NatBrOutputTable, err)
+		klog.Fatalf("Init Output table %d of nat bridge failed: %s", NatBrOutputTable, err)
 	}
 	if err := n.initSvcEmptyTable(); err != nil {
-		log.Fatalf("Init Svc Empty table %d of nat bridge failed: %s", NatBrSvcEmptyTable, err)
+		klog.Fatalf("Init Svc Empty table %d of nat bridge failed: %s", NatBrSvcEmptyTable, err)
 	}
 }
 
@@ -180,23 +180,23 @@ func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 	if n.l3FlowMap[endpoint.InterfaceUUID] != nil {
-		log.Infof("The endpoint %+v related flow has been installed, skip add again", endpoint)
+		klog.Infof("The endpoint %+v related flow has been installed, skip add again", endpoint)
 		return nil
 	}
 
 	macAddr, err := net.ParseMAC(endpoint.MacAddrStr)
 	if err != nil {
-		log.Errorf("The endpoint %+v has invalid mac addr, err: %s", endpoint, err)
+		klog.Errorf("The endpoint %+v has invalid mac addr, err: %s", endpoint, err)
 		return err
 	}
 
 	if endpoint.IPAddr == nil {
-		log.Infof("the endpoint %+v IPAddr is empty, skip add flow to l3 forward of nat bridge", endpoint)
+		klog.Infof("the endpoint %+v IPAddr is empty, skip add flow to l3 forward of nat bridge", endpoint)
 		return nil
 	}
 
 	if endpoint.IPAddr.To4() == nil {
-		log.Errorf("Failed to add local endpoint flow to l3 forward of nat bridge: the endpoint %+v IPAddr is not valid ipv4", endpoint)
+		klog.Errorf("Failed to add local endpoint flow to l3 forward of nat bridge: the endpoint %+v IPAddr is not valid ipv4", endpoint)
 		return fmt.Errorf("the endpoint %+v IPAddr is not valid ipv4", endpoint)
 	}
 
@@ -206,26 +206,26 @@ func (n *NatBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 		IpDa:      &endpoint.IPAddr,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in l3Forward table %d for endpoint %+v, err: %s", NatBrL3ForwardTable, endpoint, err)
+		klog.Errorf("Failed to new a flow in l3Forward table %d for endpoint %+v, err: %s", NatBrL3ForwardTable, endpoint, err)
 		return err
 	}
 
 	if err := flow.SetMacDa(macAddr); err != nil {
-		log.Errorf("Failed to add setMacDa action to flow %+v, endpoint %+v, err: %s", flow, endpoint, err)
+		klog.Errorf("Failed to add setMacDa action to flow %+v, endpoint %+v, err: %s", flow, endpoint, err)
 		return err
 	}
 
 	if err := flow.Resubmit(nil, &NatBrOutputTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow  %+v, endpoint: %+v, err: %s", flow, endpoint, err)
+		klog.Errorf("Failed to add resubmit action to flow  %+v, endpoint: %+v, err: %s", flow, endpoint, err)
 		return err
 	}
 
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow %+v, endpoint: %+v, err: %s", flow, endpoint, err)
+		klog.Errorf("Failed to install flow %+v, endpoint: %+v, err: %s", flow, endpoint, err)
 		return err
 	}
 	n.l3FlowMap[endpoint.InterfaceUUID] = flow
-	log.Infof("Nat bridge success add flow %+v for local endpoint interfaceUUID %s", flow, endpoint.InterfaceUUID)
+	klog.Infof("Nat bridge success add flow %+v for local endpoint interfaceUUID %s", flow, endpoint.InterfaceUUID)
 	return nil
 }
 
@@ -236,12 +236,12 @@ func (n *NatBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 
 	if flow, ok := n.l3FlowMap[endpoint.InterfaceUUID]; ok && flow != nil {
 		if err := flow.Delete(); err != nil {
-			log.Errorf("Delete endpoint correspond l3 forward flow failed, endpoint: %+v, err: %s", endpoint, err)
+			klog.Errorf("Delete endpoint correspond l3 forward flow failed, endpoint: %+v, err: %s", endpoint, err)
 			return err
 		}
 	}
 	delete(n.l3FlowMap, endpoint.InterfaceUUID)
-	log.Infof("Nat bridge success delete l3 forward flow for local endpoint interfaceUUID %s", endpoint.InterfaceUUID)
+	klog.Infof("Nat bridge success delete l3 forward flow for local endpoint interfaceUUID %s", endpoint.InterfaceUUID)
 	return nil
 }
 
@@ -255,20 +255,20 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	if svcLB.IP != "" {
 		ipDa = net.ParseIP(svcLB.IP)
 		if ipDa == nil {
-			log.Errorf("Invalid ip %s for service %s", svcLB.IP, svcID)
+			klog.Errorf("Invalid ip %s for service %s", svcLB.IP, svcID)
 			return fmt.Errorf("invalid lb ip: %s", svcLB.IP)
 		}
 	}
 
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	if svcOvsCache.GetLBFlow(svcLB.IP, svcLB.Port.Name) != cache.UnexistFlowID {
-		log.Infof("The lb flow has been installed for service lb info %v, skip create it", *svcLB)
+		klog.Infof("The lb flow has been installed for service lb info %v, skip create it", *svcLB)
 		return nil
 	}
 
 	gpID, err := svcOvsCache.GetGroupAndCreateIfEmpty(svcLB.Port.Name, svcLB.TrafficPolicy, n.createEmptyGroup)
 	if err != nil {
-		log.Errorf("Failed to create a empty group for service %s, lbip: %s, portname: %s, traffic policy: %s, err: %s", svcID,
+		klog.Errorf("Failed to create a empty group for service %s, lbip: %s, portname: %s, traffic policy: %s, err: %s", svcID,
 			svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
 		return err
 	}
@@ -277,13 +277,13 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	if ipDa != nil {
 		lbFlow, err = n.newLBFlow(&ipDa, svcLB.Port.Protocol, svcLB.Port.Port)
 		if err != nil {
-			log.Errorf("Failed to new a lb flow for service %s, ip: %s, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
+			klog.Errorf("Failed to new a lb flow for service %s, ip: %s, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.IP, svcLB.Port.Name, svcLB.TrafficPolicy, err)
 			return err
 		}
 	} else {
 		lbFlow, err = n.newLBFlowForNodePort(svcLB.Port.Protocol, svcLB.Port.NodePort)
 		if err != nil {
-			log.Errorf("Failed to new a lb flow for service %s nodeport, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.Port.Name, svcLB.TrafficPolicy, err)
+			klog.Errorf("Failed to new a lb flow for service %s nodeport, portname: %s, traffic policy: %s, err: %s", svcID, svcLB.Port.Name, svcLB.TrafficPolicy, err)
 			return err
 		}
 	}
@@ -291,29 +291,29 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	if svcLB.TrafficPolicy == ertype.TrafficPolicyLocal && svcLB.IsExternal() {
 		ofRange := openflow13.NewNXRange(cniconst.SvcLocalPktMarkBit, cniconst.SvcLocalPktMarkBit)
 		if err := lbFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, ofRange); err != nil {
-			log.Errorf("Failed to setup set pkt mark for svc lb info %v with ExternalTrafficPolicy=Local flow load field action: %s", *svcLB, err)
+			klog.Errorf("Failed to setup set pkt mark for svc lb info %v with ExternalTrafficPolicy=Local flow load field action: %s", *svcLB, err)
 			return err
 		}
 	}
 	if err := lbFlow.SetGroup(gpID); err != nil {
-		log.Errorf("Failed to set group action to lb flow: %+v, err: %s", lbFlow, err)
+		klog.Errorf("Failed to set group action to lb flow: %+v, err: %s", lbFlow, err)
 		return err
 	}
 
 	if err := lbFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install lb flow: %+v, err: %s", lbFlow, err)
+		klog.Errorf("Failed to install lb flow: %+v, err: %s", lbFlow, err)
 		return err
 	}
 
 	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, lbFlow.FlowID)
-	log.Infof("Dp success to add lb flow for svclb %v", *svcLB)
+	klog.Infof("Dp success to add lb flow for svclb %v", *svcLB)
 	return nil
 }
 
 func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
 	svcID := svcLB.SvcID
 	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
-		log.Infof("Has no lb flow for svcID: %s", svcID)
+		klog.Infof("Has no lb flow for svcID: %s", svcID)
 		return nil
 	}
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
@@ -323,12 +323,12 @@ func (n *NatBridge) DelLBFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	if err := ofctrl.DeleteFlow(n.serviceLBTable, n.getFlowPriBySvcLB(svcLB), lbFlowID); err != nil {
-		log.Errorf("Failed to delete lb flow for svc lb info %v, err: %s", *svcLB, err)
+		klog.Errorf("Failed to delete lb flow for svc lb info %v, err: %s", *svcLB, err)
 		return err
 	}
 	svcOvsCache.SetLBFlow(svcLB.IP, svcLB.Port.Name, cache.UnexistFlowID)
 	n.svcIndexCache.TryCleanSvcOvsInfoCache(svcID)
-	log.Infof("Dp success delete lbflow for svclb %v", *svcLB)
+	klog.Infof("Dp success delete lbflow for svclb %v", *svcLB)
 	return nil
 }
 
@@ -344,14 +344,14 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 	if svcLB.IP != "" {
 		ipDa = net.ParseIP(svcLB.IP)
 		if ipDa == nil {
-			log.Errorf("Invalid ip %s for service %s", svcLB.IP, svcID)
+			klog.Errorf("Invalid ip %s for service %s", svcLB.IP, svcID)
 			return fmt.Errorf("invalid lb ip: %s", svcLB.IP)
 		}
 	}
 
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfoAndInitIfEmpty(svcID)
 	if svcOvsCache.GetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name) != cache.UnexistFlowID {
-		log.Infof("The session affinity flow has been installed for service lb info %v, skip create it", *svcLB)
+		klog.Infof("The session affinity flow has been installed for service lb info %v, skip create it", *svcLB)
 		return nil
 	}
 
@@ -359,19 +359,19 @@ func (n *NatBridge) AddSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 	var err error
 	sessionFlow, err = n.addSessionAffinityFlow(ipDa, svcLB)
 	if err != nil {
-		log.Errorf("Failed to add a session affinity flow for service lb info %v, err: %s", *svcLB, err)
+		klog.Errorf("Failed to add a session affinity flow for service lb info %v, err: %s", *svcLB, err)
 		return err
 	}
 
 	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, sessionFlow.FlowID)
-	log.Infof("Dp success to add sessionAffinity flow for svclb %v", *svcLB)
+	klog.Infof("Dp success to add sessionAffinity flow for svclb %v", *svcLB)
 	return nil
 }
 
 func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 	svcID := svcLB.SvcID
 	if n.svcIndexCache.GetSvcOvsInfo(svcID) == nil {
-		log.Infof("Has no lb flow for svcID: %s", svcID)
+		klog.Infof("Has no lb flow for svcID: %s", svcID)
 		return nil
 	}
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
@@ -380,12 +380,12 @@ func (n *NatBridge) DelSessionAffinityFlow(svcLB *proxycache.SvcLB) error {
 		return nil
 	}
 	if err := ofctrl.DeleteFlow(n.sessionAffinityLearnTable, n.getFlowPriBySvcLB(svcLB), sAFlowID); err != nil {
-		log.Errorf("Failed to delete service session affinity flow for lb info %v, err: %s", *svcLB, err)
+		klog.Errorf("Failed to delete service session affinity flow for lb info %v, err: %s", *svcLB, err)
 		return err
 	}
 	svcOvsCache.SetSessionAffinityFlow(svcLB.IP, svcLB.Port.Name, cache.UnexistFlowID)
 	n.svcIndexCache.TryCleanSvcOvsInfoCache(svcID)
-	log.Infof("Dp success to delete sessionAffinity flow for svclb %v", *svcLB)
+	klog.Infof("Dp success to delete sessionAffinity flow for svclb %v", *svcLB)
 	return nil
 }
 
@@ -394,12 +394,12 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 	var err error
 	gpID, err := svcOvsCache.GetGroupAndCreateIfEmpty(portName, tp, n.createEmptyGroup)
 	if err != nil {
-		log.Errorf("Failed to create a empty group for svc %s portname %s, err: %s", svcID, portName, err)
+		klog.Errorf("Failed to create a empty group for svc %s portname %s, err: %s", svcID, portName, err)
 		return err
 	}
 	gp := n.OfSwitch.GetGroup(gpID)
 	if gp == nil {
-		log.Errorf("Group with groupID %d is nil", gpID)
+		klog.Errorf("Group with groupID %d is nil", gpID)
 		return fmt.Errorf("group is nil")
 	}
 
@@ -407,7 +407,7 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 	for i := range backends {
 		b, err := newBucketForLBGroup(backends[i].IP, backends[i].Port)
 		if err != nil {
-			log.Errorf("Failed to new a bucket for service %s with backend %+v, err: %s", svcID, backends[i], err)
+			klog.Errorf("Failed to new a bucket for service %s with backend %+v, err: %s", svcID, backends[i], err)
 			return nil
 		}
 		buckets = append(buckets, b)
@@ -417,14 +417,14 @@ func (n *NatBridge) UpdateLBGroup(svcID, portName string, backends []everoutesvc
 	}
 	gp.ResetBuckets(buckets)
 
-	log.Infof("Dp success to update LB group for service %s port %s, backends: %+v", svcID, portName, backends)
+	klog.Infof("Dp success to update LB group for service %s port %s, backends: %+v", svcID, portName, backends)
 	return nil
 }
 
 func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
-		log.Infof("The Service %s has no related ovs group for port %s, skip", svcID, portName)
+		klog.Infof("The Service %s has no related ovs group for port %s, skip", svcID, portName)
 		return nil
 	}
 
@@ -434,18 +434,18 @@ func (n *NatBridge) ResetLBGroup(svcID, portName string) error {
 			continue
 		}
 		if err := n.UpdateLBGroup(svcID, portName, nil, tp); err != nil {
-			log.Errorf("Failed to reset svc %s lb group for port %s with traffic policy type %s, err: %s", svcID, portName, tp, err)
+			klog.Errorf("Failed to reset svc %s lb group for port %s with traffic policy type %s, err: %s", svcID, portName, tp, err)
 			return err
 		}
 	}
-	log.Infof("Dp success to reset LB group for service %s port %s", svcID, portName)
+	klog.Infof("Dp success to reset LB group for service %s port %s", svcID, portName)
 	return nil
 }
 
 func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	svcOvsCache := n.svcIndexCache.GetSvcOvsInfo(svcID)
 	if svcOvsCache == nil {
-		log.Infof("The Service %s has no related ovs group for port %s, skip delete group", svcID, portName)
+		klog.Infof("The Service %s has no related ovs group for port %s, skip delete group", svcID, portName)
 		return nil
 	}
 	for _, tp := range []ertype.TrafficPolicyType{ertype.TrafficPolicyCluster, ertype.TrafficPolicyLocal} {
@@ -455,25 +455,25 @@ func (n *NatBridge) DelLBGroup(svcID, portName string) error {
 	// when a group is deleted, the flow referenced it will be deleted automatically
 	svcOvsCache.DeleteLBFlowsByPortName(portName)
 	n.svcIndexCache.TryCleanSvcOvsInfoCache(svcID)
-	log.Infof("Success delete service %s ovs group related port %s", svcID, portName)
+	klog.Infof("Success delete service %s ovs group related port %s", svcID, portName)
 	return nil
 }
 
 func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32) error {
 	ipByte := net.ParseIP(ip)
 	if ipByte == nil {
-		log.Errorf("Invalid dnat ip %s", ip)
+		klog.Errorf("Invalid dnat ip %s", ip)
 		return fmt.Errorf("invalid dnat ip: %s", ip)
 	}
 	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
 	if f := n.svcIndexCache.GetDnatFlow(dnatKey); f != cache.UnexistFlowID {
-		log.Infof("The dnat flow has been exists, skip it. ip: %s, protocol: %s, port: %d, flow: %+v", ip, protocol, port, f)
+		klog.Infof("The dnat flow has been exists, skip it. ip: %s, protocol: %s, port: %d, flow: %+v", ip, protocol, port, f)
 		return nil
 	}
 
 	ipProtocol, err := k8sProtocolToOvsProtocol(protocol)
 	if err != nil {
-		log.Errorf("Transfer protocol failed: %s", err)
+		klog.Errorf("Transfer protocol failed: %s", err)
 		return err
 	}
 	regs := []*ofctrl.NXRegister{
@@ -494,48 +494,48 @@ func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32)
 		Regs:      regs,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
+		klog.Errorf("Failed to new a dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
 		return err
 	}
 
 	natAct, _ := ofctrl.NewDNatAction(ofctrl.NewIPRange(ipByte), ofctrl.NewPortRange(uint16(port))).ToOfAction()
 	ctAct, err := ofctrl.NewConntrackActionWithZoneField(true, false, &NatBrL3ForwardTable, CTZoneReg, CTZoneRange, natAct)
 	if err != nil {
-		log.Errorf("Failed to new a conntrack action for ip %s, protocol %s, port %d, err: %s", ip, protocol, port, err)
+		klog.Errorf("Failed to new a conntrack action for ip %s, protocol %s, port %d, err: %s", ip, protocol, port, err)
 		return err
 	}
 	_ = flow.SetConntrack(ctAct)
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
+		klog.Errorf("Failed to install dnat flow for ip %s protocol %s port %d, err: %s", ip, protocol, port, err)
 		return err
 	}
 
 	n.svcIndexCache.SetDnatFlow(dnatKey, flow.FlowID)
-	log.Infof("Success add a dnat flow %+v for ip %s protocol: %s port: %d", flow, ip, protocol, port)
+	klog.Infof("Success add a dnat flow %+v for ip %s protocol: %s port: %d", flow, ip, protocol, port)
 	return nil
 }
 
 func (n *NatBridge) DelDnatFlow(ip string, protocol corev1.Protocol, port int32) error {
 	ipByte := net.ParseIP(ip)
 	if ipByte == nil {
-		log.Errorf("Invalid dnat ip %s", ip)
+		klog.Errorf("Invalid dnat ip %s", ip)
 		return fmt.Errorf("invalid dnat ip: %s", ip)
 	}
 
 	dnatKey := cache.GenDnatMapKey(ip, string(protocol), port)
 	flowID := n.svcIndexCache.GetDnatFlow(dnatKey)
 	if flowID == cache.UnexistFlowID {
-		log.Infof("The dnat flow has been deleted, skip it. ip: %s, protocol: %s, port: %d", ip, protocol, port)
+		klog.Infof("The dnat flow has been deleted, skip it. ip: %s, protocol: %s, port: %d", ip, protocol, port)
 		return nil
 	}
 
 	if err := ofctrl.DeleteFlow(n.dnatTable, MID_MATCH_FLOW_PRIORITY, flowID); err != nil {
-		log.Errorf("Delete dnat flow for %s failed, err: %s", dnatKey, err)
+		klog.Errorf("Delete dnat flow for %s failed, err: %s", dnatKey, err)
 		return err
 	}
 
 	n.svcIndexCache.DeleteDnatFlow(dnatKey)
-	log.Infof("Success delete dnat flow for %s", dnatKey)
+	klog.Infof("Success delete dnat flow for %s", dnatKey)
 	return nil
 }
 
@@ -608,11 +608,11 @@ func (n *NatBridge) deleteGroup(gpID uint32) {
 func (n *NatBridge) createEmptyGroup() (*ofctrl.Group, error) {
 	newGp, err := n.newEmptyGroup()
 	if err != nil {
-		log.Errorf("Failed to new a empty group, err: %s", err)
+		klog.Errorf("Failed to new a empty group, err: %s", err)
 		return nil, err
 	}
 	if err := newGp.Install(); err != nil {
-		log.Errorf("Failed to install group: %+v, err: %s", *newGp, err)
+		klog.Errorf("Failed to install group: %+v, err: %s", *newGp, err)
 		return nil, err
 	}
 
@@ -633,17 +633,17 @@ func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
 	sw := n.OfSwitch
 	groupID := n.groupIDAllocator.Allocate()
 	if groupID == InvalidGroupID {
-		log.Error("Allocate a new group id failed, doesn't has available groupid")
+		klog.Error("Allocate a new group id failed, doesn't has available groupid")
 		return nil, fmt.Errorf("has no available groupid")
 	}
 	if err := n.updateMaxGroupID(groupID); err != nil {
-		log.Errorf("Failed to update maxGroupID to file, err: %s", err)
+		klog.Errorf("Failed to update maxGroupID to file, err: %s", err)
 		n.groupIDAllocator.Release(groupID)
 		return nil, err
 	}
 	newGp, err := sw.NewGroup(groupID, uint8(openflow13.OFPGT_SELECT))
 	if err != nil {
-		log.Errorf("Failed to new a group, err: %s", err)
+		klog.Errorf("Failed to new a group, err: %s", err)
 		return nil, err
 	}
 	return newGp, nil
@@ -655,15 +655,15 @@ func (n *NatBridge) initInputTable() error {
 		Ethertype: PROTOCOL_IP,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow match ip in Input table %d: %s", NatBrInputTable, err)
+		klog.Errorf("Failed to new a flow match ip in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 	if err = ipFlow.Resubmit(nil, &NatBrInPortTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow in Input table %d: %s", NatBrInputTable, err)
+		klog.Errorf("Failed to add resubmit action to flow in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 	if err = ipFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in Input table %d: %s", NatBrInputTable, err)
+		klog.Errorf("Failed to install flow in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 
@@ -671,11 +671,11 @@ func (n *NatBridge) initInputTable() error {
 		Priority: DEFAULT_DROP_FLOW_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in Input table %d: %s", NatBrInputTable, err)
+		klog.Errorf("Failed to new a flow in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 	if err = dropFlow.Next(n.OfSwitch.DropAction()); err != nil {
-		log.Errorf("Failed to install a default drop flow in Input table %d: %s", NatBrInputTable, err)
+		klog.Errorf("Failed to install a default drop flow in Input table %d: %s", NatBrInputTable, err)
 		return err
 	}
 	return nil
@@ -687,19 +687,19 @@ func (n *NatBridge) setCTZone(zone uint64, portType string) error {
 		InputPort: n.datapathManager.BridgeChainPortMap[n.ovsBrName][portType],
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in InPort table %d: %s", NatBrInPortTable, err)
+		klog.Errorf("Failed to new a flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
 	if err = flow.LoadField(CTZoneReg, zone, CTZoneRange); err != nil {
-		log.Errorf("Failed to add load action to flow in InPort table %d: %s", NatBrInPortTable, err)
+		klog.Errorf("Failed to add load action to flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
 	if err = flow.Resubmit(nil, &NatBrCTZoneTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow in InPort table %d: %s", NatBrInPortTable, err)
+		klog.Errorf("Failed to add resubmit action to flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in InPort table %d: %s", NatBrInPortTable, err)
+		klog.Errorf("Failed to install flow in InPort table %d: %s", NatBrInPortTable, err)
 		return err
 	}
 	return nil
@@ -725,17 +725,17 @@ func (n *NatBridge) initCTZoneTable() error {
 		Ethertype: PROTOCOL_IP,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in CTZone table %d: %s", NatBrCTZoneTable, err)
+		klog.Errorf("Failed to new a flow in CTZone table %d: %s", NatBrCTZoneTable, err)
 		return err
 	}
 	ctAct, err := ofctrl.NewConntrackActionWithZoneField(false, false, &NatBrCTStateTable, CTZoneReg, CTZoneRange)
 	if err != nil {
-		log.Errorf("Failed to new a ct action: %s", err)
+		klog.Errorf("Failed to new a ct action: %s", err)
 		return err
 	}
 	_ = flow.SetConntrack(ctAct)
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in CTZone table %d: %s", NatBrCTZoneTable, err)
+		klog.Errorf("Failed to install flow in CTZone table %d: %s", NatBrCTZoneTable, err)
 		return err
 	}
 	return nil
@@ -752,18 +752,18 @@ func (n *NatBridge) initCTStateTable() error {
 		CtStates:  ctState,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to new a flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	natAct, _ := ofctrl.NewNatAction().ToOfAction()
 	ctAct, err := ofctrl.NewConntrackActionWithZoneField(true, false, &NatBrL3ForwardTable, CTZoneReg, CTZoneRange, natAct)
 	if err != nil {
-		log.Errorf("Failed to new a ct action with nat: %s", err)
+		klog.Errorf("Failed to new a ct action with nat: %s", err)
 		return err
 	}
 	_ = trkFlow.SetConntrack(ctAct)
 	if err = trkFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 
@@ -777,19 +777,19 @@ func (n *NatBridge) initCTStateTable() error {
 		IpDaMask:  &svcMask,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to new a flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	if err := svcFlow.Resubmit(nil, &NatBrSessionAffinityTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to add a resubmit action to CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	if err := svcFlow.Resubmit(nil, &NatBrServiceLBTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to add a resubmit action to CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	if err := svcFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 
@@ -802,15 +802,15 @@ func (n *NatBridge) initCTStateTable() error {
 			PktMarkMask: &pktMask,
 		})
 		if err := svcPktFlow.Resubmit(nil, &NatBrSessionAffinityTable); err != nil {
-			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
+			klog.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
 			return err
 		}
 		if err := svcPktFlow.Resubmit(nil, &NatBrServiceLBTable); err != nil {
-			log.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
+			klog.Errorf("Failed to add a resubmit action for svc pkt mark flow to CTState table %d: %s", NatBrCTStateTable, err)
 			return err
 		}
 		if err := svcPktFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-			log.Errorf("Failed to install for svc pkt mark flow in CTState table %d: %s", NatBrCTStateTable, err)
+			klog.Errorf("Failed to install for svc pkt mark flow in CTState table %d: %s", NatBrCTStateTable, err)
 			return err
 		}
 	}
@@ -820,15 +820,15 @@ func (n *NatBridge) initCTStateTable() error {
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to new flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	if err := defaultFlow.Resubmit(nil, &NatBrOutputTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to add resubmit action to flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
+		klog.Errorf("Failed to install flow in CTState table %d: %s", NatBrCTStateTable, err)
 		return err
 	}
 
@@ -840,15 +840,15 @@ func (n *NatBridge) initSessionAffinityTable() error {
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
+		klog.Errorf("Failed to new a flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
 		return err
 	}
 	if err := defaultFlow.LoadField(ChooseBackendFlagReg, uint64(NeedChoose), ChooseBackendFlagRange); err != nil {
-		log.Errorf("Failed to add a load field action to flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
+		klog.Errorf("Failed to add a load field action to flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
 		return err
 	}
 	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
+		klog.Errorf("Failed to install flow in SessionAffinity table %d: %s", NatBrSessionAffinityTable, err)
 		return err
 	}
 	return nil
@@ -867,11 +867,11 @@ func (n *NatBridge) addNoNeedChooseEndpointTable(table *ofctrl.Table) error {
 	})
 	var err error
 	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add resubmit action to no need choose endpoint flow: %s", err)
+		klog.Errorf("Failed to add resubmit action to no need choose endpoint flow: %s", err)
 		return err
 	}
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install no need choose endpoint flow: %s", err)
+		klog.Errorf("Failed to install no need choose endpoint flow: %s", err)
 		return err
 	}
 	return nil
@@ -889,7 +889,7 @@ func (n *NatBridge) initSvcEmptyTable() error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
+		klog.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
 		return err
 	}
 	if err = defaultFlow.SendToController(ofctrl.NewControllerAction(n.OfSwitch.ControllerID, 0)); err != nil {
@@ -957,7 +957,7 @@ func (n *NatBridge) buildLearnActOfSessionAffinityLearnTable(ipProto uint8, lear
 			return nil, err
 		}
 	default:
-		log.Errorf("No support for this ip protocol number: %d", ipProto)
+		klog.Errorf("No support for this ip protocol number: %d", ipProto)
 		return nil, fmt.Errorf("unsupported ip protocol number %d", ipProto)
 	}
 
@@ -995,7 +995,7 @@ func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 			TcpDstPortMask: PortMaskMatchFullBit,
 		})
 		if err != nil {
-			log.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+			klog.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
 			return nil, err
 		}
 	case corev1.ProtocolUDP:
@@ -1010,11 +1010,11 @@ func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 			UdpDstPortMask: PortMaskMatchFullBit,
 		})
 		if err != nil {
-			log.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
+			klog.Errorf("Failed to new session affinity flow for ip %s protocol %s port %d: %s", dstIP, protocol, dstPort, err)
 			return nil, err
 		}
 	default:
-		log.Errorf("Unsupport service protocol %s", protocol)
+		klog.Errorf("Unsupport service protocol %s", protocol)
 		return nil, fmt.Errorf("unsupport service protocol %s", protocol)
 	}
 	return flow, nil
@@ -1038,7 +1038,7 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 			PktMarkMask:    &pktMask,
 		})
 		if err != nil {
-			log.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
+			klog.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
 			return nil, err
 		}
 	case corev1.ProtocolUDP:
@@ -1053,11 +1053,11 @@ func (n *NatBridge) newSessionAffinityFlowForNodePort(protocol corev1.Protocol, 
 			PktMarkMask:    &pktMask,
 		})
 		if err != nil {
-			log.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
+			klog.Errorf("Failed to new session affinity flow for protocol %s nodeport %d: %s", protocol, dstNodePort, err)
 			return nil, err
 		}
 	default:
-		log.Errorf("Unsupport service protocol %s", protocol)
+		klog.Errorf("Unsupport service protocol %s", protocol)
 		return nil, fmt.Errorf("unsupport service protocol %s", protocol)
 	}
 	return flow, nil
@@ -1074,7 +1074,7 @@ func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, svcLB *proxycache.SvcLB
 		flow, err = n.newSessionAffinityFlow(dstIP, svcLB.Port.Protocol, svcLB.Port.Port)
 	}
 	if err != nil {
-		log.Errorf("Failed to new session affinity flow for svclb %v, err: %s", *svcLB, err)
+		klog.Errorf("Failed to new session affinity flow for svclb %v, err: %s", *svcLB, err)
 		return nil, err
 	}
 
@@ -1085,19 +1085,19 @@ func (n *NatBridge) addSessionAffinityFlow(dstIP net.IP, svcLB *proxycache.SvcLB
 
 	learnAct, err := n.buildLearnActOfSessionAffinityLearnTable(ipProto, svcLB.SessionAffinityTimeout, isNP)
 	if err != nil {
-		log.Errorf("Failed to build a learn action: %s", err)
+		klog.Errorf("Failed to build a learn action: %s", err)
 		return nil, err
 	}
 	if err = flow.Learn(learnAct); err != nil {
-		log.Errorf("Failed to add learn action to session affinity flow for svclb %v: %s", *svcLB, err)
+		klog.Errorf("Failed to add learn action to session affinity flow for svclb %v: %s", *svcLB, err)
 		return nil, err
 	}
 	if err = flow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to session affinity flow for for svclb %v: %s", *svcLB, err)
+		klog.Errorf("Failed to add a resubmit action to session affinity flow for for svclb %v: %s", *svcLB, err)
 		return nil, err
 	}
 	if err = flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install session affinity flow %+v for for svclb %v: %s", flow, *svcLB, err)
+		klog.Errorf("Failed to install session affinity flow %+v for for svclb %v: %s", flow, *svcLB, err)
 		return nil, err
 	}
 
@@ -1109,15 +1109,15 @@ func (n *NatBridge) initSessionAffinityLearnTable() error {
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new default flow SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+		klog.Errorf("Failed to new default flow SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
 		return err
 	}
 	if err := defaultFlow.Resubmit(nil, &NatBrDnatTable); err != nil {
-		log.Errorf("Failed to add a resubmit action to default flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+		klog.Errorf("Failed to add a resubmit action to default flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
 		return err
 	}
 	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
+		klog.Errorf("Failed to install flow in SessionAffinityLearn table %d: %s", NatBrSessionAffinityLearnTable, err)
 		return err
 	}
 	return nil
@@ -1128,15 +1128,15 @@ func (n *NatBridge) initL3ForwardTable() error {
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
+		klog.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
 		return err
 	}
 	if err := defaultFlow.Resubmit(nil, &NatBrOutputTable); err != nil {
-		log.Errorf("Failed to add resubmit action to flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
+		klog.Errorf("Failed to add resubmit action to flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
 		return err
 	}
 	if err := defaultFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
+		klog.Errorf("Failed to install flow in L3Forward table %d: %s", NatBrL3ForwardTable, err)
 		return err
 	}
 
@@ -1148,16 +1148,16 @@ func (n *NatBridge) initOutputTable() error {
 		Priority: NORMAL_MATCH_FLOW_PRIORITY,
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
+		klog.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
 		return err
 	}
 	outputPort, err := n.OfSwitch.OutputPort(openflow13.P_IN_PORT)
 	if err != nil {
-		log.Errorf("Failed to make outputPort: %s", err)
+		klog.Errorf("Failed to make outputPort: %s", err)
 		return err
 	}
 	if err := defaultFlow.Next(outputPort); err != nil {
-		log.Errorf("Failed to install flow in L3Forward table %d: %s", NatBrOutputTable, err)
+		klog.Errorf("Failed to install flow in L3Forward table %d: %s", NatBrOutputTable, err)
 		return err
 	}
 
@@ -1176,12 +1176,12 @@ func (n *NatBridge) initGroupIDConfig() error {
 	defer n.iterLock.Unlock()
 	gpIDs, err := n.getGroupIDInfo()
 	if err != nil {
-		log.Errorf("Failed to get GroupIDInfo: %s", err)
+		klog.Errorf("Failed to get GroupIDInfo: %s", err)
 		return err
 	}
 	nextIter := gpIDs.GetNextIter()
 	if nextIter > cniconst.MaxGroupIter || gpIDs.TooManyGroups() {
-		log.Infof("No available groupid iter or there is too many groups to be deleted, so delete all groups for bridge %s", n.GetName())
+		klog.Infof("No available groupid iter or there is too many groups to be deleted, so delete all groups for bridge %s", n.GetName())
 		// no available groupid iter
 		_ = ofctrl.DeleteGroup(n.OfSwitch, openflow13.OFPG_ALL)
 		nextIter = 0
@@ -1190,7 +1190,7 @@ func (n *NatBridge) initGroupIDConfig() error {
 		newGpIDs := &GroupIDInfo{Exists: make(map[uint32]uint32)}
 		newGpIDs.Exists[nextIter] = n.curMaxGroupID
 		if err := SetGroupIDInfo(n.GetName(), newGpIDs); err != nil {
-			log.Errorf("Failed to write new groupid info to file, err: %s", err)
+			klog.Errorf("Failed to write new groupid info to file, err: %s", err)
 			return err
 		}
 		return nil
@@ -1204,7 +1204,7 @@ func (n *NatBridge) initGroupIDConfig() error {
 	}
 	newGpIDs.Exists[nextIter] = n.curMaxGroupID
 	if err := SetGroupIDInfo(n.GetName(), newGpIDs); err != nil {
-		log.Errorf("Failed to write new groupid info to file, err: %s", err)
+		klog.Errorf("Failed to write new groupid info to file, err: %s", err)
 		return err
 	}
 	go n.cleanStaleGroupIDs(gpIDs, n.groupIDAllocator.GetIter())
@@ -1235,7 +1235,7 @@ func (n *NatBridge) cleanStaleGroupIDsByIter(curIter, delIter uint32) bool {
 
 	gpIDs, err := n.getGroupIDInfo()
 	if err != nil {
-		log.Errorf("Can't clean groupids by iter %d, failed to get GroupIDInfo: %s", delIter, err)
+		klog.Errorf("Can't clean groupids by iter %d, failed to get GroupIDInfo: %s", delIter, err)
 		return false
 	}
 	if gpIDs == nil || gpIDs.Exists == nil {
@@ -1245,12 +1245,12 @@ func (n *NatBridge) cleanStaleGroupIDsByIter(curIter, delIter uint32) bool {
 	if !ok {
 		return false
 	}
-	log.Infof("Bridge %s begin to delete group for iter %d", n.GetName(), delIter)
+	klog.Infof("Bridge %s begin to delete group for iter %d", n.GetName(), delIter)
 	start := delIter<<(32-cniconst.BitWidthGroupIter) + 1
 	for curGp := start; curGp <= end; curGp++ {
 		_ = ofctrl.DeleteGroup(n.OfSwitch, curGp)
 	}
-	log.Infof("Bridge %s end to delete group for iter %d", n.GetName(), delIter)
+	klog.Infof("Bridge %s end to delete group for iter %d", n.GetName(), delIter)
 	n.deleteIterFromFile(delIter)
 	return false
 }
@@ -1267,24 +1267,24 @@ func (n *NatBridge) deleteIterFromFile(iter uint32) {
 	defer n.groupIDFileLock.Unlock()
 	gpIDs, err := GetGroupIDInfo(n.GetName())
 	if err != nil {
-		log.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't delete iter %d", n.GetName(), err, iter)
+		klog.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't delete iter %d", n.GetName(), err, iter)
 		return
 	}
 	if gpIDs == nil || gpIDs.Exists == nil {
-		log.Warnf("Bridge %s exists groupIDs is nil, don't need to delete iter %d", n.GetName(), iter)
+		klog.Warnf("Bridge %s exists groupIDs is nil, don't need to delete iter %d", n.GetName(), iter)
 		return
 	}
 	if _, ok := gpIDs.Exists[iter]; !ok {
-		log.Warnf("Bridge %s exists groupIDs has no iter %d", n.GetName(), iter)
+		klog.Warnf("Bridge %s exists groupIDs has no iter %d", n.GetName(), iter)
 		return
 	}
 	delete(gpIDs.Exists, iter)
 	err = SetGroupIDInfo(n.GetName(), gpIDs)
 	if err != nil {
-		log.Errorf("Bridge %s failed to delete iter %d from file, err: %s", n.GetName(), iter, err)
+		klog.Errorf("Bridge %s failed to delete iter %d from file, err: %s", n.GetName(), iter, err)
 		return
 	}
-	log.Infof("Bridge %s success to delete groupid for iter %d from file", n.GetName(), iter)
+	klog.Infof("Bridge %s success to delete groupid for iter %d from file", n.GetName(), iter)
 }
 
 func (n *NatBridge) updateMaxGroupID(curGpID uint32) error {
@@ -1302,7 +1302,7 @@ func (n *NatBridge) updateMaxGroupID(curGpID uint32) error {
 	curIter := n.groupIDAllocator.GetIter()
 	gpIDs, err := GetGroupIDInfo(n.GetName())
 	if err != nil {
-		log.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't update maxGroupID to %d for iter %d", n.GetName(), err, newMax, curIter)
+		klog.Errorf("Bridge %s failed to get GroupIDInfo from file: %s, can't update maxGroupID to %d for iter %d", n.GetName(), err, newMax, curIter)
 		return err
 	}
 
@@ -1312,11 +1312,11 @@ func (n *NatBridge) updateMaxGroupID(curGpID uint32) error {
 	gpIDs.Exists[curIter] = newMax
 	err = SetGroupIDInfo(n.GetName(), gpIDs)
 	if err != nil {
-		log.Errorf("Bridge %s failed to update maxGroupID to %d for iter %d, err: %s", n.GetName(), newMax, curIter, err)
+		klog.Errorf("Bridge %s failed to update maxGroupID to %d for iter %d, err: %s", n.GetName(), newMax, curIter, err)
 		return err
 	}
 	n.curMaxGroupID = newMax
-	log.Infof("Bridge %s success to update maxGroupID to %d for iter %d", n.GetName(), newMax, curIter)
+	klog.Infof("Bridge %s success to update maxGroupID to %d for iter %d", n.GetName(), newMax, curIter)
 	return nil
 }
 
@@ -1324,19 +1324,19 @@ func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
 	bucket := ofctrl.NewBucket(SelectGroupWeight)
 	ipByte := net.ParseIP(ip)
 	if ipByte == nil {
-		log.Errorf("Invalid backend ip %s", ip)
+		klog.Errorf("Invalid backend ip %s", ip)
 		return nil, fmt.Errorf("invalid backend ip: %s", ip)
 	}
 	act1, err := ofctrl.NewNXLoadAction(BackendIPReg, ipv4ToUint64(ipByte), BackendIPRange)
 	if err != nil {
-		log.Errorf("Failed to new a NXLoadAction for backend ip %s, err: %s", ip, err)
+		klog.Errorf("Failed to new a NXLoadAction for backend ip %s, err: %s", ip, err)
 		return nil, err
 	}
 	bucket.AddAction(act1)
 
 	act2, err := ofctrl.NewNXLoadAction(BackendPortReg, uint64(port), BackendPortRange)
 	if err != nil {
-		log.Errorf("Failed to new a NXLoadAction for backend port %d, err: %s", port, err)
+		klog.Errorf("Failed to new a NXLoadAction for backend port %d, err: %s", port, err)
 		return nil, err
 	}
 	bucket.AddAction(act2)
@@ -1390,6 +1390,6 @@ inport_check:
 	}
 	pktOut.Header.ICMPHeader.Data = originData
 	if err := ofctrl.SendPacket(n.OfSwitch, pktOut); err != nil {
-		log.Errorf("failed to send pkt %+v, err = %s", newPkt, err)
+		klog.Errorf("failed to send pkt %+v, err = %s", newPkt, err)
 	}
 }

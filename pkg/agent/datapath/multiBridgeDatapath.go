@@ -36,7 +36,6 @@ import (
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	cmap "github.com/orcaman/concurrent-map"
-	log "github.com/sirupsen/logrus"
 	lock "github.com/viney-shih/go-lock"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -44,7 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -490,9 +489,9 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 
 			go func() {
 				for range datapathManager.BridgeChainMap[vdsID][bridgeKeyword].DisconnectedNotify() {
-					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
+					klog.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
 					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
-						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
+						klog.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
 				}
 			}()
@@ -620,16 +619,16 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 		},
 	}
 	if err := natDriver.UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
 	}
 
 	natToLocalOfPort, err := natDriver.GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToLocalSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get natToLocalOfPort ovs ovsbrname %v, error: %v", natBr.GetName(), err)
+		klog.Fatalf("Failed to get natToLocalOfPort ovs ovsbrname %v, error: %v", natBr.GetName(), err)
 	}
 	localToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToNatSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get localToNatOfPort ovs ovsbrname %v, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get localToNatOfPort ovs ovsbrname %v, error: %v", ovsbrname, err)
 	}
 
 	datapathManager.DpManagerMutex.Lock()
@@ -650,11 +649,11 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 func setPortMapForKubeProxyReplace(datapathManager *DpManager, vdsID, ovsbrname string) {
 	natToUplinkOfPort, err := datapathManager.OvsdbDriverMap[vdsID][NAT_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToUplinkSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get natToUplinkOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+		klog.Fatalf("Failed to get natToUplinkOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
 	}
 	uplinkToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToNatSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get UplinkToNatOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+		klog.Fatalf("Failed to get UplinkToNatOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
 	}
 
 	datapathManager.DpManagerMutex.Lock()
@@ -720,42 +719,42 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 		},
 	}
 	if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
 	}
 
 	portMap := make(map[string]uint32)
 	localToPolicyOfPort, err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToPolicySuffix))
 	if err != nil {
-		log.Fatalf("Failed to get localToPolicyOfPort of ovsbrname %v, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get localToPolicyOfPort of ovsbrname %v, error: %v", ovsbrname, err)
 	}
 	policyToLocalOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-policy-%s", ovsbrname, PolicyToLocalSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get policyToLocalOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get policyToLocalOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
 	}
 	policyToClsOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-policy-%s", ovsbrname, PolicyToClsSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get policyToClsOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get policyToClsOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
 	}
 	clsToPolicyOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-cls-%s", ovsbrname, ClsToPolicySuffix))
 	if err != nil {
-		log.Fatalf("Failed to get clsToPolicyOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get clsToPolicyOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
 	}
 	clsToUplinkOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-cls-%s", ovsbrname, ClsToUplinkSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
 	}
 	uplinkToClsOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToClsSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
 	}
 	portMap[LocalToPolicySuffix] = localToPolicyOfPort
 	portMap[PolicyToLocalSuffix] = policyToLocalOfPort
@@ -774,7 +773,7 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, stopChan <-chan struct{}) {
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
-		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
+		klog.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
@@ -797,12 +796,12 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[ovsbrName][portSuffix] == 0 {
-			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
+			klog.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(),
 			int(datapathManager.BridgeChainPortMap[ovsbrName][portSuffix])); err != nil {
-			log.Fatalf("Failed to set %s port with no flood port mode, %v", portSuffix, err)
+			klog.Fatalf("Failed to set %s port with no flood port mode, %v", portSuffix, err)
 		}
 	}
 
@@ -820,7 +819,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 
 		err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 		if err != nil {
-			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
+			klog.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 		}
 	}(vdsID)
 }
@@ -880,7 +879,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword
 	// reset port no flood
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[bridgeName][portSuffix] == 0 {
-			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
+			klog.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(),
@@ -1044,7 +1043,7 @@ func (datapathManager *DpManager) WaitForBridgeConnected() {
 		}
 	}
 
-	log.Fatalf("bridge chain Failed to connect")
+	klog.Fatalf("bridge chain Failed to connect")
 }
 
 func (datapathManager *DpManager) IsBridgesConnected() bool {
@@ -1098,7 +1097,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceUUID); ep != nil {
-				log.Errorf("Already added local endpoint: %v", ep)
+				klog.Errorf("Already added local endpoint: %v", ep)
 				return nil
 			}
 
@@ -1213,19 +1212,19 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	if ruleEntry != nil {
 		if RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
 			ruleEntry.PolicyRuleReference.Insert(ruleName)
-			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.EveroutePolicyRule)
+			klog.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.EveroutePolicyRule)
 			return datapathManager.Rules.Update(ruleEntry)
 		}
-		log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
+		klog.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
 	}
 
-	log.Infof("Received AddRule: %+v", rule)
+	klog.Infof("Received AddRule: %+v", rule)
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier, mode)
 		if err != nil {
-			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
+			klog.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry
@@ -1255,11 +1254,11 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	log.Infof("Received remove rule: %+v", ruleName)
+	klog.Infof("Received remove rule: %+v", ruleName)
 
 	pRule := datapathManager.GetRuleEntryByRuleID(ruleID).Clone()
 	if pRule == nil {
-		log.Errorf("ruleID %v not found when deleting", ruleID)
+		klog.Errorf("ruleID %v not found when deleting", ruleID)
 		return nil
 	}
 
@@ -1272,7 +1271,7 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleNa
 	for vdsID := range datapathManager.BridgeChainMap {
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
-			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", ruleID, err)
+			klog.Errorf("Failed to delete flow for rule: %+v. Err: %v", ruleID, err)
 			return err
 		}
 	}
@@ -1335,13 +1334,13 @@ func (datapathManager *DpManager) addIntenalIP(ip string, index int) {
 	err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(ip),
 		InternalIngressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 	if err != nil {
-		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
 	// add internal egress rule
 	err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(ip),
 		InternalEgressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 	if err != nil {
-		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
 }
 
@@ -1350,12 +1349,12 @@ func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 	// del internal ingress rule
 	err := datapathManager.RemoveEveroutePolicyRule(newInternalIngressRule(ip).RuleID, InternalIngressRulePrefix+ruleNameSuffix)
 	if err != nil {
-		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}
 	// del internal egress rule
 	err = datapathManager.RemoveEveroutePolicyRule(newInternalEgressRule(ip).RuleID, InternalEgressRulePrefix+ruleNameSuffix)
 	if err != nil {
-		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}
 }
 
@@ -1561,7 +1560,7 @@ func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
 	}
 
 	if len(externalIds) == 0 {
-		log.Infof("Bridge's external-ids are empty")
+		klog.Infof("Bridge's external-ids are empty")
 		return &RoundInfo{
 			curRoundNum: uint64(1),
 		}, nil
@@ -1569,7 +1568,7 @@ func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
 
 	roundNum, exists := externalIds[datapathRestartRound]
 	if !exists {
-		log.Infof("Bridge's external-ids don't contain ofnetRestartRound field")
+		klog.Infof("Bridge's external-ids don't contain ofnetRestartRound field")
 		return &RoundInfo{
 			curRoundNum: uint64(1),
 		}, nil
@@ -1609,7 +1608,7 @@ func ParseIPAddrMaskString(ipAddr string) (*net.IP, *net.IP, error) {
 	if strings.Contains(ipAddr, "/") {
 		ipDav, ipNet, err := net.ParseCIDR(ipAddr)
 		if err != nil {
-			log.Errorf("Error parsing ip %s. Err: %v", ipAddr, err)
+			klog.Errorf("Error parsing ip %s. Err: %v", ipAddr, err)
 			return nil, nil, err
 		}
 

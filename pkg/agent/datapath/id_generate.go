@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/contiv/ofnet/ofctrl/cookie"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 )
 
 const InvalidGroupID uint32 = 0
@@ -39,7 +39,7 @@ var learnCookieID = &idGenerate{}
 func getLearnCookieID() (uint64, error) {
 	id := learnCookieID.ascendUint64()
 	if id >= (uint64(1) << cookie.BitWidthFlowId) {
-		log.Error("No enough avalible cookie id")
+		klog.Error("No enough avalible cookie id")
 		return 0, errors.New("no enough avalible cookie id")
 	}
 	return id, nil

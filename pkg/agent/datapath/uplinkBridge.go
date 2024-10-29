@@ -21,7 +21,7 @@ import (
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 )
 
 type UplinkBridge struct {
@@ -58,7 +58,7 @@ func (u *UplinkBridge) BridgeInit() {
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
 	if err := defaultTableDefaultFlow.Next(sw.NormalLookup()); err != nil {
-		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
+		klog.Fatalf("failed to install uplink default table default flow, error: %v", err)
 	}
 }
 

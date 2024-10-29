@@ -24,7 +24,7 @@ import (
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -265,13 +265,13 @@ func (c *ClsBridge) BridgeInit() {
 	c.clsBridgeOutputTable, _ = sw.NewTable(CLSBRIDGE_OUTPUT_TABLE_ID)
 
 	if err := c.initLearningTable(sw); err != nil {
-		log.Fatalf("Failed to init cls bridge learning table, error: %v", err)
+		klog.Fatalf("Failed to init cls bridge learning table, error: %v", err)
 	}
 	if err := c.initForwardingTable(); err != nil {
-		log.Fatalf("Failed to init cls bridge forwarding table, error: %v", err)
+		klog.Fatalf("Failed to init cls bridge forwarding table, error: %v", err)
 	}
 	if err := c.initOutputTable(sw); err != nil {
-		log.Fatalf("Failed to init cls bridge output table, error: %v", err)
+		klog.Fatalf("Failed to init cls bridge output table, error: %v", err)
 	}
 }
 
@@ -321,6 +321,6 @@ func (c *ClsBridge) BridgeInitCNI() {
 	})
 	outputPort, _ := c.OfSwitch.OutputPort(uint32(openflow13.P_IN_PORT))
 	if err := hairpinFlow.Next(outputPort); err != nil {
-		log.Fatalf("failed to install cls flow for cni hairpin traffic, error: %v", err)
+		klog.Fatalf("failed to install cls flow for cni hairpin traffic, error: %v", err)
 	}
 }

@@ -6,7 +6,7 @@ import (
 
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -54,7 +54,7 @@ type LocalBridgeOverlay struct {
 
 func newLocalBridgeOverlay(brName string, datapathManager *DpManager) *LocalBridgeOverlay {
 	if !datapathManager.IsEnableOverlay() {
-		log.Fatalf("Can't new overlay local bridge when disable overlay")
+		klog.Fatalf("Can't new overlay local bridge when disable overlay")
 	}
 
 	localBridge := &LocalBridgeOverlay{}
@@ -91,31 +91,31 @@ func (l *LocalBridgeOverlay) BridgeInitCNI() {
 	l.outputTable, _ = sw.NewTable(LBOOutputTable)
 
 	if err := l.initInputTable(); err != nil {
-		log.Fatalf("Failed to init input table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init input table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initArpProxytable(); err != nil {
-		log.Fatalf("Failed to init arp proxy table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init arp proxy table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initInPortTable(); err != nil {
-		log.Fatalf("Failed to init in port table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init in port table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initFromNatTable(); err != nil {
-		log.Fatalf("Failed to init from nat table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init from nat table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initFromPolicyTable(); err != nil {
-		log.Fatalf("Failed to init from policy table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init from policy table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initFromLocalTable(); err != nil {
-		log.Fatalf("Failed to init from local table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init from local table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initForwardToLocalTable(); err != nil {
-		log.Fatalf("Failed to init forward to local table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init forward to local table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initPaddingL2table(); err != nil {
-		log.Fatalf("Failed to init padding l2 table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init padding l2 table of local bridge overlay, err: %v", err)
 	}
 	if err := l.initOutputTable(); err != nil {
-		log.Fatalf("Failed to init output table of local bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init output table of local bridge overlay, err: %v", err)
 	}
 }
 
@@ -124,22 +124,22 @@ func (l *LocalBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 	if l.localEpFlowMap[endpoint.InterfaceUUID] != nil {
-		log.Infof("Local bridge overlay, the endpoint %+v related flow in forward to local table has been installed, skip add again", endpoint)
+		klog.Infof("Local bridge overlay, the endpoint %+v related flow in forward to local table has been installed, skip add again", endpoint)
 		return nil
 	}
 	macAddr, err := net.ParseMAC(endpoint.MacAddrStr)
 	if err != nil {
-		log.Errorf("The endpoint %+v has invalid mac addr, err: %s", endpoint, err)
+		klog.Errorf("The endpoint %+v has invalid mac addr, err: %s", endpoint, err)
 		return err
 	}
 
 	if endpoint.IPAddr == nil {
-		log.Infof("The endpoint %+v IPAddr is empty, skip add flow to forward to local table for local bridge overlay", endpoint)
+		klog.Infof("The endpoint %+v IPAddr is empty, skip add flow to forward to local table for local bridge overlay", endpoint)
 		return nil
 	}
 
 	if endpoint.IPAddr.To4() == nil {
-		log.Errorf("Failed to add flow to forward to local table for local bridge overlay: the endpoint %+v IPAddr is not valid ipv4", endpoint)
+		klog.Errorf("Failed to add flow to forward to local table for local bridge overlay: the endpoint %+v IPAddr is not valid ipv4", endpoint)
 		return fmt.Errorf("the endpoint %+v IPAddr is not valid ipv4", endpoint)
 	}
 
@@ -149,23 +149,23 @@ func (l *LocalBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
 		IpDa:      &endpoint.IPAddr,
 	})
 	if err := flow.SetMacDa(macAddr); err != nil {
-		log.Errorf("Failed to setup forward to local table flow set dst mac action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to setup forward to local table flow set dst mac action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	if err := flow.LoadField(LBOOutputPortReg, uint64(endpoint.PortNo), LBOOutputPortRange); err != nil {
-		log.Errorf("Failed to setup forward to local table flow load field action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to setup forward to local table flow load field action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	if err := flow.Resubmit(nil, &LBOPaddingL2Table); err != nil {
-		log.Errorf("Failed to setup forward to local table flow resubmit action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to setup forward to local table flow resubmit action in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install forward to local table flow in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to install forward to local table flow in local bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	l.localEpFlowMap[endpoint.InterfaceUUID] = flow
-	log.Infof("Local bridge overlay, success to add local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	klog.Infof("Local bridge overlay, success to add local endpoint flow in forward to local table, endpoint: %+v", endpoint)
 	return nil
 }
 
@@ -178,11 +178,11 @@ func (l *LocalBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 	if err := delFlow.Delete(); err != nil {
-		log.Errorf("Failed to delete local endpoint flow in forward to local table, endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to delete local endpoint flow in forward to local table, endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	delete(l.localEpFlowMap, endpoint.InterfaceUUID)
-	log.Infof("Local bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	klog.Infof("Local bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
 	return nil
 }
 
@@ -193,14 +193,14 @@ func (l *LocalBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
 
 	_, subnet, err := net.ParseCIDR(subnetStr)
 	if err != nil {
-		log.Errorf("Parse subnet %s failed: %v", subnetStr, err)
+		klog.Errorf("Parse subnet %s failed: %v", subnetStr, err)
 		return err
 	}
 
 	inportOutput, _ := l.OfSwitch.OutputPort(openflow.P_IN_PORT)
 	f, err := setupArpProxyFlow(l.arpProxyTable, subnet, inportOutput)
 	if err != nil {
-		log.Errorf("Failed to setup arp proxy flow for subnet %v, err: %v", *subnet, err)
+		klog.Errorf("Failed to setup arp proxy flow for subnet %v, err: %v", *subnet, err)
 		return err
 	}
 	l.arpFlowMap[subnetStr] = f
@@ -216,7 +216,7 @@ func (l *LocalBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
 
 	if f != nil {
 		if err := f.Delete(); err != nil {
-			log.Errorf("Failed to delete arp proxy flow for subnet %v, err: %v", subnetStr, err)
+			klog.Errorf("Failed to delete arp proxy flow for subnet %v, err: %v", subnetStr, err)
 			return err
 		}
 	}
@@ -231,14 +231,14 @@ func (l *LocalBridgeOverlay) AddIPPoolGW(gw string) error {
 
 	ip := net.ParseIP(gw)
 	if ip == nil {
-		log.Errorf("Failed to parse ippool gateway ip %s", gw)
+		klog.Errorf("Failed to parse ippool gateway ip %s", gw)
 		return fmt.Errorf("invalid ippool gateway ip %s", gw)
 	}
 
 	inportOutput, _ := l.OfSwitch.OutputPort(openflow.P_IN_PORT)
 	f, err := setupIcmpProxyFlow(l.inPortTable, &ip, inportOutput)
 	if err != nil {
-		log.Errorf("Failed to setup icmp reply flow for ippool gateway %s: %v", gw, err)
+		klog.Errorf("Failed to setup icmp reply flow for ippool gateway %s: %v", gw, err)
 		return err
 	}
 
@@ -254,7 +254,7 @@ func (l *LocalBridgeOverlay) DelIPPoolGW(gw string) error {
 
 	if f != nil {
 		if err := f.Delete(); err != nil {
-			log.Errorf("Failed to delete icmp reply flow for ippool gateway %s: %v", gw, err)
+			klog.Errorf("Failed to delete icmp reply flow for ippool gateway %s: %v", gw, err)
 			return err
 		}
 	}

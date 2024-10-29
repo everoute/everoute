@@ -6,7 +6,7 @@ import (
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 )
 
 type BaseBridge struct {
@@ -38,7 +38,7 @@ func (b *BaseBridge) GetName() string {
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	b.switchStatusMutex.Lock()
-	log.Infof("Switch %s connected", b.name)
+	klog.Infof("Switch %s connected", b.name)
 	b.OfSwitch = sw
 	b.isSwitchConnected = true
 	b.switchStatusMutex.Unlock()
@@ -46,7 +46,7 @@ func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 
 func (b *BaseBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	b.switchStatusMutex.Lock()
-	log.Infof("Switch %s disconnected", b.name)
+	klog.Infof("Switch %s disconnected", b.name)
 	b.isSwitchConnected = false
 	select {
 	case b.getDisconnectChan() <- struct{}{}:
@@ -77,7 +77,7 @@ func (b *BaseBridge) WaitForSwitchConnection() {
 		b.switchStatusMutex.Unlock()
 	}
 
-	log.Fatalf("OVS switch %s Failed to connect", b.name)
+	klog.Fatalf("OVS switch %s Failed to connect", b.name)
 }
 
 func (b *BaseBridge) BridgeInit() {}

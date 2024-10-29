@@ -26,7 +26,7 @@ import (
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -123,12 +123,12 @@ func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 				inPortFld = *t
 				l.processArp(pkt.Data, inPortFld.InPort)
 			default:
-				log.Errorf("error inport filed")
+				klog.Errorf("error inport filed")
 			}
 		}
 
 	case protocol.IPv4_MSG: // other type of packet that must processing by controller
-		log.Errorf("controller received non arp packet error.")
+		klog.Errorf("controller received non arp packet error.")
 		return
 	}
 }
@@ -156,7 +156,7 @@ func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 		default: // Non-block when arpChan is full
 		}
 	default:
-		log.Infof("error pkt type")
+		klog.Infof("error pkt type")
 	}
 }
 
@@ -284,28 +284,28 @@ func (l *LocalBridge) BridgeInit() {
 	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
 
 	if err := l.initVlanInputTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
 	}
 	if err := l.initVlanFilterTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge vlanFilter table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge vlanFilter table, error: %v", err)
 	}
 	if err := l.initL2ForwardingTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge l2 forwarding table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge l2 forwarding table, error: %v", err)
 	}
 	if err := l.initFromLocalL2LearningTable(); err != nil {
-		log.Fatalf("Failed to init local bridge l2 learning table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge l2 learning table, error: %v", err)
 	}
 	if err := l.initFromLocalRedirectTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 	}
 	if err := l.initFromLocalArpPassTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge from local arp pass table, error: %v", err)
+		klog.Fatalf("Failed to init local bridge from local arp pass table, error: %v", err)
 	}
 
 	if l.datapathManager.Config.EnableIPLearning {
 		l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
 		if err := l.initFromLocalArpSendToCtrlTable(sw); err != nil {
-			log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
+			klog.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 		}
 	}
 }
@@ -320,13 +320,13 @@ func (l *LocalBridge) BridgeInitCNI() {
 
 	if l.datapathManager.IsEnableProxy() {
 		if err := l.initCniProxyRelatedFlow(sw); err != nil {
-			log.Fatalf("Failed to init cni proxy related flows, err: %v", err)
+			klog.Fatalf("Failed to init cni proxy related flows, err: %v", err)
 		}
 		return
 	}
 
 	if err := l.initCniRelatedFlow(sw); err != nil {
-		log.Fatalf("Failed to init cni related flows, error: %v", err)
+		klog.Fatalf("Failed to init cni related flows, error: %v", err)
 	}
 }
 
@@ -552,7 +552,7 @@ func (l *LocalBridge) initCniRelatedFlow(sw *ofctrl.OFSwitch) error {
 func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 	toNatOutput, err := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix])
 	if err != nil {
-		log.Errorf("Failed to make localToNat outputPort: %s", err)
+		klog.Errorf("Failed to make localToNat outputPort: %s", err)
 		return err
 	}
 
@@ -563,17 +563,17 @@ func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		IpDaMask:  (*net.IP)(&l.datapathManager.Info.ClusterCIDR.Mask),
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in table %d, err: %s", FROM_LOCAL_REDIRECT_TABLE, err)
+		klog.Errorf("Failed to new a flow in table %d, err: %s", FROM_LOCAL_REDIRECT_TABLE, err)
 		return err
 	}
 	err = localToNatFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, InternalSvcPktMarkRange)
 	if err != nil {
-		log.Errorf("Failed to add a load pkt mark action to flow, err: %s", err)
+		klog.Errorf("Failed to add a load pkt mark action to flow, err: %s", err)
 		return err
 	}
 	err = localToNatFlow.Next(toNatOutput)
 	if err != nil {
-		log.Errorf("Failed to install local to nat flow %+v: %s", localToNatFlow, err)
+		klog.Errorf("Failed to install local to nat flow %+v: %s", localToNatFlow, err)
 		return err
 	}
 
@@ -583,12 +583,12 @@ func (l *LocalBridge) initToNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
 	})
 	if err != nil {
-		log.Errorf("Failed to new a flow in table %d: %s", VLAN_INPUT_TABLE, err)
+		klog.Errorf("Failed to new a flow in table %d: %s", VLAN_INPUT_TABLE, err)
 		return err
 	}
 	err = policyToNatFlow.Next(toNatOutput)
 	if err != nil {
-		log.Errorf("Failed to install policy to nat flow %+v: %s", policyToNatFlow, err)
+		klog.Errorf("Failed to install policy to nat flow %+v: %s", policyToNatFlow, err)
 		return err
 	}
 	return nil
@@ -603,16 +603,16 @@ func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		PktMarkMask: &InternalSvcPktMarkMask,
 	})
 	if err != nil {
-		log.Errorf("Failed to new from natbridge to policy bridge flow: %s", err)
+		klog.Errorf("Failed to new from natbridge to policy bridge flow: %s", err)
 		return err
 	}
 	toPolicyOutput, err := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err != nil {
-		log.Errorf("Failed to make natToPolicy outputPort: %s", err)
+		klog.Errorf("Failed to make natToPolicy outputPort: %s", err)
 		return err
 	}
 	if err := natToPolicyFlow.Next(toPolicyOutput); err != nil {
-		log.Errorf("Failed to install nat to policy flow %+v: %s", natToPolicyFlow, err)
+		klog.Errorf("Failed to install nat to policy flow %+v: %s", natToPolicyFlow, err)
 		return err
 	}
 
@@ -622,17 +622,17 @@ func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToNatSuffix],
 	})
 	if err != nil {
-		log.Errorf("Failed to new from natbridge to local flow: %s", err)
+		klog.Errorf("Failed to new from natbridge to local flow: %s", err)
 		return err
 	}
 	l2Forward := uint8(L2_FORWARDING_TABLE)
 	if err := natToLocalFlow.Resubmit(nil, &l2Forward); err != nil {
-		log.Errorf("Failed to add a resubmit action to flow %+v: %s", natToLocalFlow, err)
+		klog.Errorf("Failed to add a resubmit action to flow %+v: %s", natToLocalFlow, err)
 		return err
 	}
 	err = natToLocalFlow.Next(ofctrl.NewEmptyElem())
 	if err != nil {
-		log.Errorf("Failed to install nat to policy flow %+v: %s", natToLocalFlow, err)
+		klog.Errorf("Failed to install nat to policy flow %+v: %s", natToLocalFlow, err)
 		return err
 	}
 	return nil
@@ -648,11 +648,11 @@ func (l *LocalBridge) initFromPolicyMarkedFlow(sw *ofctrl.OFSwitch) error {
 	})
 	l2Forward := uint8(L2_FORWARDING_TABLE)
 	if err := fromPolicyFlow.Resubmit(nil, &l2Forward); err != nil {
-		log.Errorf("Failed to add a resubmit action to flow %+v: %s", fromPolicyFlow, err)
+		klog.Errorf("Failed to add a resubmit action to flow %+v: %s", fromPolicyFlow, err)
 		return err
 	}
 	if err := fromPolicyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install flow %+v: %s", fromPolicyFlow, err)
+		klog.Errorf("Failed to install flow %+v: %s", fromPolicyFlow, err)
 		return err
 	}
 	return nil
@@ -919,7 +919,7 @@ func (l *LocalBridge) AddLocalEndpoint(endpoint *Endpoint) error {
 func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	// remove table 0 from local endpoing flow
 	if localEndpointFlow, ok := l.fromLocalEndpointFlow[endpoint.PortNo]; ok {
-		log.Infof("remove from local endpoint flow: %v", localEndpointFlow)
+		klog.Infof("remove from local endpoint flow: %v", localEndpointFlow)
 		for i := 0; i < len(localEndpointFlow); i++ {
 			if err := localEndpointFlow[i].Delete(); err != nil {
 				return err
@@ -929,14 +929,14 @@ func (l *LocalBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	}
 
 	// remote table 1 local to local bum redirect flow
-	log.Infof("remove from local to local flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
+	klog.Infof("remove from local to local flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
 	if err := l.localToLocalBUMFlow[endpoint.PortNo].Delete(); err != nil {
 		return err
 	}
 	delete(l.localToLocalBUMFlow, endpoint.PortNo)
 
 	if fromLocalVlanFilterFlow, ok := l.fromLocalVlanFilterFlow[endpoint.PortNo]; ok {
-		log.Infof("remove from local vlan trunk filter flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
+		klog.Infof("remove from local vlan trunk filter flow: %v", l.localToLocalBUMFlow[endpoint.PortNo])
 		for i := 0; i < len(fromLocalVlanFilterFlow); i++ {
 			if err := l.fromLocalVlanFilterFlow[endpoint.PortNo][i].Delete(); err != nil {
 				return err
@@ -996,7 +996,7 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 	if err := vlanInputTableFromLocalFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return err
 	}
-	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
+	klog.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
 	l.fromLocalEndpointFlow[endpoint.PortNo] = []*ofctrl.Flow{vlanInputTableFromLocalFlow}
 
 	// Table 5, from local to local bum redirect flow
@@ -1016,7 +1016,7 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 	if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
 		return err
 	}
-	log.Infof("add local to local flow: %v", localToLocalBUMFlow)
+	klog.Infof("add local to local flow: %v", localToLocalBUMFlow)
 	l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
 
 	return nil
@@ -1108,11 +1108,11 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 	if err := localToLocalBUMFlow.Next(l.OfSwitch.NormalLookup()); err != nil {
 		return err
 	}
-	log.Infof("add local to local flow: %v", localToLocalBUMFlow)
+	klog.Infof("add local to local flow: %v", localToLocalBUMFlow)
 	l.localToLocalBUMFlow[endpoint.PortNo] = localToLocalBUMFlow
 
 	// Table 1 : vlan filter flow
-	// vlan trunk port vlan id filter flow, ignore default vlan && vlan 0, it use access processing logic
+	// vlan trunk port vlan id filter flow, ignore default vlan && vlan 0, it use access processing klogic
 	for vlanID, vlanMask := range getVlanTrunkMask(trunks) {
 		vidMask := vlanMask
 		fromLocalVlanFilterFlow, _ := l.vlanFilterTable.NewFlow(ofctrl.FlowMatch{
@@ -1131,7 +1131,7 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			return err
 		}
 		l.fromLocalVlanFilterFlow[endpoint.PortNo] = append(l.fromLocalVlanFilterFlow[endpoint.PortNo], fromLocalVlanFilterFlow)
-		log.Infof("add trunk port vlan filter flow: %v", fromLocalVlanFilterFlow)
+		klog.Infof("add trunk port vlan filter flow: %v", fromLocalVlanFilterFlow)
 	}
 
 	return nil

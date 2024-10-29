@@ -8,7 +8,7 @@ import (
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -121,22 +121,22 @@ func (p *PolicyBridge) BridgeInit() {
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
 
 	if err := p.initInputTable(sw); err != nil {
-		log.Fatalf("Failed to init inputTable, error: %v", err)
+		klog.Fatalf("Failed to init inputTable, error: %v", err)
 	}
 	if err := p.initCTFlow(sw); err != nil {
-		log.Fatalf("Failed to init ct table, error: %v", err)
+		klog.Fatalf("Failed to init ct table, error: %v", err)
 	}
 	if err := p.initALGFlow(sw); err != nil {
-		log.Fatalf("Failed to init alg flow, error: %v", err)
+		klog.Fatalf("Failed to init alg flow, error: %v", err)
 	}
 	if err := p.initDirectionSelectionTable(); err != nil {
-		log.Fatalf("Failed to init directionSelection table, error: %v", err)
+		klog.Fatalf("Failed to init directionSelection table, error: %v", err)
 	}
 	if err := p.initPolicyTable(); err != nil {
-		log.Fatalf("Failed to init policy table, error: %v", err)
+		klog.Fatalf("Failed to init policy table, error: %v", err)
 	}
 	if err := p.initPolicyForwardingTable(sw); err != nil {
-		log.Fatalf("Failed to init policy forwarding table, error: %v", err)
+		klog.Fatalf("Failed to init policy forwarding table, error: %v", err)
 	}
 }
 
@@ -226,7 +226,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 	})
 	if err := ctStateDefaultFlow.Next(p.directionSelectionTable); err != nil {
-		log.Fatalf("failed to install ct state default flow, error: %v", err)
+		klog.Fatalf("failed to install ct state default flow, error: %v", err)
 	}
 
 	// Table 70 conntrack commit table
@@ -679,7 +679,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	// Different tier have different nextTable select strategy:
 	policyTable, nextTable, e := p.GetTierTable(direction, tier, mode)
 	if e != nil {
-		log.Errorf("Failed to get policy table tier %v", tier)
+		klog.Errorf("Failed to get policy table tier %v", tier)
 		return nil, fmt.Errorf("failed get policy table, err:%s", e)
 	}
 
@@ -687,7 +687,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	if rule.DstIPAddr != "" {
 		ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
 		if err != nil {
-			log.Errorf("Failed to parse dst ip %s. Err: %v", rule.DstIPAddr, err)
+			klog.Errorf("Failed to parse dst ip %s. Err: %v", rule.DstIPAddr, err)
 			return nil, err
 		}
 	}
@@ -696,7 +696,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	if rule.SrcIPAddr != "" {
 		ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
 		if err != nil {
-			log.Errorf("Failed to parse src ip %s. Err: %v", rule.SrcIPAddr, err)
+			klog.Errorf("Failed to parse src ip %s. Err: %v", rule.SrcIPAddr, err)
 			return nil, err
 		}
 	}
@@ -720,7 +720,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		UdpDstPortMask: rule.DstPortMask,
 	})
 	if err != nil {
-		log.Errorf("Failed to add flow for rule {%v}. Err: %v", rule, err)
+		klog.Errorf("Failed to add flow for rule {%v}. Err: %v", rule, err)
 		return nil, err
 	}
 

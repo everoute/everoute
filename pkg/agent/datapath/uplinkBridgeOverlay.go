@@ -6,7 +6,7 @@ import (
 
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -64,7 +64,7 @@ type UplinkBridgeOverlay struct {
 
 func newUplinkBridgeOverlay(brName string, datapathManager *DpManager) *UplinkBridgeOverlay {
 	if !datapathManager.IsEnableOverlay() {
-		log.Fatalf("Can't new overlay uplink bridge when disable overlay")
+		klog.Fatalf("Can't new overlay uplink bridge when disable overlay")
 	}
 	uplinkBridge := new(UplinkBridgeOverlay)
 	uplinkBridge.name = fmt.Sprintf("%s-uplink", brName)
@@ -101,47 +101,47 @@ func (u *UplinkBridgeOverlay) BridgeInitCNI() {
 	}
 
 	if err := u.initInputTable(); err != nil {
-		log.Fatalf("Failed to init input table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init input table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initArpProxytable(); err != nil {
-		log.Fatalf("Failed to init arp proxy table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init arp proxy table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initForwardToLocalTable(); err != nil {
-		log.Fatalf("Failed to init forward to local table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init forward to local table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initForwardToGwTable(); err != nil {
-		log.Fatalf("Failed to init forward to gw table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init forward to gw table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initForwardToTunnelTable(); err != nil {
-		log.Fatalf("Failed to init forward to tunnel table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init forward to tunnel table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initSetRemoteIPTable(); err != nil {
-		log.Fatalf("Failed to init set remote ip table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init set remote ip table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initSetTunnelOutPortTable(); err != nil {
-		log.Fatalf("Failed to init set tunnel out port table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init set tunnel out port table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initPaddingL2table(); err != nil {
-		log.Fatalf("Failed to init padding l2 table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init padding l2 table of uplink bridge overlay, err: %v", err)
 	}
 	if err := u.initOutputTable(); err != nil {
-		log.Fatalf("Failed to init output table of uplink bridge overlay, err: %v", err)
+		klog.Fatalf("Failed to init output table of uplink bridge overlay, err: %v", err)
 	}
 	if u.kubeProxyReplace {
 		if err := u.initSvcForwardTable(); err != nil {
-			log.Fatalf("Failed to init svc forward table of uplink bridge overlay, err: %s", err)
+			klog.Fatalf("Failed to init svc forward table of uplink bridge overlay, err: %s", err)
 		}
 		if err := u.initSvcMatchTable(); err != nil {
-			log.Fatalf("Failed to init svc match table of uplink bridge overlay, err: %s", err)
+			klog.Fatalf("Failed to init svc match table of uplink bridge overlay, err: %s", err)
 		}
 		if err := u.initResetSvcMarkTable(); err != nil {
-			log.Fatalf("Failed to init reset svc mark table of uplink bridge overlay, err: %s", err)
+			klog.Fatalf("Failed to init reset svc mark table of uplink bridge overlay, err: %s", err)
 		}
 		if err := u.initSvcSnatTable(); err != nil {
-			log.Fatalf("Failed to init svc snat table of uplink bridge overlay, err: %s", err)
+			klog.Fatalf("Failed to init svc snat table of uplink bridge overlay, err: %s", err)
 		}
 		if err := u.initSetSvcMarkTable(); err != nil {
-			log.Fatalf("Failed to init set svc mark table of uplink bridge overlay, err: %s", err)
+			klog.Fatalf("Failed to init set svc mark table of uplink bridge overlay, err: %s", err)
 		}
 	}
 }
@@ -151,17 +151,17 @@ func (u *UplinkBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 	if u.localEpFlowMap[endpoint.InterfaceUUID] != nil {
-		log.Infof("Uplink bridge overlay, the endpoint %+v related flow in forward to local table has been installed, skip add again", endpoint)
+		klog.Infof("Uplink bridge overlay, the endpoint %+v related flow in forward to local table has been installed, skip add again", endpoint)
 		return nil
 	}
 
 	if endpoint.IPAddr == nil {
-		log.Infof("the endpoint %+v IPAddr is empty, skip add flow to forward to local table for uplink bridge overlay", endpoint)
+		klog.Infof("the endpoint %+v IPAddr is empty, skip add flow to forward to local table for uplink bridge overlay", endpoint)
 		return nil
 	}
 
 	if endpoint.IPAddr.To4() == nil {
-		log.Errorf("Failed to add flow to forward to local table for uplink bridge overlay: the endpoint %+v IPAddr is not valid ipv4", endpoint)
+		klog.Errorf("Failed to add flow to forward to local table for uplink bridge overlay: the endpoint %+v IPAddr is not valid ipv4", endpoint)
 		return fmt.Errorf("the endpoint %+v IPAddr is not valid ipv4", endpoint)
 	}
 
@@ -171,20 +171,20 @@ func (u *UplinkBridgeOverlay) AddLocalEndpoint(endpoint *Endpoint) error {
 		IpDa:      &endpoint.IPAddr,
 	})
 	if err := flow.LoadField(UBOOutputPortReg, uint64(u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToClsSuffix]), UBOOutputPortRange); err != nil {
-		log.Errorf("Failed to setup forward to local table flow load field action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to setup forward to local table flow load field action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	if err := flow.Resubmit(nil, &LBOOutputTable); err != nil {
-		log.Errorf("Failed to setup forward to local table flow resubmit action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to setup forward to local table flow resubmit action in uplink bridge overlay for endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install forward to local table flow in uplink bridge overlay for endpoint %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to install forward to local table flow in uplink bridge overlay for endpoint %+v, err: %v", endpoint, err)
 		return err
 	}
 
 	u.localEpFlowMap[endpoint.InterfaceUUID] = flow
-	log.Infof("Uplink bridge overlay, success to add local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	klog.Infof("Uplink bridge overlay, success to add local endpoint flow in forward to local table, endpoint: %+v", endpoint)
 	return nil
 }
 
@@ -198,17 +198,17 @@ func (u *UplinkBridgeOverlay) RemoveLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 	if err := delFlow.Delete(); err != nil {
-		log.Errorf("Failed to delete local endpoint flow in forward to local table of uplink bridge overlay, endpoint: %+v, err: %v", endpoint, err)
+		klog.Errorf("Failed to delete local endpoint flow in forward to local table of uplink bridge overlay, endpoint: %+v, err: %v", endpoint, err)
 		return err
 	}
 	delete(u.localEpFlowMap, endpoint.InterfaceUUID)
-	log.Infof("Uplink bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
+	klog.Infof("Uplink bridge overlay: success delete local endpoint flow in forward to local table, endpoint: %+v", endpoint)
 	return nil
 }
 
 func (u *UplinkBridgeOverlay) AddRemoteEndpoint(epIP, remoteNodeIP net.IP) error {
 	if u.remoteEpFlowMap[epIP.String()] != nil {
-		log.Infof("Remote endpoint %v flow has been add, flow: %v", epIP, u.remoteEpFlowMap[epIP.String()])
+		klog.Infof("Remote endpoint %v flow has been add, flow: %v", epIP, u.remoteEpFlowMap[epIP.String()])
 		return nil
 	}
 
@@ -218,49 +218,49 @@ func (u *UplinkBridgeOverlay) AddRemoteEndpoint(epIP, remoteNodeIP net.IP) error
 		IpDa:      &epIP,
 	})
 	if err := flow.SetTunnelDstIP(remoteNodeIP); err != nil {
-		log.Errorf("Failed to setup set remote ip table flow set tunnel dst ip action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		klog.Errorf("Failed to setup set remote ip table flow set tunnel dst ip action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
 		return err
 	}
 	if err := flow.Resubmit(nil, &UBOSetTunnelOutPortTable); err != nil {
-		log.Errorf("Failed to setup set remote ip table flow resubmit action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		klog.Errorf("Failed to setup set remote ip table flow resubmit action, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
 		return err
 	}
 	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		log.Errorf("Failed to install set remote ip table flow, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
+		klog.Errorf("Failed to install set remote ip table flow, epIP: %v, remoteNodeIP: %v, err: %v", epIP, remoteNodeIP, err)
 		return err
 	}
 
 	u.remoteEpFlowMap[epIP.String()] = flow
-	log.Infof("Success add remote endpoint flow, epIP: %v, remoteNodeIP: %v", epIP, remoteNodeIP)
+	klog.Infof("Success add remote endpoint flow, epIP: %v, remoteNodeIP: %v", epIP, remoteNodeIP)
 	return nil
 }
 
 func (u *UplinkBridgeOverlay) RemoveRemoteEndpoint(epIPStr string) error {
 	if u.remoteEpFlowMap[epIPStr] == nil {
-		log.Infof("Remote endpoint %s flow has been removed", epIPStr)
+		klog.Infof("Remote endpoint %s flow has been removed", epIPStr)
 		return nil
 	}
 	if err := u.remoteEpFlowMap[epIPStr].Delete(); err != nil {
-		log.Errorf("Failed to remove remote endpoint %s flow, err: %v", epIPStr, err)
+		klog.Errorf("Failed to remove remote endpoint %s flow, err: %v", epIPStr, err)
 		return err
 	}
 
 	delete(u.remoteEpFlowMap, epIPStr)
-	log.Infof("Success to remove remote endpoint %s flow", epIPStr)
+	klog.Infof("Success to remove remote endpoint %s flow", epIPStr)
 	return nil
 }
 
 func (u *UplinkBridgeOverlay) AddIPPoolSubnet(subnetStr string) error {
 	_, subnet, err := net.ParseCIDR(subnetStr)
 	if err != nil {
-		log.Errorf("Parse subnet %s failed: %v", subnetStr, err)
+		klog.Errorf("Parse subnet %s failed: %v", subnetStr, err)
 		return err
 	}
 
 	if _, ok := u.ipForwardFlowMap[subnetStr]; !ok {
 		f, err := u.setupForwardToPodFlow(subnet)
 		if err != nil {
-			log.Errorf("Failed to setup forward to pod flow for ippool subnet %s: %v", subnetStr, err)
+			klog.Errorf("Failed to setup forward to pod flow for ippool subnet %s: %v", subnetStr, err)
 			return err
 		}
 		u.ipForwardFlowMap[subnetStr] = f
@@ -276,7 +276,7 @@ func (u *UplinkBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
 	}
 	if ipf != nil {
 		if err := ipf.Delete(); err != nil {
-			log.Errorf("Failed to delete forward to pod flow for ippool subnet %s: %v", subnetStr, err)
+			klog.Errorf("Failed to delete forward to pod flow for ippool subnet %s: %v", subnetStr, err)
 			return err
 		}
 	}
@@ -810,7 +810,7 @@ func (u *UplinkBridgeOverlay) getGwIPPoolSubnet() *net.IPNet {
 	}
 	_, gwSubnet, err := net.ParseCIDR(gwIPNet.String())
 	if err != nil {
-		log.Errorf("Failed to parse gateway ippool subnet %v: %v", gwIPNet, err)
+		klog.Errorf("Failed to parse gateway ippool subnet %v: %v", gwIPNet, err)
 		return nil
 	}
 	return gwSubnet
