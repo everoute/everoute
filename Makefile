@@ -20,6 +20,9 @@ image-test:
 image-test-pull:
 	docker pull registry.smtx.io/everoute/unit-test:latest
 
+image-net-utils:
+	docker buildx build -f build/images/net-utils/Dockerfile --platform linux/amd64,linux/arm64 -t registry.smtx.io/everoute/net-utils . --push
+
 yaml:
 	helm template -n kube-system deploy/chart > deploy/everoute.yaml
 

@@ -17,11 +17,14 @@ limitations under the License.
 package node
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/everoute/everoute/tests/e2e/framework/config"
 )
 
 type Agent struct {
@@ -34,6 +37,9 @@ const (
 )
 
 func (n *Agent) Restart() error {
+	if n.KubeConfig != nil {
+		return nil
+	}
 	if rand.Intn(2) == 0 {
 		return n.reRunProcess(agentBinaryName)
 	}
@@ -84,11 +90,18 @@ func (n *Agent) DumpFlow() ([]string, error) {
 	return flowList, nil
 }
 
-func (n *Agent) runOpenflowCmd(cmd string) ([]byte, error) {
-	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 %s %s", cmd, fmt.Sprintf("%s-policy", n.BridgeName))
-	rc, out, err := n.runCommand(cmdStr)
+func (n *Agent) runOpenflowCmd(cmd string) (out []byte, err error) {
+	policyBridge := fmt.Sprintf("%s-policy", n.BridgeName)
+	cmdStr := fmt.Sprintf("sudo /usr/bin/ovs-ofctl -O Openflow13 %s %s", cmd, policyBridge)
+	var rc int
+	if n.KubeConfig == nil {
+		rc, out, err = n.runCommand(cmdStr)
+	} else {
+		args := []string{"-O", "Openflow13", cmd, policyBridge}
+		rc, out, err = config.ExecCmd(context.Background(), n.KubeConfig, nil, n.AgentName, n.AgentNamespace, "everoute-agent", "/usr/bin/ovs-ofctl", args...)
+	}
 	if rc != 0 || err != nil {
-		return nil, fmt.Errorf("error running ovs-ofctl %s %s. Error: %v", cmd, n.BridgeName, err)
+		return nil, fmt.Errorf("error running ovs-ofctl %s %s, out: %s, error: %v", cmd, policyBridge, string(out), err)
 	}
 	return out, nil
 }

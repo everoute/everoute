@@ -27,10 +27,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	"github.com/everoute/everoute/tests/e2e/framework/config"
 	"github.com/everoute/everoute/tests/e2e/framework/endpoint/netns"
+	"github.com/everoute/everoute/tests/e2e/framework/endpoint/pod"
 	"github.com/everoute/everoute/tests/e2e/framework/endpoint/tower"
 	"github.com/everoute/everoute/tests/e2e/framework/ipam"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
@@ -54,7 +56,7 @@ type Manager struct {
 	model.EndpointProvider
 }
 
-func NewManager(pool ipam.Pool, namespace string, nodeManager *node.Manager, config *config.EndpointConfig) *Manager {
+func NewManager(pool ipam.Pool, namespace string, kubeClient client.Client, nodeManager *node.Manager, config *config.EndpointConfig) *Manager {
 	var provider model.EndpointProvider
 
 	switch {
@@ -65,6 +67,8 @@ func NewManager(pool ipam.Pool, namespace string, nodeManager *node.Manager, con
 	case *config.Provider == "tower":
 		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID)
 
+	case *config.Provider == "pod":
+		provider = pod.NewProvider(config.KubeConfig, kubeClient, nodeManager, namespace)
 	default:
 		panic("unknown provider " + *config.Provider)
 	}
