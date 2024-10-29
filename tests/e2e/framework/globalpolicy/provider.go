@@ -26,13 +26,12 @@ import (
 
 func NewProvider(config *config.GlobalPolicyConfig) model.GlobalPolicyProvider {
 	switch {
-	case config.Provider == nil, *config.Provider == "kubernetes":
+	case config.Provider == nil, *config.Provider == "kubernetes", *config.Provider == "pod":
 		crdClient := clientset.NewForConfigOrDie(config.KubeConfig)
 		return kubernetes.NewProvider(crdClient)
 
 	case *config.Provider == "tower":
 		return tower.NewProvider(config.TowerClient, *config.EverouteClusterID)
-
 	default:
 		panic("unknown provider " + *config.Provider)
 	}

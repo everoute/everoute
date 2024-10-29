@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,19 +68,27 @@ func NewFromKube(kubeConfig string) (*Framework, error) {
 	}
 
 	var kubeClient client.Client
+	corev1.AddToScheme(scheme.Scheme)
 	if kubeClient, err = client.New(cfg.KubeConfig, client.Options{Scheme: scheme.Scheme}); err != nil {
 		return nil, fmt.Errorf("unable get kube client: %s", err)
 	}
 
 	var nodeManager *node.Manager
-	if nodeManager, err = node.NewManagerFromConfig(&cfg.Nodes); err != nil {
-		return nil, fmt.Errorf("unable get node manager: %s", err)
+	if cfg.Endpoint.Provider != nil && *cfg.Endpoint.Provider == "pod" {
+		// pod provider has external k8s cluster, node info should sync from k8s node
+		if nodeManager, err = node.NewManagerFromPodCluster(cfg.Endpoint.KubeConfig, kubeClient, &cfg.Nodes); err != nil {
+			return nil, fmt.Errorf("unable get node manager: %s", err)
+		}
+	} else {
+		if nodeManager, err = node.NewManagerFromConfig(&cfg.Nodes); err != nil {
+			return nil, fmt.Errorf("unable get node manager: %s", err)
+		}
 	}
 
 	f := &Framework{
 		namespace:            cfg.Namespace,
 		kubeClient:           kubeClient,
-		epManager:            endpoint.NewManager(ipPool, cfg.Namespace, nodeManager, &cfg.Endpoint),
+		epManager:            endpoint.NewManager(ipPool, cfg.Namespace, kubeClient, nodeManager, &cfg.Endpoint),
 		nodeManager:          nodeManager,
 		globalPolicyProvider: globalpolicy.NewProvider(&cfg.GlobalPolicy),
 		timeout:              *cfg.Timeout,

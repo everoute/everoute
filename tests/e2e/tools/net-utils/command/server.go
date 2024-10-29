@@ -83,6 +83,7 @@ func runServer(udpPorts, tcpPorts []int, discover bool, ftpServer string) {
 	}
 
 	if discover {
+		wg.Add(1)
 		go arpDiscover()
 	}
 

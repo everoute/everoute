@@ -28,12 +28,15 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	errutils "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/tests/e2e/framework/config"
 )
@@ -41,6 +44,9 @@ import (
 type Node struct {
 	// Name is an unique identification of the node
 	Name string
+	// AgentName and Namespace is only for pod provider
+	AgentName      string
+	AgentNamespace string
 	// Roles identifies the type of node
 	Roles sets.String
 	// User name for connect to this node
@@ -55,6 +61,8 @@ type Node struct {
 	lock sync.Mutex
 	// ssh client connect to this node
 	client *ssh.Client
+	// kubeconfig for connecting to agent pod
+	KubeConfig *rest.Config
 }
 
 const (
@@ -196,6 +204,43 @@ func NewManager(disableAgentRestarter, disableControllerRestarter bool, nodes ..
 	}
 
 	return &manager
+}
+
+func NewManagerFromPodCluster(kubeConfig *rest.Config, kubeClient client.Client, nodesConfig *config.NodesConfig) (*Manager, error) {
+	var podList corev1.PodList
+	if err := kubeClient.List(context.Background(), &podList); err != nil {
+		return nil, err
+	}
+
+	agentName := make(map[string]string)
+	agentNamespace := make(map[string]string)
+	for _, item := range podList.Items {
+		if len(item.OwnerReferences) != 1 ||
+			item.OwnerReferences[0].Kind != "DaemonSet" ||
+			item.OwnerReferences[0].Name != "everoute-agent" {
+			continue
+		}
+		agentName[item.Spec.NodeName] = item.Name
+		agentNamespace[item.Spec.NodeName] = item.Namespace
+	}
+
+	var nodeList corev1.NodeList
+	if err := kubeClient.List(context.Background(), &nodeList); err != nil {
+		return nil, err
+	}
+	var nodes = []*Node{}
+	for _, item := range nodeList.Items {
+		node := Node{
+			Name:           item.GetName(),
+			AgentName:      agentName[item.GetName()],
+			AgentNamespace: agentNamespace[item.GetName()],
+			Roles:          sets.NewString(RoleAgent),
+			KubeConfig:     kubeConfig,
+			BridgeName:     "cnibr0",
+		}
+		nodes = append(nodes, &node)
+	}
+	return NewManager(nodesConfig.DisableAgentRestarter, nodesConfig.DisableControllerRestarter, nodes...), nil
 }
 
 func NewManagerFromConfig(nodesConfig *config.NodesConfig) (*Manager, error) {

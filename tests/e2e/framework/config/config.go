@@ -17,22 +17,32 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	corescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
 )
 
 // Config of everoute e2e framework
 type Config struct {
+	KubeConfigPath string `yaml:"kube-config-path,omitempty"`
 	// KubeConfig connect to kube-apiserver
 	KubeConfig *rest.Config `yaml:"kube-config,omitempty"`
 	// TowerClient connect to tower
@@ -71,7 +81,7 @@ type EndpointConfig struct {
 	// if provider is tower and towerClient is empty, config.TowerClient will use
 	TowerClient *client.Client `yaml:"tower-client,omitempty"`
 
-	// Endpoint Provider, must "tower", "netns" or nil, default netns
+	// Endpoint Provider, must "tower", "netns", "pod" or nil, default netns
 	Provider *string `yaml:"provider,omitempty"`
 	// template for create vm, only valid when provider is tower
 	VMTemplateID *string `yaml:"vm-template-id,omitempty"`
@@ -95,16 +105,33 @@ type IPAMConfig struct {
 	IPRange string `yaml:"ip-range"`
 }
 
+func RegisterTestFlags(config *Config) {
+	provider := ""
+	config.KubeConfigPath = os.Getenv("Kubeconfig")
+	config.Namespace = os.Getenv("Namespace")
+	provider = os.Getenv("Provider")
+
+	if provider != "" {
+		config.Endpoint.Provider = &provider
+		config.Timeout = lo.ToPtr(time.Second * 30)
+	}
+}
+
 func LoadDefault(kubeConfig string) (*Config, error) {
 	var defaultConfigMap = types.NamespacedName{Namespace: metav1.NamespaceSystem, Name: `everoute-e2e-framework-config`}
 	return LoadFromConfigMap(kubeConfig, defaultConfigMap)
 }
 
-func LoadFromConfigMap(kubeConfig string, namespacedName types.NamespacedName) (*Config, error) {
+func LoadFromConfigMap(kubeConfigPath string, namespacedName types.NamespacedName) (*Config, error) {
 	var config Config
 	var err error
 
-	config.KubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
+	RegisterTestFlags(&config)
+
+	if config.KubeConfigPath == "" {
+		config.KubeConfigPath = kubeConfigPath
+	}
+	config.KubeConfig, err = clientcmd.BuildConfigFromFlags("", config.KubeConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -114,14 +141,17 @@ func LoadFromConfigMap(kubeConfig string, namespacedName types.NamespacedName) (
 		return nil, err
 	}
 
-	configMap, err := kubeClientset.CoreV1().ConfigMaps(namespacedName.Namespace).Get(context.Background(), namespacedName.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
+	// config from cli
+	if config.Endpoint.Provider == nil {
+		configMap, err := kubeClientset.CoreV1().ConfigMaps(namespacedName.Namespace).Get(context.Background(), namespacedName.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
 
-	err = yaml.Unmarshal([]byte(configMap.Data["config"]), &config)
-	if err != nil {
-		return nil, err
+		err = yaml.Unmarshal([]byte(configMap.Data["config"]), &config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return verifyAndComplete(&config)
@@ -189,4 +219,61 @@ func verifyAndComplete(config *Config) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// ExecCmd exec command on specific pod and wait the command's output.
+func ExecCmd(ctx context.Context, kubeConfig *rest.Config, kubeClient *kubernetes.Clientset, name, namespace, container, command string, args ...string) (int, []byte, error) {
+	var stdin io.Reader
+	var stdout, stderr bytes.Buffer
+	var err error
+	var rc int
+
+	cmd := append([]string{command}, args...)
+
+	if kubeClient == nil {
+		kubeClient, err = kubernetes.NewForConfig(kubeConfig)
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+
+	req := kubeClient.CoreV1().RESTClient().Post().Resource("pods").Name(name).
+		Namespace(namespace).SubResource("exec")
+	option := &corev1.PodExecOptions{
+		Command:   cmd,
+		Stdin:     true,
+		Stdout:    true,
+		Stderr:    true,
+		TTY:       true,
+		Container: container,
+	}
+	if stdin == nil {
+		option.Stdin = false
+	}
+	req.VersionedParams(
+		option,
+		corescheme.ParameterCodec,
+	)
+	exec, err := remotecommand.NewSPDYExecutor(kubeConfig, "POST", req.URL())
+	if err != nil {
+		return 0, nil, err
+	}
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdin:  stdin,
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if err != nil {
+		terminalPrefix := "command terminated with exit code"
+		isExit := strings.Contains(err.Error(), terminalPrefix)
+		if !isExit {
+			return 0, nil, fmt.Errorf("run command %s failed, err: %+v", cmd, err)
+		}
+		rc, err = strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(err.Error()), terminalPrefix)))
+	}
+
+	out := stdout.Bytes()
+	out = append(out, stderr.Bytes()...)
+	return rc, out, err
 }

@@ -439,7 +439,7 @@ var _ = Describe("SecurityPolicy", func() {
 		var tcpPort int
 
 		BeforeEach(func() {
-			if e2eEnv.EndpointManager().Name() == "tower" {
+			if e2eEnv.EndpointManager().Name() == "tower" || e2eEnv.EndpointManager().Name() == "pod" {
 				Skip("isolation vm from tower need tower support")
 			}
 			tcpPort = 443
@@ -637,6 +637,10 @@ var _ = Describe("SecurityPolicy", func() {
 		var productionCidr, developmentCidr string
 
 		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "pod" {
+				Skip("pod cannot assign ExpectSubnet")
+			}
+
 			ntpPort = 123
 			productionCidr = "10.0.0.0/28"
 			developmentCidr = "10.0.0.16/28"
@@ -808,6 +812,10 @@ var _ = Describe("SecurityPolicy", func() {
 		var tcpPort int
 
 		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() == "pod" {
+				Skip("pod do not have multiple labels with same key ")
+			}
+
 			tcpPort = rand.IntnRange(1000, 5000)
 
 			endpointA = &model.Endpoint{Name: "ep.a", TCPPort: tcpPort, Labels: map[string][]string{"@中文标签": {"&单标签值"}}}
@@ -857,6 +865,9 @@ var _ = Describe("SecurityPolicy", func() {
 			if e2eEnv.EndpointManager().Name() == "tower" {
 				Skip("tower e2e has no ipip feature, skip it")
 			}
+			if e2eEnv.EndpointManager().Name() == "pod" {
+				Skip("pod e2e has no ipip feature, skip it")
+			}
 			ipipEp1 = &model.Endpoint{Name: "ipip-1", TCPPort: tcpPort, Labels: map[string][]string{"component": {"ipip"}}}
 			ipipEp2 = &model.Endpoint{Name: "ipip-2", Labels: map[string][]string{"component": {"client"}}}
 			ipipSelector = newSelector(map[string][]string{"component": {"ipip"}})
@@ -897,6 +908,9 @@ var _ = Describe("SecurityPolicy", func() {
 		BeforeEach(func() {
 			if e2eEnv.EndpointManager().Name() == "tower" {
 				Skip("tower e2e has no TierECP feature, skip it")
+			}
+			if e2eEnv.EndpointManager().Name() == "pod" {
+				Skip("pod e2e has no TierECP feature, skip it")
 			}
 
 			nginx = &model.Endpoint{Name: "nginx", TCPPort: nginxPort, Labels: map[string][]string{"component": {"nginx"}}}
@@ -1032,6 +1046,12 @@ var _ = Describe("SecurityPolicy", func() {
 var _ = Describe("GlobalPolicy", func() {
 	AfterEach(func() {
 		Expect(e2eEnv.ResetResource(ctx)).Should(Succeed())
+	})
+
+	BeforeEach(func() {
+		if e2eEnv.EndpointManager().Name() == "pod" {
+			Skip("cni do not support global policy")
+		}
 	})
 
 	Context("environment with global drop policy [Feature:GlobalPolicy]", func() {
