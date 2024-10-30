@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -104,13 +105,13 @@ func DeepCopyMap(theMap interface{}) interface{} {
 	return dstMap.Interface()
 }
 
-func AssembleStaticIPAndGroup(staticIPs sets.Set[string], group sets.Set[string], groupCache *GroupCache) (map[string]*IPBlockItem, error) {
+func AssembleStaticIPAndGroup(ctx context.Context, staticIPs sets.Set[string], group sets.Set[string], groupCache *GroupCache) (map[string]*IPBlockItem, error) {
 	res := make(map[string]*IPBlockItem)
 	for _, ip := range staticIPs.UnsortedList() {
 		res[ip] = &IPBlockItem{}
 	}
 	for _, g := range group.UnsortedList() {
-		ipBlocks, exists := groupCache.ListGroupIPBlocks(g)
+		ipBlocks, exists := groupCache.ListGroupIPBlocks(ctx, g)
 		if !exists {
 			return nil, fmt.Errorf("can't find group %s in cache", g)
 		}

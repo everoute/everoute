@@ -19,6 +19,8 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
+var ErrInternal = fmt.Errorf("everoute internal error")
+
 func Base64Encode(message []byte) []byte {
 	b := make([]byte, base64.StdEncoding.EncodedLen(len(message)))
 	base64.StdEncoding.Encode(b, message)

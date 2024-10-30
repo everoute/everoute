@@ -125,7 +125,7 @@ var _ = BeforeSuite(func() {
 		ManagedVDSMap: map[string]string{
 			brName: brName,
 		}}, updateChan, metrics.NewAgentMetric())
-	datapathManager.InitializeDatapath(ctx.Done())
+	datapathManager.InitializeDatapath(ctx)
 
 	pCtrl = &Reconciler{
 		Client:          k8sManager.GetClient(),

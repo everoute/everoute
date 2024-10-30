@@ -1267,7 +1267,7 @@ var _ = Describe("PolicyController", func() {
 
 		It("can't flatten rules", func() {
 			time.Sleep(2)
-			_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group3.Name)
+			_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(ctx, group3.Name)
 			Expect(exists).Should(BeFalse())
 			Expect(len(ruleCacheLister.ListKeys())).Should(Equal(0))
 		})
@@ -1677,7 +1677,7 @@ var _ = Describe("PolicyController", func() {
 			When("policy referenced the group", func() {
 				It("can't del groupmembers succeed", func() {
 					time.Sleep(2)
-					_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
+					_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(ctx, group2.Name)
 					Expect(exists).Should(BeTrue())
 				})
 			})
@@ -1691,7 +1691,7 @@ var _ = Describe("PolicyController", func() {
 
 				It("should delete groupmembers from cache", func() {
 					Eventually(func(g Gomega) {
-						_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(group2.Name)
+						_, exists := pCtrl.GetGroupCache().ListGroupIPBlocks(ctx, group2.Name)
 						g.Expect(exists).Should(BeFalse())
 					}, timeout, interval).Should(Succeed())
 				})
@@ -2046,15 +2046,15 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule
 	completeRules, _ := ruleCacheLister.ByIndex(cache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
 		rule := completeRule.(*cache.CompleteRule)
-		srcIPs, err := cache.AssembleStaticIPAndGroup(rule.SrcIPs, rule.SrcGroups, pCtrl.GetGroupCache())
+		srcIPs, err := cache.AssembleStaticIPAndGroup(ctx, rule.SrcIPs, rule.SrcGroups, pCtrl.GetGroupCache())
 		if err != nil {
 			return nil
 		}
-		dstIPs, err := cache.AssembleStaticIPAndGroup(rule.DstIPs, rule.DstGroups, pCtrl.GetGroupCache())
+		dstIPs, err := cache.AssembleStaticIPAndGroup(ctx, rule.DstIPs, rule.DstGroups, pCtrl.GetGroupCache())
 		if err != nil {
 			return nil
 		}
-		policyRuleList = append(policyRuleList, rule.GenerateRuleList(srcIPs, dstIPs, rule.Ports)...)
+		policyRuleList = append(policyRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
 	}
 	return policyRuleList
 }

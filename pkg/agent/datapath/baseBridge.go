@@ -1,6 +1,7 @@
 package datapath
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -98,12 +99,8 @@ func (b *BaseBridge) RemoveSFCRule() error {
 	return nil
 }
 
-func (b *BaseBridge) AddMicroSegmentRule(*EveroutePolicyRule, uint8, uint8, string) (*FlowEntry, error) {
+func (b *BaseBridge) AddMicroSegmentRule(context.Context, *EveroutePolicyRule, uint8, uint8, string) (*FlowEntry, error) {
 	return nil, nil
-}
-
-func (b *BaseBridge) RemoveMicroSegmentRule(*EveroutePolicyRule) error {
-	return nil
 }
 
 // Controller received a packet from the switch
