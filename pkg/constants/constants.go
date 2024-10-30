@@ -80,6 +80,8 @@ const (
 
 	// endpoint
 	EndpointExternalIDKey = "iface-id"
+
+	CtxKeyObject = "erObjectInCtx"
 )
 
 const (

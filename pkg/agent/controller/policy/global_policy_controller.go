@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -35,31 +34,36 @@ const (
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
-func (r *Reconciler) ReconcileGlobalPolicy(context.Context, ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileGlobalPolicy(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(4).Info("Reconcile start")
+	defer log.V(4).Info("Reconcile end")
 	var newPolicyRule, oldPolicyRule []cache.PolicyRule
 
-	if !r.isReadyToProcessGlobalRule() {
-		klog.V(4).Info("Doesn't ready to process global rule, keep waiting")
+	if !r.isReadyToProcessGlobalRule(ctx) {
+		log.V(4).Info("Doesn't ready to process global rule, keep waiting")
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
-	klog.Info("Ready to process global rule")
 
 	oldPolicyRuleList := r.globalRuleCache.List()
 	for _, rule := range oldPolicyRuleList {
 		oldPolicyRule = append(oldPolicyRule, rule.(cache.PolicyRule))
 	}
 
-	newPolicyRule, err := r.calculateExpectGlobalPolicyRules()
+	policy, newPolicyRule, err := r.calculateExpectGlobalPolicyRules()
 	if err != nil {
-		klog.Errorf("unable calculate global PolicyRules: %s", err)
+		log.Error(err, "unable calculate global PolicyRules")
 		return ctrl.Result{}, err
 	}
 	if err := r.updateGlobalPolicyCache(oldPolicyRule, newPolicyRule); err != nil {
-		klog.Errorf("unable update global PolicyRules cache: %s", err)
+		log.Error(err, "unable update global PolicyRules cache")
 		return ctrl.Result{}, err
 	}
 
-	_ = r.syncPolicyRulesUntilSuccess([]string{}, oldPolicyRule, newPolicyRule)
+	if policy != nil {
+		ctx = context.WithValue(ctx, constants.CtxKeyObject, policy.Spec)
+	}
+	_ = r.syncPolicyRulesUntilSuccess(ctx, []string{}, oldPolicyRule, newPolicyRule)
 	return ctrl.Result{}, nil
 }
 
@@ -78,21 +82,21 @@ func (r *Reconciler) updateGlobalPolicyCache(oldRule, newRule []cache.PolicyRule
 	return nil
 }
 
-func (r *Reconciler) calculateExpectGlobalPolicyRules() ([]cache.PolicyRule, error) {
+func (r *Reconciler) calculateExpectGlobalPolicyRules() (*securityv1alpha1.GlobalPolicy, []cache.PolicyRule, error) {
 	policyList := securityv1alpha1.GlobalPolicyList{}
 	err := r.List(context.Background(), &policyList)
 	if err != nil {
-		return []cache.PolicyRule{}, err
+		return nil, []cache.PolicyRule{}, err
 	}
 
 	switch len(policyList.Items) {
 	case 1:
 		ruleList := newGlobalPolicyRulePair(policyList.Items[0])
-		return ruleList, nil
+		return &policyList.Items[0], ruleList, nil
 	case 0:
-		return []cache.PolicyRule{}, nil
+		return nil, []cache.PolicyRule{}, nil
 	default:
-		return []cache.PolicyRule{}, fmt.Errorf("unexpect multiple global policy found")
+		return nil, []cache.PolicyRule{}, fmt.Errorf("unexpect multiple global policy found")
 	}
 }
 

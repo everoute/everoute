@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -230,14 +232,15 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 }
 
 // ListRules return a list of security.everoute.io/v1alpha1 PolicyRule
-func (rule *CompleteRule) ListRules(groupCache *GroupCache) []PolicyRule {
+func (rule *CompleteRule) ListRules(ctx context.Context, groupCache *GroupCache) []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 
-	return rule.GenerateRuleList(rule.assemblySrcIPBlocks(groupCache), rule.assemblyDstIPBlocks(groupCache), rule.Ports)
+	return rule.GenerateRuleList(ctx, rule.assemblySrcIPBlocks(ctx, groupCache), rule.assemblyDstIPBlocks(ctx, groupCache), rule.Ports)
 }
 
-func (rule *CompleteRule) GenerateRuleList(srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+	log := ctrl.LoggerFrom(ctx)
 	var policyRuleList []PolicyRule
 
 	for srcIP, srcIPBlock := range srcIPBlocks {
@@ -250,13 +253,13 @@ func (rule *CompleteRule) GenerateRuleList(srcIPBlocks map[string]*IPBlockItem, 
 				dstPorts := []RulePort{port}
 				if port.DstPortName != "" {
 					if dstIPBlock == nil {
-						klog.Infof("dstIPBlock of %s is nil, can't resolve portname %#v", dstIP, port)
+						log.Info("dstIPBlock is nil, can't resolve portname", "ipBlock", dstIP, "portname", port)
 						continue
 					}
 					dstPorts = resolveDstPort(port, dstIPBlock.Ports)
 					if len(dstPorts) == 0 {
 						// dstIPBlocks has no namedPort map the port, skip
-						klog.Infof("dstIPBlocks %#v of %s has no namedPort map the policy portname %#v", dstIPBlock.Ports, dstIP, port)
+						log.Info("dstIPBlocks ports has no namedPort map the policy portname", "ipBlock", dstIP, "ipBlockPorts", dstIPBlock.Ports, "portname", port)
 						continue
 					}
 				}
@@ -281,16 +284,16 @@ func (rule *CompleteRule) GenerateRuleList(srcIPBlocks map[string]*IPBlockItem, 
 	return policyRuleList
 }
 
-func (rule *CompleteRule) assemblySrcIPBlocks(groupCache *GroupCache) map[string]*IPBlockItem {
-	ipBlocks, err := AssembleStaticIPAndGroup(rule.SrcIPs, rule.SrcGroups, groupCache)
+func (rule *CompleteRule) assemblySrcIPBlocks(ctx context.Context, groupCache *GroupCache) map[string]*IPBlockItem {
+	ipBlocks, err := AssembleStaticIPAndGroup(ctx, rule.SrcIPs, rule.SrcGroups, groupCache)
 	if err != nil {
 		klog.Fatalf("Failed to assemply rule src ipBlocks: %s", err)
 	}
 	return ipBlocks
 }
 
-func (rule *CompleteRule) assemblyDstIPBlocks(groupCache *GroupCache) map[string]*IPBlockItem {
-	ipBlocks, err := AssembleStaticIPAndGroup(rule.DstIPs, rule.DstGroups, groupCache)
+func (rule *CompleteRule) assemblyDstIPBlocks(ctx context.Context, groupCache *GroupCache) map[string]*IPBlockItem {
+	ipBlocks, err := AssembleStaticIPAndGroup(ctx, rule.DstIPs, rule.DstGroups, groupCache)
 	if err != nil {
 		klog.Fatalf("Failed to assemply rule dst ipBlocks: %s", err)
 	}

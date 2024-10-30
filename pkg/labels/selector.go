@@ -60,7 +60,7 @@ func (in *Selector) IsValid() (bool, string) {
 		}
 	}
 
-	for _, expr := range in.MatchExpressions {
+	for _, expr := range in.LabelSelector.MatchExpressions {
 		switch expr.Operator {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			if expr.Values == nil || len(expr.Values) == 0 {
@@ -86,7 +86,7 @@ func (in *Selector) Matches(labelSet Set) bool {
 	}
 
 	// labels should be the superset of match labels
-	for key, value := range in.MatchLabels {
+	for key, value := range in.LabelSelector.MatchLabels {
 		if !labelSet[key].IsSuperset(sets.NewString(value)) {
 			return false
 		}
@@ -99,7 +99,7 @@ func (in *Selector) Matches(labelSet Set) bool {
 		}
 	}
 
-	for _, expr := range in.MatchExpressions {
+	for _, expr := range in.LabelSelector.MatchExpressions {
 		labelValueSet, ok := labelSet[expr.Key]
 		switch expr.Operator {
 		case metav1.LabelSelectorOpIn:

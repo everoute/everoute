@@ -84,34 +84,39 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
-	klog.Infof("Reconcile securitypolicy %s", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx)
+	log.V(4).Info("Reconcile securitypolicy start")
+	defer log.V(4).Info("Reconcile securitypolicy end")
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
-		klog.Errorf("unable to fetch policy %s: %s", req.Name, err.Error())
+		log.Error(err, "Unable to fetch policy")
 		return ctrl.Result{}, err
 	}
 
 	if apierrors.IsNotFound(err) {
 		r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), nil)
-		err := r.cleanPolicyDependents(req.NamespacedName)
+		err := r.cleanPolicyDependents(ctx, req.NamespacedName)
 		if err != nil {
-			klog.Errorf("failed to delete policy %s dependents: %s", req.Name, err.Error())
+			log.Error(err, "failed to delete policy")
 			return ctrl.Result{}, err
 		}
-		klog.Infof("succeed remove policy %s all rules", req.Name)
+		log.Info("succeed remove policy all rules")
 		return ctrl.Result{}, nil
 	}
 	r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), &policy)
 
-	return r.processPolicyUpdate(&policy)
+	ctx = context.WithValue(ctx, constants.CtxKeyObject, policy.Spec)
+	return r.processPolicyUpdate(ctx, &policy)
 }
 
 func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
-	klog.Infof("Receive groupmembers %s reconcile", req.NamespacedName)
+	log := ctrl.LoggerFrom(ctx)
+	log.V(4).Info("Reconcile groupMembers start")
+	defer log.V(4).Info("Reconcile groupMembers end")
 
 	gm := groupv1alpha1.GroupMembers{}
 	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
@@ -123,23 +128,24 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 				for i := range rules {
 					ruleNames = append(ruleNames, rules[i].(*policycache.CompleteRule).RuleID)
 				}
-				klog.V(2).Infof("Group %s referenced by complete rules %v, can't be deleted", req.Name, ruleNames)
+				log.V(2).Info("Group referenced by complete rules, can't be deleted", "ruleNames", ruleNames)
 				return ctrl.Result{RequeueAfter: time.Second}, nil
 			}
 			r.groupCache.DelGroupMembership(req.Name)
-			klog.Infof("Success delete groupmembers %s", req.Name)
+			log.Info("Success delete groupmembers")
 			return ctrl.Result{}, nil
 		}
-		klog.Errorf("Failed to get groupmembers %s: %v", req.Name, err)
+		log.Error(err, "Failed to get groupmembers")
 		return ctrl.Result{}, err
 	}
 
-	err := r.ruleUpdateByGroup(&gm)
+	ctx = context.WithValue(ctx, constants.CtxKeyObject, gm.GroupMembers)
+	err := r.ruleUpdateByGroup(ctx, &gm)
 	r.groupCache.UpdateGroupMembership(&gm)
 	if err == nil {
-		klog.Infof("Success update groupmembers %s", req.Name)
 		return ctrl.Result{}, nil
 	}
+	log.Error(err, "rule update by group failed, requeue after 30s")
 	return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
 }
 
@@ -191,7 +197,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if patchController, err = controller.New("groupPatch-controller", mgr, controller.Options{
+	if patchController, err = controller.New("groupMembers-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcileGroupMembers),
 	}); err != nil {
@@ -213,7 +219,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
 }
 
-func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) error {
+func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.GroupMembers) error {
 	rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, gm.GetName())
 	if len(rules) == 0 {
 		return nil
@@ -226,18 +232,18 @@ func (r *Reconciler) ruleUpdateByGroup(gm *groupv1alpha1.GroupMembers) error {
 		relatedPolicies = append(relatedPolicies,
 			fmt.Sprintf("%s/%s", strings.Split(rule.RuleID, "/")[0], strings.Split(rule.RuleID, "/")[1]))
 
-		oldRuleList = append(oldRuleList, rule.ListRules(r.groupCache)...)
-		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.SrcIPs, rule.SrcGroups, gm)
-		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(rule.DstIPs, rule.DstGroups, gm)
-		newRuleList = append(newRuleList, rule.GenerateRuleList(srcIPs, dstIPs, rule.Ports)...)
+		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache)...)
+		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
+		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
+		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
 	}
 
-	return r.syncPolicyRulesUntilSuccess(relatedPolicies, oldRuleList, newRuleList)
+	return r.syncPolicyRulesUntilSuccess(ctx, relatedPolicies, oldRuleList, newRuleList)
 }
 
 //nolint:all
-func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(staticIPs sets.Set[string], groups sets.Set[string], newGroup *groupv1alpha1.GroupMembers) map[string]*policycache.IPBlockItem {
-	res, err := policycache.AssembleStaticIPAndGroup(staticIPs, groups.Clone().Delete(newGroup.GetName()), r.groupCache)
+func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(ctx context.Context, staticIPs sets.Set[string], groups sets.Set[string], newGroup *groupv1alpha1.GroupMembers) map[string]*policycache.IPBlockItem {
+	res, err := policycache.AssembleStaticIPAndGroup(ctx, staticIPs, groups.Clone().Delete(newGroup.GetName()), r.groupCache)
 	if err != nil {
 		klog.Fatalf("Failed to assemble ipblocks, err: %v", err)
 	}
@@ -245,46 +251,47 @@ func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(staticIPs sets.Set[str
 		return res
 	}
 
-	res = policycache.AppendIPBlocks(res, policycache.GroupMembersToIPBlocks(newGroup.GroupMembers))
+	res = policycache.AppendIPBlocks(res, policycache.GroupMembersToIPBlocks(ctx, newGroup.GroupMembers))
 	return res
 }
 
-func (r *Reconciler) cleanPolicyDependents(policy k8stypes.NamespacedName) error {
+func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.NamespacedName) error {
 	var oldRuleList []policycache.PolicyRule
 
 	// retrieve policy completeRules from cache
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(r.groupCache)...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache)...)
 		// start a force full synchronization of policyrule
 		// remove policy completeRules from cache
 		_ = r.ruleCache.Delete(completeRule)
 	}
 
-	return r.syncPolicyRulesUntilSuccess([]string{policy.String()}, oldRuleList, nil)
+	return r.syncPolicyRulesUntilSuccess(ctx, []string{policy.String()}, oldRuleList, nil)
 }
 
-func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
+func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
 	var oldRuleList []policycache.PolicyRule
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(r.groupCache)...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache)...)
 	}
 
-	newRuleList, err := r.calculateExpectedPolicyRules(policy)
+	newRuleList, err := r.calculateExpectedPolicyRules(ctx, policy)
 	if IsGroupMembersNotFoundErr(err) {
 		// wait until groupmembers created
-		klog.V(2).Infof("Failed to calculate expect complete rule for policy %s, %s", policy.GetName(), err)
+		log.V(2).Info("Failed to calculate expect complete rule for policy", "err", err)
 		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
 	}
 	if err != nil {
-		klog.Errorf("failed fetch new policy %s rules: %s", policy.Name, err)
+		log.Error(err, "failed fetch new policy rules")
 		return ctrl.Result{}, err
 	}
 
 	// start a force full synchronization of policyrule
-	if err := r.syncPolicyRulesUntilSuccess([]string{fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)}, oldRuleList, newRuleList); err != nil {
+	if err := r.syncPolicyRulesUntilSuccess(ctx, []string{fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)}, oldRuleList, newRuleList); err != nil {
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
 	}
 
@@ -292,12 +299,12 @@ func (r *Reconciler) processPolicyUpdate(policy *securityv1alpha1.SecurityPolicy
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, error) {
+func (r *Reconciler) calculateExpectedPolicyRules(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, error) {
 	var policyRuleList []policycache.PolicyRule
 
-	completeRules, err := r.completePolicy(policy)
+	completeRules, err := r.completePolicy(ctx, policy)
 	if err != nil {
-		return policyRuleList, fmt.Errorf("flatten policy %s: %s", policy.Name, err)
+		return policyRuleList, err
 	}
 
 	// todo: replace delete and add completeRules with update
@@ -308,7 +315,7 @@ func (r *Reconciler) calculateExpectedPolicyRules(policy *securityv1alpha1.Secur
 
 	for _, completeRule := range completeRules {
 		_ = r.ruleCache.Add(completeRule)
-		policyRuleList = append(policyRuleList, completeRule.ListRules(r.groupCache)...)
+		policyRuleList = append(policyRuleList, completeRule.ListRules(ctx, r.groupCache)...)
 	}
 
 	return policyRuleList, nil
@@ -328,7 +335,7 @@ func classifyEgressPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]securit
 }
 
 //nolint:dupl,funlen // todo: remove dupl codes
-func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
+func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
 	var completeRules []*policycache.CompleteRule
 	var ingressEnabled, egressEnabled = policy.IsEnable()
 	ruleAction := policycache.RuleActionAllow
@@ -340,7 +347,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	for _, appliedTo := range policy.Spec.AppliedTo {
 		appliedToPeer = append(appliedToPeer, ctrlpolicy.AppliedAsSecurityPeer(policy.GetNamespace(), appliedTo))
 	}
-	appliedGroups, appliedIPs, err := r.getPeersGroupsAndIPs(policy.GetNamespace(), appliedToPeer)
+	appliedGroups, appliedIPs, err := r.getPeersGroupsAndIPs(ctx, policy.GetNamespace(), appliedToPeer)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +382,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				ingressRule.SrcIPs = sets.New[string]("")
 				completeRules = append(completeRules, ingressRule)
 			} else {
-				ingressRules, err := r.getCompleteRulesByParseSymmetricMode(ingressRuleTmpl, policy, networkingv1.PolicyTypeIngress, rule.From)
+				ingressRules, err := r.getCompleteRulesByParseSymmetricMode(ctx, ingressRuleTmpl, policy, networkingv1.PolicyTypeIngress, rule.From)
 				if err != nil {
 					return nil, err
 				}
@@ -423,7 +430,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 				if err != nil {
 					return nil, err
 				}
-				egressRules, err := r.getCompleteRulesByParseSymmetricMode(egressRule, policy, networkingv1.PolicyTypeEgress, rule.To)
+				egressRules, err := r.getCompleteRulesByParseSymmetricMode(ctx, egressRule, policy, networkingv1.PolicyTypeEgress, rule.To)
 				if err != nil {
 					return nil, err
 				}
@@ -449,7 +456,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 					egressRuleCur := egressRuleTmpl.Clone()
 					egressRuleCur.RuleID = fmt.Sprintf("%s.%s", egressRuleTmpl.RuleID, "namedport")
 					// If "rule.To" is empty or missing, this rule matches all endpoints with named port
-					egressRuleCur.DstGroups, err = r.getAllEpWithNamedPortGroup()
+					egressRuleCur.DstGroups, err = r.getAllEpWithNamedPortGroup(ctx)
 					if err != nil {
 						return nil, err
 					}
@@ -484,7 +491,7 @@ func (r *Reconciler) completePolicy(policy *securityv1alpha1.SecurityPolicy) ([]
 	return completeRules, nil
 }
 
-func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.CompleteRule, policy *securityv1alpha1.SecurityPolicy,
+func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ctx context.Context, ruleTmpl *policycache.CompleteRule, policy *securityv1alpha1.SecurityPolicy,
 	policyType networkingv1.PolicyType, peers []securityv1alpha1.SecurityPolicyPeer) ([]*policycache.CompleteRule, error) {
 	var rules []*policycache.CompleteRule
 	if len(peers) == 0 {
@@ -492,7 +499,7 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 	}
 
 	if !policy.Spec.SymmetricMode {
-		groups, ips, err := r.getPeersGroupsAndIPs(policy.Namespace, peers)
+		groups, ips, err := r.getPeersGroupsAndIPs(ctx, policy.Namespace, peers)
 		if err != nil {
 			return nil, err
 		}
@@ -509,7 +516,7 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 	}
 
 	for i, symmetricMode := range []bool{true, false} {
-		groups, ipBlocks, err := r.getPeersGroupsAndIPs(policy.Namespace, peers, symmetricMode)
+		groups, ipBlocks, err := r.getPeersGroupsAndIPs(ctx, policy.Namespace, peers, symmetricMode)
 		if err != nil {
 			return nil, err
 		}
@@ -532,8 +539,9 @@ func (r *Reconciler) getCompleteRulesByParseSymmetricMode(ruleTmpl *policycache.
 }
 
 // getPeersGroupsAndIPBlocks get ipBlocks from groups, return unique ipBlock list
-func (r *Reconciler) getPeersGroupsAndIPs(namespace string,
+func (r *Reconciler) getPeersGroupsAndIPs(ctx context.Context, namespace string,
 	peers []securityv1alpha1.SecurityPolicyPeer, matchSymmetric ...bool) (sets.Set[string], sets.Set[string], error) {
+	log := ctrl.LoggerFrom(ctx)
 	var groups = sets.New[string]()
 	var ips = sets.New[string]()
 
@@ -553,7 +561,7 @@ func (r *Reconciler) getPeersGroupsAndIPs(namespace string,
 		case peer.IPBlock != nil:
 			ipNets, err := utils.ParseIPBlock(peer.IPBlock)
 			if err != nil {
-				klog.Infof("unable parse IPBlock %+v: %s", peer.IPBlock, err)
+				log.Error(err, "unable parse IPBlock", "ipBlock", peer.IPBlock)
 				return nil, nil, err
 			}
 			for i := range ipNets {
@@ -561,22 +569,22 @@ func (r *Reconciler) getPeersGroupsAndIPs(namespace string,
 			}
 		case peer.Endpoint != nil || peer.EndpointSelector != nil || peer.NamespaceSelector != nil:
 			group := ctrlpolicy.PeerAsEndpointGroup(namespace, peer).GetName()
-			_, exist := r.groupCache.ListGroupIPBlocks(group)
+			_, exist := r.groupCache.ListGroupIPBlocks(ctx, group)
 			if !exist {
 				return nil, nil, NewGroupMembersNotFoundErr(group)
 			}
 			groups.Insert(group)
 		default:
-			klog.Errorf("Empty SecurityPolicyPeer, check your SecurityPolicy definition!")
+			log.Error(utils.InternalErr, "Empty SecurityPolicyPeer, check your SecurityPolicy definition!")
 		}
 	}
 
 	return groups, ips, nil
 }
 
-func (r *Reconciler) getAllEpWithNamedPortGroup() (sets.Set[string], error) {
+func (r *Reconciler) getAllEpWithNamedPortGroup(ctx context.Context) (sets.Set[string], error) {
 	group := ctrlpolicy.GetAllEpWithNamedPortGroup().GetName()
-	_, exist := r.groupCache.ListGroupIPBlocks(group)
+	_, exist := r.groupCache.ListGroupIPBlocks(ctx, group)
 	if !exist {
 		return nil, NewGroupMembersNotFoundErr(group)
 	}
@@ -584,27 +592,29 @@ func (r *Reconciler) getAllEpWithNamedPortGroup() (sets.Set[string], error) {
 	return sets.New[string](group), nil
 }
 
-func (r *Reconciler) syncPolicyRulesUntilSuccess(policyID []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
-	var err = r.compareAndApplyPolicyRulesChanges(policyID, oldRuleList, newRuleList)
+func (r *Reconciler) syncPolicyRulesUntilSuccess(ctx context.Context, policyID []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
+	log := ctrl.LoggerFrom(ctx)
+	var err = r.compareAndApplyPolicyRulesChanges(ctx, policyID, oldRuleList, newRuleList)
 	var rateLimiter = workqueue.NewItemExponentialFailureRateLimiter(time.Microsecond, time.Second)
 	var timeout = time.Minute * 5
 	var deadline = time.Now().Add(timeout)
 
 	for err != nil && !apierrors.IsForbidden(err) {
 		if time.Now().After(deadline) {
-			klog.Errorf("unable sync %+v and %+v in %s", oldRuleList, newRuleList, timeout)
+			log.Error(utils.InternalErr, "Sync securitypolicy failed and timeout to retry", "oldRule", oldRuleList, "newRule", newRuleList, "timeout", timeout)
 			return nil
 		}
 		duration := rateLimiter.When("next-sync")
-		klog.Errorf("failed to sync policyRules, next sync after %s: %s", duration, err)
+		log.Error(err, "Failed to sync policyRules, wait next sync", "waitTime", duration)
 		time.Sleep(duration)
 
-		err = r.compareAndApplyPolicyRulesChanges(policyID, oldRuleList, newRuleList)
+		err = r.compareAndApplyPolicyRulesChanges(ctx, policyID, oldRuleList, newRuleList)
 	}
 	return err
 }
 
-func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
+func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, policyName []string, oldRuleList, newRuleList []policycache.PolicyRule) error {
+	log := ctrl.LoggerFrom(ctx)
 	var (
 		errList    []error
 		newRuleMap = toRuleMap(newRuleList)
@@ -627,7 +637,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldR
 			if newRule.ContainsTCP() && newRule.IsBlock() {
 				reverseRule := newRule.ReverseForTCP()
 				if reverseRule == nil {
-					klog.Errorf("The reverse rule of created rule %v is nil", *newRule)
+					log.Error(utils.InternalErr, "The reverse rule of created rule is nil", "oriRule", *newRule)
 					continue
 				}
 				addRuleList = append(addRuleList, reverseRule)
@@ -637,7 +647,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldR
 			if oldRule.ContainsTCP() && oldRule.IsBlock() {
 				reverseRule := oldRule.ReverseForTCP()
 				if reverseRule == nil {
-					klog.Errorf("The reverse rule of deleted rule %v is nil", *oldRule)
+					log.Error(utils.InternalErr, "The reverse rule of deleted rule is nil", "oriRule", *oldRule)
 					continue
 				}
 				delRuleList = append(delRuleList, reverseRule)
@@ -650,17 +660,20 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldR
 		return apierrors.NewForbidden(schema.GroupResource{}, "", nil)
 	}
 
+	if len(addRuleList) == 0 && len(delRuleList) == 0 {
+		return nil
+	}
+
+	log.Info("policy rule changed for object", "objectSpec", ctx.Value(constants.CtxKeyObject))
 	for _, item := range addRuleList {
-		klog.Infof("create policyRule: %v", item)
 		errList = append(errList,
-			r.processPolicyRuleAdd(item),
+			r.processPolicyRuleAdd(ctx, item),
 		)
 	}
 
 	for _, item := range delRuleList {
-		klog.Infof("remove policyRule: %v", item)
 		errList = append(errList,
-			r.processPolicyRuleDelete(item.Name),
+			r.processPolicyRuleDelete(ctx, item.Name),
 		)
 	}
 
@@ -669,22 +682,21 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(policyName []string, oldR
 	return errors.NewAggregate(errList)
 }
 
-func (r *Reconciler) processPolicyRuleDelete(ruleName string) error {
-	return r.DatapathManager.RemoveEveroutePolicyRule(datapath.FlowKeyFromRuleName(ruleName), ruleName)
+func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, ruleName string) error {
+	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(ruleName), ruleName)
 }
 
-func (r *Reconciler) processPolicyRuleAdd(policyRule *policycache.PolicyRule) error {
-	klog.Infof("add rule %s to datapath", policyRule.Name)
-	return r.addPolicyRuleToDatapath(datapath.FlowKeyFromRuleName(policyRule.Name), policyRule)
+func (r *Reconciler) processPolicyRuleAdd(ctx context.Context, policyRule *policycache.PolicyRule) error {
+	return r.addPolicyRuleToDatapath(ctx, datapath.FlowKeyFromRuleName(policyRule.Name), policyRule)
 }
 
-func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.PolicyRule) error {
+func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string, rule *policycache.PolicyRule) error {
 	// Process PolicyRule: convert it to everoutePolicyRule, filter illegal PolicyRule; install everoutePolicyRule flow
 	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
 
-	return r.DatapathManager.AddEveroutePolicyRule(everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
+	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
 }
 
 // func (r *Reconciler) getSecurityPolicyByCompleteRule(ruleID string) *securityv1alpha1.SecurityPolicy {
@@ -698,14 +710,15 @@ func (r *Reconciler) addPolicyRuleToDatapath(ruleID string, rule *policycache.Po
 // 	return &sp
 // }
 
-func (r *Reconciler) isReadyToProcessGlobalRule() bool {
+func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
+	log := ctrl.LoggerFrom(ctx)
 	if r.ReadyToProcessGlobalRule {
 		return true
 	}
 	if r.globalRuleFirstProcessedTime == nil {
 		curT := time.Now()
 		r.globalRuleFirstProcessedTime = &curT
-		klog.Infof("At least wait %s when first process global rule", msconst.GlobalRuleFirstDelayTime)
+		log.Info("At least wait sometime when first process global rule", "waitTime", msconst.GlobalRuleFirstDelayTime)
 		time.Sleep(msconst.GlobalRuleFirstDelayTime)
 	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(msconst.GlobalRuleDelayTimeout)) {
 		r.ReadyToProcessGlobalRule = true

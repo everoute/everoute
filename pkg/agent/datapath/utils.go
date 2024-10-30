@@ -17,6 +17,7 @@ limitations under the License.
 package datapath
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -156,7 +157,7 @@ func ExcuteCommand(cmdStr, arg string) error {
 	return nil
 }
 
-func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, enableOverlay bool, enableIPAM bool) (*DpManager, error) {
+func InitCNIDpMgrUT(ctx context.Context, brName string, enableProxy bool, enableOverlay bool, enableIPAM bool) (*DpManager, error) {
 	var err error
 	dpConfig := &DpManagerConfig{
 		ManagedVDSMap: map[string]string{brName: brName},
@@ -175,7 +176,7 @@ func InitCNIDpMgrUT(stopCh <-chan struct{}, brName string, enableProxy bool, ena
 
 	updateChan := make(chan *types.EndpointIP, 10)
 	datapathManager := NewDatapathManager(dpConfig, updateChan, metrics.NewAgentMetric())
-	datapathManager.InitializeDatapath(stopCh)
+	datapathManager.InitializeDatapath(ctx)
 
 	agentInfo := datapathManager.Info
 	agentInfo.NodeName = "testnode"

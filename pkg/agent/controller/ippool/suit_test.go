@@ -55,7 +55,7 @@ var _ = BeforeSuite(func() {
 
 	stopCh, cancel = context.WithCancel(ctrl.SetupSignalHandler())
 
-	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh.Done(), BrName, true, true, true)
+	dpMgr, err := datapath.InitCNIDpMgrUT(stopCh, BrName, true, true, true)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(dpMgr).ShouldNot(BeNil())
 

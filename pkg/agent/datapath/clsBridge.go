@@ -286,14 +286,6 @@ func (c *ClsBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (c *ClsBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
-	return nil, nil
-}
-
-func (c *ClsBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
-	return nil
-}
-
 func (c *ClsBridge) AddVNFInstance() error {
 	return nil
 }

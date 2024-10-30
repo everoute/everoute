@@ -36,7 +36,6 @@ import (
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
 	cmap "github.com/orcaman/concurrent-map"
-	log "github.com/sirupsen/logrus"
 	lock "github.com/viney-shih/go-lock"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -44,7 +43,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -194,8 +194,7 @@ type Bridge interface {
 
 	AddSFCRule() error
 	RemoveSFCRule() error
-	AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error)
-	RemoveMicroSegmentRule(rule *EveroutePolicyRule) error
+	AddMicroSegmentRule(ctx context.Context, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error)
 
 	IsSwitchConnected() bool
 	DisconnectedNotify() chan struct{}
@@ -456,7 +455,8 @@ func (d *DpManager) lockflushWithTimeout() {
 	}
 }
 
-func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
+func (datapathManager *DpManager) InitializeDatapath(ctx context.Context) {
+	log := ctrl.LoggerFrom(ctx)
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
@@ -466,7 +466,7 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 		wg.Add(1)
 		go func(vdsID, ovsbrName string) {
 			defer wg.Done()
-			InitializeVDS(datapathManager, vdsID, ovsbrName, stopChan)
+			InitializeVDS(ctx, datapathManager, vdsID, ovsbrName)
 		}(vdsID, ovsbrName)
 	}
 	wg.Wait()
@@ -477,10 +477,10 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 	}
 	// add internal ip handle
 	if len(datapathManager.Config.InternalIPs) != 0 {
-		go datapathManager.syncIntenalIPs(stopChan)
+		go datapathManager.syncIntenalIPs(ctx.Done())
 	}
 
-	go wait.Until(datapathManager.cleanConntrackWorker, time.Second, stopChan)
+	go wait.Until(datapathManager.cleanConntrackWorker, time.Second, ctx.Done())
 
 	for vdsID, bridgeName := range datapathManager.Config.ManagedVDSMap {
 		for bridgeKeyword := range datapathManager.ControllerMap[vdsID] {
@@ -490,9 +490,9 @@ func (datapathManager *DpManager) InitializeDatapath(stopChan <-chan struct{}) {
 
 			go func() {
 				for range datapathManager.BridgeChainMap[vdsID][bridgeKeyword].DisconnectedNotify() {
-					log.Infof("Received vds %v bridge %v reconnect event", vdsID, bridgeKeyword)
-					if err := datapathManager.replayVDSFlow(vdsID, bridgeName, bridgeKeyword); err != nil {
-						log.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
+					log.Info("Received ovs bridge reconnect event", "vds", vdsID, "bridge", bridgeKeyword)
+					if err := datapathManager.replayVDSFlow(ctx, vdsID, bridgeName, bridgeKeyword); err != nil {
+						klog.Fatalf("Failed to replay vds %v, %v flow, error: %v", vdsID, bridgeKeyword, err)
 					}
 				}
 			}()
@@ -620,16 +620,16 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 		},
 	}
 	if err := natDriver.UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
 	}
 
 	natToLocalOfPort, err := natDriver.GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToLocalSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get natToLocalOfPort ovs ovsbrname %v, error: %v", natBr.GetName(), err)
+		klog.Fatalf("Failed to get natToLocalOfPort ovs ovsbrname %v, error: %v", natBr.GetName(), err)
 	}
 	localToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToNatSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get localToNatOfPort ovs ovsbrname %v, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get localToNatOfPort ovs ovsbrname %v, error: %v", ovsbrname, err)
 	}
 
 	datapathManager.DpManagerMutex.Lock()
@@ -650,11 +650,11 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 func setPortMapForKubeProxyReplace(datapathManager *DpManager, vdsID, ovsbrname string) {
 	natToUplinkOfPort, err := datapathManager.OvsdbDriverMap[vdsID][NAT_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-nat-%s", ovsbrname, NatToUplinkSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get natToUplinkOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+		klog.Fatalf("Failed to get natToUplinkOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
 	}
 	uplinkToNatOfPort, err := datapathManager.OvsdbDriverMap[vdsID][UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToNatSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get UplinkToNatOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
+		klog.Fatalf("Failed to get UplinkToNatOfPort ovs ovsbrname %s, error: %s", ovsbrname, err)
 	}
 
 	datapathManager.DpManagerMutex.Lock()
@@ -720,42 +720,42 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 		},
 	}
 	if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set local bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set policy bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set cls bridge: %v protocols, error: %v", vdsID, err)
 	}
 	if err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
-		log.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
+		klog.Fatalf("Failed to set uplink bridge: %v protocols, error: %v", vdsID, err)
 	}
 
 	portMap := make(map[string]uint32)
 	localToPolicyOfPort, err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-%s", ovsbrname, LocalToPolicySuffix))
 	if err != nil {
-		log.Fatalf("Failed to get localToPolicyOfPort of ovsbrname %v, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get localToPolicyOfPort of ovsbrname %v, error: %v", ovsbrname, err)
 	}
 	policyToLocalOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-policy-%s", ovsbrname, PolicyToLocalSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get policyToLocalOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get policyToLocalOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
 	}
 	policyToClsOfPort, err := vdsOvsdbDriverMap[POLICY_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-policy-%s", ovsbrname, PolicyToClsSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get policyToClsOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get policyToClsOfPort of ovsbrname %v-policy, error: %v", ovsbrname, err)
 	}
 	clsToPolicyOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-cls-%s", ovsbrname, ClsToPolicySuffix))
 	if err != nil {
-		log.Fatalf("Failed to get clsToPolicyOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get clsToPolicyOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
 	}
 	clsToUplinkOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-cls-%s", ovsbrname, ClsToUplinkSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
 	}
 	uplinkToClsOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToClsSuffix))
 	if err != nil {
-		log.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
+		klog.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
 	}
 	portMap[LocalToPolicySuffix] = localToPolicyOfPort
 	portMap[PolicyToLocalSuffix] = policyToLocalOfPort
@@ -771,10 +771,11 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
-func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, stopChan <-chan struct{}) {
+func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string, ovsbrName string) {
+	log := ctrl.LoggerFrom(ctx)
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
-		log.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
+		klog.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
 	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
@@ -789,20 +790,20 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 
 	if datapathManager.Config.EnableIPLearning {
 		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
-			IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+			IPAddressCacheUpdateInterval, IPAddressTimeout, ctx.Done())
 
 		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalEndpointIPAddrWorker(
-			IPAddressCacheUpdateInterval, IPAddressTimeout, stopChan)
+			IPAddressCacheUpdateInterval, IPAddressTimeout, ctx.Done())
 	}
 
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[ovsbrName][portSuffix] == 0 {
-			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
+			log.Info("Port in local bridge doesn't exist, skip set no flood port mode", "port", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(),
 			int(datapathManager.BridgeChainPortMap[ovsbrName][portSuffix])); err != nil {
-			log.Fatalf("Failed to set %s port with no flood port mode, %v", portSuffix, err)
+			klog.Fatalf("Failed to set %s port with no flood port mode, %v", portSuffix, err)
 		}
 	}
 
@@ -820,12 +821,13 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 
 		err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 		if err != nil {
-			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
+			klog.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 		}
 	}(vdsID)
 }
 
-func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword string) error {
+func (datapathManager *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridgeKeyword string) error {
+	log := ctrl.LoggerFrom(ctx)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 
@@ -872,7 +874,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword
 	// replay everoute ipam flow
 	if datapathManager.UseEverouteIPAM() {
 		if err := datapathManager.ReplayEverouteIPAMFlow(vdsID, bridgeKeyword); err != nil {
-			klog.Errorf("Failed to replay everoute ipam flow: %v", err)
+			log.Error(err, "Failed to replay everoute ipam flow")
 			return err
 		}
 	}
@@ -880,7 +882,7 @@ func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword
 	// reset port no flood
 	for _, portSuffix := range []string{LocalToPolicySuffix, LocalToNatSuffix} {
 		if datapathManager.BridgeChainPortMap[bridgeName][portSuffix] == 0 {
-			log.Infof("Port %s in local bridge doesn't exist, skip set no flood port mode", portSuffix)
+			log.Info("Port in local bridge doesn't exist, skip set no flood port mode", "port", portSuffix)
 			continue
 		}
 		if err := SetPortNoFlood(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(),
@@ -913,7 +915,7 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 	var errs error
 	for _, entry := range datapathManager.ListRuleEntry() {
 		// Add new policy rule flow to datapath
-		flowEntry, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(entry.EveroutePolicyRule,
+		flowEntry, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(context.Background(), entry.EveroutePolicyRule,
 			entry.Direction, entry.Tier, entry.Mode)
 		if err != nil {
 			errs = errors.Join(errs,
@@ -1044,7 +1046,7 @@ func (datapathManager *DpManager) WaitForBridgeConnected() {
 		}
 	}
 
-	log.Fatalf("bridge chain Failed to connect")
+	klog.Fatalf("bridge chain Failed to connect")
 }
 
 func (datapathManager *DpManager) IsBridgesConnected() bool {
@@ -1098,7 +1100,7 @@ func (datapathManager *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 	for vdsID, ovsbrname := range datapathManager.Config.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := datapathManager.localEndpointDB.Get(endpoint.InterfaceUUID); ep != nil {
-				log.Errorf("Already added local endpoint: %v", ep)
+				klog.Infof("Already added local endpoint: %v", ep)
 				return nil
 			}
 
@@ -1201,7 +1203,8 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	return nil
 }
 
-func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
+func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
+	log := ctrl.LoggerFrom(ctx, "ruleName", ruleName, "newRule", rule, "direction", direction, "tier", tier, "mode", mode)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
@@ -1210,28 +1213,31 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 
 	// check if we already have the rule
 	ruleEntry := datapathManager.GetRuleEntryByRuleID(rule.RuleID).Clone()
+	var oldRule *EveroutePolicyRule
 	if ruleEntry != nil {
 		if RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
 			ruleEntry.PolicyRuleReference.Insert(ruleName)
-			log.Infof("Rule already exists. new rule: {%+v}, old rule: {%+v}", rule, ruleEntry.EveroutePolicyRule)
+			log.Info("Rule already exists, skip add flow")
 			return datapathManager.Rules.Update(ruleEntry)
 		}
-		log.Infof("Rule already exists. update old rule: {%+v} to new rule: {%+v} ", ruleEntry.EveroutePolicyRule, rule)
+		oldRule = ruleEntry.EveroutePolicyRule
 	}
+	log = log.WithValues("oldRule", oldRule)
+	ctx = ctrl.LoggerInto(ctx, log)
 
-	log.Infof("Received AddRule: %+v", rule)
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
-		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(rule, direction, tier, mode)
+		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
+		ctxL := ctrl.LoggerInto(ctx, logL)
+		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, rule, direction, tier, mode)
 		if err != nil {
-			log.Errorf("Failed to add microsegment rule to vdsID %v, bridge %s, error: %v", vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry
 	}
 
-	datapathManager.cleanConntrackFlow(rule)
+	datapathManager.cleanConntrackFlow(ctx, rule)
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	if ruleEntry == nil {
@@ -1244,42 +1250,44 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(rule *EveroutePolicyRule
 	ruleEntry.Mode = mode
 	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
-
+	log.Info("Success to add or update rule")
 	return datapathManager.Rules.Update(ruleEntry)
 }
 
-func (datapathManager *DpManager) RemoveEveroutePolicyRule(ruleID string, ruleName string) error {
+func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string, ruleName string) error {
+	log := ctrl.LoggerFrom(ctx, "ruleName", ruleName)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	log.Infof("Received remove rule: %+v", ruleName)
-
 	pRule := datapathManager.GetRuleEntryByRuleID(ruleID).Clone()
 	if pRule == nil {
-		log.Errorf("ruleID %v not found when deleting", ruleID)
+		log.Error(utils.InternalErr, "rule not found when deleting", "ruleID", ruleID)
 		return nil
 	}
+	log = log.WithValues("rule", pRule)
 
 	// check and remove rule reference
 	pRule.PolicyRuleReference.Delete(ruleName)
 	if pRule.PolicyRuleReference.Len() > 0 {
+		log.Info("Rule referenced by other policy rules, skip del flow")
 		return datapathManager.Rules.Update(pRule)
 	}
 
 	for vdsID := range datapathManager.BridgeChainMap {
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
-			log.Errorf("Failed to delete flow for rule: %+v. Err: %v", ruleID, err)
+			log.Error(err, "Failed to delete flow for rule", "vdsID", vdsID)
 			return err
 		}
+		log.V(2).Info("Success to delete flow for rule", "vdsID", vdsID)
 	}
 
-	datapathManager.cleanConntrackFlow(pRule.EveroutePolicyRule)
+	datapathManager.cleanConntrackFlow(ctx, pRule.EveroutePolicyRule)
 
-	klog.Infof("delete rule %+v", pRule)
+	log.Info("Success delete rule")
 	return datapathManager.Rules.Delete(pRule)
 }
 
@@ -1332,30 +1340,30 @@ func (datapathManager *DpManager) syncIntenalIPs(stopChan <-chan struct{}) {
 func (datapathManager *DpManager) addIntenalIP(ip string, index int) {
 	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
 	// add internal ingress rule
-	err := datapathManager.AddEveroutePolicyRule(newInternalIngressRule(ip),
+	err := datapathManager.AddEveroutePolicyRule(context.Background(), newInternalIngressRule(ip),
 		InternalIngressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 	if err != nil {
-		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
 	// add internal egress rule
-	err = datapathManager.AddEveroutePolicyRule(newInternalEgressRule(ip),
+	err = datapathManager.AddEveroutePolicyRule(context.Background(), newInternalEgressRule(ip),
 		InternalEgressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 	if err != nil {
-		log.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
+		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
 }
 
 func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
 	// del internal ingress rule
-	err := datapathManager.RemoveEveroutePolicyRule(newInternalIngressRule(ip).RuleID, InternalIngressRulePrefix+ruleNameSuffix)
+	err := datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalIngressRule(ip).RuleID, InternalIngressRulePrefix+ruleNameSuffix)
 	if err != nil {
-		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}
 	// del internal egress rule
-	err = datapathManager.RemoveEveroutePolicyRule(newInternalEgressRule(ip).RuleID, InternalEgressRulePrefix+ruleNameSuffix)
+	err = datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalEgressRule(ip).RuleID, InternalEgressRulePrefix+ruleNameSuffix)
 	if err != nil {
-		log.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
+		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}
 }
 
@@ -1389,18 +1397,23 @@ func (datapathManager *DpManager) cleanConntrackWorker() {
 		if ruleList == nil {
 			return
 		}
+		ruleIDs := []string{}
+		for i := range ruleList {
+			ruleIDs = append(ruleIDs, ruleList[i].RuleID)
+		}
 		matches, err := netlink.ConntrackDeleteFilter(netlink.ConntrackTable, unix.AF_INET, ruleList)
 		if err != nil {
-			klog.Errorf("clear conntrack error, rules: %+v, err: %s", ruleList, err)
+			klog.Errorf("clear conntrack error, rules: %s, err: %s", ruleIDs, err)
 			continue
 		}
-		klog.Infof("clear conntrack for rules: %+v, matches %d", ruleList, matches)
+		klog.Infof("clear conntrack for rules %s, matches: %d", ruleIDs, matches)
 	}
 }
 
-func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
+func (datapathManager *DpManager) cleanConntrackFlow(ctx context.Context, rule *EveroutePolicyRule) {
+	log := ctrl.LoggerFrom(ctx)
 	if rule == nil {
-		klog.Error("The rule for clean conntrack flow is nil")
+		log.Error(utils.InternalErr, "The rule for clean conntrack flow is nil")
 		return
 	}
 
@@ -1413,7 +1426,7 @@ func (datapathManager *DpManager) cleanConntrackFlow(rule *EveroutePolicyRule) {
 		return
 	}
 
-	klog.Info("The cleanConntrackChan has blocked, clean channel")
+	log.Info("The cleanConntrackChan has blocked, clean channel")
 	for {
 		select {
 		case <-datapathManager.cleanConntrackChan:
@@ -1561,7 +1574,7 @@ func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
 	}
 
 	if len(externalIds) == 0 {
-		log.Infof("Bridge's external-ids are empty")
+		klog.Infof("Bridge's external-ids are empty")
 		return &RoundInfo{
 			curRoundNum: uint64(1),
 		}, nil
@@ -1569,7 +1582,7 @@ func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
 
 	roundNum, exists := externalIds[datapathRestartRound]
 	if !exists {
-		log.Infof("Bridge's external-ids don't contain ofnetRestartRound field")
+		klog.Infof("Bridge's external-ids don't contain ofnetRestartRound field")
 		return &RoundInfo{
 			curRoundNum: uint64(1),
 		}, nil
@@ -1609,7 +1622,6 @@ func ParseIPAddrMaskString(ipAddr string) (*net.IP, *net.IP, error) {
 	if strings.Contains(ipAddr, "/") {
 		ipDav, ipNet, err := net.ParseCIDR(ipAddr)
 		if err != nil {
-			log.Errorf("Error parsing ip %s. Err: %v", ipAddr, err)
 			return nil, nil, err
 		}
 

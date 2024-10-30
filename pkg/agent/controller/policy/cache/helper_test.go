@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -233,22 +234,22 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			}),
 		},
 		{
-			name: "group is empty",
-			ips: sets.New[string]("10.0.0.1/32", "12.12.0.1/25", ""),
+			name:   "group is empty",
+			ips:    sets.New[string]("10.0.0.1/32", "12.12.0.1/25", ""),
 			groups: sets.New[string]("group-empty"),
 			expErr: false,
-			exp: makeIPMap("10.0.0.1/32", &IPBlockItem{}, "12.12.0.1/25", &IPBlockItem{}, "", &IPBlockItem{}),
+			exp:    makeIPMap("10.0.0.1/32", &IPBlockItem{}, "12.12.0.1/25", &IPBlockItem{}, "", &IPBlockItem{}),
 		},
 		{
-			name: "group and static ip is empty",
-			ips: sets.New[string](),
+			name:   "group and static ip is empty",
+			ips:    sets.New[string](),
 			groups: sets.New[string]("group-empty"),
 			expErr: false,
-			exp: makeIPMap(),
+			exp:    makeIPMap(),
 		},
 		{
-			name: "normal",
-			ips: sets.New[string]("10.10.0.4/32", "13.13.13.0/25"),
+			name:   "normal",
+			ips:    sets.New[string]("10.10.0.4/32", "13.13.13.0/25"),
 			groups: sets.New[string]("group-1", "group-empty", "group-dup-ip"),
 			expErr: false,
 			exp: makeIPMap("10.10.0.1/32", &IPBlockItem{
@@ -301,11 +302,11 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			}, "13.13.13.0/25", &IPBlockItem{}),
 		},
 		{
-			name: "group doesn't exist",
-			ips: sets.New[string]("10.10.0.1/32"),
+			name:   "group doesn't exist",
+			ips:    sets.New[string]("10.10.0.1/32"),
 			groups: sets.New[string]("group-1", "group-empty", "group-dup-ip", "group-unexist"),
 			expErr: true,
-			exp: nil,
+			exp:    nil,
 		},
 	}
 
@@ -313,7 +314,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 		if c.name != "normal" {
 			continue
 		}
-		res, err := AssembleStaticIPAndGroup(c.ips, c.groups, gCache)
+		res, err := AssembleStaticIPAndGroup(context.Background(), c.ips, c.groups, gCache)
 		if (err == nil) == c.expErr {
 			t.Errorf("test %s failed, expErr=%v, err is  %v", c.name, c.expErr, err)
 		}

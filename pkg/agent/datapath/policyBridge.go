@@ -1,6 +1,7 @@
 package datapath
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -8,7 +9,8 @@ import (
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
-	log "github.com/sirupsen/logrus"
+	klog "k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -121,22 +123,22 @@ func (p *PolicyBridge) BridgeInit() {
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
 
 	if err := p.initInputTable(sw); err != nil {
-		log.Fatalf("Failed to init inputTable, error: %v", err)
+		klog.Fatalf("Failed to init inputTable, error: %v", err)
 	}
 	if err := p.initCTFlow(sw); err != nil {
-		log.Fatalf("Failed to init ct table, error: %v", err)
+		klog.Fatalf("Failed to init ct table, error: %v", err)
 	}
 	if err := p.initALGFlow(sw); err != nil {
-		log.Fatalf("Failed to init alg flow, error: %v", err)
+		klog.Fatalf("Failed to init alg flow, error: %v", err)
 	}
 	if err := p.initDirectionSelectionTable(); err != nil {
-		log.Fatalf("Failed to init directionSelection table, error: %v", err)
+		klog.Fatalf("Failed to init directionSelection table, error: %v", err)
 	}
 	if err := p.initPolicyTable(); err != nil {
-		log.Fatalf("Failed to init policy table, error: %v", err)
+		klog.Fatalf("Failed to init policy table, error: %v", err)
 	}
 	if err := p.initPolicyForwardingTable(sw); err != nil {
-		log.Fatalf("Failed to init policy forwarding table, error: %v", err)
+		klog.Fatalf("Failed to init policy forwarding table, error: %v", err)
 	}
 }
 
@@ -226,7 +228,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		Ethertype: PROTOCOL_IP,
 	})
 	if err := ctStateDefaultFlow.Next(p.directionSelectionTable); err != nil {
-		log.Fatalf("failed to install ct state default flow, error: %v", err)
+		klog.Fatalf("failed to install ct state default flow, error: %v", err)
 	}
 
 	// Table 70 conntrack commit table
@@ -664,7 +666,8 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 }
 
 //nolint:funlen
-func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+	log := ctrl.LoggerFrom(ctx)
 	var ipDa *net.IP = nil
 	var ipDaMask *net.IP = nil
 	var ipSa *net.IP = nil
@@ -679,7 +682,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	// Different tier have different nextTable select strategy:
 	policyTable, nextTable, e := p.GetTierTable(direction, tier, mode)
 	if e != nil {
-		log.Errorf("Failed to get policy table tier %v", tier)
+		log.Error(err, "Failed to get policy table tier", "tier", tier)
 		return nil, fmt.Errorf("failed get policy table, err:%s", e)
 	}
 
@@ -687,7 +690,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	if rule.DstIPAddr != "" {
 		ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
 		if err != nil {
-			log.Errorf("Failed to parse dst ip %s. Err: %v", rule.DstIPAddr, err)
+			log.Error(err, "Failed to parse dst ip", "ip", rule.DstIPAddr)
 			return nil, err
 		}
 	}
@@ -696,7 +699,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 	if rule.SrcIPAddr != "" {
 		ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
 		if err != nil {
-			log.Errorf("Failed to parse src ip %s. Err: %v", rule.SrcIPAddr, err)
+			log.Error(err, "Failed to parse src ip", "ip", rule.SrcIPAddr)
 			return nil, err
 		}
 	}
@@ -720,28 +723,32 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		UdpDstPortMask: rule.DstPortMask,
 	})
 	if err != nil {
-		log.Errorf("Failed to add flow for rule {%v}. Err: %v", rule, err)
+		log.Error(err, "Failed to add flow for rule")
 		return nil, err
 	}
 
 	switch mode {
 	case "monitor":
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
+			log.Error(err, "Failed to load field")
 			return nil, err
 		}
 
 		switch tier {
 		case POLICY_TIER2:
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier2FlowSpaceNXRange); err != nil {
+				log.Error(err, "Failed to load field")
 				return nil, err
 			}
 		case POLICY_TIER3:
 			if rule.Action == "deny" {
 				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, MonitorTier3PolicyActionNXRange); err != nil {
+					log.Error(err, "Failed to load field")
 					return nil, err
 				}
 			}
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier3FlowSpaceNXRange); err != nil {
+				log.Error(err, "Failed to load field")
 				return nil, err
 			}
 		}
@@ -754,41 +761,46 @@ func (p *PolicyBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction u
 		case "allow":
 			if rule.Priority == GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY {
 				if err := ruleFlow.LoadField("nxm_nx_reg4", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
+					log.Error(err, "Failed to load field")
 					return nil, err
 				}
 			}
 		case "deny":
 			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+				log.Error(err, "Failed to load field")
 				return nil, err
 			}
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, WorkPolicyActionNXRange); err != nil {
+				log.Error(err, "Failed to load field")
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("unknown action")
+			err := fmt.Errorf("unknown action")
+			log.Error(err, "unknown rule action", "ruleAction", rule.Action)
+			return nil, err
 		}
 
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
+			log.Error(err, "Failed to load field")
 			return nil, err
 		}
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(60, 87)); err != nil {
+			log.Error(err, "Failed to load field")
 			return nil, err
 		}
 
 		if err := ruleFlow.Next(nextTable); err != nil {
+			log.Error(err, "Failed to install flow")
 			return nil, err
 		}
 	}
 
+	log.V(2).Info("Success add flow for rule")
 	return &FlowEntry{
 		Table:    policyTable,
 		Priority: ruleFlow.Match.Priority,
 		FlowID:   ruleFlow.FlowID,
 	}, nil
-}
-
-func (p *PolicyBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
-	return nil
 }
 
 func (p *PolicyBridge) AddVNFInstance() error {
