@@ -88,6 +88,7 @@ func main() {
 	flag.Parse()
 	defer klog.Flush()
 
+	ctrl.SetLogger(klog.Background())
 	// complete options
 	err := opts.complete()
 	if err != nil {
@@ -110,7 +111,7 @@ func main() {
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan, agentMetric)
-	datapathManager.InitializeDatapath(stopCtx.Done())
+	datapathManager.InitializeDatapath(stopCtx)
 
 	var mgr manager.Manager
 	if opts.IsEnableCNI() {

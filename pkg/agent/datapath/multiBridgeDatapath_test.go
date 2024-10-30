@@ -50,6 +50,7 @@ const (
 )
 
 var (
+	ctx             = context.Background()
 	datapathManager *DpManager
 	datapathConfig  = DpManagerConfig{
 		ManagedVDSMap: map[string]string{
@@ -167,9 +168,8 @@ func setupEverouteDp() {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
-	stopChan := make(<-chan struct{})
 	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan, metrics.NewAgentMetric())
-	datapathManager.InitializeDatapath(stopChan)
+	datapathManager.InitializeDatapath(ctx)
 }
 
 func setupOverlayDp() {
@@ -183,9 +183,8 @@ func setupOverlayDp() {
 		log.Fatalf("Failed to setup tunnel bridgechain, error: %v", err)
 	}
 
-	stopChan := make(<-chan struct{})
 	var err error
-	cniDpMgr, err = InitCNIDpMgrUT(stopChan, cniBrName, false, true, false)
+	cniDpMgr, err = InitCNIDpMgrUT(ctx, cniBrName, false, true, false)
 	if err != nil || cniDpMgr == nil {
 		log.Fatalf("Failed to init cni dp mgr, err: %v", err)
 	}
@@ -292,37 +291,37 @@ func testLocalEndpoint(t *testing.T) {
 
 func testERPolicyRule(t *testing.T) {
 	t.Run("check policy rule work mode", func(t *testing.T) {
-		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1)
 		}
 
-		if err := datapathManager.RemoveEveroutePolicyRule(rule1.RuleID, "rule1"); err != nil {
+		if err := datapathManager.RemoveEveroutePolicyRule(ctx, rule1.RuleID, "rule1"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item != nil {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
 		}
 
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule2.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 
-		if err := datapathManager.AddEveroutePolicyRule(rule3, "rule3", POLICY_DIRECTION_IN, POLICY_TIER_ECP, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule3, "rule3", POLICY_DIRECTION_IN, POLICY_TIER_ECP, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule3, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule3.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule3)
 		}
-		if err := datapathManager.RemoveEveroutePolicyRule(rule3.RuleID, "rule3"); err != nil {
+		if err := datapathManager.RemoveEveroutePolicyRule(ctx, rule3.RuleID, "rule3"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule3, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule3.RuleID); item != nil {
@@ -344,7 +343,7 @@ func testERPolicyRule(t *testing.T) {
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
 			}
-			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER1, "monitor")
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER1, "monitor")
 			Expect(err).Should(HaveOccurred())
 		})
 
@@ -359,14 +358,14 @@ func testERPolicyRule(t *testing.T) {
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
 			}
-			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER2, "monitor")
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER2, "monitor")
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=54, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
-			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, rule.RuleID)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -381,14 +380,14 @@ func testERPolicyRule(t *testing.T) {
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
 			}
-			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
-			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, rule.RuleID)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -403,14 +402,14 @@ func testERPolicyRule(t *testing.T) {
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "deny",
 			}
-			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER3, "monitor")
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
-			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, rule.RuleID)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -425,14 +424,14 @@ func testERPolicyRule(t *testing.T) {
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "deny",
 			}
-			err := datapathManager.AddEveroutePolicyRule(rule, rule.RuleID, POLICY_DIRECTION_OUT, POLICY_TIER3, "monitor")
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_OUT, POLICY_TIER3, "monitor")
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=29, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:30", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
-			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, rule.RuleID)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
@@ -448,27 +447,27 @@ func testPolicyTableInit(t *testing.T) {
 
 func testMonitorRule(t *testing.T) {
 	t.Run("test ER policy rule with monitor mode", func(t *testing.T) {
-		if err := datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, v1alpha1.MonitorMode.String()); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER2, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1)
 		}
 
-		if err := datapathManager.RemoveEveroutePolicyRule(rule1.RuleID, "rule1"); err != nil {
+		if err := datapathManager.RemoveEveroutePolicyRule(ctx, rule1.RuleID, "rule1"); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule1.RuleID); item != nil {
 			t.Errorf("Failed to remove ER policy rule, rule %v in cache", rule1)
 		}
 
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 		if item := datapathManager.GetRuleEntryByRuleID(rule2.RuleID); item == nil {
 			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule2)
 		}
-		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, v1alpha1.MonitorMode.String()); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
 	})
@@ -483,7 +482,7 @@ func testFlowReplay(t *testing.T) {
 	t.Run("add ER policy rule", func(t *testing.T) {
 		Eventually(func() error {
 			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER3)
-			return datapathManager.AddEveroutePolicyRule(rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+			return datapathManager.AddEveroutePolicyRule(ctx, rule1, "rule1", POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
 		}, timeout, interval).Should(Succeed())
 	})
 

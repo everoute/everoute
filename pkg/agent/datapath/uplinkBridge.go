@@ -73,14 +73,6 @@ func (u *UplinkBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	return nil
 }
 
-func (u *UplinkBridge) AddMicroSegmentRule(rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
-	return nil, nil
-}
-
-func (u *UplinkBridge) RemoveMicroSegmentRule(rule *EveroutePolicyRule) error {
-	return nil
-}
-
 func (u *UplinkBridge) AddVNFInstance() error {
 	return nil
 }

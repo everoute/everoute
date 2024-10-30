@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 	Expect(datapath.ExcuteCommand(datapath.SetupProxyBridgeChain, BrName)).ToNot(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.SetupTunnelBridgeChain, BrName)).ToNot(HaveOccurred())
 
-	dpMgr, err := datapath.InitCNIDpMgrUT(ctx.Done(), BrName, true, true, false)
+	dpMgr, err := datapath.InitCNIDpMgrUT(ctx, BrName, true, true, false)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(dpMgr).ShouldNot(BeNil())
 

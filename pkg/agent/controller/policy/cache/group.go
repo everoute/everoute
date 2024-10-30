@@ -17,10 +17,11 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 )
@@ -56,7 +57,7 @@ func (cache *GroupCache) DelGroupMembership(groupName string) {
 }
 
 // ListGroupIPBlocks return a list of IPBlocks of the group.
-func (cache *GroupCache) ListGroupIPBlocks(groupName string) (map[string]*IPBlockItem, bool) {
+func (cache *GroupCache) ListGroupIPBlocks(ctx context.Context, groupName string) (map[string]*IPBlockItem, bool) {
 	cache.lock.RLock()
 	defer cache.lock.RUnlock()
 
@@ -64,17 +65,18 @@ func (cache *GroupCache) ListGroupIPBlocks(groupName string) (map[string]*IPBloc
 	if !ok {
 		return nil, false
 	}
-	return GroupMembersToIPBlocks(memberships), true
+	return GroupMembersToIPBlocks(ctx, memberships), true
 }
 
-func GroupMembersToIPBlocks(members []groupv1alpha1.GroupMember) map[string]*IPBlockItem {
+func GroupMembersToIPBlocks(ctx context.Context, members []groupv1alpha1.GroupMember) map[string]*IPBlockItem {
+	log := ctrl.LoggerFrom(ctx)
 	res := make(map[string]*IPBlockItem)
 	if len(members) == 0 {
 		return res
 	}
 	for _, member := range members {
 		if len(member.IPs) == 0 {
-			klog.V(2).Infof("GroupMember with reference %v has no IPs", member.EndpointReference)
+			log.V(2).Info("GroupMember with reference has no IPs", "endpointReference", member.EndpointReference)
 			continue
 		}
 
