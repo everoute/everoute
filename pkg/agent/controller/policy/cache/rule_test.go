@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/agiledragon/gomonkey/v2"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -334,7 +338,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstIPAddr:       "0.0.0.0/32",
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/ingress.ingress1-ycpj5nwmp19cvivz0kxwbjkvulr395so",
+				Name:            "default/test/normal/ingress.ingress1.rev-ycpj5nwmp19cvivz0kxwbjkvulr395so",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -362,7 +366,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
+				Name:            "default/test/normal/egress.egress1.rev-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -409,7 +413,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
+				Name:            "default/test/normal/egress.egress1.rev-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -440,3 +444,147 @@ func TestRuleReverseForTCP(t *testing.T) {
 		}
 	}
 }
+
+func TestRule(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "rule-test")
+}
+
+var _ = Describe("rule unit-test", func() {
+	Context("getReverseRuleName", func() {
+		It("rulename with symmetric", func() {
+			srcName := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1.0-au61wlhu50q00fi2mwfk2ctig31y9go4"
+			srcFlowKey := "au61wlhu50q00fi2mwfk2ctig31y9go4"
+			flowKey := "new1wlhu50q00fi2mwfk2ctig31y9go4"
+			exp := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1.0.rev-new1wlhu50q00fi2mwfk2ctig31y9go4"
+			res := getReverseRuleName(srcName, srcFlowKey, flowKey)
+			Expect(res).Should(Equal(exp))
+		})
+		It("rulename without symmetric", func() {
+			srcName := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1-au61wlhu50q00fi2mwfk2ctig31y9go4"
+			srcFlowKey := "au61wlhu50q00fi2mwfk2ctig31y9go4"
+			flowKey := "new1wlhu50q00fi2mwfk2ctig31y9go4"
+			exp := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1.rev-new1wlhu50q00fi2mwfk2ctig31y9go4"
+			res := getReverseRuleName(srcName, srcFlowKey, flowKey)
+			Expect(res).Should(Equal(exp))
+		})
+	})
+
+	Context("ReverseForBlock", func() {
+		pRule := PolicyRule{
+			Name:            "policy1-ruleid1",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionIn,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			SrcIPAddr:       "12.12.12.12/32",
+			DstIPAddr:       "13.13.13.0/24",
+		}
+		expRuleTmp := PolicyRule{
+			Name:            "policy1re-ruleblock",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionOut,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			SrcIPAddr:       "13.13.13.0/24",
+			DstIPAddr:       "12.12.12.12/32",
+		}
+		It("rule is allowlist", func() {
+			oriRule := pRule.DeepCopy()
+			oriRule.Action = RuleActionAllow
+			res := oriRule.ReverseForBlock()
+			Expect(res).Should(HaveLen(0))
+		})
+		It("rule is allowlist default drop", func() {
+			oriRule := pRule.DeepCopy()
+			oriRule.RuleType = RuleTypeDefaultRule
+			res := oriRule.ReverseForBlock()
+			Expect(res).Should(HaveLen(0))
+		})
+		It("rule is tier1 drop", func() {
+			oriRule := pRule.DeepCopy()
+			oriRule.Tier = "tier1"
+			res := oriRule.ReverseForBlock()
+			Expect(res).Should(HaveLen(0))
+		})
+
+		When("rule is blocklist", func() {
+			It("protocol is icmp", func() {
+				p1 := gomonkey.ApplyFuncSeq(getReverseRuleName, []gomonkey.OutputCell{
+					{Times: 3, Values: gomonkey.Params{"policy1re-ruleblock"}},
+				})
+				defer p1.Reset()
+				oriRule := pRule.DeepCopy()
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(3))
+				expRule1 := expRuleTmp.DeepCopy()
+				expRule1.DstPortMask = 0xffff
+				expRule1.DstPort = 8
+				Expect(res).Should(ContainElement(expRule1))
+				expRule2 := expRule1.DeepCopy()
+				expRule2.DstPort = 13
+				Expect(res).Should(ContainElement(expRule2))
+				expRule3 := expRule1.DeepCopy()
+				expRule3.DstPort = 15
+				Expect(res).Should(ContainElement(expRule3))
+			})
+			It("protocol is tcp", func() {
+				oriRule := pRule.DeepCopy()
+				oriRule.IPProtocol = "TCP"
+				oriRule.DstPort = 32
+				oriRule.DstPortMask = 0xffff
+				p1 := gomonkey.ApplyFuncSeq(getReverseRuleName, []gomonkey.OutputCell{
+					{Times: 1, Values: gomonkey.Params{"policy1re-ruleblock"}},
+				})
+				defer p1.Reset()
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(1))
+				expRule1 := expRuleTmp.DeepCopy()
+				expRule1.SrcPortMask = 0xffff
+				expRule1.SrcPort = 32
+				expRule1.IPProtocol = "TCP"
+				Expect(res).Should(ContainElement(expRule1))
+			})
+			It("protocol is udp", func() {
+				oriRule := pRule.DeepCopy()
+				oriRule.IPProtocol = "UDP"
+				oriRule.DstPort = 32
+				oriRule.DstPortMask = 0xffff
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(0))
+			})
+			It("protocol is empty", func() {
+				oriRule := pRule.DeepCopy()
+				oriRule.IPProtocol = ""
+				p1 := gomonkey.ApplyFuncSeq(getReverseRuleName, []gomonkey.OutputCell{
+					{Times: 4, Values: gomonkey.Params{"policy1re-ruleblock"}},
+				})
+				defer p1.Reset()
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(4))
+				expRule1 := expRuleTmp.DeepCopy()
+				expRule1.IPProtocol = "TCP"
+				Expect(res).Should(ContainElement(expRule1))
+				expRule4 := expRuleTmp.DeepCopy()
+				expRule4.DstPortMask = 0xffff
+				expRule4.DstPort = 8
+				Expect(res).Should(ContainElement(expRule4))
+				expRule2 := expRuleTmp.DeepCopy()
+				expRule2.DstPortMask = 0xffff
+				expRule2.DstPort = 13
+				Expect(res).Should(ContainElement(expRule2))
+				expRule3 := expRuleTmp.DeepCopy()
+				expRule3.DstPortMask = 0xffff
+				expRule3.DstPort = 15
+				Expect(res).Should(ContainElement(expRule3))
+
+			})
+		})
+	})
+})

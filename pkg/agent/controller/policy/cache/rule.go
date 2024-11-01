@@ -52,6 +52,8 @@ const (
 	NormalPolicy   PolicyType = "normal"
 	GlobalPolicy   PolicyType = "global"
 	InternalPolicy PolicyType = "internal"
+
+	BlockReverseRuleNameUnit = ".rev"
 )
 
 type PolicyRule struct {
@@ -69,9 +71,30 @@ type PolicyRule struct {
 	DstIPAddr       string        `json:"dstIPAddr,omitempty"`
 	IPProtocol      string        `json:"ipProtocol"`
 	SrcPort         uint16        `json:"srcPort,omitempty"`
-	DstPort         uint16        `json:"dstPort,omitempty"`
-	SrcPortMask     uint16        `json:"srcPortMask,omitempty"`
-	DstPortMask     uint16        `json:"dstPortMask,omitempty"`
+	// DstPort or icmp type
+	DstPort     uint16 `json:"dstPort,omitempty"`
+	SrcPortMask uint16 `json:"srcPortMask,omitempty"`
+	// for icmp, if DstPortMask=65535, icmp will match type(DstPort)
+	DstPortMask uint16 `json:"dstPortMask,omitempty"`
+}
+
+func (p *PolicyRule) DeepCopy() *PolicyRule {
+	return &PolicyRule{
+		Name:            p.Name,
+		RuleType:        p.RuleType,
+		Tier:            p.Tier,
+		PriorityOffset:  p.PriorityOffset,
+		EnforcementMode: p.EnforcementMode,
+		IPProtocol:      p.IPProtocol,
+		Action:          p.Action,
+		Direction:       p.Direction,
+		SrcIPAddr:       p.SrcIPAddr,
+		SrcPort:         p.SrcPort,
+		SrcPortMask:     p.SrcPortMask,
+		DstIPAddr:       p.DstIPAddr,
+		DstPort:         p.DstPort,
+		DstPortMask:     p.DstPortMask,
+	}
 }
 
 func (p *PolicyRule) IsBlock() bool {
@@ -88,6 +111,58 @@ func (p *PolicyRule) IsBlock() bool {
 
 func (p *PolicyRule) ContainsTCP() bool {
 	return p.IPProtocol == string(securityv1alpha1.ProtocolTCP) || p.IPProtocol == ""
+}
+
+func (p *PolicyRule) ReverseForBlock() []*PolicyRule {
+	if !p.IsBlock() {
+		return nil
+	}
+	res := []*PolicyRule{}
+	tcpR := p.ReverseForTCP()
+	if tcpR != nil {
+		res = append(res, tcpR)
+	}
+
+	icmpRs := p.ReverseForIcmp()
+	res = append(res, icmpRs...)
+
+	return res
+}
+
+func (p *PolicyRule) ReverseForIcmp() []*PolicyRule {
+	if p.IPProtocol != "" && p.IPProtocol != string(securityv1alpha1.ProtocolICMP) {
+		return nil
+	}
+
+	res := []*PolicyRule{}
+	rBase := &PolicyRule{
+		RuleType:        p.RuleType,
+		Tier:            p.Tier,
+		PriorityOffset:  p.PriorityOffset,
+		EnforcementMode: p.EnforcementMode,
+		IPProtocol:      string(securityv1alpha1.ProtocolICMP),
+		Action:          p.Action,
+		SrcIPAddr:       p.DstIPAddr,
+		DstIPAddr:       p.SrcIPAddr,
+		DstPortMask:     0xffff,
+	}
+	switch p.Direction {
+	case RuleDirectionIn:
+		rBase.Direction = RuleDirectionOut
+	case RuleDirectionOut:
+		rBase.Direction = RuleDirectionIn
+	}
+
+	for _, icmpType := range []uint8{constants.IcmpTypeEcho, constants.IcmpTypeInformationReq, constants.IcmpTypeTimestampReq} {
+		r := rBase.DeepCopy()
+		r.DstPort = uint16(icmpType)
+		srcFlowKey := GenerateFlowKey(*p)
+		flowKey := GenerateFlowKey(*r)
+		r.Name = getReverseRuleName(p.Name, srcFlowKey, flowKey)
+		res = append(res, r)
+	}
+
+	return res
 }
 
 func (p *PolicyRule) ReverseForTCP() *PolicyRule {
@@ -121,9 +196,14 @@ func (p *PolicyRule) ReverseForTCP() *PolicyRule {
 	}
 
 	srcFlowKey := GenerateFlowKey(*p)
-	prefix, _ := strings.CutSuffix(p.Name, srcFlowKey)
-	res.Name = prefix + GenerateFlowKey(*res)
+	flowKey := GenerateFlowKey(*res)
+	res.Name = getReverseRuleName(p.Name, srcFlowKey, flowKey)
 	return res
+}
+
+func getReverseRuleName(srcName, srcFlowKey, flowKey string) string {
+	prefix, _ := strings.CutSuffix(srcName, "-"+srcFlowKey)
+	return prefix + BlockReverseRuleNameUnit + "-" + flowKey
 }
 
 type DeepCopyBase interface {
