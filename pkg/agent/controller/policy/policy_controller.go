@@ -635,24 +635,12 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 				continue
 			}
 			addRuleList = append(addRuleList, newRule)
-			if newRule.ContainsTCP() && newRule.IsBlock() {
-				reverseRule := newRule.ReverseForTCP()
-				if reverseRule == nil {
-					log.Error(utils.ErrInternal, "The reverse rule of created rule is nil", "oriRule", *newRule)
-					continue
-				}
-				addRuleList = append(addRuleList, reverseRule)
-			}
+			reverseRules := newRule.ReverseForBlock()
+			addRuleList = append(addRuleList, reverseRules...)
 		} else if oldExist {
 			delRuleList = append(delRuleList, oldRule)
-			if oldRule.ContainsTCP() && oldRule.IsBlock() {
-				reverseRule := oldRule.ReverseForTCP()
-				if reverseRule == nil {
-					log.Error(utils.ErrInternal, "The reverse rule of deleted rule is nil", "oriRule", *oldRule)
-					continue
-				}
-				delRuleList = append(delRuleList, reverseRule)
-			}
+			reverseRules := oldRule.ReverseForBlock()
+			delRuleList = append(delRuleList, reverseRules...)
 		}
 	}
 

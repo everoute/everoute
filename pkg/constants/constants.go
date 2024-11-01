@@ -80,6 +80,10 @@ const (
 
 	// endpoint
 	EndpointExternalIDKey = "iface-id"
+
+	IcmpTypeEcho           uint8 = 8
+	IcmpTypeTimestampReq   uint8 = 13
+	IcmpTypeInformationReq uint8 = 15
 )
 
 const (

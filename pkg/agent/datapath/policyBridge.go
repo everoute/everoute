@@ -704,6 +704,12 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 		}
 	}
 
+	var icmpType uint8
+	if rule.IPProtocol == PROTOCOL_ICMP {
+		if rule.DstPortMask == 0xffff {
+			icmpType = uint8(rule.DstPort)
+		}
+	}
 	// Install the rule in policy table
 	ruleFlow, err := policyTable.NewFlow(ofctrl.FlowMatch{
 		Priority:       uint16(rule.Priority),
@@ -721,6 +727,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 		UdpSrcPortMask: rule.SrcPortMask,
 		UdpDstPort:     rule.DstPort,
 		UdpDstPortMask: rule.DstPortMask,
+		IcmpType:       icmpType,
 	})
 	if err != nil {
 		log.Error(err, "Failed to add flow for rule")
