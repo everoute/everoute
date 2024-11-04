@@ -483,14 +483,14 @@ func TestServiceToSvcLBs(t *testing.T) {
 						Protocol: corev1.ProtocolTCP,
 						Port:     22,
 					},
-					IsLBIP: true,
+					IsLBIP:                 true,
 					TrafficPolicy:          ertype.TrafficPolicyCluster,
 					SessionAffinity:        corev1.ServiceAffinityClientIP,
 					SessionAffinityTimeout: DefaultSessionAffinityTimeout,
 				},
 				&SvcLB{
-					SvcID: "ns/svc",
-					IP:    "192.1.1.2",
+					SvcID:  "ns/svc",
+					IP:     "192.1.1.2",
 					IsLBIP: true,
 					Port: Port{
 						Name:     "ssh",
@@ -553,8 +553,8 @@ func TestServiceToSvcLBs(t *testing.T) {
 					SessionAffinity: corev1.ServiceAffinityNone,
 				},
 				&SvcLB{
-					SvcID: "ns/svc",
-					IP:    "192.1.1.1",
+					SvcID:  "ns/svc",
+					IP:     "192.1.1.1",
 					IsLBIP: true,
 					Port: Port{
 						Name:     "ssh",
@@ -565,8 +565,8 @@ func TestServiceToSvcLBs(t *testing.T) {
 					SessionAffinity: corev1.ServiceAffinityNone,
 				},
 				&SvcLB{
-					SvcID: "ns/svc",
-					IP:    "192.1.1.2",
+					SvcID:  "ns/svc",
+					IP:     "192.1.1.2",
 					IsLBIP: true,
 					Port: Port{
 						Name:     "ssh",

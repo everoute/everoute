@@ -42,7 +42,7 @@ type Reconciler struct {
 	nodeIPsCache cache.Indexer
 }
 
-//nolint
+//nolint:all
 func (r *Reconciler) ReconcileEndpoint(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Received endpoint %v reconcile", req.NamespacedName)
 
@@ -73,7 +73,7 @@ func (r *Reconciler) ReconcileEndpoint(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-//nolint
+//nolint:all
 func (r *Reconciler) ReconcileNode(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	klog.Infof("Receive node %v reconcile", req.NamespacedName)
 

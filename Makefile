@@ -24,7 +24,7 @@ yaml:
 	helm template -n kube-system deploy/chart > deploy/everoute.yaml
 
 generate: codegen mock gqlgen protopb manifests yaml apidocs-gen
-	find . -name "*.go" -exec gci write --Section Standard --Section Default --Section "Prefix(github.com/everoute/everoute)" {} +
+	find . -name "*.go" -exec gci write --section 'standard' --section 'default' --section 'prefix(github.com/everoute/everoute)' {} +
 
 docker-generate: image-generate
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
