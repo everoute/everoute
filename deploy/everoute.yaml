@@ -2011,6 +2011,8 @@ spec:
               mountPath: /opt/cni/bin/
             - name: cni-conf
               mountPath: /etc/cni/net.d
+            - name: host-dbus
+              mountPath: /var/run/dbus
             - name: everoute-config
               mountPath: /var/lib/everoute/cni-conf.conflist
               subPath: cni-conf.conflist
@@ -2118,6 +2120,9 @@ spec:
         - hostPath:
             path: /etc/cni/net.d
           name: cni-conf
+        - hostPath:
+            path: /var/run/dbus
+          name: host-dbus
         - hostPath:
             path: /proc
           name: host-proc
