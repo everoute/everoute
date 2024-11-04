@@ -88,6 +88,11 @@ ovs-vsctl add-br ${POLICY_BRIDGE} -- set bridge ${POLICY_BRIDGE} protocols=OpenF
 ovs-vsctl add-br ${CLS_BRIDGE} -- set bridge ${CLS_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 ovs-vsctl add-br ${UPLINK_BRIDGE} -- set bridge ${UPLINK_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
 
+nmcli device set ${DEFAULT_BRIDGE} manage off
+nmcli device set ${POLICY_BRIDGE} manage off
+nmcli device set ${CLS_BRIDGE} manage off
+nmcli device set ${UPLINK_BRIDGE} manage off
+
 ip link set ${DEFAULT_BRIDGE} down
 ip link set ${POLICY_BRIDGE} down
 ip link set ${CLS_BRIDGE} down
@@ -112,9 +117,11 @@ ovs-vsctl \
     -- set interface ${CLS_TO_UPLINK_PATCH} type=patch options:peer=${UPLINK_TO_CLS_PATCH}
 
 ovs-vsctl add-port ${UPLINK_BRIDGE} ${GW_IFACE} -- set Interface ${GW_IFACE} type=internal
+nmcli device set ${GW_IFACE} manage off
 
 # add port gw-local
 ovs-vsctl add-port ${DEFAULT_BRIDGE} ${GW_LOCAL_IFACE} -- set Interface ${GW_LOCAL_IFACE} type=internal
+nmcli device set ${GW_LOCAL_IFACE} manage off
 ip link set ${GW_LOCAL_IFACE} up
 ip addr add ${LOCAL_GW_IP}/32 dev ${GW_LOCAL_IFACE}
 
