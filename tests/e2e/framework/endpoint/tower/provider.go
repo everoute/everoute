@@ -565,7 +565,7 @@ func (m *provider) getClusterID() (string, error) {
 }
 
 /*
-	endpointProvider is designed as a stateless application, so we store endpoint info into vm.description
+endpointProvider is designed as a stateless application, so we store endpoint info into vm.description
 */
 func (m *provider) toEndpoint(vm *VM) (*model.Endpoint, error) {
 	var endpoint *model.Endpoint

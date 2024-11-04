@@ -337,7 +337,7 @@ const (
 // EndpointSpec provides the specification of an Endpoint
 type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
-	VID uint32 `json:"vid"`
+	VID  uint32 `json:"vid"`
 	VMID string `json:"vmID,omitempty"`
 
 	// ExtendLabels contains extend labels of endpoint. Each key in the labels

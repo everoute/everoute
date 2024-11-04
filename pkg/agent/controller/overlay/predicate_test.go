@@ -53,7 +53,6 @@ func TestEndpointIPsEqual(t *testing.T) {
 	}
 }
 
-
 func TestEndpointAgentsEqual(t *testing.T) {
 	tests := []struct {
 		name string
@@ -106,28 +105,28 @@ func TestNodePredicate(t *testing.T) {
 	predicateFuncs := nodePredicate(localNode)
 
 	// create func
-	createTests := []struct{
-		name string
-		node string
+	createTests := []struct {
+		name       string
+		node       string
 		internalIP string
-		exp bool
+		exp        bool
 	}{
 		{
-			name: "accept event",
-			node: "node02",
+			name:       "accept event",
+			node:       "node02",
 			internalIP: "10.10.1.1",
-			exp: true,
+			exp:        true,
 		},
 		{
-			name: "local node",
-			node: localNode,
+			name:       "local node",
+			node:       localNode,
 			internalIP: "10.10.1.1",
-			exp: false,
+			exp:        false,
 		},
 		{
 			name: "node without internal ip",
 			node: "node02",
-			exp: false,
+			exp:  false,
 		},
 	}
 	for _, curT := range createTests {
@@ -142,33 +141,33 @@ func TestNodePredicate(t *testing.T) {
 	}
 
 	// update func
-	updateTests := []struct{
-		name string
-		node string
+	updateTests := []struct {
+		name  string
+		node  string
 		oldIP string
 		newIP string
-		exp bool
+		exp   bool
 	}{
 		{
-			name: "internal ip doesn't update",
-			node: "node02",
+			name:  "internal ip doesn't update",
+			node:  "node02",
 			oldIP: "10.10.2.3",
 			newIP: "10.10.2.3",
-			exp: false,
+			exp:   false,
 		},
 		{
-			name: "local node",
-			node: localNode,
+			name:  "local node",
+			node:  localNode,
 			oldIP: "10.10.2.3",
 			newIP: "10.10.2.4",
-			exp: false,
+			exp:   false,
 		},
 		{
-			name: "event accept",
-			node: "node02",
+			name:  "event accept",
+			node:  "node02",
 			oldIP: "10.10.2.3",
 			newIP: "10.10.2.4",
-			exp: true,
+			exp:   true,
 		},
 	}
 	for _, curT := range updateTests {
@@ -183,24 +182,24 @@ func TestNodePredicate(t *testing.T) {
 		res := predicateFuncs.Update(e)
 		if res != curT.exp {
 			t.Errorf("nodePredicate.Update test %s faild, expect is %v, real is %v", curT.name, curT.exp, res)
-		} 
+		}
 	}
 
 	// delete func
-	deleteTests := []struct{
+	deleteTests := []struct {
 		name string
 		node string
-		exp bool
+		exp  bool
 	}{
 		{
 			name: "accept event",
 			node: "node02",
-			exp: true,
+			exp:  true,
 		},
 		{
 			name: "local node",
 			node: localNode,
-			exp: false,
+			exp:  false,
 		},
 	}
 	for _, curT := range deleteTests {
@@ -211,7 +210,7 @@ func TestNodePredicate(t *testing.T) {
 		res := predicateFuncs.Delete(e)
 		if res != curT.exp {
 			t.Errorf("nodePredicate.Delete test %s faild, expect is %v, real is %v", curT.name, curT.exp, res)
-		} 
+		}
 	}
 }
 
@@ -225,13 +224,13 @@ func setupNodeEvent(node, ip string) *corev1.Node {
 	obj.Status.Addresses = make([]corev1.NodeAddress, 0)
 	if rand.Intn(2) == 1 {
 		obj.Status.Addresses = append(obj.Status.Addresses, corev1.NodeAddress{
-			Type: corev1.NodeExternalIP,
+			Type:    corev1.NodeExternalIP,
 			Address: "13.13.12.1",
 		})
 	}
 	if ip != "" {
 		obj.Status.Addresses = append(obj.Status.Addresses, corev1.NodeAddress{
-			Type: corev1.NodeInternalIP,
+			Type:    corev1.NodeInternalIP,
 			Address: ip,
 		})
 	}

@@ -57,7 +57,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: true,
 		},
 		{
-			name: "ip num doesn't equal", 
+			name: "ip num doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -99,7 +99,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "ip doesn't equal", 
+			name: "ip doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -141,7 +141,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "groupmember is nil", 
+			name: "groupmember is nil",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -165,7 +165,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "agent num doesn't equal", 
+			name: "agent num doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -207,7 +207,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "agent doesn't equal", 
+			name: "agent doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -249,7 +249,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "port num doesn't equal", 
+			name: "port num doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -286,7 +286,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "port doesn't equal", 
+			name: "port doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",
@@ -328,7 +328,7 @@ func TestGroupMemberEqual(t *testing.T) {
 			exp: false,
 		},
 		{
-			name: "endpointReference doesn't equal", 
+			name: "endpointReference doesn't equal",
 			aGM: &GroupMember{
 				EndpointReference: EndpointReference{
 					ExternalIDName:  "test",

@@ -781,7 +781,7 @@ var _ = Describe("shareIP-unit-test", func() {
 					},
 					"shareIP3": shareIP{
 						ips:          sets.New[string]("0.0.0.0/0"),
-						ipNets:       []net.IPNet{{IP: []byte{0,0,0,0}, Mask: []byte{0,0,0,0}}},
+						ipNets:       []net.IPNet{{IP: []byte{0, 0, 0, 0}, Mask: []byte{0, 0, 0, 0}}},
 						interfaceIDs: sets.New[string]("if6", "if7"),
 					},
 					"shareIP2": shareIP{
