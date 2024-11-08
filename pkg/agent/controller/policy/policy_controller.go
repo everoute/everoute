@@ -348,7 +348,7 @@ func classifyEgressPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]securit
 	return numberPorts, namedPorts
 }
 
-//nolint:dupl,funlen // todo: remove dupl codes
+//nolint:funlen
 func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
 	var completeRules []*policycache.CompleteRule
 	var ingressEnabled, egressEnabled = policy.IsEnable()
@@ -368,7 +368,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 
 	// if apply to is nil or empty, add all ips
 	if len(policy.Spec.AppliedTo) == 0 {
-		appliedIPs = sets.New[string]("")
+		appliedIPs = sets.New("")
 	}
 
 	policyID := fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)

@@ -27,8 +27,10 @@ import (
 )
 
 // SecurityPolicyLister helps list SecurityPolicies.
+// All objects returned here must be treated as read-only.
 type SecurityPolicyLister interface {
 	// List lists all SecurityPolicies in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.SecurityPolicy, err error)
 	// SecurityPolicies returns an object that can list and get SecurityPolicies.
 	SecurityPolicies(namespace string) SecurityPolicyNamespaceLister
@@ -59,10 +61,13 @@ func (s *securityPolicyLister) SecurityPolicies(namespace string) SecurityPolicy
 }
 
 // SecurityPolicyNamespaceLister helps list and get SecurityPolicies.
+// All objects returned here must be treated as read-only.
 type SecurityPolicyNamespaceLister interface {
 	// List lists all SecurityPolicies in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.SecurityPolicy, err error)
 	// Get retrieves the SecurityPolicy from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.SecurityPolicy, error)
 	SecurityPolicyNamespaceListerExpansion
 }

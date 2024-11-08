@@ -136,7 +136,7 @@ func (monitor *AgentMonitor) updateOfPortIPAddress(endpointInfo *types.EndpointI
 
 	klog.V(10).Infof("receive endpoint %s from %s(%d) vlan %d", endpointInfo.IP, endpointInfo.BridgeName, endpointInfo.OfPort, endpointInfo.VlanID)
 
-	if !endpointInfo.IP.IsGlobalUnicast() {
+	if !endpointInfo.IP.IsGlobalUnicast() && !endpointInfo.IP.IsLinkLocalUnicast() {
 		return
 	}
 
@@ -238,7 +238,8 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 						IP:         net.ParseIP(string(ip)),
 						Mac:        getBridgeInternalMac(bridge),
 					}
-					if endpointIP.Mac == nil || !endpointIP.IP.IsGlobalUnicast() {
+					if endpointIP.Mac == nil ||
+						(!endpointIP.IP.IsGlobalUnicast() && !endpointIP.IP.IsLinkLocalUnicast()) {
 						klog.Warningf("skip probe with invalid endpoint info: %v", endpointIP)
 						continue
 					}
@@ -523,11 +524,11 @@ func ifHasError(ovsIf interface{}) bool {
 func listUUID(uuidList interface{}) []ovsdb.UUID {
 	var idList []ovsdb.UUID
 
-	switch uuidList.(type) {
+	switch v := uuidList.(type) {
 	case ovsdb.UUID:
-		return []ovsdb.UUID{uuidList.(ovsdb.UUID)}
+		return []ovsdb.UUID{v}
 	case ovsdb.OvsSet:
-		uuidSet := uuidList.(ovsdb.OvsSet).GoSet
+		uuidSet := v.GoSet
 		for item := range uuidSet {
 			idList = append(idList, listUUID(uuidSet[item])...)
 		}

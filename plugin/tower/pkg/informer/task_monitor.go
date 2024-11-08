@@ -45,7 +45,7 @@ func NewTaskMonitor(towerFactory SharedInformerFactory) client.TaskMonitor {
 		taskInformerSynced: taskInformer.HasSynced,
 	}
 
-	taskInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = taskInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    t.addTask,
 		UpdateFunc: t.updateTask,
 	})
@@ -85,7 +85,7 @@ func (t *taskMonitor) addTask(new interface{}) {
 	}
 }
 
-func (t *taskMonitor) updateTask(old interface{}, new interface{}) {
+func (t *taskMonitor) updateTask(_ interface{}, new interface{}) {
 	newTask := new.(*schema.Task)
 	switch newTask.Status {
 	case schema.TaskStatusFailed, schema.TaskStatusSuccessed:

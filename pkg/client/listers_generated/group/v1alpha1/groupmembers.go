@@ -27,10 +27,13 @@ import (
 )
 
 // GroupMembersLister helps list GroupMemberses.
+// All objects returned here must be treated as read-only.
 type GroupMembersLister interface {
 	// List lists all GroupMemberses in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.GroupMembers, err error)
 	// Get retrieves the GroupMembers from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.GroupMembers, error)
 	GroupMembersListerExpansion
 }

@@ -44,10 +44,10 @@ func newUplinkBridge(brName string, datapathManager *DpManager) *UplinkBridge {
 	return uplinkBridge
 }
 
-func (u *UplinkBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+func (u *UplinkBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (u *UplinkBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {
+func (u *UplinkBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
 }
 
 func (u *UplinkBridge) BridgeInit() {
@@ -65,11 +65,11 @@ func (u *UplinkBridge) BridgeInit() {
 func (u *UplinkBridge) BridgeReset() {
 }
 
-func (u *UplinkBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+func (u *UplinkBridge) AddLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 
-func (u *UplinkBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+func (u *UplinkBridge) RemoveLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 

@@ -27,8 +27,10 @@ import (
 )
 
 // K8sClusterLister helps list K8sClusters.
+// All objects returned here must be treated as read-only.
 type K8sClusterLister interface {
 	// List lists all K8sClusters in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.K8sCluster, err error)
 	// K8sClusters returns an object that can list and get K8sClusters.
 	K8sClusters(namespace string) K8sClusterNamespaceLister
@@ -59,10 +61,13 @@ func (s *k8sClusterLister) K8sClusters(namespace string) K8sClusterNamespaceList
 }
 
 // K8sClusterNamespaceLister helps list and get K8sClusters.
+// All objects returned here must be treated as read-only.
 type K8sClusterNamespaceLister interface {
 	// List lists all K8sClusters in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.K8sCluster, err error)
 	// Get retrieves the K8sCluster from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.K8sCluster, error)
 	K8sClusterNamespaceListerExpansion
 }

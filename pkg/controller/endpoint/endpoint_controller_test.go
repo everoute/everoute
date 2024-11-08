@@ -381,16 +381,16 @@ var (
 	}
 )
 
-// newFakeReconciler return a new EndpointReconciler with fake client, this client
+// newFakeReconciler return a new Reconciler with fake client, this client
 // will save objects in memory.
-func newFakeReconciler(initObjs ...runtime.Object) *EndpointReconciler {
+func newFakeReconciler(initObjs ...runtime.Object) *Reconciler {
 	// scheme
 	_ = agentv1alpha1.AddToScheme(scheme.Scheme)
 	_ = securityv1alpha1.AddToScheme(scheme.Scheme)
 	_ = groupv1alpha1.AddToScheme(scheme.Scheme)
 	ep := securityv1alpha1.Endpoint{}
 
-	return &EndpointReconciler{
+	return &Reconciler{
 		Client:         fakeclient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(initObjs...).WithStatusSubresource(&ep).Build(),
 		Scheme:         scheme.Scheme,
 		IPMigrateCount: metrics.NewIPMigrateCount(),
@@ -620,10 +620,10 @@ var _ = Describe("shareIP-unit-test", func() {
 	ctx := context.Background()
 	Context("updateShareIPCache", func() {
 		When("add shareIP", func() {
-			var r *EndpointReconciler
+			var r *Reconciler
 			key := "test"
 			BeforeEach(func() {
-				r = &EndpointReconciler{
+				r = &Reconciler{
 					shareIPCache: make(map[string]shareIP),
 				}
 			})
@@ -634,18 +634,19 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "3.3.3.3/32"},
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"},
 						InterfaceIDs: []string{"id1", "id2", "id3"},
 					},
 				}
 				r.updateShareIPCache(ctx, obj)
 				res, ok := r.shareIPCache[key]
 				Expect(ok).Should(BeTrue())
-				Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "3.3.3.3/32"))
+				Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"))
 				Expect(res.interfaceIDs.UnsortedList()).Should(ConsistOf("id1", "id2", "id3"))
 				Expect(res.ipNets).Should(ConsistOf(
 					net.IPNet{IP: []byte{1, 1, 1, 0}, Mask: []byte{255, 255, 255, 0}},
-					net.IPNet{IP: []byte{3, 3, 3, 3}, Mask: []byte{255, 255, 255, 255}},
+					net.IPNet{IP: []byte{254, 128, 0, 0, 0, 0, 0, 0, 80, 84, 0, 255, 254, 234, 227, 252},
+						Mask: []byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}},
 				))
 			})
 			It("no ips", func() {
@@ -668,7 +669,7 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "3.3.3.3/32", "3.3.3.1"},
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128", "3.3.3.1"},
 						InterfaceIDs: []string{"id1", "id2", "id3"},
 					},
 				}
@@ -682,7 +683,7 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "3.3.3.3/32"},
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"},
 						InterfaceIDs: []string{"id1"},
 					},
 				}
@@ -692,10 +693,10 @@ var _ = Describe("shareIP-unit-test", func() {
 			})
 		})
 		When("update shareIP cache", func() {
-			var r *EndpointReconciler
+			var r *Reconciler
 			key := "test"
 			BeforeEach(func() {
-				r = &EndpointReconciler{
+				r = &Reconciler{
 					shareIPCache: map[string]shareIP{key: shareIP{ips: sets.New[string]("10.10.10.0/24")}},
 				}
 			})
@@ -706,19 +707,20 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "0.0.0.0/0", "3.3.3.3/32"},
+						IPs:          []string{"1.1.1.0/24", "0.0.0.0/0", "fe80::5054:ff:feea:e3fc/128"},
 						InterfaceIDs: []string{"id1", "id2", "id3"},
 					},
 				}
 				r.updateShareIPCache(ctx, obj)
 				res, ok := r.shareIPCache[key]
 				Expect(ok).Should(BeTrue())
-				Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "3.3.3.3/32", "0.0.0.0/0"))
+				Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128", "0.0.0.0/0"))
 				Expect(res.interfaceIDs.UnsortedList()).Should(ConsistOf("id1", "id2", "id3"))
 				Expect(res.ipNets).Should(ConsistOf(
 					net.IPNet{IP: []byte{1, 1, 1, 0}, Mask: []byte{255, 255, 255, 0}},
 					net.IPNet{IP: []byte{0, 0, 0, 0}, Mask: []byte{0, 0, 0, 0}},
-					net.IPNet{IP: []byte{3, 3, 3, 3}, Mask: []byte{255, 255, 255, 255}},
+					net.IPNet{IP: []byte{254, 128, 0, 0, 0, 0, 0, 0, 80, 84, 0, 255, 254, 234, 227, 252},
+						Mask: []byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}},
 				))
 			})
 			It("no ips", func() {
@@ -741,7 +743,7 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "3.3.3.3/32", "3.3.3.1"},
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128", "3.3.3.1"},
 						InterfaceIDs: []string{"id1", "id2", "id3"},
 					},
 				}
@@ -755,7 +757,7 @@ var _ = Describe("shareIP-unit-test", func() {
 						Name: key,
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
-						IPs:          []string{"1.1.1.0/24", "3.3.3.3/32"},
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"},
 						InterfaceIDs: []string{"id1"},
 					},
 				}
@@ -767,54 +769,73 @@ var _ = Describe("shareIP-unit-test", func() {
 	})
 
 	Context("filterIPNeedDeleteByShareIP", func() {
-		var r *EndpointReconciler
+		var r *Reconciler
 		BeforeEach(func() {
-			r = &EndpointReconciler{
+			_, ipNet1, _ := net.ParseCIDR("ffff::0/64")
+			_, ipNet2, _ := net.ParseCIDR("fe80::5054:ff:feea:e3fc/128")
+			r = &Reconciler{
 				shareIPCache: map[string]shareIP{
-					"shareIP1": shareIP{
-						ips: sets.New[string]("10.10.10.0/24", "12.0.0.0/8", "10.10.0.0/16"),
+					"shareIP1": {
+						ips: sets.New("10.10.10.0/24", "12.0.0.0/8", "10.10.0.0/16"),
 						ipNets: []net.IPNet{
 							{IP: []byte{10, 10, 10, 0}, Mask: []byte{255, 255, 255, 0}},
 							{IP: []byte{12, 0, 0, 0}, Mask: []byte{255, 0, 0, 0}},
 							{IP: []byte{10, 10, 0, 0}, Mask: []byte{255, 255, 0, 0}}},
-						interfaceIDs: sets.New[string]("if1", "if2", "if4"),
+						interfaceIDs: sets.New("if1", "if2", "if4"),
 					},
-					"shareIP3": shareIP{
-						ips:          sets.New[string]("0.0.0.0/0"),
-						ipNets:       []net.IPNet{{IP: []byte{0, 0, 0, 0}, Mask: []byte{0, 0, 0, 0}}},
-						interfaceIDs: sets.New[string]("if6", "if7"),
-					},
-					"shareIP2": shareIP{
-						ips:          sets.New[string]("12.10.10.128/25"),
+					"shareIP2": {
+						ips:          sets.New("12.10.10.128/25"),
 						ipNets:       []net.IPNet{{IP: []byte{12, 10, 10, 128}, Mask: []byte{255, 255, 255, 128}}},
-						interfaceIDs: sets.New[string]("if1", "if2", "if3"),
+						interfaceIDs: sets.New("if1", "if2", "if3"),
+					},
+					"shareIP3": {
+						ips:          sets.New("0.0.0.0/0"),
+						ipNets:       []net.IPNet{{IP: []byte{0, 0, 0, 0}, Mask: []byte{0, 0, 0, 0}}},
+						interfaceIDs: sets.New("if6", "if7"),
+					},
+					"shareIP4": {
+						ips:          sets.New("fe80::5054:ff:feea:e3fc/128", "ffff::0/64"),
+						ipNets:       []net.IPNet{*ipNet1, *ipNet2},
+						interfaceIDs: sets.New("if1", "if2"),
 					}},
 			}
 		})
 
 		It("ipDelete are all not belongs to shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("14.14.14.1", "14.14.14.2"), "if1", "if2")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("14.14.14.1", "14.14.14.2"), "if1", "if2")
 			Expect(res.UnsortedList()).Should(ConsistOf("14.14.14.1", "14.14.14.2"))
 		})
 		It("interfaceID is empty", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("10.10.10.1", "14.14.14.2"), "", "if2")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("10.10.10.1", "14.14.14.2"), "", "if2")
 			Expect(res.UnsortedList()).Should(ConsistOf("10.10.10.1", "14.14.14.2"))
 		})
 		It("ipDelete is match a shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("10.10.10.1", "14.14.14.2"), "if1", "if4")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("10.10.10.1", "14.14.14.2"), "if1", "if4")
 			Expect(res.UnsortedList()).Should(ConsistOf("14.14.14.2"))
 		})
 		It("ipDelete is match multi shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("12.10.10.129"), "if1", "if2")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129"), "if1", "if2")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("ipDelete is match multi shareIP, but interfaceID not match", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("12.10.10.129", "14.14.14.2"), "if3", "if4")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129", "14.14.14.2"), "if3", "if4")
 			Expect(res.UnsortedList()).Should(ConsistOf("12.10.10.129", "14.14.14.2"))
 		})
 		It("ipDelete is match 0.0.0.0/0", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New[string]("12.10.10.129", "14.14.14.2"), "if6", "if7")
+			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129", "14.14.14.2"), "if6", "if7")
 			Expect(res.Len()).Should(Equal(0))
+		})
+		It("ipv6 ipDelete in ipnet", func() {
+			res := r.filterIPNeedDeleteByShareIP(sets.New("ffff::1"), "if1", "if2")
+			Expect(res.Len()).Should(Equal(0))
+		})
+		It("ipv6 ipDelete in ips", func() {
+			res := r.filterIPNeedDeleteByShareIP(sets.New("fe80::5054:ff:feea:e3fc"), "if1", "if2")
+			Expect(res.Len()).Should(Equal(0))
+		})
+		It("ipv6 ipDelete not in shared ip", func() {
+			res := r.filterIPNeedDeleteByShareIP(sets.New("fe80::5054:ff:feea:e3ff"), "if1", "if2")
+			Expect(res.Len()).Should(Equal(1))
 		})
 	})
 })

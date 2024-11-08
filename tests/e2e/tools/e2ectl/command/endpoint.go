@@ -25,6 +25,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/tests/e2e/framework"
 	"github.com/everoute/everoute/tests/e2e/framework/model"
 )
@@ -57,7 +58,11 @@ func newEpAddCommand(f *framework.Framework) *cobra.Command {
 				return fmt.Errorf("endpoint add command requires endpoint name as its argument")
 			}
 			if ipAddr != "" {
-				ipAddr = fmt.Sprintf("%s/32", ipAddr)
+				if utils.IsIPv4(ipAddr) {
+					ipAddr = fmt.Sprintf("%s/32", ipAddr)
+				} else {
+					ipAddr = fmt.Sprintf("%s/128", ipAddr)
+				}
 			}
 			return f.EndpointManager().SetupMany(context.TODO(), &model.Endpoint{
 				Name:         args[0],

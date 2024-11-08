@@ -564,6 +564,15 @@ var _ = Describe("CRD Validate", func() {
 				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"192.168.1.0/24"}
 				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
 			})
+			It("Create policy with available IPBlock should allowed (IPv6)", func() {
+				policy.Spec.IngressRules[0].From[0].IPBlock.CIDR = "fe80::0/64"
+
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"fe80::dc13:10ff:fe24:8c7f/128"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+
+				policy.Spec.IngressRules[0].From[0].IPBlock.Except = []string{"fe80::dc13:0/112"}
+				Expect(validate.Validate(fakeAdmissionReview(policy, nil, "")).Allowed).Should(BeTrue())
+			})
 		})
 	})
 

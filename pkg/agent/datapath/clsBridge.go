@@ -64,10 +64,10 @@ func newClsBridge(brName string, datapathManager *DpManager) *ClsBridge {
 	return clsBridge
 }
 
-func (c *ClsBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+func (c *ClsBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (c *ClsBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {
+func (c *ClsBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
 }
 
 func (c *ClsBridge) InitVlanMacLearningAction(learnAction *ofctrl.LearnAction, learnedDstField string, learnedDstFieldBit uint16, learnedSrcValue uint16) error {
@@ -109,7 +109,7 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 	// clsBridge fromLocalLearningFlow
 	fromLocalLearningFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]),
+		InputPort: c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix],
 	})
 
 	fromLocalLearnAction := ofctrl.NewLearnAction(CLSBRIDGE_FORWARDING_TABLE_ID, NORMAL_MATCH_FLOW_PRIORITY,
@@ -136,7 +136,7 @@ func (c *ClsBridge) initLearningTable(sw *ofctrl.OFSwitch) error {
 	// clsBridge fromUplinkLearningFlow
 	fromUplinkLearningFlow, _ := c.clsBridgeLearningTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]),
+		InputPort: c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix],
 	})
 	fromUplinkLearnAction := ofctrl.NewLearnAction(uint8(CLSBRIDGE_FORWARDING_TABLE_ID), NORMAL_MATCH_FLOW_PRIORITY,
 		ClsBridgeL2ForwardingTableIdleTimeout, ClsBridgeL2ForwardingTableHardTimeout, 0, 0, 0)
@@ -220,12 +220,12 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg0,
-				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix]),
+				Data:  c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix],
 				Range: openflow13.NewNXRange(0, 15),
 			},
 		},
 	})
-	outputPort, _ := sw.OutputPort(uint32(openflow13.P_IN_PORT))
+	outputPort, _ := sw.OutputPort(openflow13.P_IN_PORT)
 	if err := learnedLocalToLocalOutputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install cls bridge learnedLocalToLocalOutputFlow, error: %v", err)
 	}
@@ -236,7 +236,7 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg0,
-				Data:  uint32(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix]),
+				Data:  c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix],
 				Range: openflow13.NewNXRange(0, 15),
 			},
 		},
@@ -278,11 +278,11 @@ func (c *ClsBridge) BridgeInit() {
 func (c *ClsBridge) BridgeReset() {
 }
 
-func (c *ClsBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+func (c *ClsBridge) AddLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 
-func (c *ClsBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+func (c *ClsBridge) RemoveLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 
@@ -311,7 +311,7 @@ func (c *ClsBridge) BridgeInitCNI() {
 		Ethertype: PROTOCOL_IP,
 		IpDa:      &c.datapathManager.Info.LocalGwIP,
 	})
-	outputPort, _ := c.OfSwitch.OutputPort(uint32(openflow13.P_IN_PORT))
+	outputPort, _ := c.OfSwitch.OutputPort(openflow13.P_IN_PORT)
 	if err := hairpinFlow.Next(outputPort); err != nil {
 		log.Fatalf("failed to install cls flow for cni hairpin traffic, error: %v", err)
 	}

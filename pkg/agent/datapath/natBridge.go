@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	NatBrInputTable                uint8 = 0
+	NatBrInputTable                uint8
 	NatBrInPortTable               uint8 = 4
 	NatBrCTZoneTable               uint8 = 5
 	NatBrCTStateTable              uint8 = 10
@@ -54,17 +54,17 @@ var (
 	CTZoneReg                       = "nxm_nx_reg0"
 	CTZoneRange *openflow13.NXRange = openflow13.NewNXRange(0, 15)
 
-	ChooseBackendFlagReg   string              = "nxm_nx_reg0"
+	ChooseBackendFlagReg                       = "nxm_nx_reg0"
 	ChooseBackendFlagRange *openflow13.NXRange = openflow13.NewNXRange(16, 16)
-	ChooseBackendFlagStart int                 = 16
-	NeedChoose             uint8               = 0
-	NoNeedChoose           uint8               = 1
+	ChooseBackendFlagStart                     = 16
+	NeedChoose             uint8
+	NoNeedChoose           uint8 = 1
 
-	BackendIPReg         string              = "nxm_nx_reg1"
-	BackendIPRegNumber   int                 = 1
+	BackendIPReg                             = "nxm_nx_reg1"
+	BackendIPRegNumber                       = 1
 	BackendIPRange       *openflow13.NXRange = openflow13.NewNXRange(0, 31)
-	BackendPortReg       string              = "nxm_nx_reg2"
-	BackendPortRegNumber int                 = 2
+	BackendPortReg                           = "nxm_nx_reg2"
+	BackendPortRegNumber                     = 2
 	BackendPortRange     *openflow13.NXRange = openflow13.NewNXRange(0, 15)
 
 	ChooseBackendFlagLength uint16 = 1
@@ -490,7 +490,7 @@ func (n *NatBridge) AddDnatFlow(ip string, protocol corev1.Protocol, port int32)
 	flow, err := n.dnatTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		IpProto:   uint8(ipProtocol),
+		IpProto:   ipProtocol,
 		Regs:      regs,
 	})
 	if err != nil {
@@ -577,7 +577,7 @@ func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        PROTOCOL_TCP,
 			IpDa:           ipDa,
-			IpDaMask:       &IPMaskMatchFullBit,
+			IpDaMask:       &net.IPv4bcast,
 			TcpDstPort:     uint16(port),
 			TcpDstPortMask: PortMaskMatchFullBit,
 		})
@@ -590,7 +590,7 @@ func (n *NatBridge) newLBFlow(ipDa *net.IP, protocol corev1.Protocol, port int32
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        PROTOCOL_UDP,
 			IpDa:           ipDa,
-			IpDaMask:       &IPMaskMatchFullBit,
+			IpDaMask:       &net.IPv4bcast,
 			UdpDstPort:     uint16(port),
 			UdpDstPortMask: PortMaskMatchFullBit,
 		})
@@ -990,7 +990,7 @@ func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        ipProto,
 			IpDa:           &dstIP,
-			IpDaMask:       &IPMaskMatchFullBit,
+			IpDaMask:       &net.IPv4bcast,
 			TcpDstPort:     uint16(dstPort),
 			TcpDstPortMask: PortMaskMatchFullBit,
 		})
@@ -1005,7 +1005,7 @@ func (n *NatBridge) newSessionAffinityFlow(dstIP net.IP, protocol corev1.Protoco
 			Ethertype:      PROTOCOL_IP,
 			IpProto:        ipProto,
 			IpDa:           &dstIP,
-			IpDaMask:       &IPMaskMatchFullBit,
+			IpDaMask:       &net.IPv4bcast,
 			UdpDstPort:     uint16(dstPort),
 			UdpDstPortMask: PortMaskMatchFullBit,
 		})

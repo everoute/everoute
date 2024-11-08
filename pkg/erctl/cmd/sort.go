@@ -15,7 +15,7 @@ var sortCmd = &cobra.Command{
 		"rule:[{foo:bar},{foo:aaa},{foo:bbb}]\n" +
 		"[-i foo=bar] return [{foo:bar}]\n" +
 		"[-d foo=bar] return [{foo:aaa},{foo:bbb}]",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		ruleMaps, original, err := getRuleMapsFromSomewhere()
 		if err != nil {
 			return err
@@ -40,7 +40,7 @@ var sortCmd = &cobra.Command{
 				result = append(result, original[i])
 			}
 		}
-		err = print(out, result)
+		err = printz(out, result)
 		if err != nil {
 			return err
 		}

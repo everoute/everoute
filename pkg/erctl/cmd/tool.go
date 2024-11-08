@@ -65,7 +65,7 @@ func setOutput() (io.Writer, error) {
 	return out, nil
 }
 
-func print(out io.Writer, something interface{}) error {
+func printz(out io.Writer, something interface{}) error {
 	rulebytes, err := json.MarshalIndent(something, "", "\t")
 	if err != nil {
 		return err
@@ -88,7 +88,8 @@ type check struct {
 
 func (c *check) check(rule map[string]interface{}) bool {
 	i := 0
-	for ; i < len(c.checkFunc) && c.checkFunc[i](rule); i++ {
+	for i < len(c.checkFunc) && c.checkFunc[i](rule) {
+		i++
 	}
 	return i == len(c.checkFunc)
 }
@@ -192,6 +193,10 @@ func checkIPFun(k, v string) checkFunc {
 		if errule, ok := m["everoutepolicyrule"]; ok {
 			if ruleip, ok := errule.(map[string]interface{})[k]; ok {
 				ipnet := erctl.GetIPNet(ruleip.(string))
+				// zero ip net contains all ips
+				if ipnet == nil {
+					return true
+				}
 				return ipnet.Contains(net.ParseIP(v))
 			}
 		}
@@ -202,7 +207,7 @@ func checkIPFun(k, v string) checkFunc {
 func checkPortFun(k, v string) checkFunc {
 	intv, err := strconv.Atoi(v)
 	if err != nil {
-		return func(m map[string]interface{}) bool {
+		return func(_ map[string]interface{}) bool {
 			return false
 		}
 	}

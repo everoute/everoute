@@ -133,6 +133,7 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 	var iface = Iface{IfaceName: rand.String(10), IfaceType: "internal", OfPort: ofPort1, externalID: externalIDs}
 	var ipAddr1 = net.ParseIP("10.10.10.1")
 	var ipAddr2 = net.ParseIP("10.10.10.2")
+	var ipAddr3 = net.ParseIP("fe80::dc13:10ff:fe24:8c7f")
 
 	t.Logf("create new port %s", portName)
 	Expect(createPort(ovsClient, brName, portName, &iface)).Should(Succeed())
@@ -164,6 +165,18 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 			return hasIPAddr && iface.Ofport == int32(ofPort1)
 		}, timeout, interval).Should(BeTrue())
 	})
+
+	t.Logf("Add more ovsPort related IPv6 Address %v.", ipAddr3)
+	endpointIPChan <- &types.EndpointIP{BridgeName: brName, OfPort: ofPort1, IP: ipAddr3}
+
+	t.Run("Monitor should update learned OfPort to IpAddress mapping.", func(t *testing.T) {
+		Eventually(func() bool {
+			iface, err := getIface(k8sClient, brName, portName, iface.IfaceName)
+			Expect(err).ShouldNot(HaveOccurred())
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ipAddr3.String())] != nil
+			return hasIPAddr && iface.Ofport == int32(ofPort1)
+		}, timeout, interval).Should(BeTrue())
+	})
 }
 
 func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
@@ -178,6 +191,43 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 	t.Run("should probe timeout access iface ip", func(t *testing.T) {
 		portName, peerName := rand.String(10), rand.String(10)
 		ip := net.ParseIP("10.10.10.1")
+		ofPort := uint32(rand.IntnRange(100, 200))
+
+		externalIDs := make(map[string]string)
+		externalIDs[constants.EndpointExternalIDKey] = rand.String(7)
+		Expect(createVethPair(portName, peerName)).Should(Succeed())
+		Expect(createPort(ovsClient, bridgeName, portName, &Iface{VlanID: 201, OfPort: ofPort, externalID: externalIDs})).Should(Succeed())
+		Eventually(func() error {
+			_, err := getIface(k8sClient, bridgeName, portName, portName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
+
+		endpointIPChan <- &types.EndpointIP{BridgeName: bridgeName, OfPort: ofPort, IP: ip, VlanID: 201, UpdateTime: time.Now().Add(-1 * time.Hour)}
+		Eventually(func() bool {
+			iface, err := getIface(k8sClient, bridgeName, portName, portName)
+			Expect(err).ShouldNot(HaveOccurred())
+			hasIPAddr := iface.IPMap != nil && iface.IPMap[types.IPAddress(ip.String())] != nil
+			return hasIPAddr && iface.Ofport == int32(ofPort)
+		}, timeout, interval).Should(BeTrue())
+
+		fakeClock.Step(probeIPInterval * 2)
+		Eventually(func() int32 {
+			for {
+				select {
+				case endpointIP := <-probeEndpointIPChan:
+					if endpointIP.BridgeName == bridgeName && endpointIP.OfPort == ofPort {
+						return int32(endpointIP.VlanID)
+					}
+				default:
+					return -1
+				}
+			}
+		}, timeout, interval).Should(BeZero())
+	})
+
+	t.Run("should probe timeout access iface ipv6", func(t *testing.T) {
+		portName, peerName := rand.String(10), rand.String(10)
+		ip := net.ParseIP("fe80::dc13:10ff:fe24:8c7f")
 		ofPort := uint32(rand.IntnRange(100, 200))
 
 		externalIDs := make(map[string]string)

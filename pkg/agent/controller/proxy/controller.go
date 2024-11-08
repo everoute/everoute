@@ -548,7 +548,7 @@ func (r *Reconciler) updateServicePortForBackend(servicePort *everoutesvc.Servic
 		if len(localErrs) > 0 {
 			errs = append(errs, localErrs...)
 		}
-		v.ServicePortRefs = sets.NewString(svcPortIndex)
+		v.ServicePortRefs = sets.New(svcPortIndex)
 		_ = r.backendCache.Add(v)
 	}
 

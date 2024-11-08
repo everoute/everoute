@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -385,7 +384,7 @@ func getAgentConfig() (*agentConfig, error) {
 	var err error
 	agentConfig := agentConfig{}
 
-	configdata, err := ioutil.ReadFile(agentConfigFilePath)
+	configdata, err := os.ReadFile(agentConfigFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read agentConfig, error: %v. ", err)
 	}

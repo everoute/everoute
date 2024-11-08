@@ -53,8 +53,9 @@ func getAgentInfos() []*agentv1alpha1.AgentInfo {
 					ExternalIDs: map[string]string{id: id},
 					Mac:         "mac:address",
 					IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
-						types.IPAddress("192.168.2.2"): {},
-						types.IPAddress("192.168.1.1"): {},
+						types.IPAddress("192.168.2.2"):               {},
+						types.IPAddress("192.168.1.1"):               {},
+						types.IPAddress("fe80::5865:20ff:fec9:7e1e"): {},
 					},
 				}},
 			})

@@ -116,13 +116,13 @@ func main() {
 	var mgr manager.Manager
 	if opts.IsEnableCNI() {
 		// in the cni scenario, cni initialization must precede ovsdb monitor initialization
-		mgr = initK8sCtrlManager(config, stopCtx.Done())
+		mgr = initK8sCtrlManager(stopCtx, config)
 		initCNI(datapathManager, mgr, proxySyncChan, overlaySyncChan)
 		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
 	} else {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
 		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
-		mgr = initK8sCtrlManager(config, stopCtx.Done())
+		mgr = initK8sCtrlManager(stopCtx, config)
 	}
 
 	// registry metrics
@@ -173,7 +173,7 @@ func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySync
 	datapathManager.InitializeCNI()
 }
 
-func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.Manager {
+func initK8sCtrlManager(stopCtx context.Context, config *rest.Config) manager.Manager {
 	var mgr manager.Manager
 	var err error
 
@@ -181,7 +181,7 @@ func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.M
 	eventBroadcaster := record.NewBroadcaster()
 
 	// loop initialize manager until success or stop
-	err = wait.PollImmediateUntil(time.Second, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(stopCtx, time.Second, time.Hour, true, func(_ context.Context) (bool, error) {
 		mgr, err = ctrl.NewManager(config, ctrl.Options{
 			Scheme:             clientsetscheme.Scheme,
 			MetricsBindAddress: opts.metricsAddr,
@@ -192,7 +192,7 @@ func initK8sCtrlManager(config *rest.Config, stopChan <-chan struct{}) manager.M
 			klog.Errorf("unable to create manager: %s", err.Error())
 		}
 		return err == nil, nil
-	}, stopChan)
+	})
 	if err != nil {
 		klog.Fatalf("unable to create manager: %s", err.Error())
 	}

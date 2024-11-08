@@ -27,10 +27,13 @@ import (
 )
 
 // GlobalPolicyLister helps list GlobalPolicies.
+// All objects returned here must be treated as read-only.
 type GlobalPolicyLister interface {
 	// List lists all GlobalPolicies in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.GlobalPolicy, err error)
 	// Get retrieves the GlobalPolicy from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.GlobalPolicy, error)
 	GlobalPolicyListerExpansion
 }

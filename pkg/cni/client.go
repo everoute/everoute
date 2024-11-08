@@ -9,6 +9,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	cnipb "github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -17,8 +18,8 @@ import (
 
 func rpcRequest(requestType string, arg *skel.CmdArgs) error {
 	conn, err := grpc.Dial(constants.RPCSocketAddr,
-		grpc.WithInsecure(),
-		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, e error) {
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			unixAddr, _ := net.ResolveUnixAddr("unix", constants.RPCSocketAddr)
 			connUnix, err := net.DialUnix("unix", nil, unixAddr)
 			return connUnix, err

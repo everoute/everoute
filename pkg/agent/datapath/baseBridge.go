@@ -17,8 +17,8 @@ type BaseBridge struct {
 	//nolint: structcheck
 	datapathManager *DpManager
 
-	isSwitchConnected   bool
-	isSwitchInitialized bool
+	isSwitchConnected bool
+
 	switchStatusMutex   sync.RWMutex
 	disconnectChan      chan struct{}
 	disconnectChanMutex sync.Mutex
@@ -45,7 +45,7 @@ func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
 	b.switchStatusMutex.Unlock()
 }
 
-func (b *BaseBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
+func (b *BaseBridge) SwitchDisconnected(_ *ofctrl.OFSwitch) {
 	b.switchStatusMutex.Lock()
 	log.Infof("Switch %s disconnected", b.name)
 	b.isSwitchConnected = false

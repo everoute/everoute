@@ -17,7 +17,7 @@ var flowCmd = &cobra.Command{
 	Use:   "flow",
 	Short: "get all vds's flows",
 	Long:  `use grpc to get all ChainBridge name, so get all bridge flows`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		err := erctl.ConnectFlow()
 		if err != nil {
 			return err
@@ -31,7 +31,7 @@ var flowCmd = &cobra.Command{
 		if err1 != nil {
 			return fmt.Errorf("output:%v\n%v", err1, err)
 		}
-		err1 = print(output, flows)
+		err1 = printz(output, flows)
 		if err1 != nil || err != nil {
 			return fmt.Errorf("print:%v\n%v", err1, err)
 		}

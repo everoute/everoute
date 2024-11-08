@@ -306,13 +306,15 @@ func (c *Client) getToken() string {
 	return c.token
 }
 
+//nolint:gosec
 func (c *Client) dialer() *websocket.Dialer {
 	if c.Dialer == nil {
-		// #nosec G402
 		return &websocket.Dialer{
 			Proxy:            http.ProxyFromEnvironment,
 			HandshakeTimeout: 45 * time.Second,
-			TLSClientConfig:  &tls.Config{InsecureSkipVerify: c.AllowInsecure},
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: c.AllowInsecure,
+			},
 		}
 	}
 	return c.Dialer

@@ -22,7 +22,7 @@ var ruleCmd = &cobra.Command{
 		"-f means get rule by flowids\n" +
 		"-r means get rule by ruleids\n" +
 		"sort rules by --srcip --dstip --dstport --protocol",
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+	RunE: func(_ *cobra.Command, _ []string) (err error) {
 		err = erctl.ConnectRule(showCTflows)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ var ruleCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		err = print(out, rules)
+		err = printz(out, rules)
 		return err
 	},
 }

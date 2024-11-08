@@ -83,7 +83,10 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 	return c.tracker
 }
 
-var _ clientset.Interface = &Clientset{}
+var (
+	_ clientset.Interface = &Clientset{}
+	_ testing.FakeClient  = &Clientset{}
+)
 
 // AgentV1alpha1 retrieves the AgentV1alpha1Client
 func (c *Clientset) AgentV1alpha1() agentv1alpha1.AgentV1alpha1Interface {

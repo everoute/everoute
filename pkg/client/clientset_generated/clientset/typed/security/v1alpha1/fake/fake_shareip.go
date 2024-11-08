@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeShareIPs struct {
 	Fake *FakeSecurityV1alpha1
 }
 
-var shareipsResource = schema.GroupVersionResource{Group: "security.everoute.io", Version: "v1alpha1", Resource: "shareips"}
+var shareipsResource = v1alpha1.SchemeGroupVersion.WithResource("shareips")
 
-var shareipsKind = schema.GroupVersionKind{Group: "security.everoute.io", Version: "v1alpha1", Kind: "ShareIP"}
+var shareipsKind = v1alpha1.SchemeGroupVersion.WithKind("ShareIP")
 
 // Get takes name of the shareIP, and returns the corresponding shareIP object, and an error if there is any.
 func (c *FakeShareIPs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ShareIP, err error) {
@@ -100,7 +99,7 @@ func (c *FakeShareIPs) Update(ctx context.Context, shareIP *v1alpha1.ShareIP, op
 // Delete takes name of the shareIP and deletes it. Returns an error if one occurs.
 func (c *FakeShareIPs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(shareipsResource, name), &v1alpha1.ShareIP{})
+		Invokes(testing.NewRootDeleteActionWithOptions(shareipsResource, name, opts), &v1alpha1.ShareIP{})
 	return err
 }
 

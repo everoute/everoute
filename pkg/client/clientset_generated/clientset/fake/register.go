@@ -34,7 +34,7 @@ import (
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
-var parameterCodec = runtime.NewParameterCodec(scheme)
+
 var localSchemeBuilder = runtime.SchemeBuilder{
 	agentv1alpha1.AddToScheme,
 	groupv1alpha1.AddToScheme,

@@ -7,6 +7,7 @@ import (
 	"github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -460,8 +461,8 @@ func TestRule(t *testing.T) {
 
 var _ = Describe("rule unit-test", func() {
 	Context("generateflowkey", func() {
-		var pRule PolicyRule
-		var exp string
+		var pRule, pRuleV6 PolicyRule
+		var exp, expV6 string
 		BeforeEach(func() {
 			pRule = PolicyRule{
 				Name:           "",
@@ -476,15 +477,38 @@ var _ = Describe("rule unit-test", func() {
 				SrcPort:        345,
 				SrcPortMask:    0xffff,
 				IPProtocol:     "ICMP",
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 			}
+			pRuleV6 = PolicyRule{
+				Name:           "",
+				Policy:         "",
+				Action:         "",
+				PriorityOffset: 30,
+				Direction:      RuleDirectionIn,
+				RuleType:       RuleTypeDefaultRule,
+				Tier:           constants.Tier0,
+				SrcIPAddr:      "fe80::0/16",
+				DstIPAddr:      "fe80::dc13:10ff:fe24:8c7f/128",
+				SrcPort:        345,
+				SrcPortMask:    0xffff,
+				IPProtocol:     "ICMP",
+				IPFamily:       unix.AF_INET6,
+				IcmpTypeEnable: false,
+			}
 			exp = GenerateFlowKey(pRule)
+			expV6 = GenerateFlowKey(pRuleV6)
 		})
 		It("ignore skip Name field", func() {
 			pRule2 := pRule.DeepCopy()
 			pRule2.Name = "rule1"
 			res2 := GenerateFlowKey(*pRule2)
 			Expect(res2).Should(Equal(exp))
+
+			pRule3 := pRuleV6.DeepCopy()
+			pRule3.Name = "rule1"
+			res3 := GenerateFlowKey(*pRule3)
+			Expect(res3).Should(Equal(expV6))
 		})
 		It("ignore skip action", func() {
 			pRule2 := pRule.DeepCopy()
@@ -528,8 +552,22 @@ var _ = Describe("rule unit-test", func() {
 			RuleType:        RuleTypeNormalRule,
 			EnforcementMode: "work",
 			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET,
 			SrcIPAddr:       "12.12.12.12/32",
 			DstIPAddr:       "13.13.13.0/24",
+		}
+		pRuleV6 := PolicyRule{
+			Name:            "policy1-ruleid2",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionIn,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET6,
+			SrcIPAddr:       "fe80::42:87ff:fecd:9198/128",
+			DstIPAddr:       "fe80::b0de:96ff:fe2d:6c99/128",
 		}
 		expRuleTmp := PolicyRule{
 			Name:            "policy1re-ruleblock",
@@ -540,8 +578,22 @@ var _ = Describe("rule unit-test", func() {
 			RuleType:        RuleTypeNormalRule,
 			EnforcementMode: "work",
 			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET,
 			SrcIPAddr:       "13.13.13.0/24",
 			DstIPAddr:       "12.12.12.12/32",
+		}
+		expRuleTmpV6 := PolicyRule{
+			Name:            "policy1re-ruleblock",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionOut,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET6,
+			SrcIPAddr:       "fe80::b0de:96ff:fe2d:6c99/128",
+			DstIPAddr:       "fe80::42:87ff:fecd:9198/128",
 		}
 		It("rule is allowlist", func() {
 			oriRule := pRule.DeepCopy()
@@ -558,6 +610,11 @@ var _ = Describe("rule unit-test", func() {
 		It("rule is tier1 drop", func() {
 			oriRule := pRule.DeepCopy()
 			oriRule.Tier = "tier1"
+			res := oriRule.ReverseForBlock()
+			Expect(res).Should(HaveLen(0))
+		})
+		It("rule is icmpv6", func() {
+			oriRule := pRuleV6.DeepCopy()
 			res := oriRule.ReverseForBlock()
 			Expect(res).Should(HaveLen(0))
 		})
@@ -594,6 +651,26 @@ var _ = Describe("rule unit-test", func() {
 				res := oriRule.ReverseForBlock()
 				Expect(res).Should(HaveLen(1))
 				expRule1 := expRuleTmp.DeepCopy()
+				expRule1.SrcPortMask = 0xffff
+				expRule1.SrcPort = 32
+				expRule1.IPProtocol = "TCP"
+				Expect(res).Should(ContainElement(expRule1))
+			})
+			It("protocol is ipv6 tcp", func() {
+				oriRule := pRule.DeepCopy()
+				oriRule.IPProtocol = "TCP"
+				oriRule.IPFamily = unix.AF_INET6
+				oriRule.SrcIPAddr = "fe80::42:87ff:fecd:9198/128"
+				oriRule.DstIPAddr = "fe80::b0de:96ff:fe2d:6c99/128"
+				oriRule.DstPort = 32
+				oriRule.DstPortMask = 0xffff
+				p1 := gomonkey.ApplyFuncSeq(getReverseRuleName, []gomonkey.OutputCell{
+					{Times: 1, Values: gomonkey.Params{"policy1re-ruleblock"}},
+				})
+				defer p1.Reset()
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(1))
+				expRule1 := expRuleTmpV6.DeepCopy()
 				expRule1.SrcPortMask = 0xffff
 				expRule1.SrcPort = 32
 				expRule1.IPProtocol = "TCP"

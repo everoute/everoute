@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -133,7 +132,7 @@ func getControllerConfig() (*controllerConfig, error) {
 		return &controllerConfig, nil
 	}
 
-	configData, err := ioutil.ReadFile(configPath)
+	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read controllerConfig, error: %v. ", err)
 	}

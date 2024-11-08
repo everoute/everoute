@@ -186,7 +186,7 @@ func (r *Reconciler) deleteEndpoint(key types.NamespacedName) error {
 		ips := nodeIPs.PodIPs[epIndex]
 		if len(ips) > 0 && nodeIPs.IP != "" {
 			klog.Infof("Delete remote endpoint %v ips %v for node %s with node ip %s in dp", key, ips, nodeIPs.Name, nodeIPs.IP)
-			epIPs := ips.List()
+			epIPs := ips.UnsortedList()
 			var errs []error
 			for _, ip := range epIPs {
 				if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
@@ -230,7 +230,7 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 				nodeIPs := obj.(*ercache.NodeIPs).DeepCopy()
 				if nodeIPs.IP != "" {
 					klog.Infof("Add remote endpoint %v ips for node %s with node ip %s in dp", ep, curNode, nodeIPs.IP)
-					epIPs := newIPs.List()
+					epIPs := newIPs.UnsortedList()
 					var errs []error
 					for _, epIP := range epIPs {
 						if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(epIP), net.ParseIP(nodeIPs.IP)); err != nil {
@@ -282,7 +282,7 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 			// delete endpoint in this node
 			if nodeIPs.IP != "" {
 				klog.Infof("Delete remote endpoint %v ips for node %s with node ip %s in dp", ep, nodeName, nodeIPs.IP)
-				epIPs := newIPs.List()
+				epIPs := newIPs.UnsortedList()
 				var errs []error
 				for _, epIP := range epIPs {
 					if err := r.UplinkBr.RemoveRemoteEndpoint(epIP); err != nil {
@@ -302,8 +302,8 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 	return nil
 }
 
-func (r *Reconciler) getEndpointAgentsSet(ep v1alpha1.Endpoint) sets.String {
-	res := sets.NewString(ep.Status.Agents...)
+func (r *Reconciler) getEndpointAgentsSet(ep v1alpha1.Endpoint) sets.Set[string] {
+	res := sets.New(ep.Status.Agents...)
 	res.Delete(r.LocalNode)
 	return res
 }
@@ -433,8 +433,8 @@ func deepCopyNodeIPsObjsToMap(in []interface{}) map[string]*ercache.NodeIPs {
 	return outMap
 }
 
-func ipAddressesToStringSet(ips []ertypes.IPAddress) sets.String {
-	res := sets.NewString()
+func ipAddressesToStringSet(ips []ertypes.IPAddress) sets.Set[string] {
+	res := sets.New[string]()
 	for i := range ips {
 		res.Insert(ips[i].String())
 	}

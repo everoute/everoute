@@ -3,6 +3,8 @@ package datapath
 import (
 	"net"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestToEveroutePolicyRuleForCT(t *testing.T) {
@@ -23,6 +25,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				SrcPortMask:    0xffff,
 				DstPort:        12,
 				IcmpTypeEnable: true,
+				IPFamily:       unix.AF_INET,
 				IcmpType:       13,
 			},
 			exp: EveroutePolicyRuleForCT{
@@ -32,6 +35,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				DstIPNet:       &net.IPNet{IP: net.IP{12, 1, 1, 0}, Mask: net.IPMask{255, 255, 255, 0}},
 				SrcPortMask:    0xffff,
 				DstPort:        12,
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 				IcmpType:       13,
 			},
@@ -46,6 +50,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				SrcPort:        60,
 				SrcPortMask:    0xffff,
 				DstPort:        12,
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 				IcmpType:       13,
 			},
@@ -54,6 +59,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				SrcPort:        60,
 				SrcPortMask:    0xffff,
 				DstPort:        12,
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 				IcmpType:       13,
 			},
@@ -68,6 +74,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				SrcPort:        60,
 				SrcPortMask:    0xffff,
 				DstPort:        12,
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 				IcmpType:       13,
 			},
@@ -77,6 +84,7 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 				SrcPort:        60,
 				SrcPortMask:    0xffff,
 				DstPort:        12,
+				IPFamily:       unix.AF_INET,
 				IcmpTypeEnable: true,
 				IcmpType:       13,
 			},
