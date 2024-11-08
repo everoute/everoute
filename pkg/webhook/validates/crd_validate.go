@@ -211,7 +211,7 @@ type resourceValidator struct {
 
 type endpointValidator resourceValidator
 
-func (v endpointValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointValidator) createValidate(curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	err := v.validateEndpoint(curObj.(*securityv1alpha1.Endpoint))
 	if err != nil {
 		return err.Error(), false
@@ -219,7 +219,7 @@ func (v endpointValidator) createValidate(curObj runtime.Object, userInfo authv1
 	return "", true
 }
 
-func (v endpointValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointValidator) updateValidate(_, curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	curEndpoint := curObj.(*securityv1alpha1.Endpoint)
 
 	err := v.validateEndpoint(curEndpoint)
@@ -229,7 +229,7 @@ func (v endpointValidator) updateValidate(oldObj, curObj runtime.Object, userInf
 	return "", true
 }
 
-func (v endpointValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointValidator) deleteValidate(_ runtime.Object, _ authv1.UserInfo) (string, bool) {
 	return "", true
 }
 
@@ -249,7 +249,7 @@ func (v *endpointValidator) validateEndpoint(endpoint *securityv1alpha1.Endpoint
 
 type endpointGroupValidator resourceValidator
 
-func (v endpointGroupValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointGroupValidator) createValidate(curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	var message string
 
 	err := v.validateGroupSpec(&curObj.(*groupv1alpha1.EndpointGroup).Spec)
@@ -261,7 +261,7 @@ func (v endpointGroupValidator) createValidate(curObj runtime.Object, userInfo a
 	return "", true
 }
 
-func (v endpointGroupValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointGroupValidator) updateValidate(_, curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	var message string
 
 	err := v.validateGroupSpec(&curObj.(*groupv1alpha1.EndpointGroup).Spec)
@@ -292,13 +292,13 @@ func (v endpointGroupValidator) validateGroupSpec(spec *groupv1alpha1.EndpointGr
 	return allErrs.ToAggregate()
 }
 
-func (v endpointGroupValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v endpointGroupValidator) deleteValidate(_ runtime.Object, _ authv1.UserInfo) (string, bool) {
 	return "", true
 }
 
 type securityPolicyValidator resourceValidator
 
-func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v securityPolicyValidator) createValidate(curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	err := v.validatePolicy(curObj.(*securityv1alpha1.SecurityPolicy))
 	if err != nil {
 		return err.Error(), false
@@ -306,7 +306,7 @@ func (v securityPolicyValidator) createValidate(curObj runtime.Object, userInfo 
 	return "", true
 }
 
-func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v securityPolicyValidator) updateValidate(_, curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	err := v.validatePolicy(curObj.(*securityv1alpha1.SecurityPolicy))
 	if err != nil {
 		return err.Error(), false
@@ -314,7 +314,7 @@ func (v securityPolicyValidator) updateValidate(oldObj, curObj runtime.Object, u
 	return "", true
 }
 
-func (v securityPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v securityPolicyValidator) deleteValidate(_ runtime.Object, _ authv1.UserInfo) (string, bool) {
 	return "", true
 }
 
@@ -394,7 +394,9 @@ func (v *securityPolicyValidator) validateRules(ingress, egress []securityv1alph
 		return fmt.Errorf("validate rules name: %s", err)
 	}
 
-	ruleList := append(ingress, egress...)
+	var ruleList []securityv1alpha1.Rule
+	ruleList = append(ruleList, ingress...)
+	ruleList = append(ruleList, egress...)
 	errList := make([]error, 0, len(ruleList))
 
 	for item := range ruleList {
@@ -407,7 +409,9 @@ func (v *securityPolicyValidator) validateRules(ingress, egress []securityv1alph
 
 // validateRule validates if the rule with validate value
 func (v *securityPolicyValidator) validateRule(rule *securityv1alpha1.Rule) error {
-	rulePeerList := append(rule.From, rule.To...)
+	var rulePeerList []securityv1alpha1.SecurityPolicyPeer
+	rulePeerList = append(rulePeerList, rule.From...)
+	rulePeerList = append(rulePeerList, rule.To...)
 	// fix: size computation for allocation may overflow
 	ruleErrList := make([]error, 0, len(rulePeerList))
 	portErrList := make([]error, 0, len(rule.Ports))
@@ -550,7 +554,7 @@ func (v *securityPolicyValidator) validateRuleName(ingress, egress []securityv1a
 
 type globalPolicyValidator resourceValidator
 
-func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v globalPolicyValidator) createValidate(curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
 	policy := curObj.(*securityv1alpha1.GlobalPolicy)
 	policyList := securityv1alpha1.GlobalPolicyList{}
 
@@ -576,11 +580,11 @@ func (v globalPolicyValidator) createValidate(curObj runtime.Object, userInfo au
 	}
 }
 
-func (v globalPolicyValidator) updateValidate(oldObj, curObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v globalPolicyValidator) updateValidate(_, _ runtime.Object, _ authv1.UserInfo) (string, bool) {
 	return "", true
 }
 
-func (v globalPolicyValidator) deleteValidate(oldObj runtime.Object, userInfo authv1.UserInfo) (string, bool) {
+func (v globalPolicyValidator) deleteValidate(_ runtime.Object, _ authv1.UserInfo) (string, bool) {
 	return "", true
 }
 

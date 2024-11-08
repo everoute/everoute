@@ -87,14 +87,14 @@ func (in *Selector) Matches(labelSet Set) bool {
 
 	// labels should be the superset of match labels
 	for key, value := range in.LabelSelector.MatchLabels {
-		if !labelSet[key].IsSuperset(sets.NewString(value)) {
+		if !labelSet[key].IsSuperset(sets.New(value)) {
 			return false
 		}
 	}
 
 	// labesl should be the superset of extend match labels
 	for key, valueSet := range in.ExtendMatchLabels {
-		if !labelSet[key].IsSuperset(sets.NewString(valueSet...)) {
+		if !labelSet[key].IsSuperset(sets.New(valueSet...)) {
 			return false
 		}
 	}
@@ -106,7 +106,7 @@ func (in *Selector) Matches(labelSet Set) bool {
 			if !ok || len(labelValueSet) == 0 {
 				return false
 			}
-			if !sets.NewString(expr.Values...).IsSuperset(labelValueSet) {
+			if !sets.New(expr.Values...).IsSuperset(labelValueSet) {
 				return false
 			}
 		case metav1.LabelSelectorOpNotIn:

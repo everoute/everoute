@@ -213,8 +213,14 @@ var _ = Describe("PolicyController", func() {
 
 				BeforeEach(func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
-					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100,", Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24"}})
-					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{CIDR: "192.168.1.0/24,192.168.4.1-192.168.4.100"})
+					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{
+						CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100," +
+							"2401::192:168:0:0/112,2401::192:168:1:1,2401::192:168:3:1-2401::192:168:3:100",
+						Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24",
+							"2401::192:168:3:1-2401::192:168:3:20", "2401::192:168:0:0/112"}})
+					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{
+						CIDR: "192.168.1.0/24,192.168.4.1-192.168.4.100," +
+							"2401::192:168:1:0/112,2401::192:168:4:1-2401::192:168:4:100"})
 					policy.Ingress = append(policy.Ingress, *ingress)
 					policy.Egress = append(policy.Egress, *egress)
 
@@ -230,6 +236,18 @@ var _ = Describe("PolicyController", func() {
 						{CIDR: "192.168.3.64/27", Except: []string{}},
 						{CIDR: "192.168.3.96/30", Except: []string{}},
 						{CIDR: "192.168.3.100/32", Except: []string{}},
+
+						{CIDR: "2401::192:168:0:0/112", Except: []string{"2401::192:168:0:0/112"}},
+						{CIDR: "2401::192:168:1:1/128", Except: []string{}},
+						{CIDR: "2401::192:168:3:1/128", Except: []string{"2401::192:168:3:1/128"}},
+						{CIDR: "2401::192:168:3:2/127", Except: []string{"2401::192:168:3:2/127"}},
+						{CIDR: "2401::192:168:3:4/126", Except: []string{"2401::192:168:3:4/126"}},
+						{CIDR: "2401::192:168:3:8/125", Except: []string{"2401::192:168:3:8/125"}},
+						{CIDR: "2401::192:168:3:10/124", Except: []string{"2401::192:168:3:10/124"}},
+						{CIDR: "2401::192:168:3:20/123", Except: []string{"2401::192:168:3:20/128"}},
+						{CIDR: "2401::192:168:3:40/122", Except: []string{}},
+						{CIDR: "2401::192:168:3:80/121", Except: []string{}},
+						{CIDR: "2401::192:168:3:100/128", Except: []string{}},
 					}
 
 					egressBlock = []*networkingv1.IPBlock{
@@ -243,6 +261,17 @@ var _ = Describe("PolicyController", func() {
 						{CIDR: "192.168.4.64/27"},
 						{CIDR: "192.168.4.96/30"},
 						{CIDR: "192.168.4.100/32"},
+
+						{CIDR: "2401::192:168:1:0/112"},
+						{CIDR: "2401::192:168:4:1/128"},
+						{CIDR: "2401::192:168:4:2/127"},
+						{CIDR: "2401::192:168:4:4/126"},
+						{CIDR: "2401::192:168:4:8/125"},
+						{CIDR: "2401::192:168:4:10/124"},
+						{CIDR: "2401::192:168:4:20/123"},
+						{CIDR: "2401::192:168:4:40/122"},
+						{CIDR: "2401::192:168:4:80/121"},
+						{CIDR: "2401::192:168:4:100/128"},
 					}
 
 					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
@@ -265,7 +294,7 @@ var _ = Describe("PolicyController", func() {
 					var newIP string
 
 					BeforeEach(func() {
-						newIP = "192.168.1.1"
+						newIP = "192.168.1.1,2401:192:168:1:1"
 						policy.Ingress[0].IPBlock = &newIP
 						policy.Ingress[0].ExceptIPBlock = nil
 						policy.Egress[0].IPBlock = &newIP
@@ -276,8 +305,8 @@ var _ = Describe("PolicyController", func() {
 					It("should update policy ipBlock value", func() {
 						assertPoliciesNum(ctx, 1)
 						assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
-							NewSecurityPolicyRuleIngress("tcp", "20-80", []*networkingv1.IPBlock{{CIDR: newIP + "/32"}}),
-							NewSecurityPolicyRuleEgress("udp", "123", []*networkingv1.IPBlock{{CIDR: newIP + "/32"}}),
+							NewSecurityPolicyRuleIngress("tcp", "20-80", []*networkingv1.IPBlock{{CIDR: "192.168.1.1/32"}, {CIDR: "2401:192:168:1:1/128"}}),
+							NewSecurityPolicyRuleEgress("udp", "123", []*networkingv1.IPBlock{{CIDR: "192.168.1.1/32"}, {CIDR: "2401:192:168:1:1/128"}}),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
 						assertAllowlist(ctx)
@@ -961,7 +990,9 @@ var _ = Describe("PolicyController", func() {
 				var ingressBlock []*networkingv1.IPBlock
 
 				BeforeEach(func() {
-					ingress = NewNetworkPolicyRule("tcp", "22-80", &networkingv1.IPBlock{CIDR: "192.168.0.0/24,192.168.3.1-192.168.3.100,", Except: []string{"192.168.3.0/26", "192.168.0.0"}})
+					ingress = NewNetworkPolicyRule("tcp", "22-80", &networkingv1.IPBlock{
+						CIDR:   "192.168.0.0/24,192.168.3.1-192.168.3.100,2401::192:168:0:0/112,2401::192:168:3:1-2401::192:168:3:100",
+						Except: []string{"192.168.3.0/26", "192.168.0.0", "2401::192:168:3:0/122", "2401::192:168:0:0"}})
 					policy.Ingress = []schema.NetworkPolicyRule{*ingress}
 
 					ingressBlock = []*networkingv1.IPBlock{
@@ -975,6 +1006,17 @@ var _ = Describe("PolicyController", func() {
 						{CIDR: "192.168.3.64/27", Except: []string{}},
 						{CIDR: "192.168.3.96/30", Except: []string{}},
 						{CIDR: "192.168.3.100/32", Except: []string{}},
+
+						{CIDR: "2401::192:168:0:0/112", Except: []string{"2401::192:168:0:0/128"}},
+						{CIDR: "2401::192:168:3:1/128", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:2/127", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:4/126", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:8/125", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:10/124", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:20/123", Except: []string{"2401::192:168:3:0/122"}},
+						{CIDR: "2401::192:168:3:40/122", Except: []string{}},
+						{CIDR: "2401::192:168:3:80/121", Except: []string{}},
+						{CIDR: "2401::192:168:3:100/128", Except: []string{}},
 					}
 
 					By(fmt.Sprintf("Update IsolationPolicy %+v", policy))
@@ -2207,17 +2249,23 @@ var _ = Describe("PolicyController", func() {
 		})
 
 		Context("apply to user-defined global whitelist", func() {
-			var ip1 *networkingv1.IPBlock
+			var ip1all, ip1v4, ip1v6 *networkingv1.IPBlock
 			BeforeEach(func() {
 				cluster := NewEverouteCluster(everouteCluster, schema.GlobalPolicyActionAllow)
 				cluster.ControllerInstances = nil
-				ip1 = &networkingv1.IPBlock{
+				ip1all = &networkingv1.IPBlock{
+					CIDR: "10.10.1.0/24,2401::10:10:1:0/96",
+				}
+				ip1v4 = &networkingv1.IPBlock{
 					CIDR: "10.10.1.0/24",
+				}
+				ip1v6 = &networkingv1.IPBlock{
+					CIDR: "2401::10:10:1:0/96",
 				}
 				cluster.GlobalWhitelist = schema.EverouteClusterWhitelist{
 					Enable: true,
 					Egress: []schema.NetworkPolicyRule{
-						*NewNetworkPolicyRule("", "", ip1),
+						*NewNetworkPolicyRule("", "", ip1all),
 					},
 					Ingress: []schema.NetworkPolicyRule{
 						{
@@ -2252,7 +2300,7 @@ var _ = Describe("PolicyController", func() {
 					//egress
 					g.Expect(len(sp.Spec.EgressRules)).Should(Equal(1))
 					expRule = v1alpha1.Rule{
-						To: []v1alpha1.SecurityPolicyPeer{{IPBlock: ip1}},
+						To: []v1alpha1.SecurityPolicyPeer{{IPBlock: ip1v4}, {IPBlock: ip1v6}},
 					}
 					matchRule(g, expRule, sp.Spec.EgressRules[0])
 				}, timeout, interval).Should(Succeed())
@@ -2316,6 +2364,7 @@ func assertHasPolicy(ctx context.Context, tier string, symmetricMode bool, enfor
 	Eventually(func() bool {
 		policyList, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).List(ctx, metav1.ListOptions{})
 		Expect(err).Should(Succeed())
+		By(fmt.Sprintf("%+v", policyList))
 		for item := range policyList.Items {
 			if matchPolicy(&policyList.Items[item], tier, symmetricMode, enforceMode,
 				defaultRule, policyTypes, ingress, egress, applyToPeers...) {

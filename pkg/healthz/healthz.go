@@ -128,7 +128,7 @@ func WithEnable(enable *bool, checker healthz.HealthChecker) healthz.HealthCheck
 	if enable == nil || *enable {
 		return checker
 	}
-	return healthz.NamedCheck(checker.Name(), func(r *http.Request) error {
+	return healthz.NamedCheck(checker.Name(), func(_ *http.Request) error {
 		return nil
 	})
 }

@@ -38,26 +38,26 @@ func TestAsSet(t *testing.T) {
 		},
 		{
 			labels:      map[string]string{"foo": "bar"},
-			expectedSet: labels.Set{"foo": sets.NewString("bar")},
+			expectedSet: labels.Set{"foo": sets.New("bar")},
 		},
 		{
 			extendLabels: map[string][]string{"foo": {"bar", "baz"}},
-			expectedSet:  labels.Set{"foo": sets.NewString("bar", "baz")},
+			expectedSet:  labels.Set{"foo": sets.New("bar", "baz")},
 		},
 		{
 			labels:       map[string]string{"foo": "bar"},
 			extendLabels: map[string][]string{"foz": {"baz"}},
-			expectedSet:  labels.Set{"foo": sets.NewString("bar"), "foz": sets.NewString("baz")},
+			expectedSet:  labels.Set{"foo": sets.New("bar"), "foz": sets.New("baz")},
 		},
 		{
 			labels:       map[string]string{"foo": "bar"},
 			extendLabels: map[string][]string{"foz": {"baz", "qux"}},
-			expectedSet:  labels.Set{"foo": sets.NewString("bar"), "foz": sets.NewString("baz", "qux")},
+			expectedSet:  labels.Set{"foo": sets.New("bar"), "foz": sets.New("baz", "qux")},
 		},
 		{
 			labels:       map[string]string{"foo": ""},
 			extendLabels: map[string][]string{"bar": {""}},
-			expectedSet:  labels.Set{"foo": sets.NewString(""), "bar": sets.NewString("")},
+			expectedSet:  labels.Set{"foo": sets.New(""), "bar": sets.New("")},
 		},
 		{
 			extendLabels:     map[string][]string{"foo": nil},

@@ -29,6 +29,7 @@ import (
 	"github.com/onsi/gomega/format"
 	gtypes "github.com/onsi/gomega/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -66,12 +67,16 @@ func TestPolicyController(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	//var l klog.Level = 4
+	//l.Set("4")
+
+	ctrl.SetLogger(klog.Background())
 	if os.Getenv(RunTestWithExistingCluster) == "true" {
 		By("testing with existing cluster")
 		useExistingCluster = true
 	}
 	// Wait for policyrule test initialize DpManager, and then start flow relay test, avoid connection reset error
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 10)
 	/*
 		First, the envtest cluster is configured to read CRDs from the CRD directory Kubebuilder scaffolds for you.
 	*/
@@ -184,6 +189,7 @@ func (matcher *PolicyRuleMatcher) Match(actual interface{}) (success bool, err e
 		expRule.DstPort == rule.DstPort &&
 		expRule.DstPortMask == rule.DstPortMask &&
 		expRule.IPProtocol == rule.IPProtocol &&
+		expRule.IPFamily == rule.IPFamily &&
 		expRule.PriorityOffset == rule.PriorityOffset {
 		return true, nil
 	}

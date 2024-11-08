@@ -1348,7 +1348,7 @@ var _ = Describe("proxy controller", func() {
 				Protocol:        backend1.Protocol,
 				Port:            backend1.Port,
 				Node:            backend1.Node,
-				ServicePortRefs: sets.NewString(svcPortRef),
+				ServicePortRefs: sets.New(svcPortRef),
 			}
 			Eventually(func() proxycache.SvcPort {
 				svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName1))
@@ -1422,7 +1422,7 @@ var _ = Describe("proxy controller", func() {
 				Protocol:        backend1.Protocol,
 				Port:            backend1.Port,
 				Node:            backend1.Node,
-				ServicePortRefs: sets.NewString(svcPortRef1, svcPortRef2),
+				ServicePortRefs: sets.New(svcPortRef1, svcPortRef2),
 			}
 			Eventually(func() proxycache.SvcPort {
 				svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName2))
@@ -1466,7 +1466,7 @@ var _ = Describe("proxy controller", func() {
 				Protocol:        backend2.Protocol,
 				Port:            backend2.Port,
 				Node:            backend2.Node,
-				ServicePortRefs: sets.NewString(svcPortRef1),
+				ServicePortRefs: sets.New(svcPortRef1),
 			}
 			Eventually(func() proxycache.SvcPort {
 				svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName1))
@@ -1714,7 +1714,7 @@ var _ = Describe("proxy controller", func() {
 					Protocol:        backend1.Protocol,
 					Port:            backend1.Port,
 					Node:            backend1.Node,
-					ServicePortRefs: sets.NewString(svcPortRef),
+					ServicePortRefs: sets.New(svcPortRef),
 				}
 				Eventually(func() proxycache.SvcPort {
 					svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName1))
@@ -1768,7 +1768,7 @@ var _ = Describe("proxy controller", func() {
 					Protocol:        backend3.Protocol,
 					Port:            backend3.Port,
 					Node:            backend3.Node,
-					ServicePortRefs: sets.NewString(svcPortRef1),
+					ServicePortRefs: sets.New(svcPortRef1),
 				}
 				Eventually(func() proxycache.SvcPort {
 					svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName1))
@@ -1827,7 +1827,7 @@ var _ = Describe("proxy controller", func() {
 					Protocol:        backend2.Protocol,
 					Port:            backend2.Port,
 					Node:            backend2.Node,
-					ServicePortRefs: sets.NewString(svcPortRef),
+					ServicePortRefs: sets.New(svcPortRef),
 				}
 				Eventually(func() proxycache.SvcPort {
 					svcPortCache, exists, _ := proxyController.svcPortCache.GetByKey(proxycache.GenSvcPortKey(svcNs, svcPortName2))
@@ -1925,9 +1925,9 @@ var _ = Describe("proxy controller", func() {
 		svc1Port3Ref := proxycache.GenServicePortRef(svcNs, svcName, portName3)
 		svc2Port2Ref := proxycache.GenServicePortRef(svcNs, svcName2, portName2)
 		cacheBk1 := servicePortBackendToCacheBackend(backend1)
-		cacheBk1.ServicePortRefs = sets.NewString(svc1Port1Ref, svc2Port2Ref)
+		cacheBk1.ServicePortRefs = sets.New(svc1Port1Ref, svc2Port2Ref)
 		cacheBk2 := servicePortBackendToCacheBackend(backend2)
-		cacheBk2.ServicePortRefs = sets.NewString(svc1Port3Ref)
+		cacheBk2.ServicePortRefs = sets.New(svc1Port3Ref)
 
 		BeforeEach(func() {
 			_ = proxyController.svcLBCache.Add(&svcLB1)

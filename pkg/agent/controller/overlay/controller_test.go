@@ -361,15 +361,15 @@ var _ = Describe("overlay controller", func() {
 		node1 := &ercache.NodeIPs{
 			Name: "replayNode1",
 			IP:   "192.13.13.13",
-			PodIPs: map[string]sets.String{
-				"ep1": sets.NewString("193.1.1.1", "193.1.1.2"),
-				"ep2": sets.NewString("193.1.1.3"),
+			PodIPs: map[string]sets.Set[string]{
+				"ep1": sets.New[string]("193.1.1.1", "193.1.1.2"),
+				"ep2": sets.New[string]("193.1.1.3"),
 			},
 		}
 		node2 := &ercache.NodeIPs{
 			Name: "replayNode2",
-			PodIPs: map[string]sets.String{
-				"ep3": sets.NewString("193.1.1.4"),
+			PodIPs: map[string]sets.Set[string]{
+				"ep3": sets.New[string]("193.1.1.4"),
 			},
 		}
 		BeforeEach(func() {
@@ -407,7 +407,7 @@ func checkEndpointInCache(epIndex, nodeName string, ips []string) bool {
 	if !ok {
 		return false
 	}
-	if !epIPs.Equal(sets.NewString(ips...)) {
+	if !epIPs.Equal(sets.New[string](ips...)) {
 		return false
 	}
 	return true

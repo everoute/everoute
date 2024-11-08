@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -70,7 +69,7 @@ func CurrentAgentName() string {
 		return currentAgentName
 	}
 
-	content, err := ioutil.ReadFile(constants.AgentNameConfigPath)
+	content, err := os.ReadFile(constants.AgentNameConfigPath)
 	if err == nil {
 		currentAgentName = strings.TrimSpace(string(content))
 	} else {

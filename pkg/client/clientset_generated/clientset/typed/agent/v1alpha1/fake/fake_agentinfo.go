@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeAgentInfos struct {
 	Fake *FakeAgentV1alpha1
 }
 
-var agentinfosResource = schema.GroupVersionResource{Group: "agent.everoute.io", Version: "v1alpha1", Resource: "agentinfos"}
+var agentinfosResource = v1alpha1.SchemeGroupVersion.WithResource("agentinfos")
 
-var agentinfosKind = schema.GroupVersionKind{Group: "agent.everoute.io", Version: "v1alpha1", Kind: "AgentInfo"}
+var agentinfosKind = v1alpha1.SchemeGroupVersion.WithKind("AgentInfo")
 
 // Get takes name of the agentInfo, and returns the corresponding agentInfo object, and an error if there is any.
 func (c *FakeAgentInfos) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AgentInfo, err error) {
@@ -100,7 +99,7 @@ func (c *FakeAgentInfos) Update(ctx context.Context, agentInfo *v1alpha1.AgentIn
 // Delete takes name of the agentInfo and deletes it. Returns an error if one occurs.
 func (c *FakeAgentInfos) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(agentinfosResource, name), &v1alpha1.AgentInfo{})
+		Invokes(testing.NewRootDeleteActionWithOptions(agentinfosResource, name, opts), &v1alpha1.AgentInfo{})
 	return err
 }
 

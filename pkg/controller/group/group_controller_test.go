@@ -123,7 +123,7 @@ var _ = Describe("GroupController", func() {
 			})
 			When("update the endpoint IPs", func() {
 				BeforeEach(func() {
-					ep.Status.IPs = append(ep.Status.IPs, "192.168.2.1")
+					ep.Status.IPs = append(ep.Status.IPs, "fe80::5865:20ff:fec9:7e1e")
 
 					By(fmt.Sprintf("update endpoint %s ips to %v", ep.Name, ep.Status.IPs))
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())

@@ -5,7 +5,6 @@ import (
 
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -19,6 +18,7 @@ type EveroutePolicyRule struct {
 	SrcIPAddr      string // source IP addrss and mask
 	DstIPAddr      string // Destination IP address and mask
 	IPProtocol     uint8  // IP protocol number
+	IPFamily       uint8  // IP family
 	SrcPort        uint16 // Source port
 	SrcPortMask    uint16
 	DstPort        uint16 // destination port
@@ -28,10 +28,29 @@ type EveroutePolicyRule struct {
 	Action         string // rule action: 'allow' or 'deny'
 }
 
+func (r *EveroutePolicyRule) DeepCopy() *EveroutePolicyRule {
+	return &EveroutePolicyRule{
+		RuleID:         r.RuleID,
+		Priority:       r.Priority,
+		SrcIPAddr:      r.SrcIPAddr,
+		DstIPAddr:      r.DstIPAddr,
+		IPProtocol:     r.IPProtocol,
+		IPFamily:       r.IPFamily,
+		SrcPort:        r.SrcPort,
+		SrcPortMask:    r.SrcPortMask,
+		DstPort:        r.DstPort,
+		DstPortMask:    r.DstPortMask,
+		IcmpType:       r.IcmpType,
+		IcmpTypeEnable: r.IcmpTypeEnable,
+		Action:         r.Action,
+	}
+}
+
 func (r *EveroutePolicyRule) toEveroutePolicyRuleForCT() EveroutePolicyRuleForCT {
 	res := EveroutePolicyRuleForCT{
 		RuleID:         r.RuleID,
 		IPProtocol:     r.IPProtocol,
+		IPFamily:       r.IPFamily,
 		SrcPort:        r.SrcPort,
 		SrcPortMask:    r.SrcPortMask,
 		DstPort:        r.DstPort,
@@ -91,6 +110,7 @@ type EveroutePolicyRuleForCT struct {
 	SrcIP          *net.IP
 	DstIPNet       *net.IPNet
 	DstIP          *net.IP
+	IPFamily       uint8  // IP family
 	IPProtocol     uint8  // IP protocol number
 	SrcPort        uint16 // Source port
 	SrcPortMask    uint16
@@ -101,9 +121,6 @@ type EveroutePolicyRuleForCT struct {
 }
 
 func (r EveroutePolicyRuleForCT) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	if flow.FamilyType != unix.AF_INET {
-		return false
-	}
 	return r.matchIPTuple(flow.Forward) || r.matchIPTuple(flow.Reverse)
 }
 

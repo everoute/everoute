@@ -31,7 +31,7 @@ type Collector struct {
 	stopChan  <-chan struct{}
 }
 
-func (c *Collector) ArpStream(req *emptypb.Empty, srv v1alpha1.Collector_ArpStreamServer) error {
+func (c *Collector) ArpStream(_ *emptypb.Empty, srv v1alpha1.Collector_ArpStreamServer) error {
 	klog.Info("receive collector client, start arp stream")
 	for {
 		select {

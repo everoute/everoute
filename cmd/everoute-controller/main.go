@@ -75,6 +75,7 @@ func init() {
 	utilruntime.Must(podv1alpha1.AddToScheme(clientsetscheme.Scheme))
 }
 
+//nolint:funlen
 func main() {
 	var disableAutoTLS bool
 	opts = NewOptions()
@@ -143,7 +144,7 @@ func main() {
 
 	if !opts.IsEnableCNI() {
 		// endpoint controller sync endpoint status from agentinfo.
-		if err = (&endpointctrl.EndpointReconciler{
+		if err = (&endpointctrl.Reconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
 			IPMigrateCount: controllerMetric.GetIPMigrateCount(),
@@ -153,7 +154,7 @@ func main() {
 	}
 
 	// group controller sync & manager group members.
-	if err = (&groupctrl.GroupReconciler{
+	if err = (&groupctrl.Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {

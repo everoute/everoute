@@ -19,7 +19,6 @@ package policy
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -38,10 +37,6 @@ type Reconciler struct {
 	client.Client
 	ReadClient client.Reader
 	Scheme     *runtime.Scheme
-
-	// reconcilerLock prevent the problem of policyRule updated by policy controller
-	// and patch controller at the same time.
-	reconcilerLock sync.RWMutex
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {

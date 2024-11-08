@@ -30,6 +30,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
@@ -113,26 +114,40 @@ var (
 	rule1 = &EveroutePolicyRule{
 		RuleID:     "rule1",
 		Priority:   200,
-		IPProtocol: uint8(1),
+		IPProtocol: unix.IPPROTO_ICMP,
+		IPFamily:   unix.AF_INET,
 		SrcIPAddr:  "10.100.100.1",
 		DstIPAddr:  "10.100.100.2",
+		Action:     "allow",
+	}
+	rule1V6 = &EveroutePolicyRule{
+		RuleID:     "rule1v6",
+		Priority:   200,
+		IPProtocol: unix.IPPROTO_ICMPV6,
+		IPFamily:   unix.AF_INET6,
+		SrcIPAddr:  "2401::10:100:100:1",
+		DstIPAddr:  "2401::10:100:100:2",
 		Action:     "allow",
 	}
 	rule2 = &EveroutePolicyRule{
 		RuleID:     "rule2",
 		IPProtocol: uint8(17),
+		IPFamily:   unix.AF_INET,
 		SrcIPAddr:  "10.100.100.0/24",
 		Action:     "deny",
 	}
 	rule3 = &EveroutePolicyRule{
 		RuleID:     "rule3",
 		IPProtocol: uint8(4),
+		IPFamily:   unix.AF_INET,
 		SrcIPAddr:  "10.100.100.0/24",
 		DstIPAddr:  "10.23.1.90",
 		Action:     "allow",
 	}
 
 	rule1Flow = `table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 ` +
+		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
+	rule1v6Flow = `table=60, priority=200,icmp6,ipv6_src=2401::10:100:100:1,ipv6_dst=2401::10:100:100:2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
@@ -216,6 +231,7 @@ func TestEverouteDp(t *testing.T) {
 	})
 
 	testLocalEndpoint(t)
+
 	testERPolicyRule(t)
 	testPolicyTableInit(t)
 	testMonitorRule(t)
@@ -317,6 +333,28 @@ func testERPolicyRule(t *testing.T) {
 			t.Errorf("Failed to update policyruleNums for rule %v", rule1)
 		}
 
+		// test rule1 with ipv6
+		baseInfo.Ref.Rule = "rule1v6"
+		if err := datapathManager.AddEveroutePolicyRule(ctx, rule1V6, baseInfo); err != nil {
+			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule1V6, err)
+		}
+		if _, ok := datapathManager.Rules[rule1V6.RuleID]; !ok {
+			t.Errorf("Failed to add ER policy rule, not found %v in cache", rule1V6)
+		}
+		if datapathManager.policyRuleNums["policy1"] != 1 {
+			t.Errorf("Failed to update policyruleNums for rule %v", rule1V6)
+		}
+
+		if err := datapathManager.RemoveEveroutePolicyRule(ctx, rule1V6.RuleID, baseInfo); err != nil {
+			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1V6, err)
+		}
+		if _, ok := datapathManager.Rules[rule1V6.RuleID]; ok {
+			t.Errorf("Failed to remove ER policy rule %v in cache", rule1V6)
+		}
+		if _, ok := datapathManager.policyRuleNums["policy1"]; ok {
+			t.Errorf("Failed to update policyruleNums for rule %v", rule1V6)
+		}
+
 		baseInfo = RuleBaseInfo{
 			Ref:       PolicyRuleRef{Policy: "policy2", Rule: "rule2"},
 			Tier:      POLICY_TIER1,
@@ -378,6 +416,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
 				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
@@ -390,6 +429,13 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).Should(HaveOccurred())
+
+			rule.IPFamily = unix.AF_INET6
+			rule.SrcIPAddr = randomIPv6()
+			rule.DstIPAddr = randomIPv6()
+
+			err = datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
+			Expect(err).Should(HaveOccurred())
 		})
 
 		t.Run("should add tier2 monitor policy rule", func(t *testing.T) {
@@ -399,6 +445,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
 				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
@@ -411,12 +458,23 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			ruleV6 := rule.DeepCopy()
+			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.SrcIPAddr = randomIPv6()
+			ruleV6.DstIPAddr = randomIPv6()
+			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=54, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+					fmt.Sprintf("table=54, priority=%d,ipv6,ipv6_src=%s,ipv6_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", ruleV6.Priority, ruleV6.SrcIPAddr, ruleV6.DstIPAddr, ruleV6.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, ruleV6.RuleID, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -427,6 +485,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:      randomIP(),
 				DstIPAddr:      randomIP(),
 				IPProtocol:     PROTOCOL_ICMP,
+				IPFamily:       unix.AF_INET,
 				Action:         "allow",
 				IcmpType:       3,
 				IcmpTypeEnable: true,
@@ -442,12 +501,26 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			ruleV6 := rule.DeepCopy()
+			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.IPProtocol = unix.IPPROTO_ICMPV6
+			ruleV6.IcmpTypeEnable = false
+			ruleV6.IcmpType = 0
+			ruleV6.SrcIPAddr = randomIPv6()
+			ruleV6.DstIPAddr = randomIPv6()
+			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=54, priority=%d,icmp,nw_src=%s,nw_dst=%s,icmp_type=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IcmpType),
+					fmt.Sprintf("table=54, priority=%d,icmp6,ipv6_src=%s,ipv6_dst=%s actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", ruleV6.Priority, ruleV6.SrcIPAddr, ruleV6.DstIPAddr),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, ruleV6.RuleID, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -458,6 +531,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
 				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "allow",
@@ -470,12 +544,23 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			ruleV6 := rule.DeepCopy()
+			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.SrcIPAddr = randomIPv6()
+			ruleV6.DstIPAddr = randomIPv6()
+			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+					fmt.Sprintf("table=59, priority=%d,ipv6,ipv6_src=%s,ipv6_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", ruleV6.Priority, ruleV6.SrcIPAddr, ruleV6.DstIPAddr, ruleV6.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, ruleV6.RuleID, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -486,6 +571,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
 				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "deny",
@@ -498,12 +584,23 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			ruleV6 := rule.DeepCopy()
+			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.SrcIPAddr = randomIPv6()
+			ruleV6.DstIPAddr = randomIPv6()
+			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=59, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+					fmt.Sprintf("table=59, priority=%d,ipv6,ipv6_src=%s,ipv6_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:60", ruleV6.Priority, ruleV6.SrcIPAddr, ruleV6.DstIPAddr, ruleV6.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, ruleV6.RuleID, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -514,6 +611,7 @@ func testERPolicyRule(t *testing.T) {
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
 				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
 				Action:     "deny",
@@ -526,12 +624,23 @@ func testERPolicyRule(t *testing.T) {
 			}
 			err := datapathManager.AddEveroutePolicyRule(ctx, rule, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			ruleV6 := rule.DeepCopy()
+			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.SrcIPAddr = randomIPv6()
+			ruleV6.DstIPAddr = randomIPv6()
+			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+
 			Eventually(func() error {
 				return flowValidator([]string{
 					fmt.Sprintf("table=29, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:30", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+					fmt.Sprintf("table=29, priority=%d,ipv6,ipv6_src=%s,ipv6_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[32..59],load:0x->NXM_NX_XXREG0[126],load:0x->NXM_NX_XXREG0[0..3],goto_table:30", ruleV6.Priority, ruleV6.SrcIPAddr, ruleV6.DstIPAddr, ruleV6.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, baseInfo)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, ruleV6.RuleID, baseInfo)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
@@ -613,6 +722,19 @@ func testFlowReplay(t *testing.T) {
 		}, timeout, interval).Should(Succeed())
 	})
 
+	t.Run("add ER policy rule v6", func(t *testing.T) {
+		Eventually(func() error {
+			log.Infof("add policy rule to datapath, tier: %d", POLICY_TIER3)
+			baseInfo := RuleBaseInfo{
+				Ref:       PolicyRuleRef{Policy: "policy5", Rule: "rule1v6"},
+				Direction: POLICY_DIRECTION_IN,
+				Tier:      POLICY_TIER3,
+				Mode:      DEFAULT_POLICY_ENFORCEMENT_MODE,
+			}
+			return datapathManager.AddEveroutePolicyRule(ctx, rule1V6, baseInfo)
+		}, timeout, interval).Should(Succeed())
+	})
+
 	t.Run("restart ovs-vswitchd", func(t *testing.T) {
 		Eventually(func() error {
 			err := restartOvsVswitchd(ovsVswitchdRestartInterval)
@@ -635,6 +757,12 @@ func testFlowReplay(t *testing.T) {
 	t.Run("validate ER policyrule flow replay", func(t *testing.T) {
 		Eventually(func() error {
 			return flowValidator([]string{rule1Flow})
+		}, timeout, interval).Should(Succeed())
+	})
+
+	t.Run("validate ER policyrule flow replay v6", func(t *testing.T) {
+		Eventually(func() error {
+			return flowValidator([]string{rule1v6Flow})
 		}, timeout, interval).Should(Succeed())
 	})
 }
@@ -662,24 +790,30 @@ func testRoundNumFlip(t *testing.T) {
 func testHandleEndpointIPTimeout(t *testing.T) {
 	RegisterTestingT(t)
 
-	endpointIP := mustAddEndpoint(rand.String(10), net.ParseIP("10.10.200.24"))
-	endpointIP.Mac, _ = net.ParseMAC(FACK_MAC)
-	Expect(datapathManager.HandleEndpointIPTimeout(context.Background(), endpointIP)).ShouldNot(HaveOccurred())
+	testEndpointIPTimeout := func(ip string) func() {
+		return func() {
+			endpointIP := mustAddEndpoint(rand.String(10), net.ParseIP(ip))
+			endpointIP.Mac, _ = net.ParseMAC(FACK_MAC)
+			Expect(datapathManager.HandleEndpointIPTimeout(context.Background(), endpointIP)).ShouldNot(HaveOccurred())
 
-	Eventually(func() bool {
-		for {
-			select {
-			case learnEndpointIP := <-endpointIPChan:
-				if learnEndpointIP.IP.Equal(endpointIP.IP) &&
-					learnEndpointIP.BridgeName == endpointIP.BridgeName &&
-					learnEndpointIP.OfPort == endpointIP.OfPort {
-					return true
+			Eventually(func() bool {
+				for {
+					select {
+					case learnEndpointIP := <-endpointIPChan:
+						if learnEndpointIP.IP.Equal(endpointIP.IP) &&
+							learnEndpointIP.BridgeName == endpointIP.BridgeName &&
+							learnEndpointIP.OfPort == endpointIP.OfPort {
+							return true
+						}
+					default:
+						return false
+					}
 				}
-			default:
-				return false
-			}
+			}, timeout, interval).Should(BeTrue())
 		}
-	}, timeout, interval).Should(BeTrue())
+	}
+	testEndpointIPTimeout("10.10.200.24")
+	testEndpointIPTimeout("2401::10:10:200:24")
 }
 
 func mustAddEndpoint(name string, ip net.IP) *types.EndpointIP {
@@ -945,4 +1079,8 @@ func copyEp(src *Endpoint) *Endpoint {
 
 func randomIP() string {
 	return fmt.Sprintf("%d.%d.%d.%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
+}
+
+func randomIPv6() string {
+	return fmt.Sprintf("2401::%d:%d:%d:%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
 }

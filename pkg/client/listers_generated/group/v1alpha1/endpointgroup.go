@@ -27,10 +27,13 @@ import (
 )
 
 // EndpointGroupLister helps list EndpointGroups.
+// All objects returned here must be treated as read-only.
 type EndpointGroupLister interface {
 	// List lists all EndpointGroups in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.EndpointGroup, err error)
 	// Get retrieves the EndpointGroup from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.EndpointGroup, error)
 	EndpointGroupListerExpansion
 }

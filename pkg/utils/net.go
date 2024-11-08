@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -208,4 +209,43 @@ func RuleDel(rule *netlink.Rule, filterMask uint64) error {
 		return fmt.Errorf("rule %s still exist", rule)
 	}
 	return nil
+}
+
+func IsSameIPFamily(src, dst string) bool {
+	if src == "" || dst == "" {
+		return true
+	}
+
+	return (strings.Contains(src, ":") && strings.Contains(dst, ":")) ||
+		(!strings.Contains(src, ":") && !strings.Contains(dst, ":"))
+}
+
+func IsIPv4Pair(src, dst string) bool {
+	return (src == "" && dst == "") ||
+		(src != "" && !strings.Contains(src, ":")) ||
+		(dst != "" && !strings.Contains(dst, ":"))
+}
+
+func IsIPv4(ip string) bool {
+	return ip == "" || !strings.Contains(ip, ":")
+}
+
+func IsIPv6Pair(src, dst string) bool {
+	return (src == "" && dst == "") ||
+		strings.Contains(src, ":") ||
+		strings.Contains(dst, ":")
+}
+
+func IsIPv6(ip string) bool {
+	return ip == "" || strings.Contains(ip, ":")
+}
+
+func GetIPFamily(ip string) uint8 {
+	if IsIPv4(ip) {
+		return unix.AF_INET
+	}
+	if IsIPv6(ip) {
+		return unix.AF_INET6
+	}
+	return 0
 }

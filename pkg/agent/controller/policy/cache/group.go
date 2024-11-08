@@ -87,7 +87,7 @@ func GroupMembersToIPBlocks(ctx context.Context, members []groupv1alpha1.GroupMe
 				res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
 			} else {
 				if res[ipNetStr].AgentRef.Len() == 0 || len(member.EndpointAgent) == 0 {
-					res[ipNetStr].AgentRef = sets.NewString()
+					res[ipNetStr].AgentRef = sets.New[string]()
 				} else {
 					res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
 				}

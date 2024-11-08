@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeGroupMembersPatches struct {
 	Fake *FakeGroupV1alpha1
 }
 
-var groupmemberspatchesResource = schema.GroupVersionResource{Group: "group.everoute.io", Version: "v1alpha1", Resource: "groupmemberspatches"}
+var groupmemberspatchesResource = v1alpha1.SchemeGroupVersion.WithResource("groupmemberspatches")
 
-var groupmemberspatchesKind = schema.GroupVersionKind{Group: "group.everoute.io", Version: "v1alpha1", Kind: "GroupMembersPatch"}
+var groupmemberspatchesKind = v1alpha1.SchemeGroupVersion.WithKind("GroupMembersPatch")
 
 // Get takes name of the groupMembersPatch, and returns the corresponding groupMembersPatch object, and an error if there is any.
 func (c *FakeGroupMembersPatches) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.GroupMembersPatch, err error) {
@@ -100,7 +99,7 @@ func (c *FakeGroupMembersPatches) Update(ctx context.Context, groupMembersPatch 
 // Delete takes name of the groupMembersPatch and deletes it. Returns an error if one occurs.
 func (c *FakeGroupMembersPatches) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(groupmemberspatchesResource, name), &v1alpha1.GroupMembersPatch{})
+		Invokes(testing.NewRootDeleteActionWithOptions(groupmemberspatchesResource, name, opts), &v1alpha1.GroupMembersPatch{})
 	return err
 }
 

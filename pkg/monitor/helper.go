@@ -45,7 +45,7 @@ var (
 // ovsUpdateHandlerFunc implements ovsdb.NotificationHandler
 type ovsUpdateHandlerFunc func(tableUpdates ovsdb.TableUpdates)
 
-func (fn ovsUpdateHandlerFunc) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
+func (fn ovsUpdateHandlerFunc) Update(_ interface{}, tableUpdates ovsdb.TableUpdates) {
 	fn(tableUpdates)
 }
 
@@ -114,8 +114,8 @@ func getMacStrFromInterface(row ovsdb.Row) (string, error) {
 
 func isErEndpointIntface(row ovsdb.Row, driver string) (bool, string) {
 	if driver == VMNicDriver || driver == PodNicDriver {
-		if externalIds, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
-			if mac, ok := externalIds.GoMap[LocalEndpointIdentity]; ok {
+		if externalIDs, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
+			if mac, ok := externalIDs.GoMap[LocalEndpointIdentity]; ok {
 				return true, mac.(string)
 			}
 		}

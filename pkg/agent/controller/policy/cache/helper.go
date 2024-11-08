@@ -131,9 +131,9 @@ func AppendIPBlocks(ori map[string]*IPBlockItem, add map[string]*IPBlockItem) ma
 			res[ip] = v.DeepCopy().(*IPBlockItem)
 		} else {
 			if res[ip].AgentRef.Len() == 0 || v.AgentRef.Len() == 0 {
-				res[ip].AgentRef = sets.NewString()
+				res[ip].AgentRef = sets.New[string]()
 			} else {
-				res[ip].AgentRef.Insert(v.AgentRef.List()...)
+				res[ip].AgentRef.Insert(v.AgentRef.UnsortedList()...)
 			}
 			res[ip].Ports = AppendIPBlockPorts(res[ip].Ports, v.Ports)
 		}

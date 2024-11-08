@@ -13,7 +13,7 @@ type Backend struct {
 	Protocol        corev1.Protocol
 	Port            int32
 	Node            string
-	ServicePortRefs sets.String
+	ServicePortRefs sets.Set[string]
 }
 
 func GenServicePortRef(svcNs, svcName, portName string) string {
@@ -52,5 +52,5 @@ func backendCacheKeyFunc(obj interface{}) (string, error) {
 
 func servicePortRefIndexFunc(obj interface{}) ([]string, error) {
 	o := obj.(*Backend)
-	return o.ServicePortRefs.List(), nil
+	return o.ServicePortRefs.UnsortedList(), nil
 }

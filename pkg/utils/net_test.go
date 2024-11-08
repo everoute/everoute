@@ -95,3 +95,43 @@ func mustParseCIDR(cidr string) *net.IPNet {
 	}
 	return ipNet
 }
+
+func TestIPv6(t *testing.T) {
+	RegisterTestingT(t)
+
+	t.Run("IsSameIPFamily", func(t *testing.T) {
+		Expect(IsSameIPFamily("", "")).Should(BeTrue())
+		Expect(IsSameIPFamily("192.168.1.1", "")).Should(BeTrue())
+		Expect(IsSameIPFamily("", "fe80::dc13:10ff:fe24:8c7f/64")).Should(BeTrue())
+		Expect(IsSameIPFamily("fe80::42:87ff:fecd:9198/64", "fe80::dc13:10ff:fe24:8c7f")).Should(BeTrue())
+		Expect(IsSameIPFamily("192.168.1.1", "0.0.0.0")).Should(BeTrue())
+		Expect(IsSameIPFamily("::", "192.168.1.1")).Should(BeFalse())
+	})
+
+	t.Run("IsIPv4 or IsIPv6", func(t *testing.T) {
+		Expect(IsIPv4("")).Should(BeTrue())
+		Expect(IsIPv4("192.168.1.1")).Should(BeTrue())
+		Expect(IsIPv4("192.168.1.1/16")).Should(BeTrue())
+		Expect(IsIPv4("0.0.0.0/0")).Should(BeTrue())
+		Expect(IsIPv4("fe80::42:87ff:fecd:9198/64")).Should(BeFalse())
+
+		Expect(IsIPv6("")).Should(BeTrue())
+		Expect(IsIPv6("fe80::42:87ff:fecd:9198/64")).Should(BeTrue())
+		Expect(IsIPv6("::")).Should(BeTrue())
+		Expect(IsIPv6("fe80::dc13:10ff:fe24:8c7f")).Should(BeTrue())
+		Expect(IsIPv6("192.168.1.1")).Should(BeFalse())
+	})
+
+	t.Run("IsIPv4Pair or IsIPv6Pair", func(t *testing.T) {
+		Expect(IsIPv4Pair("", "")).Should(BeTrue())
+		Expect(IsIPv4Pair("192.168.1.1", "")).Should(BeTrue())
+		Expect(IsIPv4Pair("192.168.1.1", "0.0.0.0/0")).Should(BeTrue())
+		Expect(IsIPv4Pair("fe80::42:87ff:fecd:9198/64", "")).Should(BeFalse())
+
+		Expect(IsIPv6Pair("", "")).Should(BeTrue())
+		Expect(IsIPv6Pair("192.168.1.1", "")).Should(BeFalse())
+		Expect(IsIPv6Pair("192.168.1.1", "0.0.0.0/0")).Should(BeFalse())
+		Expect(IsIPv6Pair("fe80::42:87ff:fecd:9198/64", "")).Should(BeTrue())
+		Expect(IsIPv6Pair("fe80::42:87ff:fecd:9198/64", "fe80::dc13:10ff:fe24:8c7f")).Should(BeTrue())
+	})
+}

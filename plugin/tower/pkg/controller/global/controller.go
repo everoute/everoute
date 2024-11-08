@@ -84,7 +84,7 @@ func New(
 		reconcileQueue:                workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	globalPolicyInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = globalPolicyInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleGlobalPolicy,
 			UpdateFunc: c.updateGlobalPolicy,
@@ -93,7 +93,7 @@ func New(
 		resyncPeriod,
 	)
 
-	erClusterInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = erClusterInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleEverouteCluster,
 			UpdateFunc: c.updateEverouteCluster,

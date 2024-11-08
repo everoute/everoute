@@ -27,8 +27,10 @@ import (
 )
 
 // ServicePortLister helps list ServicePorts.
+// All objects returned here must be treated as read-only.
 type ServicePortLister interface {
 	// List lists all ServicePorts in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.ServicePort, err error)
 	// ServicePorts returns an object that can list and get ServicePorts.
 	ServicePorts(namespace string) ServicePortNamespaceLister
@@ -59,10 +61,13 @@ func (s *servicePortLister) ServicePorts(namespace string) ServicePortNamespaceL
 }
 
 // ServicePortNamespaceLister helps list and get ServicePorts.
+// All objects returned here must be treated as read-only.
 type ServicePortNamespaceLister interface {
 	// List lists all ServicePorts in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.ServicePort, err error)
 	// Get retrieves the ServicePort from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.ServicePort, error)
 	ServicePortNamespaceListerExpansion
 }

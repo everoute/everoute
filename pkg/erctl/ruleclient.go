@@ -8,6 +8,7 @@ import (
 
 	"github.com/ti-mo/conntrack"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -29,8 +30,8 @@ type Rule struct {
 
 func ConnectClient() error {
 	rpc, err := grpc.Dial(constants.RPCSocketAddr,
-		grpc.WithInsecure(),
-		grpc.WithContextDialer(func(ctx context.Context, addr string) (conn net.Conn, e error) {
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			unixAddr, _ := net.ResolveUnixAddr("unix", constants.RPCSocketAddr)
 			connUnix, err := net.DialUnix("unix", nil, unixAddr)
 			return connUnix, err
@@ -164,11 +165,16 @@ func rpcRuleAddCount(rpcRule []*v1alpha1.RuleEntry) []*Rule {
 
 func GetIPNet(ip string) *net.IPNet {
 	if ip == "" {
-		ip = "0.0.0.0/0"
+		return nil
 	}
 	if !strings.Contains(ip, "/") {
-		ip += "/32"
+		if utils.IsIPv4(ip) {
+			ip += "/32"
+		} else {
+			ip += "/128"
+		}
 	}
+
 	_, ipnet, _ := net.ParseCIDR(ip)
 	return ipnet
 }

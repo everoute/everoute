@@ -200,7 +200,7 @@ func New(
 	}
 
 	// when vm's vnics changes, handle related IsolationPolicy and SecurityGroup
-	vmInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = vmInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleVM,
 			UpdateFunc: c.updateVM,
@@ -210,7 +210,7 @@ func New(
 	)
 
 	// when labels key/value changes, handle related SecurityPolicy, IsolationPolicy and SecurityGroup
-	labelInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = labelInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleLabel,
 			UpdateFunc: c.updateLabel,
@@ -219,7 +219,7 @@ func New(
 		resyncPeriod,
 	)
 
-	securityPolicyInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = securityPolicyInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleSecurityPolicy,
 			UpdateFunc: c.updateSecurityPolicy,
@@ -228,7 +228,7 @@ func New(
 		resyncPeriod,
 	)
 
-	isolationPolicyInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = isolationPolicyInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleIsolationPolicy,
 			UpdateFunc: c.updateIsolationPolicy,
@@ -237,7 +237,7 @@ func New(
 		resyncPeriod,
 	)
 
-	serviceInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = serviceInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleService,
 			UpdateFunc: c.updateService,
@@ -246,7 +246,7 @@ func New(
 		resyncPeriod,
 	)
 
-	erClusterInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = erClusterInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleEverouteCluster,
 			UpdateFunc: c.updateEverouteCluster,
@@ -255,7 +255,7 @@ func New(
 		resyncPeriod,
 	)
 
-	systemEndpointInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = systemEndpointInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleSystemEndpoints,
 			UpdateFunc: c.updateSystemEndpoints,
@@ -265,7 +265,7 @@ func New(
 	)
 
 	// when policy changes, enqueue related SecurityPolicy and IsolationPolicy
-	crdPolicyInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = crdPolicyInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleCRDPolicy,
 			UpdateFunc: c.updateCRDPolicy,
@@ -274,7 +274,7 @@ func New(
 		resyncPeriod,
 	)
 
-	securityGroupInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = securityGroupInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.handleSecurityGroup,
 			UpdateFunc: c.updateSecurityGroup,
@@ -1640,6 +1640,10 @@ func parseIPBlock(ipBlock string, excepts []string) ([]*networkingv1.IPBlock, er
 			_, cidrNet, _ := net.ParseCIDR(cidr)
 			var exceptValid []string
 			for _, exceptItem := range exceptAll {
+				if !utils.IsSameIPFamily(cidr, exceptItem) {
+					continue
+				}
+
 				_, exceptItemCidr, _ := net.ParseCIDR(exceptItem)
 				if cidrNet.Contains(exceptItemCidr.IP) ||
 					cidrNet.Contains(ipaddr.NewPrefix(exceptItemCidr).Last()) ||
@@ -1670,12 +1674,18 @@ func formatIPBlock(ipBlock string) ([]string, error) {
 	// for ip range
 	ipRange := strings.Split(ipBlock, "-")
 	if len(ipRange) == 2 {
-		ipStart := net.ParseIP(strings.TrimSpace(ipRange[0]))
-		ipEnd := net.ParseIP(strings.TrimSpace(ipRange[1]))
+		ipStartStr := strings.TrimSpace(ipRange[0])
+		ipEndStr := strings.TrimSpace(ipRange[1])
 
-		if ipStart == nil || ipEnd == nil ||
-			(ipStart.To4() == nil && ipEnd.To16() != nil) ||
-			(ipStart.To4() != nil && ipEnd.To16() == nil) {
+		if !utils.IsIPv4Pair(ipStartStr, ipEndStr) &&
+			!utils.IsIPv6Pair(ipStartStr, ipEndStr) {
+			return []string{}, fmt.Errorf("different ip family in ip range %s", ipRange)
+		}
+
+		ipStart := net.ParseIP(ipStartStr)
+		ipEnd := net.ParseIP(ipEndStr)
+
+		if ipStart == nil || ipEnd == nil {
 			return []string{}, fmt.Errorf("invalid ip range %s", ipRange)
 		}
 
@@ -1689,14 +1699,17 @@ func formatIPBlock(ipBlock string) ([]string, error) {
 
 	// for single ip
 	ip := net.ParseIP(ipBlock)
-	if ip.Equal(net.IPv4zero) || ip.Equal(net.IPv6zero) {
+	if ip.Equal(net.IPv4zero) {
 		return []string{"0.0.0.0/0"}, nil
 	}
-	if ip.To4() != nil {
-		return []string{fmt.Sprintf("%s/%d", ipBlock, net.IPv4len*8)}, nil
+	if ip.Equal(net.IPv6zero) {
+		return []string{"::/0"}, nil
 	}
-	if ip.To16() != nil {
-		return []string{fmt.Sprintf("%s/%d", ipBlock, net.IPv6len*8)}, nil
+	if utils.IsIPv4(ipBlock) {
+		return []string{fmt.Sprintf("%s/%d", ipBlock, 32)}, nil
+	}
+	if utils.IsIPv6(ipBlock) {
+		return []string{fmt.Sprintf("%s/%d", ipBlock, 128)}, nil
 	}
 
 	return []string{""}, fmt.Errorf("neither %s is cidr nor ipv4 nor ipv6", ipBlock)
@@ -1750,8 +1763,8 @@ func parseNetworkPolicyService(svc *schema.NetworkPolicyRuleService) ([]v1alpha1
 	return ports, nil
 }
 
-func serviceMembersToSets(svc *schema.NetworkPolicyRuleService) sets.String {
-	set := sets.NewString()
+func serviceMembersToSets(svc *schema.NetworkPolicyRuleService) sets.Set[string] {
+	set := sets.New[string]()
 	for i := range svc.Members {
 		portStr := ""
 		if svc.Members[i].Port != nil {

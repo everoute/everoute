@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeGroupMemberses struct {
 	Fake *FakeGroupV1alpha1
 }
 
-var groupmembersesResource = schema.GroupVersionResource{Group: "group.everoute.io", Version: "v1alpha1", Resource: "groupmembers"}
+var groupmembersesResource = v1alpha1.SchemeGroupVersion.WithResource("groupmembers")
 
-var groupmembersesKind = schema.GroupVersionKind{Group: "group.everoute.io", Version: "v1alpha1", Kind: "GroupMembers"}
+var groupmembersesKind = v1alpha1.SchemeGroupVersion.WithKind("GroupMembers")
 
 // Get takes name of the groupMembers, and returns the corresponding groupMembers object, and an error if there is any.
 func (c *FakeGroupMemberses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.GroupMembers, err error) {
@@ -100,7 +99,7 @@ func (c *FakeGroupMemberses) Update(ctx context.Context, groupMembers *v1alpha1.
 // Delete takes name of the groupMembers and deletes it. Returns an error if one occurs.
 func (c *FakeGroupMemberses) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(groupmembersesResource, name), &v1alpha1.GroupMembers{})
+		Invokes(testing.NewRootDeleteActionWithOptions(groupmembersesResource, name, opts), &v1alpha1.GroupMembers{})
 	return err
 }
 

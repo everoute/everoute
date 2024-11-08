@@ -49,9 +49,9 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-// EndpointReconciler watch endpoints and agentinfos resources, synchronize the
+// Reconciler watch endpoints and agentinfos resources, synchronize the
 // endpoint status from agentinfo.
-type EndpointReconciler struct {
+type Reconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
 	IPMigrateCount *metrics.IPMigrateCount
@@ -109,9 +109,9 @@ const (
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
 // from agentinfo.
-func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var err error
-	klog.V(4).Infof("EndpointReconciler received endpoint %s reconcile", req.NamespacedName)
+	klog.V(4).Infof("Reconciler received endpoint %s reconcile", req.NamespacedName)
 
 	endpoint := securityv1alpha1.Endpoint{}
 	if err := r.Get(ctx, req.NamespacedName, &endpoint); err != nil {
@@ -158,7 +158,7 @@ func (r *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *EndpointReconciler) ReconcileShareIP(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileShareIP(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("Reconcile start")
 	defer log.V(4).Info("Reconcile end")
@@ -180,11 +180,11 @@ func (r *EndpointReconciler) ReconcileShareIP(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-func (r *EndpointReconciler) updateShareIPCache(ctx context.Context, sip *securityv1alpha1.ShareIP) {
+func (r *Reconciler) updateShareIPCache(ctx context.Context, sip *securityv1alpha1.ShareIP) {
 	log := ctrl.LoggerFrom(ctx)
 	r.shareIPCacheLock.Lock()
 	defer r.shareIPCacheLock.Unlock()
-	sipC := shareIP{ips: sets.New[string](sip.Spec.IPs...), interfaceIDs: sets.New[string](sip.Spec.InterfaceIDs...)}
+	sipC := shareIP{ips: sets.New(sip.Spec.IPs...), interfaceIDs: sets.New(sip.Spec.InterfaceIDs...)}
 	if sipC.interfaceIDs.Len() <= 1 {
 		delete(r.shareIPCache, sip.GetName())
 		log.Error(fmt.Errorf("shareIP interfaceIDs is invalid"), "ShareIP only set one interfaceID in spec.interfaceIDs, delete it from cache",
@@ -202,7 +202,7 @@ func (r *EndpointReconciler) updateShareIPCache(ctx context.Context, sip *securi
 }
 
 // SetupWithManager create and add Endpoint Controller to the manager.
-func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -261,7 +261,7 @@ func (r *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}))
 }
 
-func (r *EndpointReconciler) addEndpoint(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) addEndpoint(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	if e.Object == nil {
 		klog.Errorf("AddEndpoint received with no metadata event: %v", e)
 		return
@@ -273,7 +273,7 @@ func (r *EndpointReconciler) addEndpoint(_ context.Context, e event.CreateEvent,
 	}})
 }
 
-func (r *EndpointReconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	if e.ObjectNew == nil {
 		klog.Errorf("UpdateEndpoint received with no metadata event: %v", e)
 		return
@@ -285,7 +285,7 @@ func (r *EndpointReconciler) updateEndpoint(_ context.Context, e event.UpdateEve
 	}})
 }
 
-func (r *EndpointReconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("AddAgentInfo received with unavailable object event: %v", e)
@@ -319,7 +319,7 @@ func (r *EndpointReconciler) addAgentInfo(_ context.Context, e event.CreateEvent
 	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
-func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
 	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
 
@@ -355,7 +355,7 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 	r.updateCachedAgentInfo(newAgentInfo, q)
 }
 
-func (r *EndpointReconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
+func (r *Reconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
 	srcSets := sets.New[types.IPAddress](srcIPs...)
 	for _, ip := range expIPs {
 		if !srcSets.Has(ip) {
@@ -364,7 +364,7 @@ func (r *EndpointReconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddre
 	}
 }
 
-func (r *EndpointReconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("DeleteAgentInfo received with unavailable object event: %v", e)
@@ -384,7 +384,7 @@ func (r *EndpointReconciler) deleteAgentInfo(_ context.Context, e event.DeleteEv
 	}
 }
 
-func (r *EndpointReconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.AgentInfo, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.AgentInfo, _ workqueue.RateLimitingInterface) {
 	ctx := context.Background()
 	updateAgentInfoList := r.toUpdatedAgentInfo(agentInfo)
 
@@ -395,13 +395,13 @@ func (r *EndpointReconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.Agen
 	}
 }
 
-func (r *EndpointReconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.AgentInfo) []*agentv1alpha1.AgentInfo {
+func (r *Reconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.AgentInfo) []*agentv1alpha1.AgentInfo {
 	var agentInfoList agentv1alpha1.AgentInfoList
 	var updatedAgentInfoes []*agentv1alpha1.AgentInfo
 	_ = r.List(context.Background(), &agentInfoList)
 
 	for _, agentInfo := range agentInfoList.Items {
-		var isAgentInfoUpdated bool = false
+		var isAgentInfoUpdated = false
 		var updatedAgentInfo agentv1alpha1.AgentInfo
 		for i, bridge := range agentInfo.OVSInfo.Bridges {
 			for j, port := range bridge.Ports {
@@ -429,7 +429,7 @@ func (r *EndpointReconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.Agen
 	return updatedAgentInfoes
 }
 
-func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.Set[string] {
+func (r *Reconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.Set[string] {
 	interfaceID := getEndpointIfaceIDFromOvsIface(ovsInterface)
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
@@ -449,7 +449,7 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 	return sets.Set[string]{}
 }
 
-func (r *EndpointReconciler) filterIPNeedDeleteByShareIP(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
+func (r *Reconciler) filterIPNeedDeleteByShareIP(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
 	if interfaceID1 == "" || interfaceID2 == "" {
 		return ipNeedDelete
 	}
@@ -475,7 +475,7 @@ func (r *EndpointReconciler) filterIPNeedDeleteByShareIP(ipNeedDelete sets.Set[s
 }
 
 // If an endpoint reference matches iface externalIDs on the agentinfo, the endpoint should be returned.
-func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alpha1.EndpointList, agentName string, queue workqueue.Interface) {
+func (r *Reconciler) enqueueEndpointsOnAgentLocked(epList securityv1alpha1.EndpointList, agentName string, queue workqueue.Interface) {
 	for _, ep := range epList.Items {
 		var ifaces []interface{}
 		ifacesExt, _ := r.ifaceCache.ByIndex(externalIDIndex, GetEndpointID(ep).String())
@@ -499,7 +499,7 @@ func (r *EndpointReconciler) enqueueEndpointsOnAgentLocked(epList securityv1alph
 	}
 }
 
-func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopChan <-chan struct{}) {
+func (r *Reconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopChan <-chan struct{}) {
 	timer := time.NewTicker(time.Duration(IfaceIPAddrCleanInterval) * time.Second)
 
 	for {
@@ -512,7 +512,7 @@ func (r *EndpointReconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopC
 	}
 }
 
-func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Duration) {
+func (r *Reconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Duration) {
 	r.ifaceCacheLock.RLock()
 
 	expiredIPMap := make(map[string][]string)
@@ -534,14 +534,14 @@ func (r *EndpointReconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Dura
 	}
 }
 
-func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string) {
+func (r *Reconciler) updateExpiredIface(expiredIPMap map[string][]string) {
 	var agentInfoList agentv1alpha1.AgentInfoList
 	var updateAgentInfoList []*agentv1alpha1.AgentInfo
 	ctx := context.Background()
 	_ = r.Client.List(ctx, &agentInfoList)
 
 	for _, agentInfo := range agentInfoList.Items {
-		var isAgentInfoUpdated bool = false
+		var isAgentInfoUpdated = false
 		var updateAgentInfo agentv1alpha1.AgentInfo
 		for i, bridge := range agentInfo.OVSInfo.Bridges {
 			for j, port := range bridge.Ports {
@@ -576,7 +576,7 @@ func (r *EndpointReconciler) updateExpiredIface(expiredIPMap map[string][]string
 	}
 }
 
-func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.Endpoint) (*securityv1alpha1.EndpointStatus, error) {
+func (r *Reconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.Endpoint) (*securityv1alpha1.EndpointStatus, error) {
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
 
@@ -617,7 +617,7 @@ func (r *EndpointReconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv
 	}
 }
 
-func (r *EndpointReconciler) fetchEndpointStatusByIP(ips []types.IPAddress) *securityv1alpha1.EndpointStatus {
+func (r *Reconciler) fetchEndpointStatusByIP(ips []types.IPAddress) *securityv1alpha1.EndpointStatus {
 	r.ifaceCacheLock.RLock()
 	defer r.ifaceCacheLock.RUnlock()
 	agents := sets.NewString()

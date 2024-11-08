@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sys/unix"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -109,22 +110,32 @@ func newGlobalPolicyRulePair(policy securityv1alpha1.GlobalPolicy) []cache.Polic
 		Direction:       cache.RuleDirectionIn,
 		RuleType:        cache.RuleTypeGlobalDefaultRule,
 		Tier:            constants.Tier2,
+		IPFamily:        unix.AF_INET,
 		DstIPAddr:       "",
 		Action:          cache.RuleAction(policy.Spec.DefaultAction),
 		EnforcementMode: string(policy.Spec.GlobalPolicyEnforcementMode),
 	}
 	ingressRule.Name = fmt.Sprintf("/%s/%s/global.ingress/-%s", DefaultGlobalPolicyName, cache.GlobalPolicy, cache.GenerateFlowKey(ingressRule))
 
+	ingressRuleV6 := *ingressRule.DeepCopy()
+	ingressRuleV6.IPFamily = unix.AF_INET6
+	ingressRuleV6.Name = fmt.Sprintf("/%s/%s/global.ingress.v6/-%s", DefaultGlobalPolicyName, cache.GlobalPolicy, cache.GenerateFlowKey(ingressRuleV6))
+
 	egressRule = cache.PolicyRule{
 		Policy:          "/" + DefaultGlobalPolicyName,
 		Direction:       cache.RuleDirectionOut,
 		RuleType:        cache.RuleTypeGlobalDefaultRule,
 		Tier:            constants.Tier2,
+		IPFamily:        unix.AF_INET,
 		SrcIPAddr:       "",
 		Action:          cache.RuleAction(policy.Spec.DefaultAction),
 		EnforcementMode: string(policy.Spec.GlobalPolicyEnforcementMode),
 	}
 	egressRule.Name = fmt.Sprintf("/%s/%s/global.egress/-%s", DefaultGlobalPolicyName, cache.GlobalPolicy, cache.GenerateFlowKey(egressRule))
 
-	return []cache.PolicyRule{ingressRule, egressRule}
+	egressRuleV6 := *egressRule.DeepCopy()
+	egressRuleV6.IPFamily = unix.AF_INET6
+	egressRuleV6.Name = fmt.Sprintf("/%s/%s/global.egress.v6/-%s", DefaultGlobalPolicyName, cache.GlobalPolicy, cache.GenerateFlowKey(egressRuleV6))
+
+	return []cache.PolicyRule{ingressRule, egressRule, ingressRuleV6, egressRuleV6}
 }
