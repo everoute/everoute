@@ -327,6 +327,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/ingress.ingress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -338,7 +339,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstIPAddr:       "0.0.0.0/32",
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/ingress.ingress1.rev-ycpj5nwmp19cvivz0kxwbjkvulr395so",
+				Name:            "default/test/normal/ingress.ingress1.rev-xj366200eug1bi61excphjg9dpiq8fum",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -354,6 +356,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with dst port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -366,7 +369,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
+				Name:            "default/test/normal/egress.egress1.rev-rnq0iizl0tn0t2c6jg3kbkixmj06nowy",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -383,6 +387,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with udp protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -401,6 +406,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without Protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -413,7 +419,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
+				Name:            "default/test/normal/egress.egress1.rev-rgmvatzmxh9xu944t54nu4n97sh1l68u",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,

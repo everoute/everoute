@@ -362,6 +362,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
+				Policy:          fmt.Sprintf("%s/%s", policy.Namespace, policy.Name),
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -394,6 +395,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultIngressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
+				Policy:            fmt.Sprintf("%s/%s", policy.Namespace, policy.Name),
 				Tier:              policy.Spec.Tier,
 				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -414,6 +416,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		for _, rule := range policy.Spec.EgressRules {
 			egressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
+				Policy:          fmt.Sprintf("%s/%s", policy.Namespace, policy.Name),
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -473,6 +476,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultEgressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
+				Policy:            fmt.Sprintf("%s/%s", policy.Namespace, policy.Name),
 				Tier:              policy.Spec.Tier,
 				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -662,7 +666,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 
 	for _, item := range delRuleList {
 		errList = append(errList,
-			r.processPolicyRuleDelete(ctx, item.Name),
+			r.processPolicyRuleDelete(ctx, item),
 		)
 	}
 
@@ -671,8 +675,14 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 	return errors.NewAggregate(errList)
 }
 
-func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, ruleName string) error {
-	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(ruleName), ruleName)
+func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, policyRule *policycache.PolicyRule) error {
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: policyRule.Policy,
+			Rule:   policyRule.Name,
+		},
+	}
+	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(policyRule.Name), ruleBase)
 }
 
 func (r *Reconciler) processPolicyRuleAdd(ctx context.Context, policyRule *policycache.PolicyRule) error {
@@ -684,8 +694,17 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: rule.Policy,
+			Rule:   rule.Name,
+		},
+		Direction: ruleDirection,
+		Tier:      ruleTier,
+		Mode:      rule.EnforcementMode,
+	}
 
-	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
+	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, ruleBase)
 }
 
 // func (r *Reconciler) getSecurityPolicyByCompleteRule(ruleID string) *securityv1alpha1.SecurityPolicy {
