@@ -1717,7 +1717,7 @@ var _ = Describe("CompleteRuleCache", func() {
 			srcGroup = rand.String(6)
 			dstGroup = rand.String(6)
 
-			Expect(completeRuleCache.Add(newTestCompleteRule(ruleID, srcGroup, dstGroup))).Should(Succeed())
+			Expect(completeRuleCache.Add(newTestCompleteRule(ruleID, srcGroup, dstGroup, policyNamespacedName))).Should(Succeed())
 		})
 		AfterEach(func() {
 			Expect(completeRuleCache.Delete(&cache.CompleteRule{RuleID: ruleID})).Should(Succeed())
@@ -1923,9 +1923,10 @@ func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) 
 	return testGroup
 }
 
-func newTestCompleteRule(ruleId string, srcGroup, dstGroup string) *cache.CompleteRule {
+func newTestCompleteRule(ruleId string, srcGroup, dstGroup string, policy string) *cache.CompleteRule {
 	return &cache.CompleteRule{
 		RuleID:    ruleId,
+		Policy:    policy,
 		SrcGroups: sets.New[string](srcGroup),
 		DstGroups: sets.New[string](dstGroup),
 	}
