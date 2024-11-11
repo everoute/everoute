@@ -237,7 +237,7 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 	}
 	rpcReference := []*v1alpha1.PolicyRuleReference{}
 	for reference := range entry.PolicyRuleReference {
-		references := strings.Split(reference, "/")
+		references := strings.Split(reference.Rule, "/")
 		if len(references) < 3 {
 			continue
 		}
@@ -550,50 +550,10 @@ func (rule *EveroutePolicyRule) Clone() *EveroutePolicyRule {
 	}
 }
 
-func (e *EveroutePolicyRuleEntry) Clone() *EveroutePolicyRuleEntry {
-	if e == nil {
-		return nil
-	}
-	return &EveroutePolicyRuleEntry{
-		EveroutePolicyRule: e.EveroutePolicyRule.Clone(),
-		Direction:          e.Direction,
-		Tier:               e.Tier,
-		Mode:               e.Mode,
-		// RuleFlowMap will not update inner entry
-		RuleFlowMap:         DeepCopyMap(e.RuleFlowMap).(map[string]*FlowEntry),
-		PolicyRuleReference: e.PolicyRuleReference.Clone(),
-	}
-}
-
 func FlowKeyFromRuleName(ruleName string) string {
 	// rule name format like: policyname-rulename-namehash-flowkey
 	keys := strings.Split(ruleName, "-")
 	return keys[len(keys)-1]
-}
-
-func (dm *DpManager) GetRuleEntryByFlowID(id uint64) *EveroutePolicyRuleEntry {
-	items, err := dm.Rules.ByIndex(FlowIDIndex, strconv.FormatUint(id, 10))
-	if err == nil && len(items) == 1 {
-		return items[0].(*EveroutePolicyRuleEntry)
-	}
-	return nil
-}
-
-func (dm *DpManager) GetRuleEntryByRuleID(id string) *EveroutePolicyRuleEntry {
-	item, exist, err := dm.Rules.GetByKey(id)
-	if err == nil && exist && item != nil {
-		return item.(*EveroutePolicyRuleEntry)
-	}
-	return nil
-}
-
-func (dm *DpManager) ListRuleEntry() []*EveroutePolicyRuleEntry {
-	var ret []*EveroutePolicyRuleEntry
-	items := dm.Rules.List()
-	for _, item := range items {
-		ret = append(ret, item.(*EveroutePolicyRuleEntry))
-	}
-	return ret
 }
 
 // func (dm *DpManager) PolicyRuleLimit(policyIDs []string, addList, deleteList []*policycache.PolicyRule) bool {
@@ -628,14 +588,9 @@ func (dm *DpManager) PolicyRuleLimit(_ []string, _, _ []*policycache.PolicyRule)
 }
 
 func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
-	// update rule entry num
-	for _, policyID := range policyIDs {
-		rules, err := dm.Rules.ByIndex(PolicyRuleIndex, policyID)
-		if err != nil {
-			continue
-		}
-		dm.AgentMetric.SetRuleEntryNum(policyID, len(rules), limited)
+	for _, k := range policyIDs {
+		dm.AgentMetric.SetRuleEntryNum(k, dm.policyRuleNums[k], limited)
 	}
 
-	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.ListRuleEntry()))
+	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.Rules))
 }

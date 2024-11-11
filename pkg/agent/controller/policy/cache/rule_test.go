@@ -327,6 +327,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/ingress.ingress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -339,6 +340,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			},
 			exp: &PolicyRule{
 				Name:            "default/test/normal/ingress.ingress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -354,6 +356,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with dst port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -367,6 +370,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			},
 			exp: &PolicyRule{
 				Name:            "default/test/normal/egress.egress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -383,6 +387,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with udp protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -401,6 +406,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without Protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -414,6 +420,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			},
 			exp: &PolicyRule{
 				Name:            "default/test/normal/egress.egress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -452,6 +459,46 @@ func TestRule(t *testing.T) {
 }
 
 var _ = Describe("rule unit-test", func() {
+	Context("generateflowkey", func() {
+		var pRule PolicyRule
+		var exp string
+		BeforeEach(func() {
+			pRule = PolicyRule{
+				Name:           "",
+				Policy:         "",
+				Action:         "",
+				PriorityOffset: 30,
+				Direction:      RuleDirectionIn,
+				RuleType:       RuleTypeDefaultRule,
+				Tier:           constants.Tier0,
+				SrcIPAddr:      "1.1.1.0/24",
+				DstIPAddr:      "13.13.13.24",
+				SrcPort:        345,
+				SrcPortMask:    0xffff,
+				IPProtocol:     "ICMP",
+				IcmpTypeEnable: true,
+			}
+			exp = GenerateFlowKey(pRule)
+		})
+		It("ignore skip Name field", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Name = "rule1"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+		})
+		It("ignore skip action", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Action = "allow"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+		})
+		It("ignore skip Policy", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Policy = "ns1/name1"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+		})
+	})
 	Context("getReverseRuleName", func() {
 		It("rulename with symmetric", func() {
 			srcName := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1.0-au61wlhu50q00fi2mwfk2ctig31y9go4"

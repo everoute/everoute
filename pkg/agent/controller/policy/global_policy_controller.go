@@ -105,6 +105,7 @@ func newGlobalPolicyRulePair(policy securityv1alpha1.GlobalPolicy) []cache.Polic
 	var ingressRule, egressRule cache.PolicyRule
 
 	ingressRule = cache.PolicyRule{
+		Policy:          "/" + DefaultGlobalPolicyName,
 		Direction:       cache.RuleDirectionIn,
 		RuleType:        cache.RuleTypeGlobalDefaultRule,
 		Tier:            constants.Tier2,
@@ -115,6 +116,7 @@ func newGlobalPolicyRulePair(policy securityv1alpha1.GlobalPolicy) []cache.Polic
 	ingressRule.Name = fmt.Sprintf("/%s/%s/global.ingress/-%s", DefaultGlobalPolicyName, cache.GlobalPolicy, cache.GenerateFlowKey(ingressRule))
 
 	egressRule = cache.PolicyRule{
+		Policy:          "/" + DefaultGlobalPolicyName,
 		Direction:       cache.RuleDirectionOut,
 		RuleType:        cache.RuleTypeGlobalDefaultRule,
 		Tier:            constants.Tier2,
