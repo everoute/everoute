@@ -42,7 +42,6 @@ import (
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -143,6 +142,8 @@ const (
 	NatToUplinkSuffix   = "nat-to-uplink"
 	UplinkToNatSuffix   = "uplink-to-nat"
 
+	InternalIngressPolicy     = "/INTERNAL_INGRESS_POLICY"
+	InternalEgressPolicy      = "/INTERNAL_EGRESS_POLICY"
 	InternalIngressRulePrefix = "/INTERNAL_INGRESS_POLICY/internal/ingress/-"
 	InternalEgressRulePrefix  = "/INTERNAL_EGRESS_POLICY/internal/egress/-"
 
@@ -233,7 +234,9 @@ type DpManager struct {
 	ofPortIPAddressUpdateChan chan *types.EndpointIP // map bridgename-ofport to endpoint ips
 	Config                    *DpManagerConfig
 	Info                      *DpManagerInfo
-	Rules                     cache.Indexer // store *EveroutePolicyRuleEntry
+	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
+	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
+	policyRuleNums            map[string]int
 	flowReplayMutex           *lock.CASMutex
 
 	flushMutex         *lock.ChanMutex
@@ -335,13 +338,25 @@ type FlowEntry struct {
 	FlowID   uint64
 }
 
+type PolicyRuleRef struct {
+	Policy string
+	Rule   string
+}
+
+type RuleBaseInfo struct {
+	Ref       PolicyRuleRef
+	Direction uint8
+	Tier      uint8
+	Mode      string
+}
+
 type EveroutePolicyRuleEntry struct {
 	EveroutePolicyRule  *EveroutePolicyRule
 	Direction           uint8
 	Tier                uint8
 	Mode                string
 	RuleFlowMap         map[string]*FlowEntry
-	PolicyRuleReference sets.String
+	PolicyRuleReference map[PolicyRuleRef]struct{}
 }
 
 type RoundInfo struct {
@@ -375,30 +390,6 @@ const (
 	PolicyRuleIndex = "policy-rule-index"
 )
 
-func ruleKeyFunc(obj interface{}) (string, error) {
-	return obj.(*EveroutePolicyRuleEntry).EveroutePolicyRule.RuleID, nil
-}
-
-func flowIDIndexFunc(obj interface{}) ([]string, error) {
-	var ret []string
-	for _, item := range obj.(*EveroutePolicyRuleEntry).RuleFlowMap {
-		ret = append(ret, strconv.FormatUint(item.FlowID, 10))
-	}
-	return ret, nil
-}
-
-func policyRuleIndexFunc(obj interface{}) ([]string, error) {
-	var ret []string
-	for _, item := range obj.(*EveroutePolicyRuleEntry).PolicyRuleReference.List() {
-		nameList := strings.Split(item, "/")
-		if len(nameList) < 2 {
-			continue
-		}
-		ret = append(ret, nameList[0]+"/"+nameList[1])
-	}
-	return ret, nil
-}
-
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
@@ -408,9 +399,9 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.BridgeChainPortMap = make(map[string]map[string]uint32)
 	datapathManager.OvsdbDriverMap = make(map[string]map[string]*ovsdbDriver.OvsDriver)
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
-	datapathManager.Rules = cache.NewIndexer(ruleKeyFunc, cache.Indexers{
-		FlowIDIndex:     flowIDIndexFunc,
-		PolicyRuleIndex: policyRuleIndexFunc})
+	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
+	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
+	datapathManager.policyRuleNums = make(map[string]int)
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.Info = new(DpManagerInfo)
@@ -533,21 +524,23 @@ func (datapathManager *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyI
 		if id == 0 {
 			continue
 		}
-		item := datapathManager.GetRuleEntryByFlowID(id)
+		item := datapathManager.FlowIDToRules[id]
 		if item != nil {
 			policyInfo := &PolicyInfo{
-				Dir:      item.Direction,
-				Action:   item.EveroutePolicyRule.Action,
-				Mode:     item.Mode,
-				FlowID:   id,
-				Tier:     item.Tier,
-				Priority: item.EveroutePolicyRule.Priority,
+				Dir:    item.Direction,
+				Action: item.EveroutePolicyRule.Action,
+				Mode:   item.Mode,
+				FlowID: id,
 			}
-			for _, p := range item.PolicyRuleReference.List() {
+			for p, _ := range item.PolicyRuleReference {
+				res := strings.Split(p.Rule, "/")
+				if len(res) < 3 {
+					continue
+				}
 				policyInfo.Item = append(policyInfo.Item, PolicyItem{
-					Name:       strings.Split(p, "/")[1],
-					Namespace:  strings.Split(p, "/")[0],
-					PolicyType: policycache.PolicyType(strings.Split(p, "/")[2]),
+					Name:       res[1],
+					Namespace:  res[0],
+					PolicyType: policycache.PolicyType(res[2]),
 				})
 			}
 			policyInfoList = append(policyInfoList, policyInfo)
@@ -562,7 +555,7 @@ func (datapathManager *DpManager) GetRulesByFlowIDs(flowIDs ...uint64) []*v1alph
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
 	for _, id := range flowIDs {
-		if entry := datapathManager.GetRuleEntryByFlowID(id); entry != nil {
+		if entry := datapathManager.FlowIDToRules[id]; entry != nil {
 			ans = append(ans, datapathRule2RpcRule(entry))
 		}
 	}
@@ -574,7 +567,7 @@ func (datapathManager *DpManager) GetRulesByRuleIDs(ruleIDs ...string) []*v1alph
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
 	for _, id := range ruleIDs {
-		if entry := datapathManager.GetRuleEntryByRuleID(id); entry != nil {
+		if entry := datapathManager.Rules[id]; entry != nil {
 			ans = append(ans, datapathRule2RpcRule(entry))
 		}
 	}
@@ -585,7 +578,7 @@ func (datapathManager *DpManager) GetAllRules() []*v1alpha1.RuleEntry {
 	datapathManager.lockRflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.RUnlock()
 	ans := []*v1alpha1.RuleEntry{}
-	for _, entry := range datapathManager.ListRuleEntry() {
+	for _, entry := range datapathManager.Rules {
 		ans = append(ans, datapathRule2RpcRule(entry))
 	}
 	return ans
@@ -917,7 +910,7 @@ func (datapathManager *DpManager) ReplayVDSLocalEndpointFlow(vdsID string, keyWo
 
 func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error {
 	var errs error
-	for _, entry := range datapathManager.ListRuleEntry() {
+	for ruleID, entry := range datapathManager.Rules {
 		// Add new policy rule flow to datapath
 		flowEntry, err := datapathManager.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(context.Background(), entry.EveroutePolicyRule,
 			entry.Direction, entry.Tier, entry.Mode)
@@ -928,10 +921,11 @@ func (datapathManager *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error 
 			continue
 		}
 
-		entry.RuleFlowMap[vdsID] = flowEntry
-		if err = datapathManager.Rules.Update(entry); err != nil {
-			errs = errors.Join(errs, err)
-		}
+		// udpate new policy rule flow to datapath flow cache
+		datapathManager.Rules[ruleID].RuleFlowMap[vdsID] = flowEntry
+
+		// update new flowID to policy entry map
+		datapathManager.FlowIDToRules[flowEntry.FlowID] = entry
 	}
 
 	// TODO: clear except table if we support helpers
@@ -1207,23 +1201,52 @@ func (datapathManager *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error 
 	return nil
 }
 
+func (datapathManager *DpManager) updatePolicyRuleNumForAddRule(policyName string, oriRuleRef map[PolicyRuleRef]struct{}) {
+	for k, _ := range oriRuleRef {
+		if k.Policy == policyName {
+			return
+		}
+	}
+	datapathManager.policyRuleNums[policyName]++
+}
+
+func (datapathManager *DpManager) updatePolicyRuleNumForRemoveRule(policyName string, policyRef map[PolicyRuleRef]struct{}) {
+	for k, _ := range policyRef {
+		if k.Policy == policyName {
+			return
+		}
+	}
+	datapathManager.decPolicyRuleNum(policyName)
+}
+
+func (datapathManager *DpManager) decPolicyRuleNum(policyName string) {
+	if datapathManager.policyRuleNums[policyName] > 0 {
+		datapathManager.policyRuleNums[policyName]--
+	}
+	if datapathManager.policyRuleNums[policyName] <= 0 {
+		delete(datapathManager.policyRuleNums, policyName)
+	}
+}
+
 //nolint:all
-func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePolicyRule, ruleName string, direction uint8, tier uint8, mode string) error {
-	log := ctrl.LoggerFrom(ctx, "ruleName", ruleName, "newRule", rule, "direction", direction, "tier", tier, "mode", mode)
+func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePolicyRule, ruleBase RuleBaseInfo) error {
+	log := ctrl.LoggerFrom(ctx, "ruleBase", ruleBase, "newRule", rule)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
 
+	policyRef := ruleBase.Ref
 	// check if we already have the rule
-	ruleEntry := datapathManager.GetRuleEntryByRuleID(rule.RuleID).Clone()
+	ruleEntry := datapathManager.Rules[rule.RuleID]
 	var oldRule *EveroutePolicyRule
 	if ruleEntry != nil {
 		if RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
-			ruleEntry.PolicyRuleReference.Insert(ruleName)
+			datapathManager.updatePolicyRuleNumForAddRule(policyRef.Policy, ruleEntry.PolicyRuleReference)
+			ruleEntry.PolicyRuleReference[policyRef] = struct{}{}
 			log.Info("Rule already exists, skip add flow")
-			return datapathManager.Rules.Update(ruleEntry)
+			return nil
 		}
 		oldRule = ruleEntry.EveroutePolicyRule
 	}
@@ -1235,7 +1258,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rul
 	for vdsID, bridgeChain := range datapathManager.BridgeChainMap {
 		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
 		ctxL := ctrl.LoggerInto(ctx, logL)
-		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, rule, direction, tier, mode)
+		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, rule, ruleBase.Direction, ruleBase.Tier, ruleBase.Mode)
 		if err != nil {
 			return err
 		}
@@ -1246,29 +1269,36 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rul
 
 	// save the rule. ruleFlowMap need deepcopy, NOTE
 	if ruleEntry == nil {
+		datapathManager.policyRuleNums[policyRef.Policy]++
 		ruleEntry = &EveroutePolicyRuleEntry{
-			PolicyRuleReference: sets.NewString(ruleName),
+			PolicyRuleReference: map[PolicyRuleRef]struct{}{policyRef: struct{}{}},
 		}
 	}
-	ruleEntry.Direction = direction
-	ruleEntry.Tier = tier
-	ruleEntry.Mode = mode
+	ruleEntry.Direction = ruleBase.Direction
+	ruleEntry.Tier = ruleBase.Tier
+	ruleEntry.Mode = ruleBase.Mode
 	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
+	datapathManager.Rules[rule.RuleID] = ruleEntry
+	// save flowID reference
+	for _, v := range ruleEntry.RuleFlowMap {
+		datapathManager.FlowIDToRules[v.FlowID] = ruleEntry
+	}
 	log.Info("Success to add or update rule")
-	return datapathManager.Rules.Update(ruleEntry)
+	return nil
 }
 
 //nolint:all
-func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string, ruleName string) error {
-	log := ctrl.LoggerFrom(ctx, "ruleName", ruleName)
+func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string, ruleBase RuleBaseInfo) error {
+	log := ctrl.LoggerFrom(ctx, "ruleBase", ruleBase)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	pRule := datapathManager.GetRuleEntryByRuleID(ruleID).Clone()
+	policyRef := ruleBase.Ref
+	pRule := datapathManager.Rules[ruleID]
 	if pRule == nil {
 		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID)
 		return nil
@@ -1276,10 +1306,11 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, 
 	log = log.WithValues("rule", pRule)
 
 	// check and remove rule reference
-	pRule.PolicyRuleReference.Delete(ruleName)
-	if pRule.PolicyRuleReference.Len() > 0 {
+	delete(pRule.PolicyRuleReference, policyRef)
+	if len(pRule.PolicyRuleReference) > 0 {
+		datapathManager.updatePolicyRuleNumForRemoveRule(policyRef.Policy, pRule.PolicyRuleReference)
 		log.Info("Rule referenced by other policy rules, skip del flow")
-		return datapathManager.Rules.Update(pRule)
+		return nil
 	}
 
 	for vdsID := range datapathManager.BridgeChainMap {
@@ -1289,12 +1320,16 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, 
 			return err
 		}
 		log.V(2).Info("Success to delete flow for rule", "vdsID", vdsID)
+		// remove flowID reference
+		delete(datapathManager.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
 	}
 
 	datapathManager.cleanConntrackFlow(ctx, pRule.EveroutePolicyRule)
 
+	delete(datapathManager.Rules, ruleID)
+	datapathManager.decPolicyRuleNum(policyRef.Policy)
 	log.Info("Success delete rule")
-	return datapathManager.Rules.Delete(pRule)
+	return nil
 }
 
 func (datapathManager *DpManager) GetNatBridges() []*NatBridge {
@@ -1345,15 +1380,33 @@ func (datapathManager *DpManager) syncIntenalIPs(stopChan <-chan struct{}) {
 
 func (datapathManager *DpManager) addIntenalIP(ip string, index int) {
 	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
+
+	ruleBase1 := RuleBaseInfo{
+		Ref: PolicyRuleRef{
+			Policy: InternalIngressPolicy,
+			Rule:   InternalIngressRulePrefix + ruleNameSuffix,
+		},
+		Direction: POLICY_DIRECTION_IN,
+		Tier:      POLICY_TIER3,
+		Mode:      DEFAULT_POLICY_ENFORCEMENT_MODE,
+	}
 	// add internal ingress rule
-	err := datapathManager.AddEveroutePolicyRule(context.Background(), newInternalIngressRule(ip),
-		InternalIngressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_IN, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+	err := datapathManager.AddEveroutePolicyRule(context.Background(), newInternalIngressRule(ip), ruleBase1)
 	if err != nil {
 		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
+
+	ruleBase2 := RuleBaseInfo{
+		Ref: PolicyRuleRef{
+			Policy: InternalEgressPolicy,
+			Rule:   InternalEgressRulePrefix + ruleNameSuffix,
+		},
+		Direction: POLICY_DIRECTION_OUT,
+		Tier:      POLICY_TIER3,
+		Mode:      DEFAULT_POLICY_ENFORCEMENT_MODE,
+	}
 	// add internal egress rule
-	err = datapathManager.AddEveroutePolicyRule(context.Background(), newInternalEgressRule(ip),
-		InternalEgressRulePrefix+ruleNameSuffix, POLICY_DIRECTION_OUT, POLICY_TIER3, DEFAULT_POLICY_ENFORCEMENT_MODE)
+	err = datapathManager.AddEveroutePolicyRule(context.Background(), newInternalEgressRule(ip), ruleBase2)
 	if err != nil {
 		klog.Fatalf("Failed to add internal whitelist: %s: %v", ip, err)
 	}
@@ -1361,13 +1414,27 @@ func (datapathManager *DpManager) addIntenalIP(ip string, index int) {
 
 func (datapathManager *DpManager) removeIntenalIP(ip string, index int) {
 	ruleNameSuffix := fmt.Sprintf("%s-%d", ip, index)
+
+	ruleBase1 := RuleBaseInfo{
+		Ref: PolicyRuleRef{
+			Policy: InternalEgressPolicy,
+			Rule:   InternalEgressRulePrefix + ruleNameSuffix,
+		},
+	}
 	// del internal ingress rule
-	err := datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalIngressRule(ip).RuleID, InternalIngressRulePrefix+ruleNameSuffix)
+	err := datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalIngressRule(ip).RuleID, ruleBase1)
 	if err != nil {
 		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}
+
+	ruleBase2 := RuleBaseInfo{
+		Ref: PolicyRuleRef{
+			Policy: InternalEgressPolicy,
+			Rule:   InternalEgressRulePrefix + ruleNameSuffix,
+		},
+	}
 	// del internal egress rule
-	err = datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalEgressRule(ip).RuleID, InternalEgressRulePrefix+ruleNameSuffix)
+	err = datapathManager.RemoveEveroutePolicyRule(context.Background(), newInternalEgressRule(ip).RuleID, ruleBase2)
 	if err != nil {
 		klog.Fatalf("Failed to del internal whitelist %s: %v", ip, err)
 	}

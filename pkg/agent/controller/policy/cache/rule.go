@@ -59,6 +59,7 @@ const (
 type PolicyRule struct {
 	// Name format policyNamespace/policyName/policyType/ruleName-flowKey
 	Name   string     `json:"name"`
+	Policy string     `json:"policy"`
 	Action RuleAction `json:"action"`
 
 	// match fields
@@ -81,6 +82,7 @@ type PolicyRule struct {
 func (p *PolicyRule) DeepCopy() *PolicyRule {
 	return &PolicyRule{
 		Name:            p.Name,
+		Policy:          p.Policy,
 		RuleType:        p.RuleType,
 		Tier:            p.Tier,
 		PriorityOffset:  p.PriorityOffset,
@@ -139,6 +141,7 @@ func (p *PolicyRule) ReverseForIcmp() []*PolicyRule {
 	res := []*PolicyRule{}
 	rBase := &PolicyRule{
 		RuleType:        p.RuleType,
+		Policy:          p.Policy,
 		Tier:            p.Tier,
 		PriorityOffset:  p.PriorityOffset,
 		EnforcementMode: p.EnforcementMode,
@@ -172,6 +175,7 @@ func (p *PolicyRule) ReverseForTCP() *PolicyRule {
 		return nil
 	}
 	res := &PolicyRule{
+		Policy:          p.Policy,
 		RuleType:        p.RuleType,
 		Tier:            p.Tier,
 		PriorityOffset:  p.PriorityOffset,
@@ -241,6 +245,7 @@ type CompleteRule struct {
 
 	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/policyType/ruleName.
 	RuleID string
+	Policy string
 
 	Tier            string
 	Priority        int32
@@ -298,6 +303,7 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 
 	return &CompleteRule{
 		RuleID:            rule.RuleID,
+		Policy:            rule.Policy,
 		Tier:              rule.Tier,
 		Priority:          rule.Priority,
 		EnforcementMode:   rule.EnforcementMode,
@@ -401,6 +407,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 	}
 
 	policyRule := PolicyRule{
+		Policy:          rule.Policy,
 		Direction:       direction,
 		RuleType:        ruleType,
 		Tier:            rule.Tier,
@@ -471,8 +478,7 @@ func groupIndexFunc(obj interface{}) ([]string, error) {
 
 func policyIndexFunc(obj interface{}) ([]string, error) {
 	rule := obj.(*CompleteRule)
-	policyNamespaceName := strings.Join(strings.Split(rule.RuleID, "/")[:2], "/")
-	return []string{policyNamespaceName}, nil
+	return []string{rule.Policy}, nil
 }
 
 func resolveDstPort(port RulePort, namedPorts []securityv1alpha1.NamedPort) []RulePort {
@@ -505,6 +511,8 @@ func NewCompleteRuleCache() cache.Indexer {
 func GenerateFlowKey(rule PolicyRule) string {
 	// ignore rule.Name and rule.Namespace from generate flowkey
 	rule.Name = ""
+	// ignore rule.Policy
+	rule.Policy = ""
 	// We consider PolicyRule with the same spec but different action as the same flow.
 	// Some we remove the action to generate FlowKey here.
 	rule.Action = ""
