@@ -58,7 +58,19 @@ func TestMatchIP(t *testing.T) {
 
 	for index, tc := range testCases {
 		t.Run(fmt.Sprintf("tc%2d", index), func(t *testing.T) {
-			if tc.shouldMatch != matchIP(tc.ipRaw, net.ParseIP(tc.ip)) {
+			r := EveroutePolicyRuleForCT{}
+			if _, ipNet, err := net.ParseCIDR(tc.ipRaw); err == nil {
+				r.SrcIPNet = ipNet
+				r.DstIPNet = ipNet
+			} else {
+				ip := net.ParseIP(tc.ipRaw)
+				r.SrcIP = &ip
+				r.DstIP = &ip
+			}
+			if tc.shouldMatch != r.matchSrcIP(net.ParseIP(tc.ip)) {
+				t.Fatalf("expect matchIP = %t, got matchIP = %t", tc.shouldMatch, !tc.shouldMatch)
+			}
+			if tc.shouldMatch != r.matchDstIP(net.ParseIP(tc.ip)) {
 				t.Fatalf("expect matchIP = %t, got matchIP = %t", tc.shouldMatch, !tc.shouldMatch)
 			}
 		})

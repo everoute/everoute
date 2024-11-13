@@ -240,8 +240,8 @@ type DpManager struct {
 	flowReplayMutex           *lock.CASMutex
 
 	flushMutex         *lock.ChanMutex
-	needFlush          bool                    // need to flush
-	cleanConntrackChan chan EveroutePolicyRule // clean conntrack entries for rule in chan
+	needFlush          bool                         // need to flush
+	cleanConntrackChan chan EveroutePolicyRuleForCT // clean conntrack entries for rule in chan
 
 	ArpChan    chan ArpInfo
 	ArpLimiter *rate.Limiter
@@ -312,53 +312,6 @@ type Endpoint struct {
 	BridgeName           string // bridge name that endpoint attached to
 }
 
-type EveroutePolicyRule struct {
-	RuleID         string // Unique identifier for the rule
-	Priority       int    // Priority for the rule (1..100. 100 is highest)
-	SrcIPAddr      string // source IP addrss and mask
-	DstIPAddr      string // Destination IP address and mask
-	IPProtocol     uint8  // IP protocol number
-	SrcPort        uint16 // Source port
-	SrcPortMask    uint16
-	DstPort        uint16 // destination port
-	DstPortMask    uint16
-	IcmpType       uint8
-	IcmpTypeEnable bool
-	Action         string // rule action: 'allow' or 'deny'
-}
-
-const (
-	EveroutePolicyAllow string = "allow"
-	EveroutePolicyDeny  string = "deny"
-)
-
-type FlowEntry struct {
-	Table    *ofctrl.Table
-	Priority uint16
-	FlowID   uint64
-}
-
-type PolicyRuleRef struct {
-	Policy string
-	Rule   string
-}
-
-type RuleBaseInfo struct {
-	Ref       PolicyRuleRef
-	Direction uint8
-	Tier      uint8
-	Mode      string
-}
-
-type EveroutePolicyRuleEntry struct {
-	EveroutePolicyRule  *EveroutePolicyRule
-	Direction           uint8
-	Tier                uint8
-	Mode                string
-	RuleFlowMap         map[string]*FlowEntry
-	PolicyRuleReference map[PolicyRuleRef]struct{}
-}
-
 type RoundInfo struct {
 	previousRoundNum uint64
 	curRoundNum      uint64
@@ -407,7 +360,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.Info = new(DpManagerInfo)
 	datapathManager.flowReplayMutex = lock.NewCASMutex()
 	datapathManager.flushMutex = lock.NewChanMutex()
-	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRule, MaxCleanConntrackChanSize)
+	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRuleForCT, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 	datapathManager.ArpLimiter = rate.NewLimiter(rate.Every(time.Second/ArpLimiterRate), ArpLimiterRate)
 	datapathManager.proxyReplayFunc = func() {}
@@ -1496,7 +1449,7 @@ func (datapathManager *DpManager) cleanConntrackFlow(ctx context.Context, rule *
 	}
 
 	if len(datapathManager.cleanConntrackChan) < cap(datapathManager.cleanConntrackChan) {
-		datapathManager.cleanConntrackChan <- *rule
+		datapathManager.cleanConntrackChan <- rule.toEveroutePolicyRuleForCT()
 		return
 	}
 
@@ -1596,7 +1549,7 @@ func sendARPRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, src
 	ofSwitch.Send(ofPacketOut)
 }
 
-func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRule) EveroutePolicyRuleList {
+func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRuleForCT) EveroutePolicyRuleList {
 	var ruleList EveroutePolicyRuleList
 
 	// block until chan have one or more rules
