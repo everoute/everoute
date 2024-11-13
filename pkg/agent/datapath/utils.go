@@ -269,35 +269,26 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 }
 
 func (rule EveroutePolicyRule) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	return rule.matchIPTuple(
-		flow.Forward.Protocol,
-		flow.Forward.SrcIP,
-		flow.Forward.DstIP,
-		flow.Forward.SrcPort,
-		flow.Forward.DstPort,
-	) || rule.matchIPTuple(
-		flow.Reverse.Protocol,
-		flow.Reverse.SrcIP,
-		flow.Reverse.DstIP,
-		flow.Reverse.SrcPort,
-		flow.Reverse.DstPort,
-	)
+	return rule.matchIPTuple(flow.Forward) || rule.matchIPTuple(flow.Reverse)
 }
 
-func (rule EveroutePolicyRule) matchIPTuple(protocol uint8, srcIP, dstIP net.IP, srcPort, dstPort uint16) bool {
-	if rule.IPProtocol != 0 && rule.IPProtocol != protocol {
+func (rule EveroutePolicyRule) matchIPTuple(tuple netlink.IpTuple) bool {
+	if rule.IPProtocol != 0 && rule.IPProtocol != tuple.Protocol {
 		return false
 	}
-	if rule.SrcIPAddr != "" && !matchIP(rule.SrcIPAddr, srcIP) {
+	if rule.SrcIPAddr != "" && !matchIP(rule.SrcIPAddr, tuple.SrcIP) {
 		return false
 	}
-	if rule.DstIPAddr != "" && !matchIP(rule.DstIPAddr, dstIP) {
+	if rule.DstIPAddr != "" && !matchIP(rule.DstIPAddr, tuple.DstIP) {
 		return false
 	}
-	if rule.SrcPort != 0 && !matchPort(rule.SrcPortMask, rule.SrcPort, srcPort) {
+	if rule.SrcPort != 0 && !matchPort(rule.SrcPortMask, rule.SrcPort, tuple.SrcPort) {
 		return false
 	}
-	if rule.DstPort != 0 && !matchPort(rule.DstPortMask, rule.DstPort, dstPort) {
+	if rule.DstPort != 0 && !matchPort(rule.DstPortMask, rule.DstPort, tuple.DstPort) {
+		return false
+	}
+	if rule.IcmpTypeEnable && rule.IcmpType != tuple.ICMPType {
 		return false
 	}
 

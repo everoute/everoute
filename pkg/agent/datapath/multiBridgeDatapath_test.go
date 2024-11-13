@@ -369,6 +369,28 @@ func testERPolicyRule(t *testing.T) {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
+		t.Run("should add tier2 monitor policy rule icmp with type", func(t *testing.T) {
+			rule := &EveroutePolicyRule{
+				RuleID:         rand.String(20),
+				Priority:       rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
+				SrcIPAddr:      randomIP(),
+				DstIPAddr:      randomIP(),
+				IPProtocol:     PROTOCOL_ICMP,
+				Action:         "allow",
+				IcmpType:       3,
+				IcmpTypeEnable: true,
+			}
+			err := datapathManager.AddEveroutePolicyRule(ctx, rule, rule.RuleID, POLICY_DIRECTION_IN, POLICY_TIER2, "monitor")
+			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				return flowValidator([]string{
+					fmt.Sprintf("table=54, priority=%d,icmp,nw_src=%s,nw_dst=%s,icmp_type=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IcmpType),
+				})
+			}, timeout, interval).ShouldNot(HaveOccurred())
+			err = datapathManager.RemoveEveroutePolicyRule(ctx, rule.RuleID, rule.RuleID)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
 		t.Run("should add tier3 monitor policy rule with allow", func(t *testing.T) {
 			rule := &EveroutePolicyRule{
 				RuleID:     rand.String(20),

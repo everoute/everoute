@@ -71,11 +71,11 @@ type PolicyRule struct {
 	DstIPAddr       string        `json:"dstIPAddr,omitempty"`
 	IPProtocol      string        `json:"ipProtocol"`
 	SrcPort         uint16        `json:"srcPort,omitempty"`
-	// DstPort or icmp type
-	DstPort     uint16 `json:"dstPort,omitempty"`
-	SrcPortMask uint16 `json:"srcPortMask,omitempty"`
-	// for icmp, if DstPortMask=65535, icmp will match type(DstPort)
-	DstPortMask uint16 `json:"dstPortMask,omitempty"`
+	DstPort         uint16        `json:"dstPort,omitempty"`
+	SrcPortMask     uint16        `json:"srcPortMask,omitempty"`
+	DstPortMask     uint16        `json:"dstPortMask,omitempty"`
+	IcmpType        uint8
+	IcmpTypeEnable  bool
 }
 
 func (p *PolicyRule) DeepCopy() *PolicyRule {
@@ -94,6 +94,8 @@ func (p *PolicyRule) DeepCopy() *PolicyRule {
 		DstIPAddr:       p.DstIPAddr,
 		DstPort:         p.DstPort,
 		DstPortMask:     p.DstPortMask,
+		IcmpType:        p.IcmpType,
+		IcmpTypeEnable:  p.IcmpTypeEnable,
 	}
 }
 
@@ -144,7 +146,7 @@ func (p *PolicyRule) ReverseForIcmp() []*PolicyRule {
 		Action:          p.Action,
 		SrcIPAddr:       p.DstIPAddr,
 		DstIPAddr:       p.SrcIPAddr,
-		DstPortMask:     0xffff,
+		IcmpTypeEnable:  true,
 	}
 	switch p.Direction {
 	case RuleDirectionIn:
@@ -155,7 +157,7 @@ func (p *PolicyRule) ReverseForIcmp() []*PolicyRule {
 
 	for _, icmpType := range []uint8{constants.IcmpTypeEcho, constants.IcmpTypeInformationReq, constants.IcmpTypeTimestampReq} {
 		r := rBase.DeepCopy()
-		r.DstPort = uint16(icmpType)
+		r.IcmpType = icmpType
 		srcFlowKey := GenerateFlowKey(*p)
 		flowKey := GenerateFlowKey(*r)
 		r.Name = getReverseRuleName(p.Name, srcFlowKey, flowKey)

@@ -338,7 +338,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstIPAddr:       "0.0.0.0/32",
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/ingress.ingress1.rev-ycpj5nwmp19cvivz0kxwbjkvulr395so",
+				Name:            "default/test/normal/ingress.ingress1.rev",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -366,7 +366,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
+				Name:            "default/test/normal/egress.egress1.rev",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -413,7 +413,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
+				Name:            "default/test/normal/egress.egress1.rev",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -439,6 +439,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, res)
 			continue
 		}
+		cases[i].exp.Name = fmt.Sprintf("%s-%s", cases[i].exp.Name, GenerateFlowKey(*cases[i].exp))
 		if *res != *cases[i].exp {
 			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, *res)
 		}
@@ -524,14 +525,14 @@ var _ = Describe("rule unit-test", func() {
 				res := oriRule.ReverseForBlock()
 				Expect(res).Should(HaveLen(3))
 				expRule1 := expRuleTmp.DeepCopy()
-				expRule1.DstPortMask = 0xffff
-				expRule1.DstPort = 8
+				expRule1.IcmpTypeEnable = true
+				expRule1.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule1))
 				expRule2 := expRule1.DeepCopy()
-				expRule2.DstPort = 13
+				expRule2.IcmpType = 13
 				Expect(res).Should(ContainElement(expRule2))
 				expRule3 := expRule1.DeepCopy()
-				expRule3.DstPort = 15
+				expRule3.IcmpType = 15
 				Expect(res).Should(ContainElement(expRule3))
 			})
 			It("protocol is tcp", func() {
@@ -572,16 +573,16 @@ var _ = Describe("rule unit-test", func() {
 				expRule1.IPProtocol = "TCP"
 				Expect(res).Should(ContainElement(expRule1))
 				expRule4 := expRuleTmp.DeepCopy()
-				expRule4.DstPortMask = 0xffff
-				expRule4.DstPort = 8
+				expRule4.IcmpTypeEnable = true
+				expRule4.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule4))
 				expRule2 := expRuleTmp.DeepCopy()
-				expRule2.DstPortMask = 0xffff
-				expRule2.DstPort = 13
+				expRule2.IcmpTypeEnable = true
+				expRule2.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule2))
 				expRule3 := expRuleTmp.DeepCopy()
-				expRule3.DstPortMask = 0xffff
-				expRule3.DstPort = 15
+				expRule3.IcmpTypeEnable = true
+				expRule3.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule3))
 
 			})
