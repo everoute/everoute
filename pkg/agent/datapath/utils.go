@@ -29,7 +29,6 @@ import (
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
-	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -268,58 +267,6 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 	}
 }
 
-func (rule EveroutePolicyRule) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	return rule.matchIPTuple(flow.Forward) || rule.matchIPTuple(flow.Reverse)
-}
-
-func (rule EveroutePolicyRule) matchIPTuple(tuple netlink.IpTuple) bool {
-	if rule.IPProtocol != 0 && rule.IPProtocol != tuple.Protocol {
-		return false
-	}
-	if rule.SrcIPAddr != "" && !matchIP(rule.SrcIPAddr, tuple.SrcIP) {
-		return false
-	}
-	if rule.DstIPAddr != "" && !matchIP(rule.DstIPAddr, tuple.DstIP) {
-		return false
-	}
-	if rule.SrcPort != 0 && !matchPort(rule.SrcPortMask, rule.SrcPort, tuple.SrcPort) {
-		return false
-	}
-	if rule.DstPort != 0 && !matchPort(rule.DstPortMask, rule.DstPort, tuple.DstPort) {
-		return false
-	}
-	if rule.IcmpTypeEnable && rule.IcmpType != tuple.ICMPType {
-		return false
-	}
-
-	return true
-}
-
-func matchPort(mask, port1, port2 uint16) bool {
-	if mask == 0 {
-		return port1 == port2
-	}
-	return port1&mask == port2&mask
-}
-
-func matchIP(ipRaw string, ip net.IP) bool {
-	if _, ipNet, err := net.ParseCIDR(ipRaw); err == nil {
-		return ipNet.Contains(ip)
-	}
-	return net.ParseIP(ipRaw).Equal(ip)
-}
-
-type EveroutePolicyRuleList []EveroutePolicyRule
-
-func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	for _, rule := range list {
-		if rule.MatchConntrackFlow(flow) {
-			return true
-		}
-	}
-	return false
-}
-
 func uintToByteBigEndian(src interface{}) []byte {
 	var res []byte
 
@@ -533,21 +480,6 @@ func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*o
 	}
 
 	return f, nil
-}
-
-func (rule *EveroutePolicyRule) Clone() *EveroutePolicyRule {
-	return &EveroutePolicyRule{
-		RuleID:      rule.RuleID,
-		Priority:    rule.Priority,
-		SrcIPAddr:   rule.SrcIPAddr,
-		DstIPAddr:   rule.DstIPAddr,
-		IPProtocol:  rule.IPProtocol,
-		SrcPort:     rule.SrcPort,
-		SrcPortMask: rule.SrcPortMask,
-		DstPort:     rule.DstPort,
-		DstPortMask: rule.DstPortMask,
-		Action:      rule.Action,
-	}
 }
 
 func FlowKeyFromRuleName(ruleName string) string {
