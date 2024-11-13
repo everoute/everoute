@@ -706,8 +706,8 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 
 	var icmpType uint8
 	if rule.IPProtocol == PROTOCOL_ICMP {
-		if rule.DstPortMask == 0xffff {
-			icmpType = uint8(rule.DstPort)
+		if rule.IcmpTypeEnable {
+			icmpType = rule.IcmpType
 		}
 	}
 	// Install the rule in policy table

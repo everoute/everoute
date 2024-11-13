@@ -65,16 +65,18 @@ func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath
 	}
 
 	everoutePolicyRule := &datapath.EveroutePolicyRule{
-		RuleID:      ruleID,
-		Priority:    rulePriority,
-		SrcIPAddr:   rule.SrcIPAddr,
-		DstIPAddr:   rule.DstIPAddr,
-		IPProtocol:  ipProtoNo,
-		SrcPort:     rule.SrcPort,
-		SrcPortMask: rule.SrcPortMask,
-		DstPort:     rule.DstPort,
-		DstPortMask: rule.DstPortMask,
-		Action:      ruleAction,
+		RuleID:         ruleID,
+		Priority:       rulePriority,
+		SrcIPAddr:      rule.SrcIPAddr,
+		DstIPAddr:      rule.DstIPAddr,
+		IPProtocol:     ipProtoNo,
+		SrcPort:        rule.SrcPort,
+		SrcPortMask:    rule.SrcPortMask,
+		DstPort:        rule.DstPort,
+		DstPortMask:    rule.DstPortMask,
+		IcmpType:       rule.IcmpType,
+		IcmpTypeEnable: rule.IcmpTypeEnable,
+		Action:         ruleAction,
 	}
 
 	return everoutePolicyRule
