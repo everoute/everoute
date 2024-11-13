@@ -310,16 +310,18 @@ type Endpoint struct {
 }
 
 type EveroutePolicyRule struct {
-	RuleID      string // Unique identifier for the rule
-	Priority    int    // Priority for the rule (1..100. 100 is highest)
-	SrcIPAddr   string // source IP addrss and mask
-	DstIPAddr   string // Destination IP address and mask
-	IPProtocol  uint8  // IP protocol number
-	SrcPort     uint16 // Source port
-	SrcPortMask uint16
-	DstPort     uint16 // destination port
-	DstPortMask uint16
-	Action      string // rule action: 'allow' or 'deny'
+	RuleID         string // Unique identifier for the rule
+	Priority       int    // Priority for the rule (1..100. 100 is highest)
+	SrcIPAddr      string // source IP addrss and mask
+	DstIPAddr      string // Destination IP address and mask
+	IPProtocol     uint8  // IP protocol number
+	SrcPort        uint16 // Source port
+	SrcPortMask    uint16
+	DstPort        uint16 // destination port
+	DstPortMask    uint16
+	IcmpType       uint8
+	IcmpTypeEnable bool
+	Action         string // rule action: 'allow' or 'deny'
 }
 
 const (
