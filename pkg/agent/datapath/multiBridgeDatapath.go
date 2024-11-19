@@ -338,11 +338,6 @@ type ArpInfo struct {
 	BrName string
 }
 
-const (
-	FlowIDIndex     = "flow-id-index"
-	PolicyRuleIndex = "policy-rule-index"
-)
-
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
