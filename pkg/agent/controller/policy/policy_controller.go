@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -36,7 +37,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -86,8 +89,8 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.V(4).Info("Reconcile securitypolicy start")
-	defer log.V(4).Info("Reconcile securitypolicy end")
+	log.Info("Reconcile securitypolicy start")
+	defer log.Info("Reconcile securitypolicy end")
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
@@ -116,8 +119,8 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.V(4).Info("Reconcile groupMembers start")
-	defer log.V(4).Info("Reconcile groupMembers end")
+	log.Info("Reconcile groupMembers start")
+	defer log.Info("Reconcile groupMembers end")
 
 	gm := groupv1alpha1.GroupMembers{}
 	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
@@ -129,7 +132,7 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 				for i := range rules {
 					ruleNames = append(ruleNames, rules[i].(*policycache.CompleteRule).RuleID)
 				}
-				log.V(2).Info("Group referenced by complete rules, can't be deleted", "ruleNames", ruleNames)
+				log.Info("Group referenced by complete rules, can't be deleted", "ruleNames", ruleNames)
 				return ctrl.Result{RequeueAfter: time.Second}, nil
 			}
 			r.groupCache.DelGroupMembership(req.Name)
@@ -139,7 +142,7 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 		log.Error(err, "Failed to get groupmembers")
 		return ctrl.Result{}, err
 	}
-
+	log.Info("---group members----", "members", gm.GroupMembers)
 	ctx = context.WithValue(ctx, ertypes.CtxKeyObject, gm.GroupMembers)
 	err := r.ruleUpdateByGroup(ctx, &gm)
 	r.groupCache.UpdateGroupMembership(&gm)
@@ -205,7 +208,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		CreateFunc: func(ce event.CreateEvent) bool {
+			klog.Info("---gpmembers create event %s", ce.Object.GetName())
+			return true
+		},
+		UpdateFunc: func(ue event.UpdateEvent) bool {
+			uo := ue.ObjectOld.(*groupv1alpha1.GroupMembers)
+			un := ue.ObjectNew.(*groupv1alpha1.GroupMembers)
+			eq := reflect.DeepEqual(uo, un)
+			klog.Info("---gpmembers update event %s %s, equal %v", ue.ObjectNew.GetName(), ue.ObjectOld.GetName(), eq)
+			return true
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -221,7 +236,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.GroupMembers) error {
+	log := ctrl.LoggerFrom(ctx)
 	rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, gm.GetName())
+
 	if len(rules) == 0 {
 		return nil
 	}
@@ -232,7 +249,7 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 
 		relatedPolicies = append(relatedPolicies,
 			fmt.Sprintf("%s/%s", strings.Split(rule.RuleID, "/")[0], strings.Split(rule.RuleID, "/")[1]))
-
+		log.Info("----rules i---", "i", i, "rules", rules[i])
 		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache)...)
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
 		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
