@@ -1409,7 +1409,8 @@ func (datapathManager *DpManager) cleanConntrackWorker() {
 	for {
 		if datapathManager.getFlush() {
 			datapathManager.lockflushWithTimeout()
-			err := netlink.ConntrackTableFlush(netlink.ConntrackTable)
+			//err := netlink.ConntrackTableFlush(netlink.ConntrackTable)
+			var err error
 			if err != nil {
 				klog.Errorf("Flush ct failed: %v", err)
 			} else {
