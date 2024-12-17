@@ -331,8 +331,11 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
 	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, oldAgentInfo.GetName())
-	for _, iface := range ifaces {
-		_ = r.ifaceCache.Delete(iface)
+	for _, ifa:= range ifaces {
+		if getEndpointIfaceIDFromIfaceCache(ifa.(*iface))== "f81d7ebe-424d-418a-9af4-74fb04cc7999" {
+			klog.Infof("zjjj, del iface: %v", *(ifa.(*iface)))
+		}
+		_ = r.ifaceCache.Delete(ifa)
 	}
 	for _, bridge := range newAgentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
@@ -346,6 +349,9 @@ func (r *EndpointReconciler) updateAgentInfo(_ context.Context, e event.UpdateEv
 					externalIDs: ovsIface.ExternalIDs,
 					mac:         ovsIface.Mac,
 					ipMap:       toIPTimeMap(ovsIface.IPMap),
+				}
+				if getEndpointIfaceIDFromOvsIface(ovsIface) == "f81d7ebe-424d-418a-9af4-74fb04cc7999" {
+					klog.Infof("zjjjj, iface: %v", *iface)
 				}
 				_ = r.ifaceCache.Add(iface)
 			}
@@ -440,6 +446,7 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 				ipNeedDelete := toIPStringSet(ovsIface.IPMap).Intersection(toIPStringSet(ovsInterface.IPMap))
 				if ipNeedDelete.Len() != 0 {
 					curInterfaceID := getEndpointIfaceIDFromOvsIface(ovsIface)
+					klog.Infof("zjjjj, ipdeleted %v, agentNameDel %s, agentNameNew %s, interfaceids: %s, %s", ipNeedDelete, agentName, agentInfo.Name, interfaceID, curInterfaceID)
 					return r.filterIPNeedDeleteByShareIP(ipNeedDelete, interfaceID, curInterfaceID)
 				}
 			}
