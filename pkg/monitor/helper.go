@@ -17,10 +17,10 @@ limitations under the License.
 package monitor
 
 import (
-	"fmt"
 	"net"
 
 	ovsdb "github.com/contiv/libovsdb"
+	klog "k8s.io/klog/v2"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 )
@@ -95,7 +95,9 @@ func getMacStrFromInterface(row ovsdb.Row) (string, error) {
 	var macStr string
 	driver := getDriverNameFromInterface(row)
 	if driver == "" {
-		return "", fmt.Errorf("get interface driver failed, interface row: %+v", row)
+		// first add interface may doesn't have drive, when interface update, we can't get driver
+		klog.V(4).Infof("Failed to get interface driver, interface row: %+v, ignore it", row)
+		return "", nil
 	}
 
 	isErEp, mac := isErEndpointIntface(row, driver)

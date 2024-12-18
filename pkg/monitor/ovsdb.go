@@ -84,7 +84,7 @@ type OVSDBMonitor struct {
 	ovsdbEventHandler ovsdbEventHandler
 	// map interface uuid
 	endpointMap      map[string]*datapath.Endpoint
-	bridgeMap        map[string]sets.String
+	bridgeMap        map[string]sets.Set[string]
 	ovsdbUpdatesChan chan ovsdb.TableUpdates
 
 	// syncQueue used to notify ovsdb update
@@ -104,7 +104,7 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		endpointMap:      make(map[string]*datapath.Endpoint),
 		ovsdbCache:       make(map[string]map[string]ovsdb.Row),
 		syncQueue:        workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		bridgeMap:        make(map[string]sets.String),
+		bridgeMap:        make(map[string]sets.Set[string]),
 		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
 	}
 
@@ -294,7 +294,7 @@ func (monitor *OVSDBMonitor) filterPortVlanTrunkUpdate(rowupdate ovsdb.RowUpdate
 func (monitor *OVSDBMonitor) processOvsBridgeAdd(row ovsdb.RowUpdate) {
 	bridgeName := row.New.Fields["name"].(string)
 	ports := listUUID(row.New.Fields["ports"])
-	portUUIDs := sets.NewString()
+	portUUIDs := sets.New[string]()
 	for _, port := range ports {
 		portUUIDs.Insert(port.GoUuid)
 	}
