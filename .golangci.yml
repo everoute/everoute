@@ -28,6 +28,7 @@ run:
 issues:
   exclude-files:
     - ".*_test.go$"
+    - plugin/tower/pkg/server/fake/graph/resolver/types.resolvers.go
     - "plugin/tower/pkg/server/fake/graph/resolver/*.resolvers.go"
   exclude-dirs:
     - tests/e2e

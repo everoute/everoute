@@ -156,14 +156,14 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 	localBrName := strings.TrimSuffix(p.name, "-policy")
 	fromLocalToEgressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
 	})
 	if err := fromLocalToEgressFlow.Next(p.egressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 	})
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
@@ -560,7 +560,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 	// policy forwarding table
 	fromLocalOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg6,
@@ -576,7 +576,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 
 	fromUpstreamOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg6,

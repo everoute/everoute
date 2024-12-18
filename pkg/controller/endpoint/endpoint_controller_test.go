@@ -269,7 +269,7 @@ var (
 										"idk1":                "idv1",
 										"idk2":                "idv2",
 										"idk3":                "idv3",
-										endpointExternalIDKey: "ep01",
+										endpointExternalIDKey: "ep00",
 									},
 									Mac: ovsPortStatusA.MacAddress,
 									IPMap: map[types.IPAddress]*agentv1alpha1.IPInfo{
@@ -768,7 +768,7 @@ var _ = Describe("shareIP-unit-test", func() {
 		})
 	})
 
-	Context("filterIPNeedDeleteByShareIP", func() {
+	Context("filterIPNeedDelete", func() {
 		var r *Reconciler
 		BeforeEach(func() {
 			_, ipNet1, _ := net.ParseCIDR("ffff::0/64")
@@ -802,39 +802,43 @@ var _ = Describe("shareIP-unit-test", func() {
 		})
 
 		It("ipDelete are all not belongs to shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("14.14.14.1", "14.14.14.2"), "if1", "if2")
+			res := r.filterIPNeedDelete(sets.New("14.14.14.1", "14.14.14.2"), "if1", "if2")
 			Expect(res.UnsortedList()).Should(ConsistOf("14.14.14.1", "14.14.14.2"))
 		})
 		It("interfaceID is empty", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("10.10.10.1", "14.14.14.2"), "", "if2")
+			res := r.filterIPNeedDelete(sets.New("10.10.10.1", "14.14.14.2"), "", "if2")
 			Expect(res.UnsortedList()).Should(ConsistOf("10.10.10.1", "14.14.14.2"))
 		})
 		It("ipDelete is match a shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("10.10.10.1", "14.14.14.2"), "if1", "if4")
+			res := r.filterIPNeedDelete(sets.New("10.10.10.1", "14.14.14.2"), "if1", "if4")
 			Expect(res.UnsortedList()).Should(ConsistOf("14.14.14.2"))
 		})
 		It("ipDelete is match multi shareIP", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129"), "if1", "if2")
+			res := r.filterIPNeedDelete(sets.New("12.10.10.129"), "if1", "if2")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("ipDelete is match multi shareIP, but interfaceID not match", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129", "14.14.14.2"), "if3", "if4")
+			res := r.filterIPNeedDelete(sets.New("12.10.10.129", "14.14.14.2"), "if3", "if4")
 			Expect(res.UnsortedList()).Should(ConsistOf("12.10.10.129", "14.14.14.2"))
 		})
 		It("ipDelete is match 0.0.0.0/0", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("12.10.10.129", "14.14.14.2"), "if6", "if7")
+			res := r.filterIPNeedDelete(sets.New("12.10.10.129", "14.14.14.2"), "if6", "if7")
+			Expect(res.Len()).Should(Equal(0))
+		})
+		It("vm nic migrate shouldn't be deleted", func() {
+			res := r.filterIPNeedDelete(sets.New("12.10.10.129", "14.14.14.2"), "if6", "if6")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("ipv6 ipDelete in ipnet", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("ffff::1"), "if1", "if2")
+			res := r.filterIPNeedDelete(sets.New("ffff::1"), "if1", "if2")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("ipv6 ipDelete in ips", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("fe80::5054:ff:feea:e3fc"), "if1", "if2")
+			res := r.filterIPNeedDelete(sets.New("fe80::5054:ff:feea:e3fc"), "if1", "if2")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("ipv6 ipDelete not in shared ip", func() {
-			res := r.filterIPNeedDeleteByShareIP(sets.New("fe80::5054:ff:feea:e3ff"), "if1", "if2")
+			res := r.filterIPNeedDelete(sets.New("fe80::5054:ff:feea:e3ff"), "if1", "if2")
 			Expect(res.Len()).Should(Equal(1))
 		})
 	})
