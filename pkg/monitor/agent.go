@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
@@ -267,6 +267,7 @@ func (monitor *AgentMonitor) syncAgentInfoWorker() {
 			klog.Errorf("sync agentinfo %s: %s", monitor.Name(), err)
 		}
 	}
+	klog.Info("Success update agentinfo")
 }
 
 func (monitor *AgentMonitor) syncAgentInfo() error {
@@ -292,12 +293,13 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 		return fmt.Errorf("couldn't fetch agent %s agentinfo: %s", agentName, err)
 	}
 
-	monitor.mergeAgentInfo(agentInfo, originAgentInfo)
+	newIPs := monitor.mergeAgentInfo(agentInfo, originAgentInfo)
 	agentInfo.ObjectMeta = originAgentInfo.ObjectMeta
 	_, err = monitor.k8sClient.Update(ctx, agentInfo, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
+	klog.Infof("Successed learn new ips %s to agentinfo", newIPs)
 	monitor.ipCache = make(map[string]map[types.IPAddress]*types.EndpointIP)
 
 	return nil
@@ -317,13 +319,26 @@ func (monitor *AgentMonitor) k8sClientGet(ctx context.Context, name string, opti
 	return monitor.k8sClient.Get(ctx, name, options)
 }
 
-func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1alpha1.AgentInfo) {
+func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1alpha1.AgentInfo) []string {
+	newIPs := []string{}
 	for i, ovsBr := range localAgentInfo.OVSInfo.Bridges {
 		for j, port := range ovsBr.Ports {
 			for k, intf := range port.Interfaces {
+				interfaceID := intf.ExternalIDs[constants.EndpointExternalIDKey]
 				matchIntf := getCpIntf(ovsBr.Name, intf, cpAgentInfo)
 				if matchIntf == nil {
-					continue
+					matchIntf = &agentv1alpha1.OVSInterface{}
+				}
+				if matchIntf.IPMap == nil {
+					matchIntf.IPMap = make(map[types.IPAddress]*agentv1alpha1.IPInfo)
+				}
+				if intf.IPMap != nil {
+					for key := range intf.IPMap {
+						if _, ok := matchIntf.IPMap[key]; !ok {
+							klog.V(4).Infof("Has learned new ip %s for interface %s", key, interfaceID)
+							newIPs = append(newIPs, key.String())
+						}
+					}
 				}
 				for key, value := range matchIntf.IPMap {
 					if localAgentInfo.OVSInfo.Bridges[i].Ports[j].Interfaces[k].IPMap == nil {
@@ -336,6 +351,8 @@ func (monitor *AgentMonitor) mergeAgentInfo(localAgentInfo, cpAgentInfo *agentv1
 			}
 		}
 	}
+
+	return newIPs
 }
 
 func (monitor *AgentMonitor) getAgentInfo() (*agentv1alpha1.AgentInfo, error) {
@@ -551,7 +568,8 @@ func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAge
 			for _, intf := range port.Interfaces {
 				oldIfaceID := intf.ExternalIDs[constants.EndpointExternalIDKey]
 				if newIfaceID == oldIfaceID {
-					if newInterface.Ofport != intf.Ofport {
+					// when just add interface, it may has no ofport
+					if intf.Ofport != 0 && newInterface.Ofport != intf.Ofport {
 						klog.Infof("The interface %s with iface-id %s, ofport has changed, new ofport is %d, old ofport is %d, merge old ips %v",
 							newInterface.Name, newIfaceID, newInterface.Ofport, intf.Ofport, intf.IPMap)
 					}
@@ -561,7 +579,7 @@ func getCpIntf(bridgeName string, newInterface agentv1alpha1.OVSInterface, cpAge
 			}
 		}
 	}
-
+	klog.V(4).Infof("Add interface %s(%s, %s) with ips [%v] to ovs bridge %s", newInterface.Name, newInterface.Mac, newIfaceID, newInterface.IPMap, bridgeName)
 	return nil
 }
 
