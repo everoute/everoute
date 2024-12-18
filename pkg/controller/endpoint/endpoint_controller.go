@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -440,7 +440,11 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 				ipNeedDelete := toIPStringSet(ovsIface.IPMap).Intersection(toIPStringSet(ovsInterface.IPMap))
 				if ipNeedDelete.Len() != 0 {
 					curInterfaceID := getEndpointIfaceIDFromOvsIface(ovsIface)
-					return r.filterIPNeedDeleteByShareIP(ipNeedDelete, interfaceID, curInterfaceID)
+					ipDels := r.filterIPNeedDelete(ipNeedDelete, interfaceID, curInterfaceID)
+					if len(ipDels) > 0 {
+						klog.Infof("The agent %s iface-id %s has same ips, will delete ips %v in agent %s iface-id %s", agentInfo.Name, curInterfaceID, ipDels, agentName, interfaceID)
+					}
+					return ipDels
 				}
 			}
 		}
@@ -449,7 +453,10 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 	return sets.Set[string]{}
 }
 
-func (r *EndpointReconciler) filterIPNeedDeleteByShareIP(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
+func (r *EndpointReconciler) filterIPNeedDelete(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
+	if interfaceID1 == interfaceID2 {
+		return sets.Set[string]{}
+	}
 	if interfaceID1 == "" || interfaceID2 == "" {
 		return ipNeedDelete
 	}

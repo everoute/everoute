@@ -1238,7 +1238,7 @@ func (datapathManager *DpManager) AddEveroutePolicyRule(ctx context.Context, rul
 
 //nolint:all
 func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string, ruleBase RuleBaseInfo) error {
-	log := ctrl.LoggerFrom(ctx, "ruleBase", ruleBase)
+	log := ctrl.LoggerFrom(ctx)
 	datapathManager.lockflowReplayWithTimeout()
 	defer datapathManager.flowReplayMutex.Unlock()
 	if !datapathManager.IsBridgesConnected() {
@@ -1248,10 +1248,15 @@ func (datapathManager *DpManager) RemoveEveroutePolicyRule(ctx context.Context, 
 	policyRef := ruleBase.Ref
 	pRule := datapathManager.Rules[ruleID]
 	if pRule == nil {
-		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID)
+		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID, "ruleRef", ruleBase.Ref)
 		return nil
 	}
-	log = log.WithValues("rule", pRule)
+	// for log
+	oldRule := *pRule.EveroutePolicyRule
+	ruleBase.Direction = pRule.Direction
+	ruleBase.Tier = pRule.Tier
+	ruleBase.Mode = pRule.Mode
+	log = log.WithValues("rule", oldRule, "ruleBase", ruleBase)
 
 	// check and remove rule reference
 	delete(pRule.PolicyRuleReference, policyRef)
