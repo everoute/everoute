@@ -441,8 +441,8 @@ func (r *EndpointReconciler) getDeletedIP(agentName string, ovsInterface agentv1
 				if ipNeedDelete.Len() != 0 {
 					curInterfaceID := getEndpointIfaceIDFromOvsIface(ovsIface)
 					ipDels := r.filterIPNeedDelete(ipNeedDelete, interfaceID, curInterfaceID)
-					if len(ipDels) > 0 {
-						klog.Infof("The agent %s iface-id %s has same ips, will delete ips %v in agent %s iface-id %s", agentInfo.Name, curInterfaceID, ipDels, agentName, interfaceID)
+					if len(ipDels) > 0  {
+						klog.Infof("The agent %s ssiface-id %s has same ips, will delete ips %v in agent %s iface-id %s", agentInfo.Name, curInterfaceID, ipDels, agentName, interfaceID)
 					}
 					return ipDels
 				}
