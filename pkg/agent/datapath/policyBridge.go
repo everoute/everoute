@@ -163,7 +163,7 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 	})
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)

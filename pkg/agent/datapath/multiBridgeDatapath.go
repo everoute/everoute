@@ -776,7 +776,6 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 	}(vdsID)
 }
 
-//nolint:all
 func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridgeKeyword string) error {
 	log := ctrl.LoggerFrom(ctx)
 	dp.lockflowReplayWithTimeout()
@@ -1242,9 +1241,8 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	return nil
 }
 
-//nolint:all
 func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string, ruleBase RuleBaseInfo) error {
-	log := ctrl.LoggerFrom(ctx, "ruleBase", ruleBase)
+	log := ctrl.LoggerFrom(ctx)
 	dp.lockflowReplayWithTimeout()
 	defer dp.flowReplayMutex.Unlock()
 	if !dp.IsBridgesConnected() {
@@ -1254,10 +1252,15 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 	policyRef := ruleBase.Ref
 	pRule := dp.Rules[ruleID]
 	if pRule == nil {
-		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID)
+		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID, "ruleRef", ruleBase.Ref)
 		return nil
 	}
-	log = log.WithValues("rule", pRule)
+	// for log
+	oldRule := *pRule.EveroutePolicyRule
+	ruleBase.Direction = pRule.Direction
+	ruleBase.Tier = pRule.Tier
+	ruleBase.Mode = pRule.Mode
+	log = log.WithValues("rule", oldRule, "ruleBase", ruleBase)
 
 	// check and remove rule reference
 	delete(pRule.PolicyRuleReference, policyRef)
@@ -1438,7 +1441,6 @@ func (dp *DpManager) cleanConntrackWorker(family uint8, cleanChan chan EverouteP
 	}
 }
 
-//nolint:all
 func (dp *DpManager) cleanConntrackFlow(ctx context.Context, rule *EveroutePolicyRule) {
 	log := ctrl.LoggerFrom(ctx)
 	if rule == nil {

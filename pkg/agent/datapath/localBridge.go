@@ -124,7 +124,7 @@ func (l *LocalBridge) getInPort(pkt *ofctrl.PacketIn) uint32 {
 	return 0
 }
 
-func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+func (l *LocalBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 	if pkt.Data.Ethertype != PROTOCOL_ARP &&
 		pkt.Data.Ethertype != protocol.IPv6_MSG {
 		return
@@ -536,7 +536,7 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
-	outputPortPolicy, _ := sw.OutputPort(uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]))
+	outputPortPolicy, _ := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := localGwToPolicy.Next(outputPortPolicy); err != nil {
 		return fmt.Errorf("failed to install localGwToPolicy flow, error: %v", err)
 	}
@@ -780,7 +780,7 @@ func (l *LocalBridge) initVlanInputTable(_ *ofctrl.OFSwitch) error {
 	// vlanInput table
 	fromUpstreamFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
+		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
 	})
 	if err := fromUpstreamFlow.Next(l.localEndpointL2ForwardingTable); err != nil {
 		return fmt.Errorf("failed to install from upstream flow, error: %v", err)
