@@ -49,14 +49,16 @@ const (
 	LocalEndpointIPv4     = "attached-ipv4"
 	InterfaceDriver       = "driver_name"
 	InterfaceStatus       = "status"
+	InterfaceType         = "type"
 	AgentInfoSyncInterval = 60
 
 	// with these parameters, at least 5 arp request would be sent before ip timeout
 	probeIPInterval = constants.IfaceIPTimeoutDuration / 10
 	probeIPTimeout  = constants.IfaceIPTimeoutDuration / 2
 
-	VMNicDriver  = "tun"
-	PodNicDriver = "veth"
+	VMNicDriver     = "tun"
+	VMNicDpdkDriver = "dpdkvhostuserclient"
+	PodNicDriver    = "veth"
 )
 
 // AgentMonitor monitor agent state, update agentinfo to apiserver.
