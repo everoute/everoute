@@ -2,7 +2,7 @@ linters-settings:
   errcheck:
     # [deprecated] comma-separated list of pairs of the form pkg:regex
     # the regex is used to ignore names within pkg. (default "fmt:.*").
-    ignore: fmt:.*,io/ioutil:^Read.*,io:Close
+    exclude-functions: fmt:.*,io/ioutil:^Read.*,io:Close
   lll:
     line-length: 170
   funlen:
@@ -28,7 +28,6 @@ run:
 issues:
   exclude-files:
     - ".*_test.go$"
-    - plugin/tower/pkg/server/fake/graph/resolver/types.resolvers.go
     - "plugin/tower/pkg/server/fake/graph/resolver/*.resolvers.go"
   exclude-dirs:
     - tests/e2e
