@@ -430,6 +430,7 @@ func (r *Reconciler) toUpdatedAgentInfo(newAgentInfo *agentv1alpha1.AgentInfo) [
 }
 
 func (r *Reconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.OVSInterface, agentInfo *agentv1alpha1.AgentInfo) sets.Set[string] {
+	res := sets.New[string]()
 	interfaceID := getEndpointIfaceIDFromOvsIface(ovsInterface)
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
@@ -443,14 +444,14 @@ func (r *Reconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.O
 					ipDels := r.filterIPNeedDelete(ipNeedDelete, interfaceID, curInterfaceID)
 					if len(ipDels) > 0 {
 						klog.Infof("The agent %s iface-id %s has same ips, will delete ips %v in agent %s iface-id %s", agentInfo.Name, curInterfaceID, ipDels, agentName, interfaceID)
+						res = res.Union(ipDels)
 					}
-					return ipDels
 				}
 			}
 		}
 	}
 
-	return sets.Set[string]{}
+	return res
 }
 
 func (r *Reconciler) filterIPNeedDelete(ipNeedDelete sets.Set[string], interfaceID1, interfaceID2 string) sets.Set[string] {
