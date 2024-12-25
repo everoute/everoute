@@ -47,7 +47,6 @@ type CNIServer struct {
 	k8sClient client.Client
 	ovsDriver *ovsdbDriver.OvsDriver
 	ipam      eripam.IPAM
-	brName    string
 	podMTU    int
 
 	mutex sync.Mutex
@@ -168,7 +167,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 	// broadcast arp pkg in namespace
 	// pod-endpoint may not sync when sending arp, so this part may not have effects.
-	if err = ns.WithNetNSPath(nsPath, func(hostNS ns.NetNS) error {
+	if err = ns.WithNetNSPath(nsPath, func(_ ns.NetNS) error {
 		for index := range result.IPs {
 			err = arping.GratuitousArpOverIfaceByName(result.IPs[index].Address.IP,
 				result.Interfaces[*result.IPs[index].Interface].Name)

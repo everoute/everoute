@@ -7,6 +7,7 @@ import (
 	"github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -327,6 +328,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/ingress.ingress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -338,7 +340,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstIPAddr:       "0.0.0.0/32",
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/ingress.ingress1.rev-ycpj5nwmp19cvivz0kxwbjkvulr395so",
+				Name:            "default/test/normal/ingress.ingress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -354,6 +357,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with dst port",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -366,7 +370,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-46mz6ug658rilqvqfrnvaftj3xbfm4wg",
+				Name:            "default/test/normal/egress.egress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -383,6 +388,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "with udp protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -401,6 +407,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			name: "without Protocol",
 			rule: PolicyRule{
 				Name:            "default/test/normal/egress.egress1",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -413,7 +420,8 @@ func TestRuleReverseForTCP(t *testing.T) {
 				DstPortMask:     0xfffe,
 			},
 			exp: &PolicyRule{
-				Name:            "default/test/normal/egress.egress1.rev-5oxwoabwts7k9a6qsw1evzkacpqmu36h",
+				Name:            "default/test/normal/egress.egress1.rev",
+				Policy:          "default/test",
 				Action:          RuleActionDrop,
 				PriorityOffset:  30,
 				RuleType:        RuleTypeNormalRule,
@@ -439,6 +447,7 @@ func TestRuleReverseForTCP(t *testing.T) {
 			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, res)
 			continue
 		}
+		cases[i].exp.Name = fmt.Sprintf("%s-%s", cases[i].exp.Name, GenerateFlowKey(*cases[i].exp))
 		if *res != *cases[i].exp {
 			t.Errorf("test %s failed, exp is %v, real is %v", cases[i].name, cases[i].exp, *res)
 		}
@@ -451,6 +460,69 @@ func TestRule(t *testing.T) {
 }
 
 var _ = Describe("rule unit-test", func() {
+	Context("generateflowkey", func() {
+		var pRule, pRuleV6 PolicyRule
+		var exp, expV6 string
+		BeforeEach(func() {
+			pRule = PolicyRule{
+				Name:           "",
+				Policy:         "",
+				Action:         "",
+				PriorityOffset: 30,
+				Direction:      RuleDirectionIn,
+				RuleType:       RuleTypeDefaultRule,
+				Tier:           constants.Tier0,
+				SrcIPAddr:      "1.1.1.0/24",
+				DstIPAddr:      "13.13.13.24",
+				SrcPort:        345,
+				SrcPortMask:    0xffff,
+				IPProtocol:     "ICMP",
+				IPFamily:       unix.AF_INET,
+				IcmpTypeEnable: true,
+			}
+			pRuleV6 = PolicyRule{
+				Name:           "",
+				Policy:         "",
+				Action:         "",
+				PriorityOffset: 30,
+				Direction:      RuleDirectionIn,
+				RuleType:       RuleTypeDefaultRule,
+				Tier:           constants.Tier0,
+				SrcIPAddr:      "fe80::0/16",
+				DstIPAddr:      "fe80::dc13:10ff:fe24:8c7f/128",
+				SrcPort:        345,
+				SrcPortMask:    0xffff,
+				IPProtocol:     "ICMP",
+				IPFamily:       unix.AF_INET6,
+				IcmpTypeEnable: false,
+			}
+			exp = GenerateFlowKey(pRule)
+			expV6 = GenerateFlowKey(pRuleV6)
+		})
+		It("ignore skip Name field", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Name = "rule1"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+
+			pRule3 := pRuleV6.DeepCopy()
+			pRule3.Name = "rule1"
+			res3 := GenerateFlowKey(*pRule3)
+			Expect(res3).Should(Equal(expV6))
+		})
+		It("ignore skip action", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Action = "allow"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+		})
+		It("ignore skip Policy", func() {
+			pRule2 := pRule.DeepCopy()
+			pRule2.Policy = "ns1/name1"
+			res2 := GenerateFlowKey(*pRule2)
+			Expect(res2).Should(Equal(exp))
+		})
+	})
 	Context("getReverseRuleName", func() {
 		It("rulename with symmetric", func() {
 			srcName := "tower-space/tower.sp-clyzox2msqqcj0858pivnseku/normal/egress.egress1.0-au61wlhu50q00fi2mwfk2ctig31y9go4"
@@ -480,8 +552,22 @@ var _ = Describe("rule unit-test", func() {
 			RuleType:        RuleTypeNormalRule,
 			EnforcementMode: "work",
 			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET,
 			SrcIPAddr:       "12.12.12.12/32",
 			DstIPAddr:       "13.13.13.0/24",
+		}
+		pRuleV6 := PolicyRule{
+			Name:            "policy1-ruleid2",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionIn,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET6,
+			SrcIPAddr:       "fe80::42:87ff:fecd:9198/128",
+			DstIPAddr:       "fe80::b0de:96ff:fe2d:6c99/128",
 		}
 		expRuleTmp := PolicyRule{
 			Name:            "policy1re-ruleblock",
@@ -492,8 +578,22 @@ var _ = Describe("rule unit-test", func() {
 			RuleType:        RuleTypeNormalRule,
 			EnforcementMode: "work",
 			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET,
 			SrcIPAddr:       "13.13.13.0/24",
 			DstIPAddr:       "12.12.12.12/32",
+		}
+		expRuleTmpV6 := PolicyRule{
+			Name:            "policy1re-ruleblock",
+			PriorityOffset:  203,
+			Tier:            "tier2",
+			Action:          RuleActionDrop,
+			Direction:       RuleDirectionOut,
+			RuleType:        RuleTypeNormalRule,
+			EnforcementMode: "work",
+			IPProtocol:      "ICMP",
+			IPFamily:        unix.AF_INET6,
+			SrcIPAddr:       "fe80::b0de:96ff:fe2d:6c99/128",
+			DstIPAddr:       "fe80::42:87ff:fecd:9198/128",
 		}
 		It("rule is allowlist", func() {
 			oriRule := pRule.DeepCopy()
@@ -513,6 +613,11 @@ var _ = Describe("rule unit-test", func() {
 			res := oriRule.ReverseForBlock()
 			Expect(res).Should(HaveLen(0))
 		})
+		It("rule is icmpv6", func() {
+			oriRule := pRuleV6.DeepCopy()
+			res := oriRule.ReverseForBlock()
+			Expect(res).Should(HaveLen(0))
+		})
 
 		When("rule is blocklist", func() {
 			It("protocol is icmp", func() {
@@ -524,14 +629,14 @@ var _ = Describe("rule unit-test", func() {
 				res := oriRule.ReverseForBlock()
 				Expect(res).Should(HaveLen(3))
 				expRule1 := expRuleTmp.DeepCopy()
-				expRule1.DstPortMask = 0xffff
-				expRule1.DstPort = 8
+				expRule1.IcmpTypeEnable = true
+				expRule1.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule1))
 				expRule2 := expRule1.DeepCopy()
-				expRule2.DstPort = 13
+				expRule2.IcmpType = 13
 				Expect(res).Should(ContainElement(expRule2))
 				expRule3 := expRule1.DeepCopy()
-				expRule3.DstPort = 15
+				expRule3.IcmpType = 15
 				Expect(res).Should(ContainElement(expRule3))
 			})
 			It("protocol is tcp", func() {
@@ -546,6 +651,26 @@ var _ = Describe("rule unit-test", func() {
 				res := oriRule.ReverseForBlock()
 				Expect(res).Should(HaveLen(1))
 				expRule1 := expRuleTmp.DeepCopy()
+				expRule1.SrcPortMask = 0xffff
+				expRule1.SrcPort = 32
+				expRule1.IPProtocol = "TCP"
+				Expect(res).Should(ContainElement(expRule1))
+			})
+			It("protocol is ipv6 tcp", func() {
+				oriRule := pRule.DeepCopy()
+				oriRule.IPProtocol = "TCP"
+				oriRule.IPFamily = unix.AF_INET6
+				oriRule.SrcIPAddr = "fe80::42:87ff:fecd:9198/128"
+				oriRule.DstIPAddr = "fe80::b0de:96ff:fe2d:6c99/128"
+				oriRule.DstPort = 32
+				oriRule.DstPortMask = 0xffff
+				p1 := gomonkey.ApplyFuncSeq(getReverseRuleName, []gomonkey.OutputCell{
+					{Times: 1, Values: gomonkey.Params{"policy1re-ruleblock"}},
+				})
+				defer p1.Reset()
+				res := oriRule.ReverseForBlock()
+				Expect(res).Should(HaveLen(1))
+				expRule1 := expRuleTmpV6.DeepCopy()
 				expRule1.SrcPortMask = 0xffff
 				expRule1.SrcPort = 32
 				expRule1.IPProtocol = "TCP"
@@ -572,16 +697,16 @@ var _ = Describe("rule unit-test", func() {
 				expRule1.IPProtocol = "TCP"
 				Expect(res).Should(ContainElement(expRule1))
 				expRule4 := expRuleTmp.DeepCopy()
-				expRule4.DstPortMask = 0xffff
-				expRule4.DstPort = 8
+				expRule4.IcmpTypeEnable = true
+				expRule4.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule4))
 				expRule2 := expRuleTmp.DeepCopy()
-				expRule2.DstPortMask = 0xffff
-				expRule2.DstPort = 13
+				expRule2.IcmpTypeEnable = true
+				expRule2.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule2))
 				expRule3 := expRuleTmp.DeepCopy()
-				expRule3.DstPortMask = 0xffff
-				expRule3.DstPort = 15
+				expRule3.IcmpTypeEnable = true
+				expRule3.IcmpType = 8
 				Expect(res).Should(ContainElement(expRule3))
 
 			})

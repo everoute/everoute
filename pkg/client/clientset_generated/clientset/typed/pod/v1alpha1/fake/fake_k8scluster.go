@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeK8sClusters struct {
 	ns   string
 }
 
-var k8sclustersResource = schema.GroupVersionResource{Group: "pod.everoute.io", Version: "v1alpha1", Resource: "k8scluster"}
+var k8sclustersResource = v1alpha1.SchemeGroupVersion.WithResource("k8scluster")
 
-var k8sclustersKind = schema.GroupVersionKind{Group: "pod.everoute.io", Version: "v1alpha1", Kind: "K8sCluster"}
+var k8sclustersKind = v1alpha1.SchemeGroupVersion.WithKind("K8sCluster")
 
 // Get takes name of the k8sCluster, and returns the corresponding k8sCluster object, and an error if there is any.
 func (c *FakeK8sClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.K8sCluster, err error) {
@@ -106,7 +105,7 @@ func (c *FakeK8sClusters) Update(ctx context.Context, k8sCluster *v1alpha1.K8sCl
 // Delete takes name of the k8sCluster and deletes it. Returns an error if one occurs.
 func (c *FakeK8sClusters) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(k8sclustersResource, c.ns, name), &v1alpha1.K8sCluster{})
+		Invokes(testing.NewDeleteActionWithOptions(k8sclustersResource, c.ns, name, opts), &v1alpha1.K8sCluster{})
 
 	return err
 }

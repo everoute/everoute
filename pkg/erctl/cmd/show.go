@@ -9,7 +9,7 @@ var showCmd = &cobra.Command{
 	Short: "specify which field you want show",
 	Long: "[-D {fieldName...}] means don't show {fieldName...} (like blacklist)\n" +
 		"[-I {fieldName...}] means only show {fieldName...} (like whitelist)",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		ruleMaps, _, err := getRuleMapsFromSomewhere()
 		if err != nil {
 			return err
@@ -35,7 +35,7 @@ var showCmd = &cobra.Command{
 		if len(showIntersection) != 0 {
 			ruleMaps = next
 		}
-		err = print(out, ruleMaps)
+		err = printz(out, ruleMaps)
 		if err != nil {
 			return err
 		}

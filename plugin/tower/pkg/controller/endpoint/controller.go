@@ -143,7 +143,7 @@ func New(
 		vmIndex: c.vmIndexFuncForEndpoint,
 	})
 
-	vmInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = vmInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addVM,
 			UpdateFunc: c.updateVM,
@@ -152,7 +152,7 @@ func New(
 		resyncPeriod,
 	)
 
-	labelInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = labelInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addLabel,
 			UpdateFunc: c.updateLabel,
@@ -164,7 +164,7 @@ func New(
 	// Why we handle endpoint events ?
 	// 1. When controller restart, vm delete event may lose. The handler would enqueue all endpoints for synchronization.
 	// 2. If endpoints unexpectedly modified by other applications, the controller would find and resync them.
-	endpointInforer.AddEventHandlerWithResyncPeriod(
+	_, _ = endpointInforer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addEndpoint,
 			UpdateFunc: c.updateEndpoint,
@@ -173,7 +173,7 @@ func New(
 		resyncPeriod,
 	)
 
-	systemEndpointInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = systemEndpointInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addSystemEndpoints,
 			UpdateFunc: c.updateSystemEndpoints,
@@ -182,7 +182,7 @@ func New(
 		resyncPeriod,
 	)
 
-	erClusterInformer.AddEventHandlerWithResyncPeriod(
+	_, _ = erClusterInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addEverouteCluster,
 			UpdateFunc: c.updateEverouteCluster,
@@ -329,7 +329,7 @@ func (c *Controller) addEndpoint(new interface{}) {
 	}
 }
 
-func (c *Controller) updateEndpoint(old interface{}, new interface{}) {
+func (c *Controller) updateEndpoint(_ interface{}, new interface{}) {
 	obj := new.(*v1alpha1.Endpoint)
 	if obj.GetNamespace() != c.namespace {
 		return

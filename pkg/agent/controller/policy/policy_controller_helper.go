@@ -22,6 +22,8 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/contiv/libOpenflow/protocol"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 
@@ -47,7 +49,7 @@ func IsGroupMembersNotFoundErr(e error) bool {
 }
 
 func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath.EveroutePolicyRule {
-	ipProtoNo := protocolToInt(rule.IPProtocol)
+	ipProtoNo := protocolToInt(rule.IPFamily, rule.IPProtocol)
 	ruleAction := getRuleAction(rule.Action)
 
 	var rulePriority int
@@ -65,30 +67,40 @@ func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath
 	}
 
 	everoutePolicyRule := &datapath.EveroutePolicyRule{
-		RuleID:      ruleID,
-		Priority:    rulePriority,
-		SrcIPAddr:   rule.SrcIPAddr,
-		DstIPAddr:   rule.DstIPAddr,
-		IPProtocol:  ipProtoNo,
-		SrcPort:     rule.SrcPort,
-		SrcPortMask: rule.SrcPortMask,
-		DstPort:     rule.DstPort,
-		DstPortMask: rule.DstPortMask,
-		Action:      ruleAction,
+		RuleID:         ruleID,
+		Priority:       rulePriority,
+		SrcIPAddr:      rule.SrcIPAddr,
+		DstIPAddr:      rule.DstIPAddr,
+		IPProtocol:     ipProtoNo,
+		IPFamily:       rule.IPFamily,
+		SrcPort:        rule.SrcPort,
+		SrcPortMask:    rule.SrcPortMask,
+		DstPort:        rule.DstPort,
+		DstPortMask:    rule.DstPortMask,
+		IcmpType:       rule.IcmpType,
+		IcmpTypeEnable: rule.IcmpTypeEnable,
+		Action:         ruleAction,
 	}
 
 	return everoutePolicyRule
 }
 
-func protocolToInt(ipProtocol string) uint8 {
+func protocolToInt(ipFamily uint8, ipProtocol string) uint8 {
 	var protoNo uint8
 	switch ipProtocol {
 	case "ICMP":
-		protoNo = 1
+		switch ipFamily {
+		case unix.AF_INET:
+			protoNo = protocol.Type_ICMP
+		case unix.AF_INET6:
+			protoNo = protocol.Type_IPv6ICMP
+		default:
+			klog.Fatalf("undefined ip family %d in policyRule", ipFamily)
+		}
 	case "TCP":
-		protoNo = 6
+		protoNo = protocol.Type_TCP
 	case "UDP":
-		protoNo = 17
+		protoNo = protocol.Type_UDP
 	case "IPIP":
 		protoNo = 4
 	case "VRRP":

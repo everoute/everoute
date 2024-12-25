@@ -18,10 +18,11 @@ package informer
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/big"
 	"reflect"
 	"regexp"
 	"strings"
@@ -50,6 +51,7 @@ func NewReflectorBuilder(client *client.Client) informer.NewReflectorFunc {
 			expectType: gqlType{reflect.TypeOf(options.ExpectedType)},
 			// With these parameters, backoff will stop at [30,60) sec interval which is 0.22 QPS.
 			// If we don't backoff for 2min, assume server is healthy, and we reset the backoff.
+			//nolint:staticcheck
 			backoffManager: wait.NewExponentialBackoffManager(800*time.Millisecond, 30*time.Second, 2*time.Minute, 2.0, 1.0, options.Clock),
 			resyncPeriod:   options.ResyncPeriod,
 			shouldResync:   options.ShouldResync,
@@ -115,10 +117,10 @@ func (r *reflector) reflectWorker(stopCh <-chan struct{}) func() {
 
 func listAndWatchWithTimeout(stopCh <-chan struct{},
 	f func(c <-chan struct{}) ([]client.ResponseError, error), minTimeout, maxTimeout time.Duration) ([]client.ResponseError, error) {
-	rand.Seed(time.Now().UnixNano())
 	reconnect := minTimeout
 	if maxTimeout > minTimeout {
-		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec,G404
+		r, _ := rand.Int(rand.Reader, big.NewInt(int64(maxTimeout-minTimeout)))
+		reconnect += time.Duration(r.Int64())
 	}
 	pctx := wait.ContextForChannel(stopCh)
 

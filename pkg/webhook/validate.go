@@ -19,7 +19,7 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	admv1 "k8s.io/api/admission/v1"
@@ -53,7 +53,7 @@ func (v *ValidateWebhook) Handler(handle ValidateHandle) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var reqBody []byte
 		if r.Body != nil {
-			reqBody, _ = ioutil.ReadAll(r.Body)
+			reqBody, _ = io.ReadAll(r.Body)
 		}
 		if len(reqBody) == 0 {
 			http.Error(w, "empty request body", http.StatusBadRequest)

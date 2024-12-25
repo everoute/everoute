@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -49,9 +50,11 @@ var _ = Describe("PolicyController", func() {
 		})
 
 		It("should flatten golbal policy to rules", func() {
-			assertGlobalPolicyRulesNum(2)
-			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Allow", "", "")
-			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Allow", "", "")
+			assertGlobalPolicyRulesNum(4)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Allow", "", "", unix.AF_INET)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Allow", "", "", unix.AF_INET)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Allow", "", "", unix.AF_INET6)
+			assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Allow", "", "", unix.AF_INET6)
 		})
 
 		When("update GlobalPolicy to default drop", func() {
@@ -64,9 +67,11 @@ var _ = Describe("PolicyController", func() {
 			})
 
 			It("should flatten golbal policy to rules", func() {
-				assertGlobalPolicyRulesNum(2)
-				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "")
-				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "")
+				assertGlobalPolicyRulesNum(4)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "", unix.AF_INET)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "", unix.AF_INET)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Ingress", "Drop", "", "", unix.AF_INET6)
+				assertHasGlobalPolicyRule("GlobalDefaultRule", "Egress", "Drop", "", "", unix.AF_INET6)
 			})
 		})
 		When("delete GlobalPolicy", func() {
@@ -108,17 +113,18 @@ func assertGlobalPolicyRulesNum(numOfPolicyRules int) {
 	}, timeout, interval).Should(Equal(numOfPolicyRules))
 }
 
-func assertHasGlobalPolicyRule(ruleType, direction, action, srcCidr, dstCidr string) {
+func assertHasGlobalPolicyRule(ruleType, direction, action, srcCidr, dstCidr string, family uint8) {
 	Eventually(func() bool {
 		policyRuleList := getGlobalRuleFromCache()
-
+		By(fmt.Sprintf("%+v", policyRuleList))
 		for _, rule := range policyRuleList {
 			if constants.Tier2 == rule.Tier &&
 				ruleType == string(rule.RuleType) &&
 				direction == string(rule.Direction) &&
 				action == string(rule.Action) &&
 				srcCidr == rule.SrcIPAddr &&
-				dstCidr == rule.DstIPAddr {
+				dstCidr == rule.DstIPAddr &&
+				family == rule.IPFamily {
 				return true
 			}
 		}

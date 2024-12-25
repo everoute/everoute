@@ -67,7 +67,7 @@ func (g *GroupMember) Equal(a *GroupMember) bool {
 		return false
 	}
 
-	if !sets.New[types.IPAddress](g.IPs...).Equal(sets.New[types.IPAddress](a.IPs...)) {
+	if !sets.New(g.IPs...).Equal(sets.New(a.IPs...)) {
 		return false
 	}
 

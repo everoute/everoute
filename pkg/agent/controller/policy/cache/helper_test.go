@@ -196,7 +196,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			groups: sets.New[string]("group-1"),
 			expErr: false,
 			exp: makeIPMap("10.10.0.1/32", &IPBlockItem{
-				AgentRef: sets.NewString("agent1"),
+				AgentRef: sets.New("agent1"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",
@@ -209,7 +209,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 					},
 				},
 			}, "10.10.0.2/32", &IPBlockItem{
-				AgentRef: sets.NewString("agent1"),
+				AgentRef: sets.New("agent1"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",
@@ -222,7 +222,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 					},
 				},
 			}, "10.10.0.3/32", &IPBlockItem{}, "10.10.0.4/32", &IPBlockItem{
-				AgentRef: sets.NewString("agent2"),
+				AgentRef: sets.New("agent2"),
 			}, "10.10.0.5/32", &IPBlockItem{
 				Ports: []securityv1alpha1.NamedPort{
 					{
@@ -253,7 +253,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			groups: sets.New[string]("group-1", "group-empty", "group-dup-ip"),
 			expErr: false,
 			exp: makeIPMap("10.10.0.1/32", &IPBlockItem{
-				AgentRef: sets.NewString("agent1", "agent2", "agent3"),
+				AgentRef: sets.New("agent1", "agent2", "agent3"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",
@@ -271,7 +271,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 					},
 				},
 			}, "10.10.0.2/32", &IPBlockItem{
-				AgentRef: sets.NewString("agent1"),
+				AgentRef: sets.New("agent1"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",

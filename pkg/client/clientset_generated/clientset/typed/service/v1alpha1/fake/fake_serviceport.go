@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeServicePorts struct {
 	ns   string
 }
 
-var serviceportsResource = schema.GroupVersionResource{Group: "service.everoute.io", Version: "v1alpha1", Resource: "serviceports"}
+var serviceportsResource = v1alpha1.SchemeGroupVersion.WithResource("serviceports")
 
-var serviceportsKind = schema.GroupVersionKind{Group: "service.everoute.io", Version: "v1alpha1", Kind: "ServicePort"}
+var serviceportsKind = v1alpha1.SchemeGroupVersion.WithKind("ServicePort")
 
 // Get takes name of the servicePort, and returns the corresponding servicePort object, and an error if there is any.
 func (c *FakeServicePorts) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ServicePort, err error) {
@@ -106,7 +105,7 @@ func (c *FakeServicePorts) Update(ctx context.Context, servicePort *v1alpha1.Ser
 // Delete takes name of the servicePort and deletes it. Returns an error if one occurs.
 func (c *FakeServicePorts) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(serviceportsResource, c.ns, name), &v1alpha1.ServicePort{})
+		Invokes(testing.NewDeleteActionWithOptions(serviceportsResource, c.ns, name, opts), &v1alpha1.ServicePort{})
 
 	return err
 }

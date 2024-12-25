@@ -27,10 +27,13 @@ import (
 )
 
 // ShareIPLister helps list ShareIPs.
+// All objects returned here must be treated as read-only.
 type ShareIPLister interface {
 	// List lists all ShareIPs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.ShareIP, err error)
 	// Get retrieves the ShareIP from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.ShareIP, error)
 	ShareIPListerExpansion
 }

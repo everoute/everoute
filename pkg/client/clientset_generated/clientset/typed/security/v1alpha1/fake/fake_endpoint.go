@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -37,9 +36,9 @@ type FakeEndpoints struct {
 	ns   string
 }
 
-var endpointsResource = schema.GroupVersionResource{Group: "security.everoute.io", Version: "v1alpha1", Resource: "endpoints"}
+var endpointsResource = v1alpha1.SchemeGroupVersion.WithResource("endpoints")
 
-var endpointsKind = schema.GroupVersionKind{Group: "security.everoute.io", Version: "v1alpha1", Kind: "Endpoint"}
+var endpointsKind = v1alpha1.SchemeGroupVersion.WithKind("Endpoint")
 
 // Get takes name of the endpoint, and returns the corresponding endpoint object, and an error if there is any.
 func (c *FakeEndpoints) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Endpoint, err error) {
@@ -118,7 +117,7 @@ func (c *FakeEndpoints) UpdateStatus(ctx context.Context, endpoint *v1alpha1.End
 // Delete takes name of the endpoint and deletes it. Returns an error if one occurs.
 func (c *FakeEndpoints) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(endpointsResource, c.ns, name), &v1alpha1.Endpoint{})
+		Invokes(testing.NewDeleteActionWithOptions(endpointsResource, c.ns, name, opts), &v1alpha1.Endpoint{})
 
 	return err
 }

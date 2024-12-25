@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/gorilla/websocket"
@@ -109,7 +110,8 @@ func (s *Server) start() error {
 	executable := generated.NewExecutableSchema(generated.Config{Resolvers: s.resolvers})
 
 	server := http.Server{
-		Handler: handler.NewDefaultServer(executable),
+		Handler:           handler.NewDefaultServer(executable),
+		ReadHeaderTimeout: time.Hour,
 	}
 
 	serveErr := make(chan error)

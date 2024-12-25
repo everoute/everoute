@@ -24,7 +24,7 @@ import (
 )
 
 // Set contains a set of labels
-type Set map[string]sets.String
+type Set map[string]sets.Set[string]
 
 const maxLabelsSize = math.MaxInt16
 
@@ -41,7 +41,7 @@ func AsSet(labels map[string]string, extendLabels map[string][]string) (Set, err
 	var labelSet = make(Set, len(labels)+len(extendLabels))
 
 	for key, value := range labels {
-		labelSet[key] = sets.NewString(value)
+		labelSet[key] = sets.New[string](value)
 	}
 
 	for key, valueSet := range extendLabels {
@@ -51,7 +51,7 @@ func AsSet(labels map[string]string, extendLabels map[string][]string) (Set, err
 		if _, ok := labelSet[key]; ok {
 			return nil, fmt.Errorf("extend label with key %s already exists", key)
 		}
-		labelSet[key] = sets.NewString(valueSet...)
+		labelSet[key] = sets.New[string](valueSet...)
 	}
 
 	return labelSet, nil

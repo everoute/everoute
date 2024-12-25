@@ -143,7 +143,7 @@ func TestSelectorMatch(t *testing.T) {
 		},
 		{
 			selector:      nil,
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar")},
 			expectedMatch: false,
 		},
 		// empty selector matches everything
@@ -154,7 +154,7 @@ func TestSelectorMatch(t *testing.T) {
 		},
 		{
 			selector:      &labels.Selector{},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar")},
 			expectedMatch: true,
 		},
 		// match selector.MatchLabels
@@ -173,7 +173,7 @@ func TestSelectorMatch(t *testing.T) {
 					MatchLabels: map[string]string{"foo": "bar"},
 				},
 			},
-			labelSet:      map[string]sets.String{"foz": sets.NewString("baz")},
+			labelSet:      map[string]sets.Set[string]{"foz": sets.New("baz")},
 			expectedMatch: false,
 		},
 		{
@@ -182,7 +182,7 @@ func TestSelectorMatch(t *testing.T) {
 					MatchLabels: map[string]string{"foo": "bar"},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("baz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("baz")},
 			expectedMatch: false,
 		},
 		{
@@ -191,7 +191,7 @@ func TestSelectorMatch(t *testing.T) {
 					MatchLabels: map[string]string{"foo": "bar"},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "baz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "baz")},
 			expectedMatch: true,
 		},
 		{
@@ -200,7 +200,7 @@ func TestSelectorMatch(t *testing.T) {
 					MatchLabels: map[string]string{"foo": "bar"},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar")},
 			expectedMatch: true,
 		},
 		{
@@ -209,7 +209,7 @@ func TestSelectorMatch(t *testing.T) {
 					MatchLabels: map[string]string{"foo": "bar"},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar"), "foz": sets.NewString("baz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar"), "foz": sets.New("baz")},
 			expectedMatch: true,
 		},
 		// match selector.ExtendMatchLabels
@@ -224,28 +224,28 @@ func TestSelectorMatch(t *testing.T) {
 			selector: &labels.Selector{
 				ExtendMatchLabels: map[string][]string{"foo": {"bar", "baz"}},
 			},
-			labelSet:      map[string]sets.String{"foz": sets.NewString("baz")},
+			labelSet:      map[string]sets.Set[string]{"foz": sets.New("baz")},
 			expectedMatch: false,
 		},
 		{
 			selector: &labels.Selector{
 				ExtendMatchLabels: map[string][]string{"foo": {"bar", "baz"}},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("baz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("baz")},
 			expectedMatch: false,
 		},
 		{
 			selector: &labels.Selector{
 				ExtendMatchLabels: map[string][]string{"foo": {"bar", "baz"}},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "baz", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "baz", "qux")},
 			expectedMatch: true,
 		},
 		{
 			selector: &labels.Selector{
 				ExtendMatchLabels: map[string][]string{"foo": {"bar", "baz"}},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "baz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "baz")},
 			expectedMatch: true,
 		},
 		// match selector.MatchExpressions
@@ -273,7 +273,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "foz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "foz")},
 			expectedMatch: false,
 		},
 		{
@@ -286,7 +286,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "qux")},
 			expectedMatch: true,
 		},
 		// OpNotIN
@@ -313,7 +313,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foz": sets.NewString("bar")},
+			labelSet:      map[string]sets.Set[string]{"foz": sets.New("bar")},
 			expectedMatch: true,
 		},
 		{
@@ -326,7 +326,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("foz", "quz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("foz", "quz")},
 			expectedMatch: true,
 		},
 		{
@@ -339,7 +339,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "qux")},
 			expectedMatch: false,
 		},
 		{
@@ -352,7 +352,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "foz")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "foz")},
 			expectedMatch: false,
 		},
 		// OpExists
@@ -377,7 +377,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foz": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foz": sets.New("bar", "qux")},
 			expectedMatch: false,
 		},
 		{
@@ -389,7 +389,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "qux")},
 			expectedMatch: true,
 		},
 		// OpNotExists
@@ -414,7 +414,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foo": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foo": sets.New("bar", "qux")},
 			expectedMatch: false,
 		},
 		{
@@ -426,7 +426,7 @@ func TestSelectorMatch(t *testing.T) {
 					}},
 				},
 			},
-			labelSet:      map[string]sets.String{"foz": sets.NewString("bar", "qux")},
+			labelSet:      map[string]sets.Set[string]{"foz": sets.New("bar", "qux")},
 			expectedMatch: true,
 		},
 	}
@@ -450,22 +450,22 @@ func TestSelectNothing(t *testing.T) {
 			labelSet: nil,
 		},
 		{
-			labelSet: map[string]sets.String{"": nil},
+			labelSet: map[string]sets.Set[string]{"": nil},
 		},
 		{
-			labelSet: map[string]sets.String{"": sets.NewString()},
+			labelSet: map[string]sets.Set[string]{"": sets.New[string]()},
 		},
 		{
-			labelSet: map[string]sets.String{"": sets.NewString("")},
+			labelSet: map[string]sets.Set[string]{"": sets.New("")},
 		},
 		{
-			labelSet: map[string]sets.String{"foo": sets.NewString("bar")},
+			labelSet: map[string]sets.Set[string]{"foo": sets.New("bar")},
 		},
 		{
-			labelSet: map[string]sets.String{"foo": sets.NewString("bar", "baz")},
+			labelSet: map[string]sets.Set[string]{"foo": sets.New("bar", "baz")},
 		},
 		{
-			labelSet: map[string]sets.String{"foo": sets.NewString("bar"), "foz": sets.NewString("baz")},
+			labelSet: map[string]sets.Set[string]{"foo": sets.New("bar"), "foz": sets.New("baz")},
 		},
 	}
 

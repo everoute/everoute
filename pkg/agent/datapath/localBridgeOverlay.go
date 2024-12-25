@@ -313,7 +313,7 @@ func (l *LocalBridgeOverlay) initArpProxytable() error {
 			Ethertype:  PROTOCOL_ARP,
 			InputPort:  l.datapathManager.Info.LocalGwOfPort,
 			ArpTpa:     &l.datapathManager.Info.LocalGwIP,
-			ArpTpaMask: &IPMaskMatchFullBit,
+			ArpTpaMask: &net.IPv4bcast,
 			ArpOper:    ArpOperRequest,
 			Priority:   HIGH_MATCH_FLOW_PRIORITY,
 		})

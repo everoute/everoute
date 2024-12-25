@@ -189,10 +189,8 @@ func NewSecurityPolicyRuleIngress(protocol, port string, ipBlock []*networkingv1
 		})
 	}
 
-	if ipBlock != nil {
-		for _, item := range ipBlock {
-			rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{IPBlock: item})
-		}
+	for _, item := range ipBlock {
+		rule.From = append(rule.From, v1alpha1.SecurityPolicyPeer{IPBlock: item})
 	}
 
 	if len(selectors) != 0 {
@@ -219,10 +217,8 @@ func NewSecurityPolicyRuleEgress(protocol, port string, ipBlock []*networkingv1.
 		})
 	}
 
-	if ipBlock != nil {
-		for _, item := range ipBlock {
-			rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{IPBlock: item})
-		}
+	for _, item := range ipBlock {
+		rule.To = append(rule.To, v1alpha1.SecurityPolicyPeer{IPBlock: item})
 	}
 
 	if len(selectors) != 0 {

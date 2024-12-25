@@ -8,7 +8,11 @@ import (
 	"strings"
 
 	"github.com/contiv/libOpenflow/openflow13"
+	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
+	"github.com/samber/lo"
+	"golang.org/x/net/ipv6"
+	"golang.org/x/sys/unix"
 	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -19,6 +23,7 @@ import (
 const (
 	INPUT_TABLE                 = 0
 	CT_STATE_TABLE              = 1
+	PASSTHROUGH_TABLE           = 5
 	DIRECTION_SELECTION_TABLE   = 10
 	EGRESS_TIER1_TABLE          = 20
 	EGRESS_TIER2_MONITOR_TABLE  = 24
@@ -67,6 +72,7 @@ type PolicyBridge struct {
 
 	inputTable                     *ofctrl.Table
 	ctStateTable                   *ofctrl.Table
+	passthroughTable               *ofctrl.Table
 	directionSelectionTable        *ofctrl.Table
 	egressTier1PolicyTable         *ofctrl.Table
 	egressTier2PolicyMonitorTable  *ofctrl.Table
@@ -93,10 +99,10 @@ func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
 	return policyBridge
 }
 
-func (p *PolicyBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+func (p *PolicyBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (p *PolicyBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {
+func (p *PolicyBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
 }
 
 func (p *PolicyBridge) BridgeInit() {
@@ -104,6 +110,7 @@ func (p *PolicyBridge) BridgeInit() {
 
 	p.inputTable = sw.DefaultTable()
 	p.ctStateTable, _ = sw.NewTable(CT_STATE_TABLE)
+	p.passthroughTable, _ = sw.NewTable(PASSTHROUGH_TABLE)
 	p.directionSelectionTable, _ = sw.NewTable(DIRECTION_SELECTION_TABLE)
 	p.ingressTier1PolicyTable, _ = sw.NewTable(INGRESS_TIER1_TABLE)
 	p.ingressTier2PolicyMonitorTable, _ = sw.NewTable(INGRESS_TIER2_MONITOR_TABLE)
@@ -124,6 +131,9 @@ func (p *PolicyBridge) BridgeInit() {
 
 	if err := p.initInputTable(sw); err != nil {
 		klog.Fatalf("Failed to init inputTable, error: %v", err)
+	}
+	if err := p.initPassthroughTable(sw); err != nil {
+		klog.Fatalf("Failed to init passthroughTable, error: %v", err)
 	}
 	if err := p.initCTFlow(sw); err != nil {
 		klog.Fatalf("Failed to init ct table, error: %v", err)
@@ -146,14 +156,14 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 	localBrName := strings.TrimSuffix(p.name, "-policy")
 	fromLocalToEgressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
 	})
 	if err := fromLocalToEgressFlow.Next(p.egressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 	})
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
@@ -162,52 +172,94 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 	return nil
 }
 
-func (p *PolicyBridge) initInputTable(sw *ofctrl.OFSwitch) error {
+func (p *PolicyBridge) initInputTable(_ *ofctrl.OFSwitch) error {
+	// Table 0, icmpv6 RS/RA/NS/NA passthrough
+	ndpPassthroughFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
+		// TODO: maybe some problems with CNI flows
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: protocol.IPv6_MSG,
+		IpProto:   protocol.Type_IPv6ICMP,
+		Icmp6Type: lo.ToPtr(uint8(ipv6.ICMPTypeRouterSolicitation)),
+	})
+	if err := ndpPassthroughFlow.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 ndp rs passthrough flow, error: %v", err)
+	}
+
+	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeRouterAdvertisement))
+	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install icmpv6 ndp ra passthrough flow, error: %v", err)
+	}
+
+	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeNeighborSolicitation))
+	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install icmpv6 ndp ns passthrough flow, error: %v", err)
+	}
+
+	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeNeighborAdvertisement))
+	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install icmpv6 ndp na passthrough flow, error: %v", err)
+	}
+
+	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeRedirect))
+	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install icmpv6 ndp redirect passthrough flow, error: %v", err)
+	}
+
 	var ctStateTableID uint8 = CT_STATE_TABLE
 	var policyConntrackZone = constants.CTZoneForPolicy
-	localBrName := strings.TrimSuffix(p.name, "-policy")
 	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
+		Ethertype: protocol.IPv4_MSG,
 	})
 	_ = inputIPRedirectFlow.SetConntrack(ctAction)
 	if err := inputIPRedirectFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install input ip redirect flow, error: %v", err)
 	}
 
-	// Table 0, from local bridge flow
-	inputFromLocalFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
-	})
-	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
-	if err := inputFromLocalFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install input from local flow, error: %v", err)
-	}
-
-	// Table 0, from cls bridge flow
-	inputFromUpstreamFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
-	})
-	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
-	if err := inputFromUpstreamFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install input from upstream flow, error: %v", err)
+	inputIPRedirectFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := inputIPRedirectFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install input ip redirect ipv6 flow, error: %v", err)
 	}
 
 	// Table 0, default flow
 	inputDefaultFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := inputDefaultFlow.Next(sw.DropAction()); err != nil {
+	if err := inputDefaultFlow.Next(p.passthroughTable); err != nil {
 		return fmt.Errorf("failed to install input default flow, error: %v", err)
 	}
 
 	return nil
 }
 
-func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
+func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
+	// Table 5, from local bridge flow
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+	inputFromLocalFlow, _ := p.passthroughTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+	})
+	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
+	if err := inputFromLocalFlow.Next(outputPort); err != nil {
+		return fmt.Errorf("failed to install input from local flow, error: %v", err)
+	}
+
+	// Table 5, from cls bridge flow
+	inputFromUpstreamFlow, _ := p.passthroughTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
+	})
+	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
+	if err := inputFromUpstreamFlow.Next(outputPort); err != nil {
+		return fmt.Errorf("failed to install input from upstream flow, error: %v", err)
+	}
+
+	return nil
+}
+
+//nolint:funlen
+func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	var policyConntrackZone = constants.CTZoneForPolicy
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
@@ -225,10 +277,15 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	// Table 1. default flow
 	ctStateDefaultFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  DEFAULT_FLOW_MISS_PRIORITY,
-		Ethertype: PROTOCOL_IP,
+		Ethertype: protocol.IPv4_MSG,
 	})
 	if err := ctStateDefaultFlow.Next(p.directionSelectionTable); err != nil {
 		klog.Fatalf("failed to install ct state default flow, error: %v", err)
+	}
+
+	ctStateDefaultFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ctStateDefaultFlow.ForceAddInstall(); err != nil {
+		klog.Fatalf("failed to install ct state default ipv6 flow, error: %v", err)
 	}
 
 	// Table 70 conntrack commit table
@@ -242,7 +299,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	tcpSynMask := uint16(0x2)
 	ctCommitFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
+		Ethertype: protocol.IPv4_MSG,
 		IpProto:   ofctrl.IP_PROTO_TCP,
 		CtStates:  ctTrkState,
 		Regs: []*ofctrl.NXRegister{
@@ -259,10 +316,15 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct tcp est state flow, error: %v", err)
 	}
 
+	ctCommitFilterFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ctCommitFilterFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install ct tcp est state ipv6 flow, error: %v", err)
+	}
+
 	// drop pkt with CT_LABEL[127]=1, even if EST state
 	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype:   PROTOCOL_IP,
+		Ethertype:   protocol.IPv4_MSG,
 		CTLabel:     &WorkPolicyActionDenyMatchCTLabel,
 		CTLabelMask: &WorkPolicyActionDenyMatchCTLabelMask,
 	})
@@ -273,10 +335,15 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct drop resubmit flow, error: %v", err)
 	}
 
+	ctDropFilterFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ctDropFilterFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install ct drop resubmit ipv6 flow, error: %v", err)
+	}
+
 	// commit normal ip packet into ct
 	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_IP,
+		Ethertype: protocol.IPv4_MSG,
 		CtStates:  ctTrkState,
 	})
 	var ctDropTable uint8 = CT_DROP_TABLE
@@ -286,6 +353,11 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
 	_ = ctCommitFlow.SetConntrack(ctCommitAction)
 	if err := ctCommitFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+	}
+
+	ctCommitFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ctCommitFlow.ForceAddInstall(); err != nil {
 		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
 	}
 
@@ -337,6 +409,7 @@ func (p *PolicyBridge) initCTFlow(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
+//nolint:funlen
 func (p *PolicyBridge) initPolicyTable() error {
 	// egress policy table
 	egressTier1DefaultFlow, _ := p.egressTier1PolicyTable.NewFlow(ofctrl.FlowMatch{
@@ -403,7 +476,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 	}
 	ingressTier3MonitorDropMatchFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    constants.MaxSecurityPolicyRulePriority + 100,
-		Ethertype:   PROTOCOL_IP,
+		Ethertype:   protocol.IPv4_MSG,
 		CTLabel:     &MonitorTier3PolicyActionDenyMatchCTLabel,
 		CTLabelMask: &MonitorTier3PolicyActionDenyMatchCTLabelMask,
 	})
@@ -431,6 +504,12 @@ func (p *PolicyBridge) initPolicyTable() error {
 	if err := ingressTier3MonitorDropMatchFlow.Next(p.ingressTier3PolicyTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier3 monitor table drop match flow, error: %v", err)
 	}
+
+	ingressTier3MonitorDropMatchFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ingressTier3MonitorDropMatchFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install ingress tier3 monitor table drop match ipv6 flow, error: %v", err)
+	}
+
 	ingressTier3MonitorDefaultFlow, _ := p.ingressTier3PolicyMonitorTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
@@ -481,7 +560,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 	// policy forwarding table
 	fromLocalOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg6,
@@ -497,7 +576,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 
 	fromUpstreamOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]),
+		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg6,
@@ -514,7 +593,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
-func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
+func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	// Table 1, ctState table, rel state flow
 	ctRelState := openflow13.NewCTStates()
 	ctRelState.SetRel()
@@ -539,7 +618,7 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	// Table 70 commit ct with alg=ftp
 	ftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Ethertype:      PROTOCOL_IP,
+		Ethertype:      protocol.IPv4_MSG,
 		IpProto:        PROTOCOL_TCP,
 		TcpDstPort:     FTPPort,
 		TcpDstPortMask: PortMaskMatchFullBit,
@@ -550,6 +629,11 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	_ = ftpFlow.SetConntrack(ftpAction)
 	if err := ftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install ftp flow, err: %v", err)
+	}
+
+	ftpFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := ftpFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install ftp ipv6 flow, err: %v", err)
 	}
 
 	// Table 70 commit ct with alg=tftp
@@ -567,17 +651,23 @@ func (p *PolicyBridge) initALGFlow(sw *ofctrl.OFSwitch) error {
 	if err := tftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install tftp flow, err: %v", err)
 	}
+
+	tftpFlow.Match.Ethertype = protocol.IPv6_MSG
+	if err := tftpFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install tftp ipv6 flow, err: %v", err)
+	}
+
 	return nil
 }
 
 func (p *PolicyBridge) BridgeReset() {
 }
 
-func (p *PolicyBridge) AddLocalEndpoint(endpoint *Endpoint) error {
+func (p *PolicyBridge) AddLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 
-func (p *PolicyBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
+func (p *PolicyBridge) RemoveLocalEndpoint(_ *Endpoint) error {
 	return nil
 }
 
@@ -668,10 +758,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 //nolint:funlen
 func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	log := ctrl.LoggerFrom(ctx)
-	var ipDa *net.IP = nil
-	var ipDaMask *net.IP = nil
-	var ipSa *net.IP = nil
-	var ipSaMask *net.IP = nil
+	var ipDa, ipDaMask, ipSa, ipSaMask *net.IP
 	var err error
 
 	// make sure switch is connected
@@ -687,37 +774,26 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 	}
 
 	// Parse dst ip
-	if rule.DstIPAddr != "" {
-		ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
-		if err != nil {
-			log.Error(err, "Failed to parse dst ip", "ip", rule.DstIPAddr)
-			return nil, err
-		}
+	ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
+	if err != nil {
+		log.Error(err, "Failed to parse dst ip", "ip", rule.DstIPAddr)
+		return nil, err
 	}
 
 	// parse src ip
-	if rule.SrcIPAddr != "" {
-		ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
-		if err != nil {
-			log.Error(err, "Failed to parse src ip", "ip", rule.SrcIPAddr)
-			return nil, err
-		}
+	ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
+	if err != nil {
+		log.Error(err, "Failed to parse src ip", "ip", rule.SrcIPAddr)
+		return nil, err
 	}
 
 	var icmpType uint8
-	if rule.IPProtocol == PROTOCOL_ICMP {
-		if rule.DstPortMask == 0xffff {
-			icmpType = uint8(rule.DstPort)
-		}
+	if rule.IcmpTypeEnable && rule.IPProtocol == PROTOCOL_ICMP {
+		icmpType = rule.IcmpType
 	}
 	// Install the rule in policy table
 	ruleFlow, err := policyTable.NewFlow(ofctrl.FlowMatch{
 		Priority:       uint16(rule.Priority),
-		Ethertype:      PROTOCOL_IP,
-		IpDa:           ipDa,
-		IpDaMask:       ipDaMask,
-		IpSa:           ipSa,
-		IpSaMask:       ipSaMask,
 		IpProto:        rule.IPProtocol,
 		TcpSrcPort:     rule.SrcPort,
 		TcpSrcPortMask: rule.SrcPortMask,
@@ -732,6 +808,21 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 	if err != nil {
 		log.Error(err, "Failed to add flow for rule")
 		return nil, err
+	}
+
+	if rule.IPFamily == unix.AF_INET {
+		ruleFlow.Match.Ethertype = protocol.IPv4_MSG
+		ruleFlow.Match.IpDa = ipDa
+		ruleFlow.Match.IpDaMask = ipDaMask
+		ruleFlow.Match.IpSa = ipSa
+		ruleFlow.Match.IpSaMask = ipSaMask
+	}
+	if rule.IPFamily == unix.AF_INET6 {
+		ruleFlow.Match.Ethertype = protocol.IPv6_MSG
+		ruleFlow.Match.Ipv6Da = ipDa
+		ruleFlow.Match.Ipv6DaMask = ipDaMask
+		ruleFlow.Match.Ipv6Sa = ipSa
+		ruleFlow.Match.Ipv6SaMask = ipSaMask
 	}
 
 	switch mode {

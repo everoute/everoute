@@ -29,7 +29,6 @@ import (
 	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
-	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -237,7 +236,7 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 	}
 	rpcReference := []*v1alpha1.PolicyRuleReference{}
 	for reference := range entry.PolicyRuleReference {
-		references := strings.Split(reference, "/")
+		references := strings.Split(reference.Rule, "/")
 		if len(references) < 3 {
 			continue
 		}
@@ -266,67 +265,6 @@ func datapathRule2RpcRule(entry *EveroutePolicyRuleEntry) *v1alpha1.RuleEntry {
 		RuleFlowMap:         rpcRFM,
 		PolicyRuleReference: rpcReference,
 	}
-}
-
-func (rule EveroutePolicyRule) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	return rule.matchIPTuple(
-		flow.Forward.Protocol,
-		flow.Forward.SrcIP,
-		flow.Forward.DstIP,
-		flow.Forward.SrcPort,
-		flow.Forward.DstPort,
-	) || rule.matchIPTuple(
-		flow.Reverse.Protocol,
-		flow.Reverse.SrcIP,
-		flow.Reverse.DstIP,
-		flow.Reverse.SrcPort,
-		flow.Reverse.DstPort,
-	)
-}
-
-func (rule EveroutePolicyRule) matchIPTuple(protocol uint8, srcIP, dstIP net.IP, srcPort, dstPort uint16) bool {
-	if rule.IPProtocol != 0 && rule.IPProtocol != protocol {
-		return false
-	}
-	if rule.SrcIPAddr != "" && !matchIP(rule.SrcIPAddr, srcIP) {
-		return false
-	}
-	if rule.DstIPAddr != "" && !matchIP(rule.DstIPAddr, dstIP) {
-		return false
-	}
-	if rule.SrcPort != 0 && !matchPort(rule.SrcPortMask, rule.SrcPort, srcPort) {
-		return false
-	}
-	if rule.DstPort != 0 && !matchPort(rule.DstPortMask, rule.DstPort, dstPort) {
-		return false
-	}
-
-	return true
-}
-
-func matchPort(mask, port1, port2 uint16) bool {
-	if mask == 0 {
-		return port1 == port2
-	}
-	return port1&mask == port2&mask
-}
-
-func matchIP(ipRaw string, ip net.IP) bool {
-	if _, ipNet, err := net.ParseCIDR(ipRaw); err == nil {
-		return ipNet.Contains(ip)
-	}
-	return net.ParseIP(ipRaw).Equal(ip)
-}
-
-type EveroutePolicyRuleList []EveroutePolicyRule
-
-func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
-	for _, rule := range list {
-		if rule.MatchConntrackFlow(flow) {
-			return true
-		}
-	}
-	return false
 }
 
 func uintToByteBigEndian(src interface{}) []byte {
@@ -544,65 +482,10 @@ func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*o
 	return f, nil
 }
 
-func (rule *EveroutePolicyRule) Clone() *EveroutePolicyRule {
-	return &EveroutePolicyRule{
-		RuleID:      rule.RuleID,
-		Priority:    rule.Priority,
-		SrcIPAddr:   rule.SrcIPAddr,
-		DstIPAddr:   rule.DstIPAddr,
-		IPProtocol:  rule.IPProtocol,
-		SrcPort:     rule.SrcPort,
-		SrcPortMask: rule.SrcPortMask,
-		DstPort:     rule.DstPort,
-		DstPortMask: rule.DstPortMask,
-		Action:      rule.Action,
-	}
-}
-
-func (e *EveroutePolicyRuleEntry) Clone() *EveroutePolicyRuleEntry {
-	if e == nil {
-		return nil
-	}
-	return &EveroutePolicyRuleEntry{
-		EveroutePolicyRule: e.EveroutePolicyRule.Clone(),
-		Direction:          e.Direction,
-		Tier:               e.Tier,
-		Mode:               e.Mode,
-		// RuleFlowMap will not update inner entry
-		RuleFlowMap:         DeepCopyMap(e.RuleFlowMap).(map[string]*FlowEntry),
-		PolicyRuleReference: e.PolicyRuleReference.Clone(),
-	}
-}
-
 func FlowKeyFromRuleName(ruleName string) string {
 	// rule name format like: policyname-rulename-namehash-flowkey
 	keys := strings.Split(ruleName, "-")
 	return keys[len(keys)-1]
-}
-
-func (dm *DpManager) GetRuleEntryByFlowID(id uint64) *EveroutePolicyRuleEntry {
-	items, err := dm.Rules.ByIndex(FlowIDIndex, strconv.FormatUint(id, 10))
-	if err == nil && len(items) == 1 {
-		return items[0].(*EveroutePolicyRuleEntry)
-	}
-	return nil
-}
-
-func (dm *DpManager) GetRuleEntryByRuleID(id string) *EveroutePolicyRuleEntry {
-	item, exist, err := dm.Rules.GetByKey(id)
-	if err == nil && exist && item != nil {
-		return item.(*EveroutePolicyRuleEntry)
-	}
-	return nil
-}
-
-func (dm *DpManager) ListRuleEntry() []*EveroutePolicyRuleEntry {
-	var ret []*EveroutePolicyRuleEntry
-	items := dm.Rules.List()
-	for _, item := range items {
-		ret = append(ret, item.(*EveroutePolicyRuleEntry))
-	}
-	return ret
 }
 
 // func (dm *DpManager) PolicyRuleLimit(policyIDs []string, addList, deleteList []*policycache.PolicyRule) bool {
@@ -637,14 +520,9 @@ func (dm *DpManager) PolicyRuleLimit(_ []string, _, _ []*policycache.PolicyRule)
 }
 
 func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
-	// update rule entry num
-	for _, policyID := range policyIDs {
-		rules, err := dm.Rules.ByIndex(PolicyRuleIndex, policyID)
-		if err != nil {
-			continue
-		}
-		dm.AgentMetric.SetRuleEntryNum(policyID, len(rules), limited)
+	for _, k := range policyIDs {
+		dm.AgentMetric.SetRuleEntryNum(k, dm.policyRuleNums[k], limited)
 	}
 
-	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.ListRuleEntry()))
+	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.Rules))
 }

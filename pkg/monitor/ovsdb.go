@@ -84,7 +84,7 @@ type OVSDBMonitor struct {
 	ovsdbEventHandler ovsdbEventHandler
 	// map interface uuid
 	endpointMap      map[string]*datapath.Endpoint
-	bridgeMap        map[string]sets.String
+	bridgeMap        map[string]sets.Set[string]
 	ovsdbUpdatesChan chan ovsdb.TableUpdates
 
 	// syncQueue used to notify ovsdb update
@@ -104,7 +104,7 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		endpointMap:      make(map[string]*datapath.Endpoint),
 		ovsdbCache:       make(map[string]map[string]ovsdb.Row),
 		syncQueue:        workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		bridgeMap:        make(map[string]sets.String),
+		bridgeMap:        make(map[string]sets.Set[string]),
 		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
 	}
 
@@ -294,7 +294,7 @@ func (monitor *OVSDBMonitor) filterPortVlanTrunkUpdate(rowupdate ovsdb.RowUpdate
 func (monitor *OVSDBMonitor) processOvsBridgeAdd(row ovsdb.RowUpdate) {
 	bridgeName := row.New.Fields["name"].(string)
 	ports := listUUID(row.New.Fields["ports"])
-	portUUIDs := sets.NewString()
+	portUUIDs := sets.New[string]()
 	for _, port := range ports {
 		portUUIDs.Insert(port.GoUuid)
 	}
@@ -391,8 +391,8 @@ func (monitor *OVSDBMonitor) processOvsInterfaceAdd(uuid string, rowupdate ovsdb
 	}
 	monitor.endpointMap[uuid].MacAddrStr = macStr
 
-	if newExternalIds, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
-		ip := getIPv4Addr(newExternalIds.GoMap)
+	if newExternalIDs, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
+		ip := getIPv4Addr(newExternalIDs.GoMap)
 		monitor.endpointMap[uuid].IPAddr = ip
 	}
 
@@ -402,7 +402,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceAdd(uuid string, rowupdate ovsdb
 	}
 }
 
-func (monitor *OVSDBMonitor) processOvsPortUpdate(uuid string, rowupdate ovsdb.RowUpdate) {
+func (monitor *OVSDBMonitor) processOvsPortUpdate(_ string, rowupdate ovsdb.RowUpdate) {
 	var newEndpoint, oldEndpoint *datapath.Endpoint
 	var newIfaceUUID, oldIfaceUUID string
 
@@ -491,8 +491,8 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 	}
 
 	var newIP net.IP
-	if newExternalIds, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
-		newIP = getIPv4Addr(newExternalIds.GoMap)
+	if newExternalIDs, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
+		newIP = getIPv4Addr(newExternalIDs.GoMap)
 	}
 
 	var newEndpoint, oldEndpoint *datapath.Endpoint
@@ -551,7 +551,7 @@ func (monitor *OVSDBMonitor) processOvsPortDelete(uuid string, rowupdate ovsdb.R
 	delete(monitor.endpointMap, uuid)
 }
 
-func (monitor *OVSDBMonitor) processOvsInterfaceDelete(uuid string, rowupdate ovsdb.RowUpdate) {
+func (monitor *OVSDBMonitor) processOvsInterfaceDelete(uuid string, _ ovsdb.RowUpdate) {
 	// var macStr string
 
 	oldEndpoint, ok := monitor.endpointMap[uuid]

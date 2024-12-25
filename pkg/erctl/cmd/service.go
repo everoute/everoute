@@ -19,7 +19,7 @@ var svcCmd = &cobra.Command{
 		"-n svc-namespace, default value is 'default'",
 	Example: "erctl get svc [svcname] -n [nsname]",
 	Args:    cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, args []string) error {
 		out, err := setOutput()
 		if err != nil {
 			return err
@@ -76,7 +76,7 @@ var svcCmd = &cobra.Command{
 				svcInfo.SvcFlow.SessionAffinityFlows[i].Info = err.Error()
 			}
 		}
-		err = print(out, svcInfo)
+		err = printz(out, svcInfo)
 		return err
 	},
 }

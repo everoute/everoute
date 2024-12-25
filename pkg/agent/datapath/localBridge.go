@@ -26,7 +26,10 @@ import (
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
+	"github.com/mdlayher/ndp"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/ipv6"
 
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -35,17 +38,17 @@ import (
 
 //nolint:all
 const (
-	VLAN_INPUT_TABLE                   = 0
-	VLAN_FILTER_TABLE                  = 1
-	L2_FORWARDING_TABLE                = 5
-	L2_LEARNING_TABLE                  = 10
-	FROM_LOCAL_REDIRECT_TABLE          = 15
-	FROM_LOCAL_ARP_PASS_TABLE          = 20
-	FROM_LOCAL_ARP_TO_CONTROLLER_TABLE = 25
-	CNI_CT_COMMIT_TABLE                = 100
-	CNI_CT_REDIRECT_TABLE              = 105
-	FACK_MAC                           = "ee:ee:ee:ee:ee:ee"
-	P_NONE                             = 0xffff
+	VLAN_INPUT_TABLE               = 0
+	VLAN_FILTER_TABLE              = 1
+	L2_FORWARDING_TABLE            = 5
+	L2_LEARNING_TABLE              = 10
+	FROM_LOCAL_REDIRECT_TABLE      = 15
+	FROM_LOCAL_PASS_TABLE          = 20
+	FROM_LOCAL_TO_CONTROLLER_TABLE = 25
+	CNI_CT_COMMIT_TABLE            = 100
+	CNI_CT_REDIRECT_TABLE          = 105
+	FACK_MAC                       = "ee:ee:ee:ee:ee:ee"
+	P_NONE                         = 0xffff
 
 	InternalSvcPktMark uint32 = 1 << cniconst.InternalSvcPktMarkBit
 )
@@ -66,8 +69,8 @@ type LocalBridge struct {
 	localEndpointL2ForwardingTable *ofctrl.Table // Table 5
 	localEndpointL2LearningTable   *ofctrl.Table // table 10
 	fromLocalRedirectTable         *ofctrl.Table // Table 15
-	fromLocalArpPassTable          *ofctrl.Table // Table 20
-	fromLocalArpSendToCtrlTable    *ofctrl.Table // Table 25
+	fromLocalPassTable             *ofctrl.Table // Table 20
+	fromLocalToCtrlTable           *ofctrl.Table // Table 25
 	cniConntrackCommitTable        *ofctrl.Table // Table 100
 	cniConntrackRedirectTable      *ofctrl.Table // Table 105
 
@@ -104,7 +107,34 @@ func newLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
 	return localBridge
 }
 
-func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+func (l *LocalBridge) getInPort(pkt *ofctrl.PacketIn) uint32 {
+	if (pkt.Match.Type == openflow13.MatchType_OXM) &&
+		(pkt.Match.Fields[0].Class == openflow13.OXM_CLASS_OPENFLOW_BASIC) &&
+		(pkt.Match.Fields[0].Field == openflow13.OXM_FIELD_IN_PORT) {
+		// Get the input port number
+		switch t := pkt.Match.Fields[0].Value.(type) {
+		case *openflow13.InPortField:
+			var inPortFld openflow13.InPortField
+			inPortFld = *t
+			return inPortFld.InPort
+		default:
+			log.Errorf("error inport filed")
+		}
+	}
+	return 0
+}
+
+func (l *LocalBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+	if pkt.Data.Ethertype != PROTOCOL_ARP &&
+		pkt.Data.Ethertype != protocol.IPv6_MSG {
+		return
+	}
+
+	inPort := l.getInPort(pkt)
+	if inPort == 0 {
+		return
+	}
+
 	switch pkt.Data.Ethertype {
 	case PROTOCOL_ARP:
 		l.datapathManager.AgentMetric.ArpInc()
@@ -113,50 +143,49 @@ func (l *LocalBridge) PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 			return
 		}
 
-		if (pkt.Match.Type == openflow13.MatchType_OXM) &&
-			(pkt.Match.Fields[0].Class == openflow13.OXM_CLASS_OPENFLOW_BASIC) &&
-			(pkt.Match.Fields[0].Field == openflow13.OXM_FIELD_IN_PORT) {
-			// Get the input port number
-			switch t := pkt.Match.Fields[0].Value.(type) {
-			case *openflow13.InPortField:
-				var inPortFld openflow13.InPortField
-				inPortFld = *t
-				l.processArp(pkt.Data, inPortFld.InPort)
-			default:
-				log.Errorf("error inport filed")
-			}
+		arpPkt := pkt.Data.Data.(*protocol.ARP)
+		if arpPkt.IPSrc.Equal(net.IPv4zero) {
+			return
+		}
+		l.processIPLearn(arpPkt.IPSrc, arpPkt.HWSrc, pkt.Data.VLANID.VID, inPort)
+
+		select {
+		case l.datapathManager.ArpChan <- ArpInfo{InPort: inPort, Pkt: *arpPkt, BrName: l.name}:
+		default: // Non-block when arpChan is full
+		}
+	case protocol.IPv6_MSG:
+		l3Pkt := pkt.Data.Data.(*protocol.IPv6)
+		if l3Pkt.NextHeader != protocol.Type_IPv6ICMP {
+			return
+		}
+		if l3Pkt.NWSrc.Equal(net.IPv6zero) {
+			return
 		}
 
-	case protocol.IPv4_MSG: // other type of packet that must processing by controller
-		log.Errorf("controller received non arp packet error.")
-		return
+		l4Pkt, err := ndp.ParseMessage(lo.Must(l3Pkt.Data.MarshalBinary()))
+		if err != nil {
+			return
+		}
+
+		if l4Pkt.Type() == ipv6.ICMPTypeNeighborSolicitation ||
+			l4Pkt.Type() == ipv6.ICMPTypeNeighborAdvertisement {
+			l.processIPLearn(l3Pkt.NWSrc, pkt.Data.HWSrc, pkt.Data.VLANID.VID, inPort)
+		}
 	}
 }
 
-func (l *LocalBridge) MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply) {
+func (l *LocalBridge) MultipartReply(*ofctrl.OFSwitch, *openflow13.MultipartReply) {
 }
 
-func (l *LocalBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
-	switch t := pkt.Data.(type) {
-	case *protocol.ARP:
-		var arpIn protocol.ARP = *t
-
-		l.learnedIPAddressMapMutex.Lock()
-		defer l.learnedIPAddressMapMutex.Unlock()
-		l.setLocalEndpointIPAddr(arpIn, inPort)
-		ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
-		if !ok {
-			l.processLocalEndpointUpdate(arpIn, pkt.VLANID.VID, inPort)
-		} else if ok && ipReference.updateTimes > 0 {
-			l.processLocalEndpointUpdate(arpIn, pkt.VLANID.VID, inPort)
-		}
-
-		select {
-		case l.datapathManager.ArpChan <- ArpInfo{InPort: inPort, Pkt: arpIn, BrName: l.name}:
-		default: // Non-block when arpChan is full
-		}
-	default:
-		log.Infof("error pkt type")
+func (l *LocalBridge) processIPLearn(srcIP net.IP, srcMac net.HardwareAddr, vlanID uint16, inPort uint32) {
+	l.learnedIPAddressMapMutex.Lock()
+	defer l.learnedIPAddressMapMutex.Unlock()
+	l.setLocalEndpointIPAddr(srcIP, srcMac, inPort)
+	ipReference, ok := l.learnedIPAddressMap[srcIP.String()]
+	if !ok {
+		l.processLocalEndpointUpdate(srcIP, srcMac, vlanID, inPort)
+	} else if ok && ipReference.updateTimes > 0 {
+		l.processLocalEndpointUpdate(srcIP, srcMac, vlanID, inPort)
 	}
 }
 
@@ -211,39 +240,39 @@ func (l *LocalBridge) cleanLocalIPAddr(timeout int) {
 	}
 }
 
-func (l *LocalBridge) setLocalEndpointIPAddr(arpIn protocol.ARP, inPort uint32) {
+func (l *LocalBridge) setLocalEndpointIPAddr(srcIP net.IP, srcMac net.HardwareAddr, inPort uint32) {
 	endpoint, isExist := l.getEndpointByPort(inPort)
 	if !isExist {
 		return
 	}
 	endpoint.IPAddrMutex.Lock()
 	defer endpoint.IPAddrMutex.Unlock()
-	if endpoint.MacAddrStr == arpIn.HWSrc.String() && endpoint.IPAddr == nil {
-		copy(endpoint.IPAddr, arpIn.IPSrc)
+	if endpoint.MacAddrStr == srcMac.String() && endpoint.IPAddr == nil {
+		copy(endpoint.IPAddr, srcIP)
 		endpoint.IPAddrLastUpdateTime = time.Now()
 	}
 }
 
-func (l *LocalBridge) processLocalEndpointUpdate(arpIn protocol.ARP, vlanID uint16, inPort uint32) {
+func (l *LocalBridge) processLocalEndpointUpdate(srcIP net.IP, srcMac net.HardwareAddr, vlanID uint16, inPort uint32) {
 	endpoint, isExist := l.getEndpointByPort(inPort)
 	if !isExist {
 		return
 	}
 
-	if endpoint.MacAddrStr != arpIn.HWSrc.String() && endpoint.IPAddr != nil {
+	if endpoint.MacAddrStr != srcMac.String() && endpoint.IPAddr != nil {
 		return
 	}
 
-	l.notifyLocalEndpointUpdate(arpIn, vlanID, inPort)
+	l.notifyLocalEndpointUpdate(srcIP, srcMac, vlanID, inPort)
 
-	ipReference, ok := l.learnedIPAddressMap[arpIn.IPSrc.String()]
+	ipReference, ok := l.learnedIPAddressMap[srcIP.String()]
 	if !ok {
-		l.learnedIPAddressMap[arpIn.IPSrc.String()] = IPAddressReference{
+		l.learnedIPAddressMap[srcIP.String()] = IPAddressReference{
 			lastUpdateTime: time.Now(),
 			updateTimes:    MaxIPAddressLearningFrenquency,
 		}
 	} else {
-		l.learnedIPAddressMap[arpIn.IPSrc.String()] = IPAddressReference{
+		l.learnedIPAddressMap[srcIP.String()] = IPAddressReference{
 			lastUpdateTime: ipReference.lastUpdateTime,
 			updateTimes:    ipReference.updateTimes - 1,
 		}
@@ -261,13 +290,13 @@ func (l *LocalBridge) getEndpointByPort(inPort uint32) (*Endpoint, bool) {
 	return nil, false
 }
 
-func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, vlanID uint16, ofPort uint32) {
+func (l *LocalBridge) notifyLocalEndpointUpdate(srcIP net.IP, srcMac net.HardwareAddr, vlanID uint16, ofPort uint32) {
 	l.datapathManager.ofPortIPAddressUpdateChan <- &types.EndpointIP{
 		BridgeName: l.name,
 		OfPort:     ofPort,
 		VlanID:     vlanID,
-		IP:         arpIn.IPSrc,
-		Mac:        arpIn.HWSrc,
+		IP:         srcIP,
+		Mac:        srcMac,
 		UpdateTime: time.Now(),
 	}
 }
@@ -281,7 +310,7 @@ func (l *LocalBridge) BridgeInit() {
 	l.localEndpointL2ForwardingTable, _ = sw.NewTable(L2_FORWARDING_TABLE)
 	l.localEndpointL2LearningTable, _ = sw.NewTable(L2_LEARNING_TABLE)
 	l.fromLocalRedirectTable, _ = sw.NewTable(FROM_LOCAL_REDIRECT_TABLE)
-	l.fromLocalArpPassTable, _ = sw.NewTable(FROM_LOCAL_ARP_PASS_TABLE)
+	l.fromLocalPassTable, _ = sw.NewTable(FROM_LOCAL_PASS_TABLE)
 
 	if err := l.initVlanInputTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge vlanInput table, error: %v", err)
@@ -298,13 +327,13 @@ func (l *LocalBridge) BridgeInit() {
 	if err := l.initFromLocalRedirectTable(sw); err != nil {
 		log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 	}
-	if err := l.initFromLocalArpPassTable(sw); err != nil {
-		log.Fatalf("Failed to init local bridge from local arp pass table, error: %v", err)
+	if err := l.initFromLocalPassTable(sw); err != nil {
+		log.Fatalf("Failed to init local bridge from local pass table, error: %v", err)
 	}
 
 	if l.datapathManager.Config.EnableIPLearning {
-		l.fromLocalArpSendToCtrlTable, _ = sw.NewTable(FROM_LOCAL_ARP_TO_CONTROLLER_TABLE)
-		if err := l.initFromLocalArpSendToCtrlTable(sw); err != nil {
+		l.fromLocalToCtrlTable, _ = sw.NewTable(FROM_LOCAL_TO_CONTROLLER_TABLE)
+		if err := l.initFromLocalToCtrlTable(sw); err != nil {
 			log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
 		}
 	}
@@ -429,7 +458,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	outToLocalGwBypassLocal, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype:   PROTOCOL_IP,
-		InputPort:   uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
+		InputPort:   l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
 		PktMark:     InternalSvcPktMark,
 		PktMarkMask: &InternalSvcPktMarkMask,
 	})
@@ -443,7 +472,7 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 	outToLocalGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,
-		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
+		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
 	})
 	if err := outToLocalGw.LoadField("nxm_of_eth_dst", ParseMacToUint64(l.datapathManager.Info.LocalGwMac),
 		openflow13.NewNXRange(0, 47)); err != nil {
@@ -507,7 +536,7 @@ func (l *LocalBridge) initFromLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		openflow13.NewNXRange(0, 47)); err != nil {
 		return err
 	}
-	outputPortPolicy, _ := sw.OutputPort(uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]))
+	outputPortPolicy, _ := sw.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := localGwToPolicy.Next(outputPortPolicy); err != nil {
 		return fmt.Errorf("failed to install localGwToPolicy flow, error: %v", err)
 	}
@@ -638,7 +667,7 @@ func (l *LocalBridge) initFromNatBridgeFlow(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
-func (l *LocalBridge) initFromPolicyMarkedFlow(sw *ofctrl.OFSwitch) error {
+func (l *LocalBridge) initFromPolicyMarkedFlow(_ *ofctrl.OFSwitch) error {
 	fromPolicyFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3,
 		Ethertype:   PROTOCOL_IP,
@@ -747,11 +776,11 @@ func (l *LocalBridge) InitFromLocalTrunkPortLearnAction(fromLocalLearnAction *of
 	return nil
 }
 
-func (l *LocalBridge) initVlanInputTable(sw *ofctrl.OFSwitch) error {
+func (l *LocalBridge) initVlanInputTable(_ *ofctrl.OFSwitch) error {
 	// vlanInput table
 	fromUpstreamFlow, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: uint32(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix]),
+		InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
 	})
 	if err := fromUpstreamFlow.Next(l.localEndpointL2ForwardingTable); err != nil {
 		return fmt.Errorf("failed to install from upstream flow, error: %v", err)
@@ -846,22 +875,46 @@ func (l *LocalBridge) initFromLocalL2LearningTable() error {
 }
 
 func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
-	// from local arp, duplicate it, send one to of controller to ip learning; send other to local to policy port
+	// from local arp or ndp, duplicate it, send one to of controller to ip learning; send other to local to policy port
 	fromLocalArpFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_ARP,
+		Ethertype: protocol.ARP_MSG,
 	})
-	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalArpPassTable.TableId); err != nil {
+	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalPassTable.TableId); err != nil {
 		return err
 	}
 	if l.datapathManager.Config.EnableIPLearning {
-		var fromLocalArpToCtrlTableID uint8 = FROM_LOCAL_ARP_TO_CONTROLLER_TABLE
-		if err := fromLocalArpFlow.Resubmit(nil, &fromLocalArpToCtrlTableID); err != nil {
+		var fromLocalToCtrlTableID uint8 = FROM_LOCAL_TO_CONTROLLER_TABLE
+		if err := fromLocalArpFlow.Resubmit(nil, &fromLocalToCtrlTableID); err != nil {
 			return err
 		}
 	}
 	if err := fromLocalArpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install from local arp redirect flow, error: %v", err)
+	}
+
+	fromLocalNdpFlow, _ := l.fromLocalRedirectTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+		Ethertype: protocol.IPv6_MSG,
+		IpProto:   protocol.Type_IPv6ICMP,
+		Icmp6Type: lo.ToPtr(uint8(ipv6.ICMPTypeNeighborSolicitation)),
+	})
+	if err := fromLocalNdpFlow.Resubmit(nil, &l.fromLocalPassTable.TableId); err != nil {
+		return err
+	}
+	if l.datapathManager.Config.EnableIPLearning {
+		var fromLocalToCtrlTableID uint8 = FROM_LOCAL_TO_CONTROLLER_TABLE
+		if err := fromLocalNdpFlow.Resubmit(nil, &fromLocalToCtrlTableID); err != nil {
+			return err
+		}
+	}
+	if err := fromLocalNdpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install from local ndp ns redirect flow, error: %v", err)
+	}
+
+	fromLocalNdpFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeNeighborAdvertisement))
+	if err := fromLocalNdpFlow.ForceAddInstall(); err != nil {
+		return fmt.Errorf("failed to install from local ndp na redirect flow, error: %v", err)
 	}
 
 	// from local other protocol type, send to local to policy port
@@ -876,27 +929,25 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
-func (l *LocalBridge) initFromLocalArpPassTable(sw *ofctrl.OFSwitch) error {
-	fromLocalArpPassFlow, _ := l.fromLocalArpPassTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_ARP,
+func (l *LocalBridge) initFromLocalPassTable(_ *ofctrl.OFSwitch) error {
+	fromLocalPassFlow, _ := l.fromLocalPassTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
 	outputPort, _ := l.OfSwitch.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
-	if err := fromLocalArpPassFlow.Next(outputPort); err != nil {
+	if err := fromLocalPassFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install from local arp pass flow, error: %v", err)
 	}
 
 	return nil
 }
 
-func (l *LocalBridge) initFromLocalArpSendToCtrlTable(sw *ofctrl.OFSwitch) error {
-	fromLocalArpSendToCtrlFlow, _ := l.fromLocalArpSendToCtrlTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_ARP,
+func (l *LocalBridge) initFromLocalToCtrlTable(sw *ofctrl.OFSwitch) error {
+	fromLocalToCtrlFlow, _ := l.fromLocalToCtrlTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
-	sendToControllerAct := fromLocalArpSendToCtrlFlow.NewControllerAction(sw.ControllerID, 0)
-	_ = fromLocalArpSendToCtrlFlow.SendToController(sendToControllerAct)
-	if err := fromLocalArpSendToCtrlFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+	sendToControllerAct := fromLocalToCtrlFlow.NewControllerAction(sw.ControllerID, 0)
+	_ = fromLocalToCtrlFlow.SendToController(sendToControllerAct)
+	if err := fromLocalToCtrlFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install from local arp send to controller flow, error: %v", err)
 	}
 

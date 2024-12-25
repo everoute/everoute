@@ -131,25 +131,25 @@ func (r *EndpointsReconcile) updateEndpoints(ctx context.Context, svcEp corev1.E
 
 	oldSvcPortsMap := servicePortListToServicePortMap(oldSvcPorts)
 	newSvcPortsMap := genSvcPortFromEndpoints(svcEp)
-	add, update, delete := compareServicePorts(newSvcPortsMap, oldSvcPortsMap)
+	addSvcPort, updateSvcPort, deleteSvcPort := compareServicePorts(newSvcPortsMap, oldSvcPortsMap)
 
-	for i := range add {
-		if err := r.Client.Create(ctx, add[i]); err != nil {
-			klog.Errorf("Failed to create ServicePort %+v, err: %s", *add[i], err)
+	for i := range addSvcPort {
+		if err := r.Client.Create(ctx, addSvcPort[i]); err != nil {
+			klog.Errorf("Failed to create ServicePort %+v, err: %s", *addSvcPort[i], err)
 			return err
 		}
 	}
 
-	for i := range update {
-		if err := r.Client.Update(ctx, update[i]); err != nil {
-			klog.Errorf("Failed to update ServicePort %+v, err: %s", *update[i], err)
+	for i := range updateSvcPort {
+		if err := r.Client.Update(ctx, updateSvcPort[i]); err != nil {
+			klog.Errorf("Failed to update ServicePort %+v, err: %s", *updateSvcPort[i], err)
 			return err
 		}
 	}
 
-	for i := range delete {
-		if err := r.Client.Delete(ctx, delete[i]); err != nil {
-			klog.Errorf("Failed to delete ServicePort %+v, err: %s", *delete[i], err)
+	for i := range deleteSvcPort {
+		if err := r.Client.Delete(ctx, deleteSvcPort[i]); err != nil {
+			klog.Errorf("Failed to delete ServicePort %+v, err: %s", *deleteSvcPort[i], err)
 			return err
 		}
 	}
@@ -157,19 +157,19 @@ func (r *EndpointsReconcile) updateEndpoints(ctx context.Context, svcEp corev1.E
 	return nil
 }
 
-func compareServicePorts(new, old map[string]*svc.ServicePort) (add, update, delete []*svc.ServicePort) {
+func compareServicePorts(new, old map[string]*svc.ServicePort) (addSvcPort, updateSvcPort, deleteSvcPort []*svc.ServicePort) {
 	for portName := range new {
 		if _, ok := old[portName]; !ok {
-			add = append(add, new[portName])
+			addSvcPort = append(addSvcPort, new[portName])
 		} else if !new[portName].Equal(old[portName]) {
 			old[portName].Spec = *(new[portName].Spec.DeepCopy())
-			update = append(update, old[portName])
+			updateSvcPort = append(updateSvcPort, old[portName])
 		}
 	}
 
 	for portName := range old {
 		if _, ok := new[portName]; !ok {
-			delete = append(delete, old[portName])
+			deleteSvcPort = append(deleteSvcPort, old[portName])
 		}
 	}
 	return

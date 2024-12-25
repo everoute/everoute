@@ -331,7 +331,7 @@ func (u *UplinkBridgeOverlay) initArpProxytable() error {
 	gwProxyFlow, _ := u.arpProxyTable.NewFlow(ofctrl.FlowMatch{
 		Ethertype:  PROTOCOL_ARP,
 		ArpTpa:     &u.datapathManager.Info.GatewayIP,
-		ArpTpaMask: &IPMaskMatchFullBit,
+		ArpTpaMask: &net.IPv4bcast,
 		ArpOper:    ArpOperRequest,
 		Priority:   HIGH_MATCH_FLOW_PRIORITY,
 	})
@@ -567,7 +567,7 @@ func (u *UplinkBridgeOverlay) initForwardToLocalTable() error {
 	toGwIPFlow, _ := u.forwardToLocalTable.NewFlow(ofctrl.FlowMatch{
 		Ethertype: PROTOCOL_IP,
 		IpDa:      &u.datapathManager.Info.GatewayIP,
-		IpDaMask:  &IPMaskMatchFullBit,
+		IpDaMask:  &net.IPv4bcast,
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 	})
 	if err := toGwIPFlow.LoadField(UBOOutputPortReg, uint64(u.datapathManager.Info.GatewayOfPort), UBOOutputPortRange); err != nil {

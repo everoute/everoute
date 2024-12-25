@@ -111,7 +111,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
-	err = (&groupctrl.GroupReconciler{
+	err = (&groupctrl.Reconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)

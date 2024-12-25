@@ -27,10 +27,13 @@ import (
 )
 
 // GroupMembersPatchLister helps list GroupMembersPatches.
+// All objects returned here must be treated as read-only.
 type GroupMembersPatchLister interface {
 	// List lists all GroupMembersPatches in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.GroupMembersPatch, err error)
 	// Get retrieves the GroupMembersPatch from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.GroupMembersPatch, error)
 	GroupMembersPatchListerExpansion
 }

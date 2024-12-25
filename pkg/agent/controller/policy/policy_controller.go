@@ -19,7 +19,7 @@ package policy
 import (
 	"context"
 	"fmt"
-	"strings"
+	"reflect"
 	"sync"
 	"time"
 
@@ -36,7 +36,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -86,8 +88,8 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.V(4).Info("Reconcile securitypolicy start")
-	defer log.V(4).Info("Reconcile securitypolicy end")
+	log.Info("Reconcile start")
+	defer log.Info("Reconcile end")
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
@@ -116,8 +118,8 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.V(4).Info("Reconcile groupMembers start")
-	defer log.V(4).Info("Reconcile groupMembers end")
+	log.Info("Reconcile start")
+	defer log.Info("Reconcile end")
 
 	gm := groupv1alpha1.GroupMembers{}
 	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
@@ -194,7 +196,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = policyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.SecurityPolicy{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err = policyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.SecurityPolicy{}), &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		UpdateFunc: func(ue event.UpdateEvent) bool {
+			oldP := ue.ObjectOld.(*securityv1alpha1.SecurityPolicy)
+			newP := ue.ObjectNew.(*securityv1alpha1.SecurityPolicy)
+			return !reflect.DeepEqual(oldP.Spec, newP.Spec)
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -205,7 +213,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}); err != nil {
+	if err = patchController.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		UpdateFunc: func(ue event.UpdateEvent) bool {
+			oldG := ue.ObjectOld.(*groupv1alpha1.GroupMembers)
+			newG := ue.ObjectNew.(*groupv1alpha1.GroupMembers)
+			return !reflect.DeepEqual(oldG.GroupMembers, newG.GroupMembers)
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -226,12 +240,11 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 		return nil
 	}
 	var oldRuleList, newRuleList []policycache.PolicyRule
-	var relatedPolicies []string
+	var relatedPolicies = sets.New[string]()
 	for i := range rules {
 		rule := rules[i].(*policycache.CompleteRule)
 
-		relatedPolicies = append(relatedPolicies,
-			fmt.Sprintf("%s/%s", strings.Split(rule.RuleID, "/")[0], strings.Split(rule.RuleID, "/")[1]))
+		relatedPolicies.Insert(rule.Policy)
 
 		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache)...)
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
@@ -239,7 +252,7 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
 	}
 
-	return r.syncPolicyRulesUntilSuccess(ctx, relatedPolicies, oldRuleList, newRuleList)
+	return r.syncPolicyRulesUntilSuccess(ctx, relatedPolicies.UnsortedList(), oldRuleList, newRuleList)
 }
 
 //nolint:all
@@ -335,7 +348,7 @@ func classifyEgressPorts(ports []securityv1alpha1.SecurityPolicyPort) ([]securit
 	return numberPorts, namedPorts
 }
 
-//nolint:dupl,funlen // todo: remove dupl codes
+//nolint:funlen
 func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]*policycache.CompleteRule, error) {
 	var completeRules []*policycache.CompleteRule
 	var ingressEnabled, egressEnabled = policy.IsEnable()
@@ -355,13 +368,15 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 
 	// if apply to is nil or empty, add all ips
 	if len(policy.Spec.AppliedTo) == 0 {
-		appliedIPs = sets.New[string]("")
+		appliedIPs = sets.New("")
 	}
 
+	policyID := fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)
 	if ingressEnabled {
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
+				Policy:          policyID,
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -394,6 +409,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultIngressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "ingress"),
+				Policy:            policyID,
 				Tier:              policy.Spec.Tier,
 				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -414,6 +430,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		for _, rule := range policy.Spec.EgressRules {
 			egressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
+				Policy:          policyID,
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
 				EnforcementMode: policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -473,6 +490,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		if policy.Spec.DefaultRule == securityv1alpha1.DefaultRuleDrop {
 			defaultEgressRule := &policycache.CompleteRule{
 				RuleID:            fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "default", "egress"),
+				Policy:            policyID,
 				Tier:              policy.Spec.Tier,
 				Priority:          policy.Spec.Priority,
 				EnforcementMode:   policy.Spec.SecurityPolicyEnforcementMode.String(),
@@ -662,7 +680,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 
 	for _, item := range delRuleList {
 		errList = append(errList,
-			r.processPolicyRuleDelete(ctx, item.Name),
+			r.processPolicyRuleDelete(ctx, item),
 		)
 	}
 
@@ -671,8 +689,14 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 	return errors.NewAggregate(errList)
 }
 
-func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, ruleName string) error {
-	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(ruleName), ruleName)
+func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, policyRule *policycache.PolicyRule) error {
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: policyRule.Policy,
+			Rule:   policyRule.Name,
+		},
+	}
+	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(policyRule.Name), ruleBase)
 }
 
 func (r *Reconciler) processPolicyRuleAdd(ctx context.Context, policyRule *policycache.PolicyRule) error {
@@ -684,8 +708,17 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 	everoutePolicyRule := toEveroutePolicyRule(ruleID, rule)
 	ruleDirection := getRuleDirection(rule.Direction)
 	ruleTier := getRuleTier(rule.Tier)
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: rule.Policy,
+			Rule:   rule.Name,
+		},
+		Direction: ruleDirection,
+		Tier:      ruleTier,
+		Mode:      rule.EnforcementMode,
+	}
 
-	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, rule.Name, ruleDirection, ruleTier, rule.EnforcementMode)
+	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, ruleBase)
 }
 
 // func (r *Reconciler) getSecurityPolicyByCompleteRule(ruleID string) *securityv1alpha1.SecurityPolicy {
@@ -711,6 +744,7 @@ func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
 		time.Sleep(msconst.GlobalRuleFirstDelayTime)
 	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(msconst.GlobalRuleDelayTimeout)) {
 		r.ReadyToProcessGlobalRule = true
+		log.Info("It has waited enough time, begin to process global rule", "timeout", msconst.GlobalRuleDelayTimeout)
 		return true
 	}
 
