@@ -19,6 +19,7 @@ limitations under the License.
 package tower
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -41,7 +42,7 @@ func mutationCreateVM(c *client.Client, data *VMCreateInput, effect *CreateVMEff
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -62,7 +63,7 @@ func mutationUpdateVM(c *client.Client, data *VMUpdateInput, where *VMWhereUniqu
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -82,7 +83,7 @@ func mutationDeleteVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) 
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -102,7 +103,7 @@ func mutationCreateLabel(c *client.Client, data *LabelCreateInput) (*Label, erro
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -123,7 +124,7 @@ func mutationUpdateLabel(c *client.Client, data *LabelUpdateInput, where *LabelW
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -156,7 +157,7 @@ func mutationCreateVlan(c *client.Client, data *VlanCreateInput) (*Vlan, error) 
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -176,7 +177,7 @@ func queryVM(c *client.Client, where *VMWhereUniqueInput) (*VM, error) {
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -201,7 +202,7 @@ func queryVMs(c *client.Client, where *VMWhereInput) ([]VM, error) {
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -219,7 +220,7 @@ func queryLabels(c *client.Client) ([]Label, error) {
 		Variables: map[string]interface{}{},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -237,7 +238,7 @@ func queryVlans(c *client.Client) ([]Vlan, error) {
 		Variables: map[string]interface{}{},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -257,7 +258,7 @@ func queryVMTemplate(c *client.Client, where *VMTemplateWhereUniqueInput) (*VMTe
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
@@ -282,7 +283,7 @@ func queryHost(c *client.Client, where *HostWhereUniqueInput) (*Host, error) {
 		},
 	}
 
-	resp, err := c.Query(&request)
+	resp, err := c.Query(context.TODO(), &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return nil, fmt.Errorf("mutation from tower, reply: %s, err: %s", resp, err)
 	}
