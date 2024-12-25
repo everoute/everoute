@@ -62,7 +62,7 @@ func (m *provider) SetDefaultAction(ctx context.Context, action securityv1alpha1
 		Query: fmt.Sprintf(`mutation {updateEverouteCluster(where: { id: "%s" } data: { global_default_action: %s }) {id}}`, m.everouteClusterID, globalDefaultAction),
 	}
 
-	resp, err := m.towerClient.Query(&request)
+	resp, err := m.towerClient.Query(ctx, &request)
 	if err != nil || len(resp.Errors) != 0 {
 		return fmt.Errorf("mutation from tower: %s, resp: %+v", err, resp)
 	}
