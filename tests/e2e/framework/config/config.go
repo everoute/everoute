@@ -192,7 +192,7 @@ func verifyAndComplete(config *Config) (*Config, error) {
 		if config.Endpoint.VdsID == nil {
 			return nil, fmt.Errorf("vdsID must set when provider is tower")
 		}
-		if _, err := config.Endpoint.TowerClient.Auth(context.Background().Done()); err != nil {
+		if _, err := config.Endpoint.TowerClient.Auth(context.Background()); err != nil {
 			return nil, fmt.Errorf("could not login tower %s", config.Endpoint.TowerClient.URL)
 		}
 	}

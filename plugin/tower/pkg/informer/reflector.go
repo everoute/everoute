@@ -254,6 +254,8 @@ func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.Res
 	if client.HasAuthError(respErrs) {
 		klog.Errorf("receive auth failed error: %+v, try to login %s", respErrs, r.client.URL)
 
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
 		if _, err = r.client.Auth(ctx); err != nil {
 			klog.Errorf("failed to login %s, got error: %s", r.client.URL, err)
 			return
