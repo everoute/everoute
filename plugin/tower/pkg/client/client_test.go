@@ -64,7 +64,7 @@ func TestClient_Auth(t *testing.T) {
 	towerClient := server.NewClient()
 	towerClient.UserInfo = getUserInfo(user)
 
-	token, err := towerClient.Auth(context.Background().Done())
+	token, err := towerClient.Auth(context.Background())
 	Expect(err).Should(BeNil())
 	Expect(token).Should(Equal(user.Token))
 }
