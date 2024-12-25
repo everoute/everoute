@@ -97,7 +97,7 @@ func (c *Client) Subscription(req *Request) (respCh <-chan Response, stopWatch f
 }
 
 // Query send query request to tower
-func (c *Client) Query(req *Request) (*Response, error) {
+func (c *Client) Query(ctx context.Context, req *Request) (*Response, error) {
 	request, err := EncodeRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode request: %s", err)
@@ -105,7 +105,7 @@ func (c *Client) Query(req *Request) (*Response, error) {
 
 	klog.V(10).Infof("query request body %s", request.String())
 
-	r, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, c.URL, request.GetReader())
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, request.GetReader())
 	if err != nil {
 		return nil, fmt.Errorf("failed call http.NewRequest: %s", err)
 	}
@@ -125,7 +125,7 @@ func (c *Client) Query(req *Request) (*Response, error) {
 	}
 
 	if taskID := httpResp.Header.Get("x-task-id"); taskID != "" && c.TaskMonitor != nil {
-		task, err := c.TaskMonitor.WaitForTask(context.Background(), taskID)
+		task, err := c.TaskMonitor.WaitForTask(ctx, taskID)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +141,7 @@ func (c *Client) Query(req *Request) (*Response, error) {
 }
 
 // Auth send login request to tower, and save token
-func (c *Client) Auth(stopCh <-chan struct{}) (string, error) {
+func (c *Client) Auth(ctx context.Context) (string, error) {
 	var token string
 
 	if c.UserInfo == nil {
@@ -152,7 +152,7 @@ func (c *Client) Auth(stopCh <-chan struct{}) (string, error) {
 		Query:     "mutation($data: LoginInput!) {login(data: $data) {token}}",
 		Variables: map[string]interface{}{"data": c.UserInfo},
 	}
-	resp, err := c.Query(authRequest)
+	resp, err := c.Query(ctx, authRequest)
 	if err != nil {
 		return "", fmt.Errorf("failed to login tower: %s", err)
 	}
@@ -168,7 +168,7 @@ func (c *Client) Auth(stopCh <-chan struct{}) (string, error) {
 	}
 
 	c.SetToken(token)
-	go c.WriteToken(stopCh)
+	go c.WriteToken(ctx)
 	return token, nil
 }
 
@@ -259,7 +259,7 @@ func (c *Client) SetToken(token string) {
 	c.token = token
 }
 
-func (c *Client) WriteToken(stopCh <-chan struct{}) {
+func (c *Client) WriteToken(ctx context.Context) {
 	if c.TokenFile == "" {
 		klog.Error("It doesn't set token file, can't write tower token")
 		return
@@ -267,7 +267,6 @@ func (c *Client) WriteToken(stopCh <-chan struct{}) {
 	c.writeTokenLock.Lock()
 	defer c.writeTokenLock.Unlock()
 
-	ctx := wait.ContextForChannel(stopCh)
 	_ = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(context.Context) (bool, error) {
 		err := c.writeToken()
 		return err == nil, nil
