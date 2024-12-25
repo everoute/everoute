@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"reflect"
 	"regexp"
 	"strings"
@@ -29,6 +28,7 @@ import (
 	"unicode"
 
 	"github.com/gertd/go-pluralize"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -108,33 +108,25 @@ func (r *reflector) LastSyncResourceVersion() string {
 func (r *reflector) reflectWorker(stopCh <-chan struct{}) func() {
 	return func() {
 		defer runtime.HandleCrash()
-		res, err := listAndWatchWithTimeout(stopCh, r.listAndWatch, r.reconnectMin, r.reconnectMax)
-		r.watchErrorHandler(stopCh, res, err)
+		ctx, cancel := contextWithRandomTimeout(wait.ContextForChannel(stopCh), r.reconnectMin, r.reconnectMax)
+		defer cancel()
+		res, err := r.listAndWatch(ctx)
+		r.watchErrorHandler(ctx, res, err)
 	}
 }
 
-func listAndWatchWithTimeout(stopCh <-chan struct{},
-	f func(c <-chan struct{}) ([]client.ResponseError, error), minTimeout, maxTimeout time.Duration) ([]client.ResponseError, error) {
-	rand.Seed(time.Now().UnixNano())
-	reconnect := minTimeout
+func contextWithRandomTimeout(ctx context.Context, minTimeout, maxTimeout time.Duration) (context.Context, context.CancelFunc) {
+	timeout := minTimeout
 	if maxTimeout > minTimeout {
-		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec,G404
+		timeout = time.Duration(rand.Int63nRange(int64(minTimeout), int64(maxTimeout)))
 	}
-	pctx := wait.ContextForChannel(stopCh)
-
-	var ctx context.Context
-	var cancel context.CancelFunc
-	if reconnect != 0 {
-		ctx, cancel = context.WithTimeout(pctx, reconnect)
-	} else {
-		ctx, cancel = context.WithCancel(pctx)
+	if timeout == 0 {
+		return context.WithCancel(ctx)
 	}
-	defer cancel()
-
-	return f(ctx.Done())
+	return context.WithTimeout(ctx, timeout)
 }
 
-func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError, error) {
+func (r *reflector) listAndWatch(ctx context.Context) ([]client.ResponseError, error) {
 	// In order not to miss events between list and watch, we will send watch request first.
 	respCh, stopWatch, err := r.client.Subscription(r.subscriptionRequest())
 	if err != nil {
@@ -144,7 +136,7 @@ func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError
 	klog.Infof("start watch resource %s from %s", r.expectType.TypeName(), r.client.URL)
 
 	// List and replace all objects in store
-	query, err := r.client.Query(r.queryRequest())
+	query, err := r.client.Query(ctx, r.queryRequest())
 	if err != nil {
 		return nil, err
 	}
@@ -162,11 +154,11 @@ func (r *reflector) listAndWatch(stopCh <-chan struct{}) ([]client.ResponseError
 	defer close(stopResync)
 	go r.resyncWorker(stopResync)
 
-	return r.watchHandler(respCh, stopCh)
+	return r.watchHandler(ctx, respCh)
 }
 
 // watchHandler watches respChan and keep store with the latest objects.
-func (r *reflector) watchHandler(respCh <-chan client.Response, stopCh <-chan struct{}) ([]client.ResponseError, error) {
+func (r *reflector) watchHandler(ctx context.Context, respCh <-chan client.Response) ([]client.ResponseError, error) {
 	var err error
 
 	for {
@@ -183,7 +175,7 @@ func (r *reflector) watchHandler(respCh <-chan client.Response, stopCh <-chan st
 			if err != nil {
 				return nil, err
 			}
-		case <-stopCh:
+		case <-ctx.Done():
 			return nil, nil
 		}
 	}
@@ -229,7 +221,7 @@ func (r *reflector) eventHandler(raw json.RawMessage) error {
 	return err
 }
 
-func (r *reflector) watchErrorHandler(stopch <-chan struct{}, respErrs []client.ResponseError, err error) {
+func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.ResponseError, err error) {
 	switch {
 	case err == nil, err == io.EOF:
 		// watch closed normally
@@ -261,7 +253,7 @@ func (r *reflector) watchErrorHandler(stopch <-chan struct{}, respErrs []client.
 	if client.HasAuthError(respErrs) {
 		klog.Errorf("receive auth failed error: %+v, try to login %s", respErrs, r.client.URL)
 
-		if _, err = r.client.Auth(stopch); err != nil {
+		if _, err = r.client.Auth(ctx); err != nil {
 			klog.Errorf("failed to login %s, got error: %s", r.client.URL, err)
 			return
 		}
