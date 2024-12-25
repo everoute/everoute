@@ -153,9 +153,9 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 }
 
 func newTowerAPIServerMgr(opt *Options) ctrl.Manager {
-	//nolint:all
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-	token, err := opt.Client.Auth(ctx.Done())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	token, err := opt.Client.Auth(ctx)
 	if err != nil {
 		klog.Errorf("Failed to get cloudPlatform token: %s", err)
 		return nil
