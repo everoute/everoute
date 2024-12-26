@@ -169,7 +169,8 @@ func newTowerAPIServerMgr(opt *Options) ctrl.Manager {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme,
+		Scheme:             scheme,
+		MetricsBindAddress: "0",
 	})
 	if err != nil {
 		klog.Errorf("Failed to new cloudPlatform k8s apiserver manager: %s", err)
