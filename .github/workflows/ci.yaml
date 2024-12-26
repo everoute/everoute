@@ -71,6 +71,9 @@ jobs:
         with:
           version: v1.59.1
           only-new-issues: true
+        env:
+          GOGC: 1
+          GOPROXY: https://goproxy.cn|https://proxy.golang.org|direct
 
   run-e2e:
     runs-on: [self-hosted, pod]
