@@ -81,6 +81,8 @@ type LocalBridge struct {
 	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
 	learnedIPAddressMapMutex sync.RWMutex
 	learnedIPAddressMap      map[string]IPAddressReference
+
+	localPortMac *net.HardwareAddr
 }
 
 type IPAddressReference struct {
@@ -299,6 +301,10 @@ func (l *LocalBridge) notifyLocalEndpointUpdate(srcIP net.IP, srcMac net.Hardwar
 		Mac:        srcMac,
 		UpdateTime: time.Now(),
 	}
+}
+
+func (l *LocalBridge) SetLocalPortMac(mac *net.HardwareAddr) {
+	l.localPortMac = mac
 }
 
 // specific type Bridge interface
@@ -929,7 +935,15 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
-func (l *LocalBridge) initFromLocalPassTable(_ *ofctrl.OFSwitch) error {
+func (l *LocalBridge) initFromLocalPassTable(sw *ofctrl.OFSwitch) error {
+	fromLocalFilterFlow, _ := l.fromLocalPassTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		MacDa:    l.localPortMac,
+	})
+	if err := fromLocalFilterFlow.Next(sw.DropAction()); err != nil {
+		return fmt.Errorf("failed to install from local arp drop flow, error: %v", err)
+	}
+
 	fromLocalPassFlow, _ := l.fromLocalPassTable.NewFlow(ofctrl.FlowMatch{
 		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
@@ -1047,7 +1061,7 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 	localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   MID_MATCH_FLOW_PRIORITY,
 		MacSa:      &endpointMac,
-		VlanId:     endpoint.VlanID,
+		VlanId:     &endpoint.VlanID,
 		VlanIdMask: &vlanIDAndFlagMask,
 	})
 	if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 12)); err != nil {
@@ -1096,7 +1110,7 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 		vlanInputTableFromLocalFlow1, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 			Priority:   MID_MATCH_FLOW_PRIORITY,
 			InputPort:  endpoint.PortNo,
-			VlanId:     VlanFlagMask,
+			VlanId:     &VlanFlagMask,
 			VlanIdMask: &VlanFlagMask,
 		})
 		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow1, endpoint); err != nil {
@@ -1161,7 +1175,7 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 		fromLocalVlanFilterFlow, _ := l.vlanFilterTable.NewFlow(ofctrl.FlowMatch{
 			Priority:   MID_MATCH_FLOW_PRIORITY,
 			InputPort:  endpoint.PortNo,
-			VlanId:     vlanID,
+			VlanId:     &vlanID,
 			VlanIdMask: &vidMask,
 		})
 		if err := fromLocalVlanFilterFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {

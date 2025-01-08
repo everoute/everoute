@@ -182,11 +182,14 @@ func TestAgentMonitorIpAddressLearning(t *testing.T) {
 func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 	RegisterTestingT(t)
 
-	patch := gomonkey.ApplyFuncReturn(getBridgeInternalMac, net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
+	patch := gomonkey.ApplyMethodReturn(&AgentMonitor{}, "GetBridgeInternalMac", &net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, nil)
 	defer patch.Reset()
 
 	bridgeName := rand.String(10)
 	Expect(createBridge(ovsClient, bridgeName)).Should(Succeed())
+	Expect(createPort(ovsClient, bridgeName, bridgeName, &Iface{
+		IfaceName: bridgeName,
+		IfaceType: "internal"})).Should(Succeed())
 
 	t.Run("should probe timeout access iface ip", func(t *testing.T) {
 		portName, peerName := rand.String(10), rand.String(10)
