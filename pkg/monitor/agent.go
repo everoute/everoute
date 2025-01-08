@@ -231,14 +231,20 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 					if time.Since(info.UpdateTime.Time) <= probeIPTimeout {
 						continue
 					}
+					mac, err := monitor.GetBridgeInternalMac(bridge)
+
+					if err != nil || mac == nil {
+						klog.Errorf("fail to get internal port mac on bridge %s, err = %s", bridge.Name, err)
+						continue
+					}
 					endpointIP := &types.EndpointIP{
 						BridgeName: bridge.Name,
 						OfPort:     uint32(iface.Ofport),
 						VlanID:     getPacketOutVlanTag(port, info.VlanTag),
 						IP:         net.ParseIP(string(ip)),
-						Mac:        getBridgeInternalMac(bridge),
+						Mac:        *mac,
 					}
-					if endpointIP.Mac == nil || !endpointIP.IP.IsGlobalUnicast() {
+					if !endpointIP.IP.IsGlobalUnicast() {
 						klog.Warningf("skip probe with invalid endpoint info: %v", endpointIP)
 						continue
 					}
@@ -606,18 +612,26 @@ func getPacketOutVlanTag(port agentv1alpha1.OVSPort, vlanTag uint16) uint16 {
 	return vlanTag
 }
 
-func getBridgeInternalMac(bridge agentv1alpha1.OVSBridge) net.HardwareAddr {
-	for _, port := range bridge.Ports {
-		if port.Name != bridge.Name {
-			continue
-		}
-		for _, iface := range port.Interfaces {
-			if iface.Name != bridge.Name {
-				continue
+func (monitor *AgentMonitor) GetBridgeInternalMac(bridge agentv1alpha1.OVSBridge) (*net.HardwareAddr, error) {
+	var mac *net.HardwareAddr
+	err := monitor.ovsdbMonitor.LockedAccessCache(func(ovsdbCache OVSDBCache) error {
+		for uuid := range ovsdbCache["Port"] {
+			ovsPort, ok := ovsdbCache["Port"][uuid]
+			if !ok {
+				return fmt.Errorf("invalid port uuid %s", uuid)
 			}
-			mac, _ := net.ParseMAC(iface.Mac)
-			return mac
+			name, _ := ovsPort.Fields["name"].(string)
+			if name == bridge.Name {
+				macStr, _ := ovsPort.Fields["mac"].(string)
+				hw, errMac := net.ParseMAC(macStr)
+				if errMac != nil {
+					return fmt.Errorf("invalid mac str %s, err = %s", macStr, errMac)
+				}
+				mac = &hw
+				return nil
+			}
 		}
-	}
-	return nil
+		return fmt.Errorf("bridge %s not found", bridge.Name)
+	})
+	return mac, err
 }

@@ -78,6 +78,8 @@ type LocalBridge struct {
 	localToLocalBUMFlow      map[uint32]*ofctrl.Flow
 	learnedIPAddressMapMutex sync.RWMutex
 	learnedIPAddressMap      map[string]IPAddressReference
+
+	localPortMac *net.HardwareAddr
 }
 
 type IPAddressReference struct {
@@ -270,6 +272,10 @@ func (l *LocalBridge) notifyLocalEndpointUpdate(arpIn protocol.ARP, vlanID uint1
 		Mac:        arpIn.HWSrc,
 		UpdateTime: time.Now(),
 	}
+}
+
+func (l *LocalBridge) SetLocalPortMac(mac *net.HardwareAddr) {
+	l.localPortMac = mac
 }
 
 // specific type Bridge interface
@@ -877,9 +883,16 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 }
 
 func (l *LocalBridge) initFromLocalArpPassTable(sw *ofctrl.OFSwitch) error {
+	fromLocalFilterFlow, _ := l.fromLocalArpPassTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		MacDa:    l.localPortMac,
+	})
+	if err := fromLocalFilterFlow.Next(sw.DropAction()); err != nil {
+		return fmt.Errorf("failed to install from local arp drop flow, error: %v", err)
+	}
+
 	fromLocalArpPassFlow, _ := l.fromLocalArpPassTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype: PROTOCOL_ARP,
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
 	outputPort, _ := l.OfSwitch.OutputPort(l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix])
 	if err := fromLocalArpPassFlow.Next(outputPort); err != nil {

@@ -158,7 +158,7 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 		Modify:  true,
 	}
 	requests := map[string]ovsdb.MonitorRequest{
-		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
+		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "mac", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
 		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error", "status"}},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
