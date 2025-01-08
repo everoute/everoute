@@ -406,6 +406,20 @@ func (datapathManager *DpManager) InitializeDatapath(ctx context.Context) {
 	var wg sync.WaitGroup
 	for vdsID, ovsbrName := range datapathManager.Config.ManagedVDSMap {
 		wg.Add(1)
+
+		// setup local bridge internal mac
+		macStr, err := datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetInternalPortMac()
+		if err != nil {
+			klog.Fatalf("Failed to setup local bridge %s %s internal mac, err = %s", vdsID, ovsbrName, err)
+		}
+		mac, err := net.ParseMAC(macStr)
+		if err != nil {
+			klog.Fatalf("Failed to setup local bridge %s %s internal mac, err = %s", vdsID, ovsbrName, err)
+		}
+		if br, ok := datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge); ok {
+			br.SetLocalPortMac(&mac)
+		}
+
 		go func(vdsID, ovsbrName string) {
 			defer wg.Done()
 			InitializeVDS(ctx, datapathManager, vdsID, ovsbrName)
