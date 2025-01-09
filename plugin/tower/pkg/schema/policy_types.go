@@ -129,6 +129,8 @@ type SecurityGroup struct {
 	LabelGroups     []LabelGroup      `json:"label_groups"`
 	VMs             []ObjectReference `json:"vms"`
 	PodLabelGroups  []PodLabelGroup   `json:"pod_label_groups"`
+	IPs             string            `json:"ips"`
+	ExcludeIPs      string            `json:"exclude_ips"`
 }
 
 type GroupMemberType string
@@ -136,6 +138,7 @@ type GroupMemberType string
 const (
 	VMGroupType  GroupMemberType = "VM"
 	PodGroupType GroupMemberType = "POD"
+	IPGroupType  GroupMemberType = "IP"
 )
 
 type LabelGroup struct {

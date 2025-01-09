@@ -1513,6 +1513,23 @@ func (c *Controller) parseVMSecurityGroup(securityGroup *schema.SecurityGroup) (
 	return appliedPeers, nil
 }
 
+func (c *Controller) parseIPSecurityGroup(securityGroup *schema.SecurityGroup) ([]v1alpha1.ApplyToPeer, error) {
+	var appliedPeers []v1alpha1.ApplyToPeer
+
+	ipBlocks, err := parseIPBlock(securityGroup.IPs, []string{securityGroup.ExcludeIPs})
+	if err != nil {
+		return appliedPeers, err
+	}
+
+	for _, item := range ipBlocks {
+		appliedPeers = append(appliedPeers, v1alpha1.ApplyToPeer{
+			IPBlock: item,
+		})
+	}
+
+	return appliedPeers, nil
+}
+
 func (c *Controller) parsePodSecurityGroup(securityGroup *schema.SecurityGroup) ([]v1alpha1.ApplyToPeer, error) {
 	var appliedPeers []v1alpha1.ApplyToPeer
 	for _, podLabelGroup := range securityGroup.PodLabelGroups {
@@ -1561,6 +1578,9 @@ func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference
 	case schema.PodGroupType:
 		podPeers, err := c.parsePodSecurityGroup(securityGroup)
 		return podPeers, true, err
+	case schema.IPGroupType:
+		ipPeers, err := c.parseIPSecurityGroup(securityGroup)
+		return ipPeers, false, err
 	default:
 		return nil, false, fmt.Errorf("unknow securityGroup memberType")
 	}

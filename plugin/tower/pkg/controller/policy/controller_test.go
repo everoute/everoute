@@ -27,6 +27,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/samber/lo"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -1500,6 +1501,7 @@ var _ = Describe("PolicyController", func() {
 
 	Context("SecurityGroup", func() {
 		var normalGroup, emptyGroup, emptyLabelsGroup *schema.SecurityGroup
+		var ipGroup *schema.SecurityGroup
 		var vm *schema.VM
 		var vnicA, vnicB *schema.VMNic
 
@@ -1513,6 +1515,12 @@ var _ = Describe("PolicyController", func() {
 				Labels: LabelAsReference(labelA, labelB, labelC),
 			})
 			normalGroup.VMs = append(normalGroup.VMs, schema.ObjectReference{ID: vm.ID})
+
+			ipGroup = NewSecurityGroup(everouteCluster)
+			ipGroup.MemberType = lo.ToPtr(schema.IPGroupType)
+			ipGroup.IPs = "10.0.0.0/16"
+			ipGroup.ExcludeIPs = "10.0.0.0-10.0.127.255"
+
 			emptyGroup = NewSecurityGroup(everouteCluster)
 			emptyLabelsGroup = NewSecurityGroup(everouteCluster)
 			emptyLabelsGroup.LabelGroups = []schema.LabelGroup{{}}
@@ -1520,8 +1528,10 @@ var _ = Describe("PolicyController", func() {
 			By(fmt.Sprintf("create vm %+v with vnic %+v and %+v", vm, vnicA, vnicB))
 			server.TrackerFactory().VM().CreateOrUpdate(vm)
 
-			By(fmt.Sprintf("create security group %+v %+v %+v", normalGroup, emptyGroup, emptyLabelsGroup))
+			By(fmt.Sprintf("create security group %+v %+v %+v %+v",
+				normalGroup, ipGroup, emptyGroup, emptyLabelsGroup))
 			server.TrackerFactory().SecurityGroup().CreateOrUpdate(normalGroup)
+			server.TrackerFactory().SecurityGroup().CreateOrUpdate(ipGroup)
 			server.TrackerFactory().SecurityGroup().CreateOrUpdate(emptyGroup)
 			server.TrackerFactory().SecurityGroup().CreateOrUpdate(emptyLabelsGroup)
 		})
@@ -1627,6 +1637,31 @@ var _ = Describe("PolicyController", func() {
 				It("should remove the security policy", func() {
 					assertPoliciesNum(ctx, 0)
 				})
+			})
+
+		})
+
+		When("create SecurityPolicy with ip security group", func() {
+			var policy *schema.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = NewSecurityPolicy(everouteCluster, false, ipGroup)
+				By(fmt.Sprintf("create security policy %+v", policy))
+				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+			})
+
+			It("should create security policy with ip group", func() {
+				assertPoliciesNum(ctx, 1)
+				assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					nil,
+					nil,
+					v1alpha1.ApplyToPeer{
+						IPBlock: &networkingv1.IPBlock{
+							CIDR:   "10.0.0.0/16",
+							Except: []string{"10.0.0.0/17"},
+						},
+					},
+				)
 			})
 		})
 
