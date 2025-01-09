@@ -102,11 +102,14 @@ type SecurityGroup {
     label_groups: [LabelGroup!]
     vms: [ObjectReference!]!
     pod_label_groups: [PodLabelGroup!]
+    ips: String
+    exclude_ips: String
 }
 
 enum GroupMemberType {
     VM
     POD
+    IP
 }
 
 type LabelGroup {

@@ -209,7 +209,9 @@ type ComplexityRoot struct {
 
 	SecurityGroup struct {
 		EverouteCluster func(childComplexity int) int
+		ExcludeIPs      func(childComplexity int) int
 		ID              func(childComplexity int) int
+		IPs             func(childComplexity int) int
 		LabelGroups     func(childComplexity int) int
 		MemberType      func(childComplexity int) int
 		PodLabelGroups  func(childComplexity int) int
@@ -968,12 +970,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SecurityGroup.EverouteCluster(childComplexity), true
 
+	case "SecurityGroup.exclude_ips":
+		if e.complexity.SecurityGroup.ExcludeIPs == nil {
+			break
+		}
+
+		return e.complexity.SecurityGroup.ExcludeIPs(childComplexity), true
+
 	case "SecurityGroup.id":
 		if e.complexity.SecurityGroup.ID == nil {
 			break
 		}
 
 		return e.complexity.SecurityGroup.ID(childComplexity), true
+
+	case "SecurityGroup.ips":
+		if e.complexity.SecurityGroup.IPs == nil {
+			break
+		}
+
+		return e.complexity.SecurityGroup.IPs(childComplexity), true
 
 	case "SecurityGroup.label_groups":
 		if e.complexity.SecurityGroup.LabelGroups == nil {
@@ -1786,11 +1802,14 @@ type SecurityGroup {
     label_groups: [LabelGroup!]
     vms: [ObjectReference!]!
     pod_label_groups: [PodLabelGroup!]
+    ips: String
+    exclude_ips: String
 }
 
 enum GroupMemberType {
     VM
     POD
+    IP
 }
 
 type LabelGroup {
@@ -5932,6 +5951,10 @@ func (ec *executionContext) fieldContext_Query_securityGroups(ctx context.Contex
 				return ec.fieldContext_SecurityGroup_vms(ctx, field)
 			case "pod_label_groups":
 				return ec.fieldContext_SecurityGroup_pod_label_groups(ctx, field)
+			case "ips":
+				return ec.fieldContext_SecurityGroup_ips(ctx, field)
+			case "exclude_ips":
+				return ec.fieldContext_SecurityGroup_exclude_ips(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityGroup", field.Name)
 		},
@@ -6393,6 +6416,88 @@ func (ec *executionContext) fieldContext_SecurityGroup_pod_label_groups(ctx cont
 	return fc, nil
 }
 
+func (ec *executionContext) _SecurityGroup_ips(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityGroup_ips(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IPs, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityGroup_ips(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SecurityGroup_exclude_ips(ctx context.Context, field graphql.CollectedField, obj *schema.SecurityGroup) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SecurityGroup_exclude_ips(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ExcludeIPs, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SecurityGroup_exclude_ips(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecurityGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SecurityGroupEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.SecurityGroupEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SecurityGroupEvent_mutation(ctx, field)
 	if err != nil {
@@ -6488,6 +6593,10 @@ func (ec *executionContext) fieldContext_SecurityGroupEvent_node(ctx context.Con
 				return ec.fieldContext_SecurityGroup_vms(ctx, field)
 			case "pod_label_groups":
 				return ec.fieldContext_SecurityGroup_pod_label_groups(ctx, field)
+			case "ips":
+				return ec.fieldContext_SecurityGroup_ips(ctx, field)
+			case "exclude_ips":
+				return ec.fieldContext_SecurityGroup_exclude_ips(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SecurityGroup", field.Name)
 		},
@@ -12816,6 +12925,14 @@ func (ec *executionContext) _SecurityGroup(ctx context.Context, sel ast.Selectio
 		case "pod_label_groups":
 
 			out.Values[i] = ec._SecurityGroup_pod_label_groups(ctx, field, obj)
+
+		case "ips":
+
+			out.Values[i] = ec._SecurityGroup_ips(ctx, field, obj)
+
+		case "exclude_ips":
+
+			out.Values[i] = ec._SecurityGroup_exclude_ips(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
