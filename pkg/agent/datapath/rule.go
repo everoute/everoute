@@ -1,10 +1,13 @@
 package datapath
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/contiv/ofnet/ofctrl"
+	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/vishvananda/netlink"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -183,4 +186,25 @@ func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlo
 		}
 	}
 	return false
+}
+
+func NewRuleSeqIDAlloctor() *NumAllocator {
+	allo, err := NewNumAllocator(uint32(CookieRuleFix), 1<<CookieRuleUsedBitWidth-1+uint32(CookieRuleFix))
+	if err != nil {
+		klog.Fatalf("failed to new rule seqID allocator: %s", err)
+	}
+	return allo
+}
+
+func GetSeqIDByFlowID(flowID uint64) uint32 {
+	return uint32(flowID & CookieRuleSeqIDMask)
+}
+
+func AssemblyRuleFlowID(roundNumber uint64, seqIDIn uint32) (uint64, error) {
+	seqID := uint64(seqIDIn)
+	if seqID >= 1<<CookieRuleUsedBitWidth+CookieRuleFix {
+		return 0, fmt.Errorf("invalid seqID %#x for rule", seqIDIn)
+	}
+	roundCookie, _ := cookie.RoundCookieWithMask(roundNumber)
+	return roundCookie + seqID, nil
 }
