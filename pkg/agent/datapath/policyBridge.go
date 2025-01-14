@@ -19,6 +19,16 @@ import (
 	"github.com/everoute/everoute/pkg/constants"
 )
 
+const (
+	// the lower 28bit of cookie is used to specify ovs flow for policy bridge
+	// 0x0->0x7ffffff (mask is 0x07ffffff, and the 28th bit is fixed to 0) is used by general ovs flow and auto allocated
+	CookieAutoAllocBitWidthForPolicyBr uint64 = 27
+	// 0x8000000->0x83fffff (mask is 0x3fffff) is used by rule flows
+	CookieRuleUsedBitWidth uint64 = 22
+	CookieRuleSeqIDMask    uint64 = 0x0000_0000_003f_ffff
+	CookieRuleFix          uint64 = 0x0000_0000_0800_0000
+)
+
 // //nolint
 const (
 	INPUT_TABLE                 = 0
@@ -756,7 +766,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 }
 
 //nolint:funlen
-func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
 	log := ctrl.LoggerFrom(ctx)
 	var ipDa, ipDaMask, ipSa, ipSaMask *net.IP
 	var err error
@@ -766,6 +776,10 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 		p.WaitForSwitchConnection()
 	}
 
+	flowID, err := AssemblyRuleFlowID(p.roundNum, seqID)
+	if err != nil {
+		return nil, err
+	}
 	// Different tier have different nextTable select strategy:
 	policyTable, nextTable, e := p.GetTierTable(direction, tier, mode)
 	if e != nil {
@@ -792,7 +806,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 		icmpType = rule.IcmpType
 	}
 	// Install the rule in policy table
-	ruleFlow, err := policyTable.NewFlow(ofctrl.FlowMatch{
+	ruleFlow, err := policyTable.NewFlowWithFlowID(ofctrl.FlowMatch{
 		Priority:       uint16(rule.Priority),
 		IpProto:        rule.IPProtocol,
 		TcpSrcPort:     rule.SrcPort,
@@ -804,7 +818,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, rule *EveroutePo
 		UdpDstPort:     rule.DstPort,
 		UdpDstPortMask: rule.DstPortMask,
 		IcmpType:       icmpType,
-	})
+	}, flowID)
 	if err != nil {
 		log.Error(err, "Failed to add flow for rule")
 		return nil, err

@@ -22,6 +22,8 @@ type BaseBridge struct {
 	switchStatusMutex   sync.RWMutex
 	disconnectChan      chan struct{}
 	disconnectChanMutex sync.Mutex
+
+	roundNum uint64
 }
 
 func (b *BaseBridge) getDisconnectChan() chan struct{} {
@@ -35,6 +37,10 @@ func (b *BaseBridge) getDisconnectChan() chan struct{} {
 
 func (b *BaseBridge) GetName() string {
 	return b.name
+}
+
+func (b *BaseBridge) SetRoundNumber(n uint64) {
+	b.roundNum = n
 }
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
@@ -99,7 +105,7 @@ func (b *BaseBridge) RemoveSFCRule() error {
 	return nil
 }
 
-func (b *BaseBridge) AddMicroSegmentRule(context.Context, *EveroutePolicyRule, uint8, uint8, string) (*FlowEntry, error) {
+func (b *BaseBridge) AddMicroSegmentRule(context.Context, uint32, *EveroutePolicyRule, uint8, uint8, string) (*FlowEntry, error) {
 	return nil, nil
 }
 

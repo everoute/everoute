@@ -26,6 +26,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/j-keck/arping v1.0.2
+	github.com/kelindar/bitmap v1.5.2
 	github.com/mdlayher/ndp v1.1.0
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/mikioh/ipaddr v0.0.0-20190404000644-d465c8ab6721
@@ -92,6 +93,8 @@ require (
 	github.com/jlaffaye/ftp v0.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kelindar/simd v1.1.2 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
@@ -135,7 +138,7 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250108092516-6c489f8b793e
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250115072618-4f17c6c19f15
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 )

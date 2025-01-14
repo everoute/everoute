@@ -200,7 +200,7 @@ type Bridge interface {
 
 	AddSFCRule() error
 	RemoveSFCRule() error
-	AddMicroSegmentRule(ctx context.Context, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error)
+	AddMicroSegmentRule(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error)
 
 	IsSwitchConnected() bool
 	DisconnectedNotify() chan struct{}
@@ -226,6 +226,8 @@ type Bridge interface {
 
 	GetName() string
 	getOfSwitch() *ofctrl.OFSwitch
+
+	SetRoundNumber(uint64)
 }
 
 type DpManager struct {
@@ -243,6 +245,7 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	policyRuleNums            map[string]int
 	flowReplayMutex           *lock.CASMutex
+	SeqIDAlloctorForRule      *NumAllocator
 
 	flushMutex           *lock.ChanMutex
 	needFlush            bool                         // need to flush
@@ -354,6 +357,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
+	datapathManager.SeqIDAlloctorForRule = NewRuleSeqIDAlloctor()
 	datapathManager.policyRuleNums = make(map[string]int)
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
@@ -735,6 +739,10 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	go vdsOfControllerMap[UPLINK_BRIDGE_KEYWORD].Connect(fmt.Sprintf("%s/%s.%s", ovsVswitchdUnixDomainSockPath, uplinkBridge.GetName(), ovsVswitchdUnixDomainSockSuffix))
 }
 
+func policyBrCookieAllocator(roundNum uint64) cookie.Allocator {
+	return cookie.NewAllocator(roundNum, cookie.SetFlowIDRange(cookie.InitFlowID, 1<<CookieAutoAllocBitWidthForPolicyBr-1))
+}
+
 func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string, ovsbrName string) {
 	log := ctrl.LoggerFrom(ctx)
 	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
@@ -742,12 +750,22 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		klog.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum, cookie.SetDefaultFlowIDRange())
 	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
 		// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
 		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.curRoundNum)
 		// update cookie
-		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = cookieAllocator
+		if brKeyword == POLICY_BRIDGE_KEYWORD {
+			policyBrCookieAllo := policyBrCookieAllocator(roundInfo.curRoundNum)
+			if policyBrCookieAllo == nil {
+				klog.Fatalf("Failed to new policy bridge cookie allocator")
+			}
+			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = policyBrCookieAllo
+		} else {
+			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = cookieAllocator
+		}
+		datapathManager.BridgeChainMap[vdsID][brKeyword].SetRoundNumber(roundInfo.curRoundNum)
+
 		// bridge init
 		datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInit()
 	}
@@ -805,7 +823,17 @@ func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridg
 	if err != nil {
 		return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
 	}
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+
+	var cookieAllocator cookie.Allocator
+	if bridgeKeyword == POLICY_BRIDGE_KEYWORD {
+		cookieAllocator = policyBrCookieAllocator(roundInfo.curRoundNum)
+		if cookieAllocator == nil {
+			return fmt.Errorf("failed to create policy bridge cookie alloctor")
+		}
+	} else {
+		cookieAllocator = cookie.NewAllocator(roundInfo.curRoundNum, cookie.SetDefaultFlowIDRange())
+	}
+	dp.BridgeChainMap[vdsID][bridgeKeyword].SetRoundNumber(roundInfo.curRoundNum)
 	dp.BridgeChainMap[vdsID][bridgeKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInit()
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
@@ -875,11 +903,24 @@ func (dp *DpManager) ReplayVDSLocalEndpointFlow(vdsID string, keyWord string) er
 	return nil
 }
 
+func (dp *DpManager) getSeqIDForReplayRule(vdsID string, entry *EveroutePolicyRuleEntry) (uint32, error) {
+	if entry.RuleFlowMap[vdsID] != nil {
+		seqID := GetSeqIDByFlowID(entry.RuleFlowMap[vdsID].FlowID)
+		return seqID, nil
+	}
+	return dp.SeqIDAlloctorForRule.Allocate()
+}
+
 func (dp *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error {
 	var errs error
 	for ruleID, entry := range dp.Rules {
 		// Add new policy rule flow to datapath
-		flowEntry, err := dp.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(context.Background(), entry.EveroutePolicyRule,
+		seqID, err := dp.getSeqIDForReplayRule(vdsID, entry)
+		if err != nil {
+			errs = errors.Join(errs, err)
+			continue
+		}
+		flowEntry, err := dp.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(context.Background(), seqID, entry.EveroutePolicyRule,
 			entry.Direction, entry.Tier, entry.Mode)
 		if err != nil {
 			errs = errors.Join(errs,
@@ -1220,12 +1261,17 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	log = log.WithValues("oldRule", oldRule)
 	ctx = ctrl.LoggerInto(ctx, log)
 
+	seqID, err := dp.SeqIDAlloctorForRule.Allocate()
+	if err != nil {
+		log.Error(err, "Failed to allocate seqID for rule")
+		return err
+	}
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range dp.BridgeChainMap {
 		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
 		ctxL := ctrl.LoggerInto(ctx, logL)
-		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, rule, ruleBase.Direction, ruleBase.Tier, ruleBase.Mode)
+		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, seqID, rule, ruleBase.Direction, ruleBase.Tier, ruleBase.Mode)
 		if err != nil {
 			return err
 		}
@@ -1284,15 +1330,24 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		return nil
 	}
 
+	var errs []error
+	var delFlowIDs, resFlowIDs []uint64
+	defer dp.releaseRuleSeqID(ctx, delFlowIDs, resFlowIDs)
 	for vdsID := range dp.BridgeChainMap {
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
 			log.Error(err, "Failed to delete flow for rule", "vdsID", vdsID)
-			return err
+			resFlowIDs = append(resFlowIDs, pRule.RuleFlowMap[vdsID].FlowID)
+			errs = append(errs, err)
+			continue
 		}
+		delFlowIDs = append(delFlowIDs, pRule.RuleFlowMap[vdsID].FlowID)
 		log.V(2).Info("Success to delete flow for rule", "vdsID", vdsID)
 		// remove flowID reference
 		delete(dp.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	dp.cleanConntrackFlow(ctx, pRule.EveroutePolicyRule)
@@ -1301,6 +1356,29 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 	dp.decPolicyRuleNum(policyRef.Policy)
 	log.Info("Success delete rule")
 	return nil
+}
+
+func (dp *DpManager) releaseRuleSeqID(ctx context.Context, dels, ress []uint64) {
+	log := ctrl.LoggerFrom(ctx)
+	if len(dels) == 0 {
+		return
+	}
+	delSeqIDs := sets.New[uint32]()
+	resSeqIDs := sets.New[uint32]()
+	for i := range dels {
+		delSeqIDs.Insert(GetSeqIDByFlowID(dels[i]))
+	}
+	for i := range ress {
+		resSeqIDs.Insert(GetSeqIDByFlowID(ress[i]))
+	}
+	needReleases := delSeqIDs.Difference(resSeqIDs)
+	if len(needReleases) == 0 {
+		return
+	}
+	for _, seqID := range needReleases.UnsortedList() {
+		dp.SeqIDAlloctorForRule.Release(seqID)
+	}
+	log.V(4).Info("success release seq ids", "seqIDs", needReleases)
 }
 
 func (dp *DpManager) GetNatBridges() []*NatBridge {

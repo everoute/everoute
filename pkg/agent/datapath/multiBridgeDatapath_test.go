@@ -1084,3 +1084,34 @@ func randomIP() string {
 func randomIPv6() string {
 	return fmt.Sprintf("2401::%d:%d:%d:%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
 }
+
+func TestReleaseRuleSeqID(t *testing.T) {
+	allo, _ := NewNumAllocator(0x10, 0x1f)
+	dp := &DpManager{
+		SeqIDAlloctorForRule: allo,
+	}
+
+	allo.used.Set(0x12 - 0x10)
+	allo.used.Set(0x13 - 0x10)
+	allo.used.Set(0x14 - 0x10)
+
+	dp.releaseRuleSeqID(context.Background(), nil, []uint64{0x0000009, 0x1000013})
+	if !allo.used.Contains(0x13 - 0x10) {
+		t.Errorf("release seqID failed when no dels")
+	}
+
+	dp.releaseRuleSeqID(context.Background(), []uint64{0x1000013, 0x14}, []uint64{0x3000013, 0x13, 0x14})
+	if !allo.used.Contains(0x13-0x10) || !allo.used.Contains(0x14-0x10) {
+		t.Errorf("can't release dels in ress when all dels is in ress")
+	}
+
+	dp.releaseRuleSeqID(context.Background(), []uint64{0x1000013, 0xa000012}, []uint64{0x3000013, 0x13, 0x14})
+	if !allo.used.Contains(0x13-0x10) || allo.used.Contains(0x12-0x10) {
+		t.Errorf("release seqID failed for part dels in ress")
+	}
+
+	dp.releaseRuleSeqID(context.Background(), []uint64{0x8000013, 0x6000013, 0x14}, nil)
+	if allo.used.Contains(0x13-0x10) || allo.used.Contains(0x14-0x10) {
+		t.Errorf("release seqID failed when no ress")
+	}
+}
