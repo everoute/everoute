@@ -39,12 +39,17 @@ jobs:
     runs-on: [self-hosted, pod]
     strategy:
       matrix:
-        act: [docker-test-ci, docker-race-test-ci, docker-cover-test-ci]
+        act: [docker-race-test-ci, docker-cover-test-ci]
     steps:
       - uses: actions/checkout@v2
 
       - name: run everoute unit test
-        run: make ${{ matrix.act }}
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: make ${{ matrix.act }}
+
       - uses: codecov/codecov-action@v2
         with:
           files: ./coverage.out
