@@ -141,4 +141,5 @@ replace (
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250115072618-4f17c6c19f15
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
+	golang.org/x/crypto => golang.org/x/crypto v0.23.0
 )

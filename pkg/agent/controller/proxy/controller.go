@@ -226,7 +226,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return syncController.Watch(&source.Channel{Source: r.SyncChan}, &handler.EnqueueRequestForObject{})
 }
 
-func (r *Reconciler) updateService(ctx context.Context, newService *corev1.Service) error {
+func (r *Reconciler) updateService(_ context.Context, newService *corev1.Service) error {
 	svcID := proxycache.GenSvcID(newService.Namespace, newService.Name)
 	newLBs, err := proxycache.ServiceToSvcLBs(newService, r.ProxyAll)
 	if err != nil {
@@ -298,7 +298,7 @@ func (r *Reconciler) diffSvcLBs(oldLBs, newLBs map[string]*proxycache.SvcLB) ([]
 	return add, del, upd
 }
 
-func (r *Reconciler) deleteService(ctx context.Context, svcNamespacedName types.NamespacedName) error {
+func (r *Reconciler) deleteService(_ context.Context, svcNamespacedName types.NamespacedName) error {
 	svcID := proxycache.GenSvcID(svcNamespacedName.Namespace, svcNamespacedName.Name)
 
 	objs, _ := r.svcLBCache.ByIndex(proxycache.SvcIDIndex, svcID)
@@ -456,7 +456,7 @@ func (r *Reconciler) processSvcLBUpd(newLB, oldLB *proxycache.SvcLB) error {
 	return nil
 }
 
-func (r *Reconciler) updateServicePort(ctx context.Context, servicePort *everoutesvc.ServicePort) error {
+func (r *Reconciler) updateServicePort(_ context.Context, servicePort *everoutesvc.ServicePort) error {
 	svcPortKey := proxycache.GenSvcPortKey(servicePort.GetNamespace(), servicePort.GetName())
 
 	// update group

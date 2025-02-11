@@ -369,6 +369,8 @@ func loopReadMessage(conn *websocket.Conn, respChan chan<- Response, stopChan ch
 }
 
 // readConnResponse would block until message from the connection or the connection closed
+//
+//nolint:all
 func readConnResponse(conn *websocket.Conn) Response {
 	var msg Message
 	var resp Response
