@@ -88,6 +88,7 @@ func run(args ...string) error {
 	return err
 }
 
+//nolint:all
 func runWithOutput(args ...string) ([]string, error) {
 	path, err := exec.LookPath("arptables")
 	if err != nil {

@@ -63,7 +63,7 @@ func (in *Selector) IsValid() (bool, string) {
 	for _, expr := range in.LabelSelector.MatchExpressions {
 		switch expr.Operator {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
-			if expr.Values == nil || len(expr.Values) == 0 {
+			if len(expr.Values) == 0 {
 				return false, fmt.Sprintf("values with key %s of operator %s must be non-empty on MatchExpressions", expr.Key, expr.Operator)
 			}
 		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
