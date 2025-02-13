@@ -52,6 +52,14 @@ const (
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
 	TO_LOCAL_TABLE              = 141
+	L7_EGRESS_POLICY            = 100
+	L7_INGRESS_POLICY           = 110
+	EGRESS_FORWARD              = 105
+	INGRESS_FORWARD             = 115
+	TO_CLS                      = 140
+	FROM_L7_INGRESS             = 130
+	FROM_L7_EGRESS              = 120
+	SET_PORT_MARK               = 125
 
 	// XX_REG0 has same layout as CT_LABEL
 	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
@@ -154,6 +162,14 @@ type PolicyBridge struct {
 	toLocalTable                   *ofctrl.Table
 
 	ctZoneVDSVal uint64
+	l7EgressPolicyTable            *ofctrl.Table
+	l7IngressPolicyTable           *ofctrl.Table
+	egressForwardTable             *ofctrl.Table
+	ingresForwardTable             *ofctrl.Table
+	toClsTable                     *ofctrl.Table
+	fromL7IngressTable             *ofctrl.Table
+	fromL7EgressTable              *ofctrl.Table
+	setPortMarkTable               *ofctrl.Table
 }
 
 func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
@@ -198,6 +214,14 @@ func (p *PolicyBridge) BridgeInit() {
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
 	p.toLocalTable, _ = sw.NewTable(TO_LOCAL_TABLE)
+	p.l7EgressPolicyTable, _ = sw.NewTable(L7_EGRESS_POLICY)
+	p.l7IngressPolicyTable, _ = sw.NewTable(L7_INGRESS_POLICY)
+	p.egressForwardTable, _ = sw.NewTable(EGRESS_FORWARD)
+	p.ingresForwardTable, _ = sw.NewTable(INGRESS_FORWARD)
+	p.toClsTable, _ = sw.NewTable(TO_CLS)
+	p.fromL7EgressTable, _ = sw.NewTable(FROM_L7_EGRESS)
+	p.fromL7IngressTable, _ = sw.NewTable(FROM_L7_INGRESS)
+	p.setPortMarkTable, _ = sw.NewTable(SET_PORT_MARK)
 
 	// Initialize in reverse order of the flow table order for everoute upgrade
 	if err := p.initToLocalFlow(); err != nil {
@@ -224,7 +248,19 @@ func (p *PolicyBridge) BridgeInit() {
 	if err := p.initPolicyTable(); err != nil {
 		klog.Fatalf("Failed to init policy table, error: %v", err)
 	}
-	if err := p.initPolicyForwardingTable(sw); err != nil {
+	if err := p.InitDuplicateDropFlow(); err != nil {
+		klog.Fatalf("Failed to init drop duplicate packets flow: %s", err)
+	}
+	if err := p.initDefaultFlow(); err != nil {
+		klog.Fatalf("Failed to init default flows: %s", err)
+	}
+
+	if err := p.disableL7Policy(); err != nil {
+		klog.Fatalf("Failed to init disable l7policy flows: %s", err)
+	}
+
+	// finally execute for upgrade from er 3.3
+	if err := p.initPolicyForwardingTable(); err != nil {
 		klog.Fatalf("Failed to init policy forwarding table, error: %v", err)
 	}
 }
@@ -739,37 +775,25 @@ func (p *PolicyBridge) initPolicyTable() error {
 	return nil
 }
 
-func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
+func (p *PolicyBridge) initPolicyForwardingTable() error {
 	localBrName := strings.TrimSuffix(p.name, "-policy")
 	// policy forwarding table
 	fromLocalOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg6,
-				Data:  0,
-				Range: openflow13.NewNXRange(0, 15),
-			},
-		},
 	})
-	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
-	if err := fromLocalOutputFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install from local output flow, error: %v", err)
+	if err := fromLocalOutputFlow.Resubmit(nil, &p.l7EgressPolicyTable.TableId); err != nil {
+		return fmt.Errorf("failed to add resubmit action for from local output flow, error: %s", err)
+	}
+	if err := fromLocalOutputFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install from local output flow, error: %s", err)
 	}
 
 	fromUpstreamOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg6,
-				Data:  0,
-				Range: openflow13.NewNXRange(0, 15),
-			},
-		},
 	})
-	if err := fromUpstreamOutputFlow.Next(p.toLocalTable); err != nil {
+	if err := fromUpstreamOutputFlow.Next(p.l7IngressPolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}
 
@@ -1017,6 +1041,146 @@ func (p *PolicyBridge) initDuplicateDropFlow() error {
 		return fmt.Errorf("failed to install duplicate packets: %s", err)
 	}
 	return nil
+}
+
+func (p *PolicyBridge) InitDuplicateDropFlow() error {
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+	// duplicate packets from Local bridge will drop
+	var pktMask uint32 = 1 << constants.DuplicatePktMarkBit
+	duplicateDropFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
+		InputPort:   p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+		PktMark:     1 << constants.DuplicatePktMarkBit,
+		PktMarkMask: &pktMask,
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3 + 100,
+	})
+	if err := duplicateDropFlow.Next(p.OfSwitch.DropAction()); err != nil {
+		return fmt.Errorf("failed to install duplicate packets")
+	}
+
+	// set pkt mark to local for multicase packets
+	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
+	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
+	if err != nil {
+		return err
+	}
+	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
+	ipv4Flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
+		Ethertype: protocol.IPv4_MSG,
+		IpDa:      &constants.MulticastIPv4,
+		IpDaMask:  &constants.MulticastIPv4Mask,
+		Priority:  HIGH_MATCH_FLOW_PRIORITY,
+	})
+	if err := ipv4Flow.AddAction(pktMarkSetAct, outputAct); err != nil {
+		return err
+	}
+	if err := ipv4Flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+	ipv6Flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
+		Ethertype:  protocol.IPv6_MSG,
+		Ipv6Da:     &constants.MulticastIPv6,
+		Ipv6DaMask: &constants.MulticastIPv6Mask,
+		Priority:   HIGH_MATCH_FLOW_PRIORITY,
+	})
+	if err := ipv6Flow.AddAction(pktMarkSetAct, outputAct); err != nil {
+		return err
+	}
+	if err := ipv6Flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *PolicyBridge) initDefaultFlow() error {
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+
+	// table=120
+	f, _ := p.fromL7EgressTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	toSetPortMark := ofctrl.NewResubmitAction(nil, &p.setPortMarkTable.TableId)
+	toCls := ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)
+	if err := f.AddAction(toSetPortMark, toCls); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=130
+	f, _ = p.fromL7IngressTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toLocalTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=141
+	f, _ = p.toLocalTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
+	if err := f.AddAction(outputAct); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=140
+	f, _ = p.toClsTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	outputAct = ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
+	if err := f.AddAction(outputAct); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=100
+	f, _ = p.l7EgressPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=110
+	f, _ = p.l7IngressPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toLocalTable.TableId)); err != nil {
+		return err
+	}
+	return f.Next(ofctrl.NewEmptyElem())
+}
+
+func (p *PolicyBridge) disableL7Policy() error {
+	f, _ := p.egressForwardTable.NewFlow(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	f, _ = p.ingresForwardTable.NewFlow(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toLocalTable.TableId)); err != nil {
+		return err
+	}
+	return f.Next(ofctrl.NewEmptyElem())
 }
 
 func (p *PolicyBridge) BridgeReset() {
