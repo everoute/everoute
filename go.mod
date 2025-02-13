@@ -138,7 +138,7 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250115072618-4f17c6c19f15
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250217055000-b35c08550dbc
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0

@@ -17,6 +17,7 @@ limitations under the License.
 package constants
 
 import (
+	"net"
 	"time"
 )
 
@@ -84,6 +85,8 @@ const (
 	IcmpTypeEcho           uint8 = 8
 	IcmpTypeTimestampReq   uint8 = 13
 	IcmpTypeInformationReq uint8 = 15
+
+	DuplicatePktMarkBit = 31
 )
 
 const (
@@ -91,9 +94,12 @@ const (
 	OVSReg2 = 2
 	OVSReg3 = 3
 	OVSReg4 = 4
-	OVSReg6 = 6
 )
 
 var (
-	AlgNeedModules = []string{"nf_nat_ftp", "nf_conntrack_ftp", "nf_nat_tftp", "nf_conntrack_tftp"}
+	AlgNeedModules    = []string{"nf_nat_ftp", "nf_conntrack_ftp", "nf_nat_tftp", "nf_conntrack_tftp"}
+	MulticastIPv4     = net.IPv4(224, 0, 0, 0)
+	MulticastIPv4Mask = net.IPv4(240, 0, 0, 0)
+	MulticastIPv6     = net.IP{0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	MulticastIPv6Mask = net.IP{0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 )
