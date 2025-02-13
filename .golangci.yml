@@ -2,7 +2,10 @@ linters-settings:
   errcheck:
     # [deprecated] comma-separated list of pairs of the form pkg:regex
     # the regex is used to ignore names within pkg. (default "fmt:.*").
-    exclude-functions: fmt:.*,io/ioutil:^Read.*,io:Close
+    exclude-functions:
+    - fmt:.*
+    - io/ioutil:^Read.*
+    - io:Close
   lll:
     line-length: 170
   funlen:
@@ -19,7 +22,7 @@ linters-settings:
           - github.com
           - k8s.io
           - sigs.k8s.io
-        deny:
+        deny: []
 
 run:
   timeout: 30m
