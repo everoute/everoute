@@ -14,6 +14,10 @@ RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/g
       $GOPATH/src/github.com/everoute/everoute/cmd/everoute-cli/.
 
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+      go build -o bin/erdeploy -ldflags "${GO_LDFLAGS}" \
+      $GOPATH/src/github.com/everoute/everoute/cmd/everoute-deploy/.
+
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
       go build -o bin/everoute-controller -ldflags "${GO_LDFLAGS}" \
       $GOPATH/src/github.com/everoute/everoute/cmd/everoute-controller/.
 
