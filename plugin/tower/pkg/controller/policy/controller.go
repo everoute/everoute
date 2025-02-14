@@ -1614,6 +1614,7 @@ func (c *Controller) appliedPeersAsPolicyPeers(appliedPeers []v1alpha1.ApplyToPe
 		peer := v1alpha1.SecurityPolicyPeer{
 			Endpoint:         namespacedEndpoint,
 			EndpointSelector: appliedPeer.EndpointSelector,
+			IPBlock:          appliedPeer.IPBlock,
 			DisableSymmetric: disableSymmetric,
 		}
 		if appliedPeer.EndpointSelector != nil && !appliedPeer.EndpointSelector.MatchNothing {
@@ -1684,6 +1685,10 @@ func parseIPBlock(ipBlock string, excepts []string) ([]*networkingv1.IPBlock, er
 
 func formatIPBlock(ipBlock string) ([]string, error) {
 	ipBlock = strings.TrimSpace(ipBlock)
+
+	if ipBlock == "" {
+		return []string{}, nil
+	}
 
 	// for ip block
 	_, _, err := net.ParseCIDR(ipBlock)
