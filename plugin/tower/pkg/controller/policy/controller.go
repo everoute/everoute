@@ -1642,12 +1642,9 @@ func parseIPBlock(ipBlock string, exceptsStr []string) ([]*networkingv1.IPBlock,
 	var block []*networkingv1.IPBlock
 	var exceptAll []string
 	var excepts []string
-	
+
 	for _, exceptItem := range exceptsStr {
-		exceptItem = strings.Trim(exceptItem, ",")
-		for _, item := range strings.Split(exceptItem, ",") {
-			excepts = append(excepts, item)
-		}
+		excepts = append(excepts, strings.Split(strings.Trim(exceptItem, ","), ",")...)
 	}
 
 	for _, item := range excepts {
@@ -1665,6 +1662,8 @@ func parseIPBlock(ipBlock string, exceptsStr []string) ([]*networkingv1.IPBlock,
 		if err != nil {
 			return nil, err
 		}
+
+	cidrLoop:
 		for _, cidr := range cidrs {
 			_, cidrNet, _ := net.ParseCIDR(cidr)
 			var exceptValid []string
@@ -1678,6 +1677,9 @@ func parseIPBlock(ipBlock string, exceptsStr []string) ([]*networkingv1.IPBlock,
 					cidrNet.Contains(ipaddr.NewPrefix(exceptItemCidr).Last()) ||
 					exceptItemCidr.Contains(cidrNet.IP) ||
 					exceptItemCidr.Contains(ipaddr.NewPrefix(cidrNet).Last()) {
+					if cidr == exceptItem {
+						continue cidrLoop
+					}
 					exceptValid = append(exceptValid, exceptItem)
 				}
 			}

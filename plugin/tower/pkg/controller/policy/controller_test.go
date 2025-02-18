@@ -216,9 +216,11 @@ var _ = Describe("PolicyController", func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					ingress = NewNetworkPolicyRule("tcp", "20-80", &networkingv1.IPBlock{
 						CIDR: "192.168.0.0/24,192.168.1.1,192.168.3.1-192.168.3.100," +
-							"2401::192:168:0:0/112,2401::192:168:1:1,2401::192:168:3:1-2401::192:168:3:100",
+							"2401::192:168:0:0/112,2401::192:168:1:1,2401::192:168:3:1-2401::192:168:3:100," +
+							"192.168.200.1,2401::192.168.200.1",
 						Except: []string{"192.168.3.1-192.168.3.20", "192.168.0.0/24",
-							"2401::192:168:3:1-2401::192:168:3:20", "2401::192:168:0:0/112"}}, nil)
+							"2401::192:168:3:1-2401::192:168:3:20", "2401::192:168:0:0/112", "192.168.200.1",
+							"2401::192.168.200.1"}}, nil)
 					egress = NewNetworkPolicyRule("udp", "123", &networkingv1.IPBlock{
 						CIDR: "192.168.1.0/24,192.168.4.1-192.168.4.100," +
 							"2401::192:168:1:0/112,2401::192:168:4:1-2401::192:168:4:100"}, nil)
@@ -226,25 +228,25 @@ var _ = Describe("PolicyController", func() {
 					policy.Egress = append(policy.Egress, *egress)
 
 					ingressBlock = []*networkingv1.IPBlock{
-						{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.0/24"}},
+						//{CIDR: "192.168.0.0/24", Except: []string{"192.168.0.0/24"}},
 						{CIDR: "192.168.1.1/32", Except: []string{}},
-						{CIDR: "192.168.3.1/32", Except: []string{"192.168.3.1/32"}},
-						{CIDR: "192.168.3.2/31", Except: []string{"192.168.3.2/31"}},
-						{CIDR: "192.168.3.4/30", Except: []string{"192.168.3.4/30"}},
-						{CIDR: "192.168.3.8/29", Except: []string{"192.168.3.8/29"}},
+						//{CIDR: "192.168.3.1/32", Except: []string{"192.168.3.1/32"}},
+						//{CIDR: "192.168.3.2/31", Except: []string{"192.168.3.2/31"}},
+						//{CIDR: "192.168.3.4/30", Except: []string{"192.168.3.4/30"}},
+						//{CIDR: "192.168.3.8/29", Except: []string{"192.168.3.8/29"}},
 						{CIDR: "192.168.3.16/28", Except: []string{"192.168.3.16/30", "192.168.3.20/32"}},
 						{CIDR: "192.168.3.32/27", Except: []string{}},
 						{CIDR: "192.168.3.64/27", Except: []string{}},
 						{CIDR: "192.168.3.96/30", Except: []string{}},
 						{CIDR: "192.168.3.100/32", Except: []string{}},
 
-						{CIDR: "2401::192:168:0:0/112", Except: []string{"2401::192:168:0:0/112"}},
+						//{CIDR: "2401::192:168:0:0/112", Except: []string{"2401::192:168:0:0/112"}},
 						{CIDR: "2401::192:168:1:1/128", Except: []string{}},
-						{CIDR: "2401::192:168:3:1/128", Except: []string{"2401::192:168:3:1/128"}},
-						{CIDR: "2401::192:168:3:2/127", Except: []string{"2401::192:168:3:2/127"}},
-						{CIDR: "2401::192:168:3:4/126", Except: []string{"2401::192:168:3:4/126"}},
-						{CIDR: "2401::192:168:3:8/125", Except: []string{"2401::192:168:3:8/125"}},
-						{CIDR: "2401::192:168:3:10/124", Except: []string{"2401::192:168:3:10/124"}},
+						//{CIDR: "2401::192:168:3:1/128", Except: []string{"2401::192:168:3:1/128"}},
+						//{CIDR: "2401::192:168:3:2/127", Except: []string{"2401::192:168:3:2/127"}},
+						//{CIDR: "2401::192:168:3:4/126", Except: []string{"2401::192:168:3:4/126"}},
+						//{CIDR: "2401::192:168:3:8/125", Except: []string{"2401::192:168:3:8/125"}},
+						//{CIDR: "2401::192:168:3:10/124", Except: []string{"2401::192:168:3:10/124"}},
 						{CIDR: "2401::192:168:3:20/123", Except: []string{"2401::192:168:3:20/128"}},
 						{CIDR: "2401::192:168:3:40/122", Except: []string{}},
 						{CIDR: "2401::192:168:3:80/121", Except: []string{}},
@@ -1518,8 +1520,8 @@ var _ = Describe("PolicyController", func() {
 
 			ipGroup = NewSecurityGroup(everouteCluster)
 			ipGroup.MemberType = lo.ToPtr(schema.IPGroupType)
-			ipGroup.IPs = "10.0.0.0/16"
-			ipGroup.ExcludeIPs = "10.0.0.0-10.0.127.255"
+			ipGroup.IPs = "10.0.0.0/16,2401::10.0.0.0/127,192.168.200.1,2401::192.168.200.1"
+			ipGroup.ExcludeIPs = "10.0.0.0-10.0.127.255,192.168.200.1,2401::192.168.200.1"
 
 			emptyGroup = NewSecurityGroup(everouteCluster)
 			emptyLabelsGroup = NewSecurityGroup(everouteCluster)
@@ -1659,8 +1661,11 @@ var _ = Describe("PolicyController", func() {
 						IPBlock: &networkingv1.IPBlock{
 							CIDR:   "10.0.0.0/16",
 							Except: []string{"10.0.0.0/17"},
-						},
-					},
+						}},
+					v1alpha1.ApplyToPeer{
+						IPBlock: &networkingv1.IPBlock{
+							CIDR: "2401::10.0.0.0/127",
+						}},
 				)
 			})
 			When("update ip security group without except", func() {
@@ -1674,14 +1679,19 @@ var _ = Describe("PolicyController", func() {
 						nil,
 						nil,
 						v1alpha1.ApplyToPeer{
-							IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/16"},
-						},
+							IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/16"}},
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{CIDR: "2401::10.0.0.0/127"}},
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{CIDR: "192.168.200.1/32"}},
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{CIDR: "2401::192.168.200.1/128"}},
 					)
 				})
 			})
 			When("update ip security group with multi excepts", func() {
 				BeforeEach(func() {
-					ipGroup.ExcludeIPs = "10.0.0.0/18,10.0.0.64/18"
+					ipGroup.ExcludeIPs = "10.0.0.0/18,10.0.0.64/18,192.168.200.1/32,2401::192.168.200.1/128"
 					server.TrackerFactory().SecurityGroup().CreateOrUpdate(ipGroup)
 				})
 				It("should update security policy", func() {
@@ -1690,7 +1700,11 @@ var _ = Describe("PolicyController", func() {
 						nil,
 						nil,
 						v1alpha1.ApplyToPeer{
-							IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/16"},
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "10.0.0.0/16", Except: []string{"10.0.0.0/18", "10.0.0.64/18"}},
+						},
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{CIDR: "2401::10.0.0.0/127"},
 						},
 					)
 				})
@@ -1704,18 +1718,28 @@ var _ = Describe("PolicyController", func() {
 				It("should update security policy", func() {
 					assertPoliciesNum(ctx, 1)
 					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
-						&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{{
-							IPBlock: &networkingv1.IPBlock{
+						&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{
+							{IPBlock: &networkingv1.IPBlock{
 								CIDR:   "10.0.0.0/16",
-								Except: []string{"10.0.0.0/17"}}}}},
-						&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{
-							IPBlock: &networkingv1.IPBlock{
+								Except: []string{"10.0.0.0/17"}}},
+							{IPBlock: &networkingv1.IPBlock{
+								CIDR: "2401::10.0.0.0/127"}},
+						}},
+						&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{
+							{IPBlock: &networkingv1.IPBlock{
 								CIDR:   "10.0.0.0/16",
-								Except: []string{"10.0.0.0/17"}}}}},
+								Except: []string{"10.0.0.0/17"}}},
+							{IPBlock: &networkingv1.IPBlock{
+								CIDR: "2401::10.0.0.0/127"}},
+						}},
 						v1alpha1.ApplyToPeer{
 							IPBlock: &networkingv1.IPBlock{
 								CIDR:   "10.0.0.0/16",
 								Except: []string{"10.0.0.0/17"}},
+						},
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "2401::10.0.0.0/127"},
 						},
 					)
 				})
