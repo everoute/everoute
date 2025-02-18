@@ -1638,9 +1638,17 @@ func (c *Controller) getGlobalWhitelistPolicyKey() string {
 	return c.namespace + "/" + GlobalWhitelistPolicyName
 }
 
-func parseIPBlock(ipBlock string, excepts []string) ([]*networkingv1.IPBlock, error) {
+func parseIPBlock(ipBlock string, exceptsStr []string) ([]*networkingv1.IPBlock, error) {
 	var block []*networkingv1.IPBlock
 	var exceptAll []string
+	var excepts []string
+	
+	for _, exceptItem := range exceptsStr {
+		exceptItem = strings.Trim(exceptItem, ",")
+		for _, item := range strings.Split(exceptItem, ",") {
+			excepts = append(excepts, item)
+		}
+	}
 
 	for _, item := range excepts {
 		cidr, err := formatIPBlock(item)
