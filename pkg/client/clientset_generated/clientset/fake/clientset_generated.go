@@ -36,6 +36,8 @@ import (
 	fakesecurityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1/fake"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1"
 	fakeservicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1/fake"
+	servicechainv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/servicechain/v1alpha1"
+	fakeservicechainv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/servicechain/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.
@@ -111,4 +113,9 @@ func (c *Clientset) SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interfac
 // ServiceV1alpha1 retrieves the ServiceV1alpha1Client
 func (c *Clientset) ServiceV1alpha1() servicev1alpha1.ServiceV1alpha1Interface {
 	return &fakeservicev1alpha1.FakeServiceV1alpha1{Fake: &c.Fake}
+}
+
+// ServicechainV1alpha1 retrieves the ServicechainV1alpha1Client
+func (c *Clientset) ServicechainV1alpha1() servicechainv1alpha1.ServicechainV1alpha1Interface {
+	return &fakeservicechainv1alpha1.FakeServicechainV1alpha1{Fake: &c.Fake}
 }
