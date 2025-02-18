@@ -1679,6 +1679,22 @@ var _ = Describe("PolicyController", func() {
 					)
 				})
 			})
+			When("update ip security group with multi excepts", func() {
+				BeforeEach(func() {
+					ipGroup.ExcludeIPs = "10.0.0.0/18,10.0.0.64/18"
+					server.TrackerFactory().SecurityGroup().CreateOrUpdate(ipGroup)
+				})
+				It("should update security policy", func() {
+					assertPoliciesNum(ctx, 1)
+					assertHasPolicy(ctx, constants.Tier2, true, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						nil,
+						nil,
+						v1alpha1.ApplyToPeer{
+							IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/16"},
+						},
+					)
+				})
+			})
 			When("update ip security group in egress and ingress peer", func() {
 				BeforeEach(func() {
 					policy.Egress = []schema.NetworkPolicyRule{*NewNetworkPolicyRule("", "", nil, ipGroup)}
