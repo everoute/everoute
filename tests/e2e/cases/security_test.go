@@ -94,6 +94,7 @@ var _ = Describe("SecurityPolicy", func() {
 				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
 
 				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+				setupPolicyCopy(nginxPolicy, serverPolicy, dbPolicy)
 			})
 
 			It("should allow normal packets and limits illegal packets", func() {
@@ -204,6 +205,7 @@ var _ = Describe("SecurityPolicy", func() {
 				addEngressRule(dbPolicy, "TCP", dbPort, dbSelector)
 
 				Expect(e2eEnv.SetupObjects(ctx, nginxPolicy, serverPolicy, dbPolicy)).Should(Succeed())
+				setupPolicyCopy(nginxPolicy, serverPolicy, dbPolicy)
 			})
 
 			It("should allow all packets", func() {
@@ -1245,6 +1247,19 @@ func newPolicy(name, tier string, defaultRule securityv1alpha1.DefaultRuleType, 
 	}
 
 	return policy
+}
+
+func setupPolicyCopy(policyList ...*securityv1alpha1.SecurityPolicy) {
+	for _, policy := range policyList {
+		policyCopy := policy.DeepCopy()
+		var policyNew securityv1alpha1.SecurityPolicy
+		policyNew.Name = policyCopy.Name + "-copy"
+		policyNew.Namespace = policyCopy.Namespace
+		policyNew.Labels = policyCopy.Labels
+		policyNew.Spec = policyCopy.Spec
+
+		Expect(e2eEnv.SetupObjects(ctx, &policyNew)).Should(Succeed())
+	}
 }
 
 func addIngressRule(policy *securityv1alpha1.SecurityPolicy, protocol string, port int, policyPeers ...interface{}) {

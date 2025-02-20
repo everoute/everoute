@@ -239,20 +239,19 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 	if len(rules) == 0 {
 		return nil
 	}
-	var oldRuleList, newRuleList []policycache.PolicyRule
-	var relatedPolicies = sets.New[string]()
 	for i := range rules {
+		var oldRuleList, newRuleList []policycache.PolicyRule
 		rule := rules[i].(*policycache.CompleteRule)
-
-		relatedPolicies.Insert(rule.Policy)
 
 		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache)...)
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
 		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
 		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
+		if err := r.syncPolicyRulesUntilSuccess(ctx, []string{rule.Policy}, oldRuleList, newRuleList); err != nil {
+			return err
+		}
 	}
-
-	return r.syncPolicyRulesUntilSuccess(ctx, relatedPolicies.UnsortedList(), oldRuleList, newRuleList)
+	return nil
 }
 
 //nolint:all
