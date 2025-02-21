@@ -128,7 +128,8 @@ codegen: manifests
 		--api-versions group/v1alpha1 \
 		--api-versions security/v1alpha1 \
 		--api-versions service/v1alpha1 \
-		--api-versions pod/v1alpha1
+		--api-versions pod/v1alpha1 \
+		--api-versions servicechain/v1alpha1
 	deepcopy-gen --go-header-file hack/boilerplate.generatego.txt -O zz_generated.deepcopy --input-dirs ./pkg/labels/...
 
 # Generate plugin-tower gql codes
@@ -152,6 +153,7 @@ manifests:
 	$(CONTROLLER_GEN) crd paths="./pkg/apis/..." output:crd:dir=deploy/chart/templates/crds output:stdout
 	rm -rf deploy/microsegment && mkdir deploy/microsegment && cp -r deploy/chart deploy/microsegment/chart
 	mkdir -p deploy/base/chart/templates/crds && mv deploy/microsegment/chart/templates/crds/security.everoute.io_shareips.yaml deploy/base/chart/templates/crds/
+	mkdir -p deploy/servicechain/chart/templates/crds && cp deploy/chart/templates/crds/servicechain.everoute.io_trafficredirects.yaml deploy/servicechain/chart/templates/crds/
 
 # Run go fmt against code
 fmt:
