@@ -65,9 +65,16 @@ type CNIConf struct {
 }
 
 type vdsConfig struct {
-	BrideName string `yaml:"bridgeName"`
-	EnableDPI bool   `yaml:"enableDPI"`
-	EnableMS  bool   `yaml:"enableMS"`
+	BrideName string      `yaml:"bridgeName"`
+	EnableMS  bool        `yaml:"enableMS"`
+	DPIs      []dpiConfig `yaml:"dpis"`
+}
+
+type dpiConfig struct {
+	Provider string `yaml:"provider"`
+	Instance string `yaml:"instance"`
+	NicIn    string `yaml:"nicIn"`
+	NicOut   string `yaml:"nicOut"`
 }
 
 type agentConfig struct {
