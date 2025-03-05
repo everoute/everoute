@@ -10,6 +10,12 @@ message ArpResponse {
   string br_name = 3;
 }
 
+message NdpResponse {
+  bytes pkt = 1;
+  uint32 in_port = 2;
+  string br_name = 3;
+}
+
 message PolicyRequest{
   repeated uint64 flowIDs = 1;
 }
@@ -41,6 +47,9 @@ message ChainBridgeResp{
 
 service Collector {
   rpc ArpStream (google.protobuf.Empty) returns (stream ArpResponse) {
+  }
+
+  rpc NdpStream (google.protobuf.Empty) returns (stream NdpResponse) {
   }
 
   rpc Policy (PolicyRequest) returns (PolicyResponse) {

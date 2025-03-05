@@ -155,6 +155,7 @@ const (
 	MaxRoundNum = 15
 
 	MaxArpChanCache = 100
+	MaxNDPChanCache = 100
 	ArpLimiterRate  = 5000
 
 	MaxCleanConntrackChanSize = 5000
@@ -253,6 +254,7 @@ type DpManager struct {
 	cleanConntrackChanV6 chan EveroutePolicyRuleForCT // clean conntrack entries for rule in chan
 
 	ArpChan    chan ArpInfo
+	NdpChan    chan NdpInfo
 	ArpLimiter *rate.Limiter
 
 	AgentMetric *metrics.AgentMetric
@@ -346,6 +348,14 @@ type ArpInfo struct {
 	BrName string
 }
 
+type NdpInfo struct {
+	// Port Info
+	InPort uint32
+	BrName string
+
+	Pkt ndp.Message
+}
+
 // Datapath manager act as openflow controller:
 // 1. event driven local endpoint info crud and related flow update,
 // 2. collect local endpoint ip learned from different ovsbr(1 per vds), and sync it to management plane
@@ -367,6 +377,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRuleForCT, MaxCleanConntrackChanSize)
 	datapathManager.cleanConntrackChanV6 = make(chan EveroutePolicyRuleForCT, MaxCleanConntrackChanSize)
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
+	datapathManager.NdpChan = make(chan NdpInfo, MaxArpChanCache)
 	datapathManager.ArpLimiter = rate.NewLimiter(rate.Every(time.Second/ArpLimiterRate), ArpLimiterRate)
 	datapathManager.proxyReplayFunc = func() {}
 	datapathManager.overlayReplayFunc = func() {}

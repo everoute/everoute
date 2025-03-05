@@ -173,6 +173,15 @@ func (l *LocalBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
 			l4Pkt.Type() == ipv6.ICMPTypeNeighborAdvertisement {
 			l.processIPLearn(l3Pkt.NWSrc, pkt.Data.HWSrc, pkt.Data.VLANID.VID, inPort)
 		}
+
+		select {
+		case l.datapathManager.NdpChan <- NdpInfo{
+			InPort: inPort,
+			BrName: l.name,
+			Pkt:    l4Pkt,
+		}:
+		default: // Non-block when arpChan is full
+		}
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
+	"github.com/mdlayher/ndp"
 )
 
 type Collector struct {
@@ -44,6 +45,32 @@ func (c *Collector) ArpStream(_ *emptypb.Empty, srv v1alpha1.Collector_ArpStream
 				Pkt:    b,
 				InPort: arp.InPort,
 				BrName: arp.BrName,
+			}
+			if err := srv.Send(&resp); err != nil {
+				klog.Infof("send error %v", err)
+				return nil
+			}
+
+		case <-c.stopChan:
+			return nil
+		}
+	}
+}
+
+func (c *Collector) NdpStream(_ *emptypb.Empty, srv v1alpha1.Collector_NdpStreamServer) error {
+	klog.Info("receive collector client, start arp stream")
+	for {
+		select {
+		case n := <-c.dpManager.NdpChan:
+			b, err := ndp.MarshalMessage(n.Pkt)
+			// b, err := ndp.Pkt.MarshalBinary()
+			if err != nil {
+				continue
+			}
+			resp := v1alpha1.NdpResponse{
+				Pkt:    b,
+				InPort: n.InPort,
+				BrName: n.BrName,
 			}
 			if err := srv.Send(&resp); err != nil {
 				klog.Infof("send error %v", err)
