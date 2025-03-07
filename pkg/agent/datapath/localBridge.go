@@ -1038,6 +1038,9 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 	if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
 		return err
 	}
+	if err := l.MarkPacketSourceBridge(vlanInputTableFromLocalFlow); err != nil {
+		return err
+	}
 	if endpoint.VlanID != 0 {
 		if err := vlanInputTableFromLocalFlow.SetVlan(endpoint.VlanID); err != nil {
 			return err
@@ -1093,6 +1096,9 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
 			return err
 		}
+		if err := l.MarkPacketSourceBridge(vlanInputTableFromLocalFlow); err != nil {
+			return err
+		}
 
 		if err := vlanInputTableFromLocalFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
 			return err
@@ -1116,6 +1122,9 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow1, endpoint); err != nil {
 			return err
 		}
+		if err := l.MarkPacketSourceBridge(vlanInputTableFromLocalFlow1); err != nil {
+			return err
+		}
 
 		if err := vlanInputTableFromLocalFlow1.LoadField("nxm_nx_reg3", uint64(1),
 			openflow13.NewNXRange(0, 1)); err != nil {
@@ -1137,6 +1146,9 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 			InputPort: endpoint.PortNo,
 		})
 		if err := l.storePortNumberByPktMark(vlanInputTableFromLocalFlow, endpoint); err != nil {
+			return err
+		}
+		if err := l.MarkPacketSourceBridge(vlanInputTableFromLocalFlow); err != nil {
 			return err
 		}
 
@@ -1200,4 +1212,14 @@ func (l *LocalBridge) storePortNumberByPktMark(f *ofctrl.Flow, ep *Endpoint) err
 	}
 
 	return f.LoadField("nxm_nx_pkt_mark", uint64(ep.PortNo), openflow13.NewNXRange(0, 15))
+}
+
+// MarkPacketSourceBridge marks the packet source bridge with 0x2(local bridge)
+// http://jira.smartx.com/browse/ER-1128
+func (l *LocalBridge) MarkPacketSourceBridge(f *ofctrl.Flow) error {
+	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", 0x2, openflow13.NewNXRange(17, 18))
+	if err != nil {
+		return fmt.Errorf("failed to create source action, error: %v", err)
+	}
+	return f.AddAction(markPacketSourceBridgeAction)
 }
