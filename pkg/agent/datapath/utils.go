@@ -271,6 +271,9 @@ func uintToByteBigEndian(src interface{}) []byte {
 	var res []byte
 
 	switch src := src.(type) {
+	case uint8:
+		res = make([]byte, 1)
+		res[0] = src
 	case uint16:
 		res = make([]byte, 2)
 		binary.BigEndian.PutUint16(res, src)
