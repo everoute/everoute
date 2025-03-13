@@ -63,13 +63,14 @@ type SharedInformerFactory interface {
 }
 
 // NewSharedInformerFactory constructs a new instance of sharedInformerFactory for all resources
-func NewSharedInformerFactory(client *client.Client, defaultResync time.Duration) SharedInformerFactory {
+func NewSharedInformerFactory(client *client.Client, defaultResync time.Duration, crcFactory *CrcFactory) SharedInformerFactory {
 	factory := &sharedInformerFactory{
 		client:           client,
 		defaultResync:    defaultResync,
 		informers:        make(map[reflect.Type]cache.SharedIndexInformer),
 		startedInformers: make(map[reflect.Type]bool),
 		customResync:     make(map[reflect.Type]time.Duration),
+		crcFactory:       crcFactory,
 	}
 	return factory
 }
@@ -84,6 +85,8 @@ type sharedInformerFactory struct {
 	// startedInformers is used for tracking which informers have been started.
 	// This allows Start() to be called multiple times safely.
 	startedInformers map[reflect.Type]bool
+
+	crcFactory *CrcFactory
 }
 
 // Start implements SharedInformerFactory.Start
@@ -162,7 +165,7 @@ func (f *sharedInformerFactory) InformerFor(obj schema.Object) cache.SharedIndex
 		resyncPeriod = f.defaultResync
 	}
 
-	sharedInformer = defaultNewInformerFunc(f.client, obj, resyncPeriod)
+	sharedInformer = defaultNewInformerFunc(f.client, obj, resyncPeriod, f.crcFactory)
 	f.informers[informerType] = sharedInformer
 
 	return sharedInformer
@@ -192,8 +195,8 @@ func (f *sharedInformerFactory) Service() cache.SharedIndexInformer {
 	return f.InformerFor(&schema.NetworkPolicyRuleService{})
 }
 
-func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	var newReflectorFunc = NewReflectorBuilder(c)
+func defaultNewInformerFunc(c *client.Client, obj schema.Object, resyncPeriod time.Duration, crcFactory *CrcFactory) cache.SharedIndexInformer {
+	var newReflectorFunc = NewReflectorBuilder(c, crcFactory.RegisterEvent(reflect.TypeOf(obj)))
 	return informer.NewSharedIndexInformer(newReflectorFunc, obj, TowerObjectKey, resyncPeriod, cache.Indexers{})
 }
 

@@ -102,7 +102,7 @@ func New(
 ) *Controller {
 	vmInformer := towerFactory.VM()
 	labelInformer := towerFactory.Label()
-	endpointInforer := crdFactory.Security().V1alpha1().Endpoints().Informer()
+	endpointInformer := crdFactory.Security().V1alpha1().Endpoints().Informer()
 	systemEndpointInformer := towerFactory.SystemEndpoints()
 	erClusterInformer := towerFactory.EverouteCluster()
 
@@ -116,9 +116,9 @@ func New(
 		labelInformer:          labelInformer,
 		labelLister:            labelInformer.GetIndexer(),
 		labelInformerSynced:    labelInformer.HasSynced,
-		endpointInformer:       endpointInforer,
-		endpointLister:         endpointInforer.GetIndexer(),
-		endpointInformerSynced: endpointInforer.HasSynced,
+		endpointInformer:       endpointInformer,
+		endpointLister:         endpointInformer.GetIndexer(),
+		endpointInformerSynced: endpointInformer.HasSynced,
 		endpointQueue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 
 		systemEndpointInformer:        systemEndpointInformer,
@@ -139,7 +139,7 @@ func New(
 		vmIndex: c.vmIndexFunc,
 	})
 
-	_ = endpointInforer.AddIndexers(cache.Indexers{
+	_ = endpointInformer.AddIndexers(cache.Indexers{
 		vmIndex: c.vmIndexFuncForEndpoint,
 	})
 
@@ -164,7 +164,7 @@ func New(
 	// Why we handle endpoint events ?
 	// 1. When controller restart, vm delete event may lose. The handler would enqueue all endpoints for synchronization.
 	// 2. If endpoints unexpectedly modified by other applications, the controller would find and resync them.
-	_, _ = endpointInforer.AddEventHandlerWithResyncPeriod(
+	_, _ = endpointInformer.AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    c.addEndpoint,
 			UpdateFunc: c.updateEndpoint,

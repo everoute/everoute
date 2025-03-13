@@ -69,7 +69,7 @@ func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.
 	towerClient.HTTPClient = retryClient.StandardClient()
 
 	// add default task monitor for client
-	towerFactory := informer.NewSharedInformerFactory(towerClient, 0)
+	towerFactory := informer.NewSharedInformerFactory(towerClient, 0, &informer.CrcFactory{})
 	towerClient.TaskMonitor = informer.NewTaskMonitor(towerFactory)
 	towerFactory.Start(make(chan struct{}))
 

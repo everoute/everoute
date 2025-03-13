@@ -42,7 +42,7 @@ import (
 )
 
 // NewReflectorBuilder return a NewReflectorFunc with giving client
-func NewReflectorBuilder(client *client.Client) informer.NewReflectorFunc {
+func NewReflectorBuilder(client *client.Client, crcEvent chan *CrcEvent) informer.NewReflectorFunc {
 	return func(options *informer.ReflectorOptions) informer.Reflector {
 		return &reflector{
 			client:     client,
@@ -57,6 +57,7 @@ func NewReflectorBuilder(client *client.Client) informer.NewReflectorFunc {
 			clock:          options.Clock,
 			reconnectMin:   time.Minute * 30,
 			reconnectMax:   time.Minute * 60,
+			crcEvent:       crcEvent,
 		}
 	}
 }
@@ -90,6 +91,8 @@ type reflector struct {
 	shouldResync cache.ShouldResyncFunc
 	// clock allows tests to manipulate time
 	clock clock.Clock
+
+	crcEvent chan *CrcEvent
 }
 
 // Run repeatedly fetch all the objects and subsequent deltas.
@@ -98,7 +101,53 @@ func (r *reflector) Run(stopCh <-chan struct{}) {
 	klog.Infof("start reflector for object %s, with client %v", r.expectType.TypeName(), r.client.URL)
 	defer klog.Infof("stop reflector for object %s, with client %v", r.expectType.TypeName(), r.client.URL)
 
-	wait.BackoffUntil(r.reflectWorker(stopCh), r.backoffManager, true, stopCh)
+	go wait.BackoffUntil(r.reflectWorker(stopCh), r.backoffManager, true, stopCh)
+	go r.crcEventHandler(stopCh)
+
+	<-stopCh
+}
+
+func (r *reflector) crcEventHandler(stopCh <-chan struct{}) {
+	klog.Infof("start crc event handler for %s", r.expectType)
+
+	if r.crcEvent == nil {
+		klog.Fatalf("fail to register crc event for %s", r.expectType)
+		return
+	}
+	for {
+		select {
+		case event := <-r.crcEvent:
+			var newObj any
+			var err error
+			if event.NewObj != nil {
+				ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*10)
+				newObj, err = r.query(ctx, event.NewObj.GetID())
+				ctxCancel()
+				if err != nil || newObj == nil {
+					klog.Errorf("unable to query %s %s: %s", r.expectType, event.NewObj.GetID(), err)
+					continue
+				}
+			}
+
+			klog.V(4).Infof("get %s crc event of type %s: new %+v old %+v",
+				event.EventType, r.expectType.TypeName(), event.NewObj, event.OldObj)
+
+			switch event.EventType {
+			case CrcEventInsert:
+				_ = r.store.Add(newObj)
+			case CrcEventUpdate:
+				if newObj != nil {
+					_ = r.store.Update(newObj)
+				}
+			case CrcEventDelete:
+				_ = r.store.Delete(event.OldObj)
+			default:
+				klog.Infof("reflector %s unknown event %+v", r.expectType, event)
+			}
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 // LastSyncResourceVersion not support by gql server.
@@ -125,6 +174,27 @@ func contextWithRandomTimeout(ctx context.Context, minTimeout, maxTimeout time.D
 		return context.WithCancel(ctx)
 	}
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (r *reflector) query(ctx context.Context, id string) (any, error) {
+	resp, err := r.client.Query(ctx, r.queryRequestWithID(id))
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Errors) != 0 {
+		return nil, fmt.Errorf("query error, %v", resp.Errors)
+	}
+
+	jsonMap := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(resp.Data, &jsonMap); err != nil {
+		return nil, err
+	}
+
+	list, err := r.unmarshalList(jsonMap[r.expectType.ListName()])
+	if err == nil && len(list) == 1 {
+		return list[0], nil
+	}
+	return nil, nil
 }
 
 func (r *reflector) listAndWatch(ctx context.Context) ([]client.ResponseError, error) {
@@ -270,23 +340,30 @@ func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.Res
 	}
 }
 
-// syncWith replaces the store's items with the given json RawMessage.
-func (r *reflector) syncWith(raw json.RawMessage) error {
+func (r *reflector) unmarshalList(raw json.RawMessage) ([]any, error) {
 	list := reflect.New(reflect.SliceOf(r.expectType.Type))
 
 	err := unmarshalSlice(r.expectType.Type, raw, list.Interface())
 	if err != nil {
-		return fmt.Errorf("unable marshal %s into slices of %s", string(raw), r.expectType.TypeName())
+		return nil, err
 	}
 
 	items := list.Elem()
-	found := make([]interface{}, 0, items.Len())
+	found := make([]any, 0, items.Len())
 
 	for i := 0; i < items.Len(); i++ {
 		found = append(found, items.Index(i).Interface())
 	}
+	return found, nil
+}
 
-	return r.store.Replace(found, r.LastSyncResourceVersion())
+// syncWith replaces the store's items with the given json RawMessage.
+func (r *reflector) syncWith(raw json.RawMessage) error {
+	list, err := r.unmarshalList(raw)
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal %s into list %s", string(raw), r.expectType.TypeName())
+	}
+	return r.store.Replace(list, r.LastSyncResourceVersion())
 }
 
 // resyncWorker will resync store when every after resyncPeriod and shouldResync
@@ -345,6 +422,11 @@ func (r *reflector) queryRequest() *client.Request {
 	}
 
 	return &client.Request{Query: queryRequest}
+}
+
+func (r *reflector) queryRequestWithID(id string) *client.Request {
+	return &client.Request{
+		Query: fmt.Sprintf("query {%s(where:{id:\"%s\"}) %s}", r.expectType.ListName(), id, r.expectType.QueryFields(r.skipFields))}
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {

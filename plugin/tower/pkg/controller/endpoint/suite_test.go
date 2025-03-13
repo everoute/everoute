@@ -57,7 +57,7 @@ var _ = BeforeSuite(func() {
 	server.Serve()
 	crdClient = fake.NewSimpleClientset()
 
-	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0)
+	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0, &informer.CrcFactory{})
 	crdFactory := externalversions.NewSharedInformerFactory(crdClient, 0)
 
 	By("create and start EndpointController")

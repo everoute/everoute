@@ -350,10 +350,14 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}, isInInitialList bool
 				s.processor.distribute(addNotification{newObj: d.Object, isInInitialList: isInInitialList}, false)
 			}
 		case cache.Deleted:
+			delNotify := deleteNotification{oldObj: d.Object}
+			if item, exist, err := s.indexer.Get(d.Object); exist && err == nil {
+				delNotify.oldObj = item
+			}
 			if err := s.indexer.Delete(d.Object); err != nil {
 				return err
 			}
-			s.processor.distribute(deleteNotification{oldObj: d.Object}, false)
+			s.processor.distribute(delNotify, false)
 		}
 	}
 	return nil

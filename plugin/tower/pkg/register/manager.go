@@ -80,6 +80,8 @@ func InitFlags(opts *Options, flagset *flag.FlagSet, flagPrefix string) {
 	flagset.BoolVar(&opts.Client.AllowInsecure, withPrefix("allow-insecure"), true, "Tower allow-insecure for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Source, withPrefix("usersource"), os.Getenv("TOWER_USERSOURCE"), "Tower user source for authenticate")
 	flagset.StringVar(&opts.Client.UserInfo.Password, withPrefix("password"), os.Getenv("TOWER_PASSWORD"), "Tower user password for authenticate")
+	flagset.StringVar(&opts.Client.APIUsername, withPrefix("api-username"), "admin", "Tower api user name for authenticate")
+	flagset.StringVar(&opts.Client.APIPassword, withPrefix("api-password"), "cloudtower", "Tower api user password for authenticate")
 	flagset.StringVar(&opts.Client.TokenFile, withPrefix("token-file"), msconst.DefaultTowerTokenFile, "The file to write cloudPlatform token")
 	flagset.StringVar(&opts.Namespace, withPrefix("namespace"), "tower-space", "Namespace which endpoint and security policy should create in")
 	flagset.StringVar(&opts.PodNamespace, withPrefix("pod-namespace"), "sks-sync-object", "Namespace which pod endpoint and security policy in")
@@ -108,13 +110,15 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		return err
 	}
 
+	crcFactory := informer.MustNewCrcFactory(opts.Client)
+
 	k8sClient, err := k8sclientset.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return err
 	}
 	k8sFactory := k8sinformers.NewSharedInformerFactoryWithOptions(k8sClient, opts.ResyncPeriod, k8sinformers.WithNamespace(opts.Namespace))
 	if opts.SharedFactory == nil {
-		opts.SharedFactory = informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod)
+		opts.SharedFactory = informer.NewSharedInformerFactory(opts.Client, opts.ResyncPeriod, crcFactory)
 	}
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod)
@@ -130,6 +134,7 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		return err
 	}
 	err = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		crcFactory.Start(ctx.Done())
 		opts.SharedFactory.Start(ctx.Done())
 		crdFactory.Start(ctx.Done())
 		k8sFactory.Start(ctx.Done())
