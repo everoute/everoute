@@ -51,6 +51,7 @@ const (
 	CT_DROP_TABLE               = 71
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
+	TO_LOCAL_TABLE              = 141
 
 	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
 	RoundNumXXREG0BitEnd                = 3 // codepoint0 bit end
@@ -100,6 +101,7 @@ type PolicyBridge struct {
 	ctDropTable                    *ofctrl.Table
 	sfcPolicyTable                 *ofctrl.Table
 	policyForwardingTable          *ofctrl.Table
+	toLocalTable                   *ofctrl.Table
 }
 
 func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
@@ -138,9 +140,17 @@ func (p *PolicyBridge) BridgeInit() {
 	p.ctDropTable, _ = sw.NewTable(CT_DROP_TABLE)
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
+	p.toLocalTable, _ = sw.NewTable(TO_LOCAL_TABLE)
 
+	// Initialize in reverse order of the flow table order for everoute upgrade
+	if err := p.initToLocalFlow(); err != nil {
+		klog.Fatalf("Failed to init to local table, error: %s", err)
+	}
 	if err := p.initInputTable(sw); err != nil {
 		klog.Fatalf("Failed to init inputTable, error: %v", err)
+	}
+	if err := p.initDuplicateDropFlow(); err != nil {
+		klog.Fatalf("Failed to init duplicate packets drop flow: %s", err)
 	}
 	if err := p.initPassthroughTable(sw); err != nil {
 		klog.Fatalf("Failed to init passthroughTable, error: %v", err)
@@ -595,8 +605,7 @@ func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
 			},
 		},
 	})
-	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
-	if err := fromUpstreamOutputFlow.Next(outputPort); err != nil {
+	if err := fromUpstreamOutputFlow.Next(p.toLocalTable); err != nil {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}
 
@@ -667,6 +676,41 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install tftp ipv6 flow, err: %v", err)
 	}
 
+	return nil
+}
+
+func (p *PolicyBridge) initToLocalFlow() error {
+	// set pkt mark for to local packets
+	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
+	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
+	if err != nil {
+		return err
+	}
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
+	flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
+	})
+	if err := flow.AddAction(pktMarkSetAct, outputAct); err != nil {
+		return err
+	}
+	err = flow.Next(ofctrl.NewEmptyElem())
+	return err
+}
+
+func (p *PolicyBridge) initDuplicateDropFlow() error {
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+	// duplicate packets from Local bridge will drop
+	var pktMask uint32 = 1 << constants.DuplicatePktMarkBit
+	duplicateDropFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
+		InputPort:   p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+		PktMark:     1 << constants.DuplicatePktMarkBit,
+		PktMarkMask: &pktMask,
+		Priority:    HIGH_MATCH_FLOW_PRIORITY + LARGE_FLOW_MATCH_OFFSET + FLOW_MATCH_OFFSET,
+	})
+	if err := duplicateDropFlow.Next(p.OfSwitch.DropAction()); err != nil {
+		return fmt.Errorf("failed to install duplicate packets: %s", err)
+	}
 	return nil
 }
 

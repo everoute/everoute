@@ -17,12 +17,6 @@ import (
 var _ = Describe("elf controller", func() {
 	AfterEach(func() {
 		server.TrackerFactory().ResetAll()
-		err := erClient.CoreV1().ConfigMaps(towerSpace).Delete(ctx, msconst.ComputeClustersConfigMapName, metav1.DeleteOptions{})
-		Expect(err).Should(BeNil())
-		Eventually(func(g Gomega) {
-			res, _ := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
-			g.Expect(res).Should(BeNil())
-		}, timeout, interval).Should(Succeed())
 	})
 
 	Context("add elf ConfigMap", func() {

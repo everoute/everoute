@@ -206,8 +206,8 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 		},
 	})
 
-	outputAction1 := ofctrl.NewOutputAction("outputAction", uint32(openflow13.P_IN_PORT))
-	outputAction2 := ofctrl.NewOutputAction("outputAction", c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
+	outputAction1 := ofctrl.NewOutputAction(uint32(openflow13.P_IN_PORT))
+	outputAction2 := ofctrl.NewOutputAction(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
 	_ = floodingOutputFlow.Output(outputAction1)
 	_ = floodingOutputFlow.Output(outputAction2)
 	if err := floodingOutputFlow.Next(ofctrl.NewEmptyElem()); err != nil {
