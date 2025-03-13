@@ -105,17 +105,24 @@ type EverouteCluster struct {
 	ObjectMeta
 
 	AgentELFClusters    []AgentELFCluster            `json:"agent_elf_clusters"`
-	AgentELFVDSes       []ObjectReference            `json:"agent_elf_vdses,omitempty"`
+	AgentELFVDSes       []AgentELFVDS                `json:"agent_elf_vdses,omitempty"`
 	ControllerInstances []EverouteControllerInstance `json:"controller_instances"`
 	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
 	GlobalWhitelist     EverouteClusterWhitelist     `json:"global_whitelist,omitempty"`
 	EnableLogging       bool                         `json:"enable_logging,omitempty"`
 }
 
+type AgentELFVDS struct {
+	ObjectMeta
+
+	EverouteClusterRef ObjectReference `json:"everoute_cluster,omitempty"`
+}
+
 type AgentELFCluster struct {
 	ObjectMeta
 
-	LocalID string `json:"local_id"`
+	LocalID            string          `json:"local_id"`
+	EverouteClusterRef ObjectReference `json:"everoute_cluster,omitempty"`
 }
 
 func (e *EverouteCluster) GetELFs() sets.Set[string] {
@@ -161,4 +168,10 @@ type Nic struct {
 	Name       string `json:"name,omitempty"`
 	MacAddress string `json:"mac_address,omitempty"`
 	IPAddress  string `json:"ip_address,omitempty"`
+}
+
+type Relation struct {
+	ObjectMeta
+	A string `json:"A"`
+	B string `json:"B"`
 }

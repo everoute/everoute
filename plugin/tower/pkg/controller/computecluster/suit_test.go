@@ -41,7 +41,7 @@ var _ = BeforeSuite(func() {
 	server.Serve()
 	erClient = fake.NewSimpleClientset()
 
-	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0)
+	towerFactory := informer.NewSharedInformerFactory(server.NewClient(), 0, &informer.CrcFactory{})
 	erFactory := k8sinformers.NewSharedInformerFactoryWithOptions(erClient, 0, k8sinformers.WithNamespace(towerSpace))
 
 	By("create elfController")

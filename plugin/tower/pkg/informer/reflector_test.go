@@ -80,7 +80,7 @@ func TestReflectorWithNotExistField(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	newReflector := NewReflectorBuilder(server.NewClient())(&informer.ReflectorOptions{
+	newReflector := NewReflectorBuilder(server.NewClient(), make(chan *CrcEvent))(&informer.ReflectorOptions{
 		Store:        objectStore,
 		ExpectedType: &VM{},
 		ShouldResync: func() bool { return false },
@@ -111,7 +111,7 @@ func TestReflectorWithNotExistObject(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	newReflector := NewReflectorBuilder(server.NewClient())(&informer.ReflectorOptions{
+	newReflector := NewReflectorBuilder(server.NewClient(), make(chan *CrcEvent))(&informer.ReflectorOptions{
 		Store:        objectFIFO,
 		ExpectedType: &UnExpectedObject{},
 		ShouldResync: func() bool { return false },

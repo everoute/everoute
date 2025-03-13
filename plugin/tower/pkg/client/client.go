@@ -57,6 +57,9 @@ type Client struct {
 	tokenLock sync.RWMutex
 	token     string
 
+	APIUsername string
+	APIPassword string
+
 	TokenFile      string
 	writeTokenLock sync.Mutex
 }

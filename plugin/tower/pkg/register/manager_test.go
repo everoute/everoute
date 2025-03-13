@@ -37,8 +37,13 @@ func TestInitFlags(t *testing.T) {
 	}{
 		"should prase default options": {
 			expectOptions: &Options{
-				Enable:       &boolFalse,
-				Client:       &client.Client{UserInfo: &client.UserInfo{}, AllowInsecure: true, TokenFile: msconst.DefaultTowerTokenFile},
+				Enable: &boolFalse,
+				Client: &client.Client{
+					UserInfo:      &client.UserInfo{},
+					AllowInsecure: true,
+					TokenFile:     msconst.DefaultTowerTokenFile,
+					APIUsername:   "admin",
+					APIPassword:   "cloudtower"},
 				ResyncPeriod: 10 * time.Hour,
 				WorkerNumber: 10,
 				Namespace:    "tower-space",
@@ -60,9 +65,11 @@ func TestInitFlags(t *testing.T) {
 			expectOptions: &Options{
 				Enable: &boolTrue,
 				Client: &client.Client{
-					URL:       "https://127.0.0.1:8800/api",
-					UserInfo:  &client.UserInfo{},
-					TokenFile: "/tmp/test",
+					URL:         "https://127.0.0.1:8800/api",
+					UserInfo:    &client.UserInfo{},
+					TokenFile:   "/tmp/test",
+					APIUsername: "admin",
+					APIPassword: "cloudtower",
 				},
 				ResyncPeriod: time.Second,
 				WorkerNumber: 1,
