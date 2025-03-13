@@ -68,6 +68,7 @@ const (
 	GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY = 40
 	DEFAULT_FLOW_MISS_PRIORITY          = 10
 	FLOW_MATCH_OFFSET                   = 3
+	LARGE_FLOW_MATCH_OFFSET             = 100
 )
 
 //nolint:all
