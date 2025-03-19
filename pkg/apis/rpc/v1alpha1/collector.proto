@@ -39,6 +39,14 @@ message ChainBridgeResp{
   repeated string bridge = 1;
 }
 
+message BridgeIndexRequest{
+  uint64 flowID = 1;
+}
+
+message BridgeIndexResponse{
+  uint32 index = 1;
+}
+
 service Collector {
   rpc ArpStream (google.protobuf.Empty) returns (stream ArpResponse) {
   }
@@ -47,5 +55,8 @@ service Collector {
   }
 
   rpc GetChainBridge (google.protobuf.Empty) returns (ChainBridgeResp){
+  }
+
+  rpc GetBridgeIndexWithFlowID (BridgeIndexRequest) returns (BridgeIndexResponse){
   }
 }
