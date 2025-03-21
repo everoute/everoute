@@ -57,6 +57,26 @@ func (u *UplinkBridge) BridgeInit() {
 	defaultTableDefaultFlow, _ := u.defaultTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
+
+	// http://jira.smartx.com/browse/ER-1128
+	// Mark packet source bridge with 0x3(uplink bridge)
+	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", 0x3, openflow13.NewNXRange(17, 18))
+	if err != nil {
+		log.Fatalf("Failed to create source action, error: %v", err)
+	}
+	if err := defaultTableDefaultFlow.AddAction(markPacketSourceBridgeAction); err != nil {
+		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
+	}
+
+	// Mark Inport
+	markInportAction, err := ofctrl.NewNXMoveAction(16, 0, 0, "nxm_of_in_port", "nxm_nx_pkt_mark", false)
+	if err != nil {
+		log.Fatalf("Failed to create mark inport action, error: %v", err)
+	}
+	if err := defaultTableDefaultFlow.AddAction(markInportAction); err != nil {
+		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
+	}
+
 	if err := defaultTableDefaultFlow.Next(sw.NormalLookup()); err != nil {
 		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
 	}
