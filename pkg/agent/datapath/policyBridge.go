@@ -385,6 +385,12 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	markInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
 	markInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
 	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, markInportSrcField, markInportDstField)
+	// reset ct label[90..91] to 0
+	markResetOriginSourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	markResetOriginSourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), markResetOriginSourceDstField, 0)
+	// reset ct label[108..123] to 0
+	markResetInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	markResetInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), markResetInportDstField, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
 	markMSDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
 	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), markMSDstField, 0x3)
@@ -392,6 +398,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
+		markResetOriginSourceAct, markResetInportAct, // reset origin source and inport
 		markMSAct, // micro segmentation
 	)
 	if err := ctCommitFlow.SetConntrack(ctCommitAction); err != nil {
@@ -711,6 +718,12 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	markInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
 	markInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
 	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, markInportSrcField, markInportDstField)
+	// reset ct label[90..91] to 0
+	resetReplySourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	resetReplySourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), resetReplySourceDstField, 0)
+	// reset ct label[108..123] to 0
+	resetReplyInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	resetReplyInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), resetReplyInportDstField, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
 	markMSDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
 	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), markMSDstField, 0x3)
@@ -727,6 +740,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	ftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
+		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
 		markMSAct, // micro segmentation
 	)
 
@@ -789,6 +803,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	tftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
+		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
 		markMSAct, // micro segmentation
 	)
 	tftpAction.SetAlg(TFTPPort)
