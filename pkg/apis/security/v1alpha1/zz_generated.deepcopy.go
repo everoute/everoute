@@ -157,6 +157,11 @@ func (in *EndpointSpec) DeepCopyInto(out *EndpointSpec) {
 		}
 	}
 	out.Reference = in.Reference
+	if in.ExpectIPs != nil {
+		in, out := &in.ExpectIPs, &out.ExpectIPs
+		*out = make([]types.IPAddress, len(*in))
+		copy(*out, *in)
+	}
 	if in.Ports != nil {
 		in, out := &in.Ports, &out.Ports
 		*out = make([]NamedPort, len(*in))

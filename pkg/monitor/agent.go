@@ -224,6 +224,12 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 	wg := usync.NewGroup(0)
 
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		mac, err := monitor.GetBridgeInternalMac(bridge)
+		if err != nil || mac == nil {
+			klog.Errorf("fail to get internal port mac on bridge %s, err = %s", bridge.Name, err)
+			continue
+		}
+
 		for _, port := range bridge.Ports {
 			for _, iface := range port.Interfaces {
 				if iface.Ofport <= 0 || iface.Type == "internal" || iface.Type == "patch" {
@@ -233,12 +239,7 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 					if time.Since(info.UpdateTime.Time) <= probeIPTimeout {
 						continue
 					}
-					mac, err := monitor.GetBridgeInternalMac(bridge)
 
-					if err != nil || mac == nil {
-						klog.Errorf("fail to get internal port mac on bridge %s, err = %s", bridge.Name, err)
-						continue
-					}
 					endpointIP := &types.EndpointIP{
 						BridgeName: bridge.Name,
 						OfPort:     uint32(iface.Ofport),

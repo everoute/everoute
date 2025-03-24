@@ -45,13 +45,15 @@ const (
 type VMNic struct {
 	ObjectMeta
 
-	Vlan        Vlan       `json:"vlan,omitempty"`
-	Enabled     bool       `json:"enabled,omitempty"`
-	Mirror      bool       `json:"mirror,omitempty"`
-	Model       VMNicModel `json:"model,omitempty"`
-	MacAddress  string     `json:"mac_address,omitempty"`
-	IPAddress   string     `json:"ip_address,omitempty"`
-	InterfaceID string     `json:"interface_id,omitempty"`
+	Vlan          Vlan       `json:"vlan,omitempty"`
+	Enabled       bool       `json:"enabled,omitempty"`
+	Mirror        bool       `json:"mirror,omitempty"`
+	Model         VMNicModel `json:"model,omitempty"`
+	MacAddress    string     `json:"mac_address,omitempty"`
+	IPAddress     string     `json:"ip_address,omitempty"`
+	InterfaceID   string     `json:"interface_id,omitempty"`
+	GuestIPAddr   []string   `json:"guest_info_ip_addresses,omitempty"`
+	GuestIPAddrV6 []string   `json:"guest_info_ip_addresses_v6,omitempty"`
 }
 
 // VMNicModel is enumeration of vnic models

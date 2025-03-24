@@ -359,6 +359,9 @@ type EndpointSpec struct {
 	// false: no action
 	StrictMac bool `json:"strictMac,omitempty"`
 
+	// ExpectIPs of an endpoint, synced from somewhere (vmtools only now).
+	ExpectIPs []types.IPAddress `json:"expect-ips,omitempty"`
+
 	Ports []NamedPort `json:"ports,omitempty"`
 }
 

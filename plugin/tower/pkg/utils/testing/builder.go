@@ -49,10 +49,12 @@ func NewRandomVMNicAttachedTo(vm *schema.VM) *schema.VMNic {
 	}
 
 	vmnic := schema.VMNic{
-		ObjectMeta:  schema.ObjectMeta{ID: rand.String(10)},
-		Vlan:        vlanInfo,
-		Enabled:     true,
-		InterfaceID: rand.String(10),
+		ObjectMeta:    schema.ObjectMeta{ID: rand.String(10)},
+		Vlan:          vlanInfo,
+		Enabled:       true,
+		InterfaceID:   rand.String(10),
+		GuestIPAddr:   []string{NewRandomIP().String() + "/20"},
+		GuestIPAddrV6: []string{NewRandomIPv6().String() + "/64"},
 	}
 
 	vm.VMNics = append(vm.VMNics, vmnic)
@@ -351,6 +353,17 @@ func NewSystemEndpoints(endpointNum int) *schema.SystemEndpoints {
 func NewRandomIP() net.IP {
 	return net.ParseIP(
 		fmt.Sprintf("%d.%d.%d.%d",
+			rand.Intn(256),
+			rand.Intn(256),
+			rand.Intn(256),
+			rand.Intn(256),
+		),
+	)
+}
+
+func NewRandomIPv6() net.IP {
+	return net.ParseIP(
+		fmt.Sprintf("fd00::%d:%d:%d:%d",
 			rand.Intn(256),
 			rand.Intn(256),
 			rand.Intn(256),

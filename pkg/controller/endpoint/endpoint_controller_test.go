@@ -305,6 +305,9 @@ var (
 			},
 			Type:      securityv1alpha1.EndpointDynamic,
 			StrictMac: false,
+			ExpectIPs: []types.IPAddress{
+				types.IPAddress(rand.String(10)),
+			},
 		},
 	}
 	fakeEndpointB = &securityv1alpha1.Endpoint{
@@ -322,6 +325,9 @@ var (
 			},
 			Type:      securityv1alpha1.EndpointDynamic,
 			StrictMac: true,
+			ExpectIPs: []types.IPAddress{
+				types.IPAddress(rand.String(10)),
+			},
 		},
 	}
 	fakeEndpointC = &securityv1alpha1.Endpoint{
@@ -338,6 +344,9 @@ var (
 				ExternalIDValue: "ep01",
 			},
 			Type: securityv1alpha1.EndpointDynamic,
+			ExpectIPs: []types.IPAddress{
+				types.IPAddress(rand.String(10)),
+			},
 		},
 	}
 	fakeEndpointD = &securityv1alpha1.Endpoint{
@@ -485,13 +494,15 @@ func testProcessAgentinfo(t *testing.T) {
 
 		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointB.Name).Status
 		newOvsPortStatusC := ovsPortStatusC.DeepCopy()
-		newOvsPortStatusC.IPs = []types.IPAddress{}
+		newOvsPortStatusC.IPs = fakeEndpointB.Spec.ExpectIPs
 		if !EqualEndpointStatus(*newOvsPortStatusC, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusC)
 		}
 
 		endpointStatus = getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
-		if !EqualEndpointStatus(ovsPortStatusA, endpointStatus) {
+		ovsPortStatusACopy := *ovsPortStatusA.DeepCopy()
+		ovsPortStatusACopy.IPs = append(ovsPortStatusACopy.IPs, fakeEndpointA.Spec.ExpectIPs...)
+		if !EqualEndpointStatus(ovsPortStatusACopy, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusA)
 		}
 		ifaces := r.ifaceCache.ListKeys()
@@ -531,12 +542,16 @@ func testProcessAgentinfo(t *testing.T) {
 		}
 
 		endpointStatusB := getFakeEndpoint(r.Client, fakeEndpointB.Name).Status
-		if !EqualEndpointStatus(ovsPortStatusC, endpointStatusB) {
+		ovsPortStatusCCopy := *ovsPortStatusC.DeepCopy()
+		ovsPortStatusCCopy.IPs = append(ovsPortStatusCCopy.IPs, fakeEndpointB.Spec.ExpectIPs...)
+		if !EqualEndpointStatus(ovsPortStatusCCopy, endpointStatusB) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatusB, ovsPortStatusC)
 		}
 
 		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
-		if !EqualEndpointStatus(ovsPortStatusB, endpointStatus) {
+		ovsPortStatusBCopy := *ovsPortStatusB.DeepCopy()
+		ovsPortStatusBCopy.IPs = append(ovsPortStatusBCopy.IPs, fakeEndpointA.Spec.ExpectIPs...)
+		if !EqualEndpointStatus(ovsPortStatusBCopy, endpointStatus) {
 			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, ovsPortStatusB)
 		}
 		ifaces := r.ifaceCache.ListKeys()

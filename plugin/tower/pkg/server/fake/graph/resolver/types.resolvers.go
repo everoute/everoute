@@ -31,6 +31,16 @@ func (r *labelResolver) Vms(ctx context.Context, obj *schema.Label) ([]schema.VM
 	return vmList, nil
 }
 
+// GuestInfoIPAddresses is the resolver for the guest_info_ip_addresses field.
+func (r *vMNicResolver) GuestInfoIPAddresses(ctx context.Context, obj *schema.VMNic) ([]string, error) {
+	return obj.GuestIPAddr, nil
+}
+
+// GuestInfoIPAddressesV6 is the resolver for the guest_info_ip_addresses_v6 field.
+func (r *vMNicResolver) GuestInfoIPAddressesV6(ctx context.Context, obj *schema.VMNic) ([]string, error) {
+	return obj.GuestIPAddrV6, nil
+}
+
 // AgentELFCluster returns generated.AgentELFClusterResolver implementation.
 func (r *Resolver) AgentELFCluster() generated.AgentELFClusterResolver {
 	return &agentELFClusterResolver{r}
@@ -42,6 +52,10 @@ func (r *Resolver) AgentELFVDS() generated.AgentELFVDSResolver { return &agentEL
 // Label returns generated.LabelResolver implementation.
 func (r *Resolver) Label() generated.LabelResolver { return &labelResolver{r} }
 
+// VMNic returns generated.VMNicResolver implementation.
+func (r *Resolver) VMNic() generated.VMNicResolver { return &vMNicResolver{r} }
+
 type agentELFClusterResolver struct{ *Resolver }
 type agentELFVDSResolver struct{ *Resolver }
 type labelResolver struct{ *Resolver }
+type vMNicResolver struct{ *Resolver }
