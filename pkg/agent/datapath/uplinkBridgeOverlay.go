@@ -288,6 +288,17 @@ func (u *UplinkBridgeOverlay) DelIPPoolSubnet(subnetStr string) error {
 func (u *UplinkBridgeOverlay) initInputTable() error {
 	sw := u.OfSwitch
 
+	// http://jira.smartx.com/browse/ER-1128
+	// Mark packet source bridge with 0x3(uplink bridge)
+	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", 0x3, openflow.NewNXRange(17, 18))
+	if err != nil {
+		log.Fatalf("Failed to create source action, error: %v", err)
+	}
+	markInportAction, err := ofctrl.NewNXMoveAction(16, 0, 0, "nxm_of_in_port", "nxm_nx_pkt_mark", false)
+	if err != nil {
+		log.Fatalf("Failed to create mark inport action, error: %v", err)
+	}
+
 	arpFlow, _ := u.inputTable.NewFlow(ofctrl.FlowMatch{
 		Ethertype: PROTOCOL_ARP,
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
@@ -309,6 +320,12 @@ func (u *UplinkBridgeOverlay) initInputTable() error {
 	})
 	if err := ipFlow.Resubmit(nil, &nextIPTable); err != nil {
 		return fmt.Errorf("failed to setup input table ip flow resubmit to forward to local table action, err: %v", err)
+	}
+	if err := ipFlow.AddAction(markPacketSourceBridgeAction); err != nil {
+		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
+	}
+	if err := ipFlow.AddAction(markInportAction); err != nil {
+		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
 	}
 	if err := ipFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install input table ip flow, err: %v", err)

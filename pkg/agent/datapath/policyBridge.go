@@ -78,6 +78,10 @@ var (
 	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
 	WorkPolicyActionNXRange         = openflow13.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
 	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
+
+	NXM_NX_XXREG0, _   = openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
+	NXM_NX_CT_LABEL, _ = openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
+	NXM_NX_PKT_MARK, _ = openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
 )
 
 type PolicyBridge struct {
@@ -364,36 +368,21 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	})
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	moveActionDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, moveActionSrcField, moveActionDstField)
-
-	movePolicySrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	movePolicyDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, movePolicySrcField, movePolicyDstField)
-
-	moveRoundNumSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	moveRoundNumDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, moveRoundNumSrcField, moveRoundNumDstField)
+	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
 
 	// http://jira.smartx.com/browse/ER-1128
 	// save nxm_nx_pkt_mark[17:20](source bridge src) to ct label
-	markOriginSourceSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markOriginSourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, markOriginSourceSrcField, markOriginSourceDstField)
+	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// save nxm_nx_pkt_mark[0:15](inport) to ct label
-	markInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, markInportSrcField, markInportDstField)
+	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// reset ct label[90..91] to 0
-	markResetOriginSourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markResetOriginSourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), markResetOriginSourceDstField, 0)
+	markResetOriginSourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// reset ct label[108..123] to 0
-	markResetInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markResetInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), markResetInportDstField, 0)
+	markResetInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
-	markMSDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), markMSDstField, 0x3)
+	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), NXM_NX_CT_LABEL, 0x3)
 
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
@@ -413,12 +402,8 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
 	}
 
-	markReplySourceSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markReplySourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markReplySourceAct := openflow13.NewNXActionRegMove(2, 17, 90, markReplySourceSrcField, markReplySourceDstField)
-	markReplyInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markReplyInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markReplyInportAct := openflow13.NewNXActionRegMove(16, 0, 108, markReplyInportSrcField, markReplyInportDstField)
+	markReplySourceAct := openflow13.NewNXActionRegMove(2, 17, 90, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markReplyInportAct := openflow13.NewNXActionRegMove(16, 0, 108, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	ctCommitRplAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		markReplySourceAct, markReplyInportAct, // inport and reply source bridge
 		markMSAct, // micro segmentation
@@ -697,36 +682,21 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	var policyConntrackZone = constants.CTZoneForPolicy
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	moveActionDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, moveActionSrcField, moveActionDstField)
-
-	movePolicySrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	movePolicyDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, movePolicySrcField, movePolicyDstField)
-
-	moveRoundNumSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
-	moveRoundNumDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, moveRoundNumSrcField, moveRoundNumDstField)
+	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
 
 	// http://jira.smartx.com/browse/ER-1128
 	// save nxm_nx_pkt_mark[17..20](source bridge src) to ct label[88..89]
-	markOriginSourceSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markOriginSourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, markOriginSourceSrcField, markOriginSourceDstField)
+	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// save nxm_nx_pkt_mark[0..15](inport) to ct label[92..107]
-	markInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, markInportSrcField, markInportDstField)
+	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// reset ct label[90..91] to 0
-	resetReplySourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	resetReplySourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), resetReplySourceDstField, 0)
+	resetReplySourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// reset ct label[108..123] to 0
-	resetReplyInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	resetReplyInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), resetReplyInportDstField, 0)
+	resetReplyInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
-	markMSDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), markMSDstField, 0x3)
+	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), NXM_NX_CT_LABEL, 0x3)
 
 	// Table 70 commit ct with alg=ftp
 	ftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
