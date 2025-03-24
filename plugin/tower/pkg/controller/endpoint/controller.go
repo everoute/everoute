@@ -19,6 +19,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	kubeerror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -677,6 +679,17 @@ func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labe
 	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID
 	ep.Spec.Type = v1alpha1.EndpointDynamic
+
+	ips := sets.New[types.IPAddress]()
+	for _, ipStr := range append(vnic.GuestIPAddr, vnic.GuestIPAddrV6...) {
+		if strings.Contains(ipStr, "/") {
+			ipStr = strings.Split(ipStr, "/")[0]
+		}
+		if ip := net.ParseIP(ipStr); ip != nil {
+			ips.Insert(types.IPAddress(ip.String()))
+		}
+	}
+	ep.Spec.ExpectIPs = ips.UnsortedList()
 
 	lessFunc := func(x, y string) bool { return x < y }
 	return !cmp.Equal(ep, epCopy, cmpopts.SortSlices(lessFunc), cmpopts.EquateEmpty())

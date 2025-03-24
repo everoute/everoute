@@ -592,13 +592,15 @@ func (r *Reconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.
 	if err != nil {
 		return nil, err
 	}
+
+	ipMap := make(map[string]string)
+
 	switch len(ifaces) {
 	case 0:
 		// if no match iface found, return empty status
 		return &securityv1alpha1.EndpointStatus{}, nil
 	default:
 		// combine all ifaces status into endpoint status
-		ipMap := make(map[string]string)
 		agentSets := sets.NewString()
 		for _, item := range ifaces {
 			if len(item.(*iface).ipMap) != 0 {
@@ -611,6 +613,15 @@ func (r *Reconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.
 				}
 			}
 		}
+
+		// if expect ips do not appear in ANY iface, add them to endpoint status
+		for _, ip := range endpoint.Spec.ExpectIPs {
+			ifaces, _ := r.ifaceCache.ByIndex(ipAddrIndex, ip.String())
+			if len(ifaces) == 0 {
+				ipMap[ip.String()] = ""
+			}
+		}
+
 		endpointStatus := &securityv1alpha1.EndpointStatus{
 			MacAddress: ifaces[0].(*iface).mac,
 			Agents:     agentSets.List(),
@@ -621,6 +632,7 @@ func (r *Reconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.
 			}
 			endpointStatus.IPs = append(endpointStatus.IPs, types.IPAddress(ip))
 		}
+
 		return endpointStatus, nil
 	}
 }

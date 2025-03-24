@@ -25,6 +25,8 @@ type VMNic {
     mac_address: String
     ip_address: String
     interface_id: String
+    guest_info_ip_addresses: [String!]!
+    guest_info_ip_addresses_v6: [String!]!
 }
 
 enum VMNicModel {

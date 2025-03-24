@@ -19,6 +19,7 @@ package endpoint_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,9 +28,11 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/types"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
 	. "github.com/everoute/everoute/plugin/tower/pkg/utils/testing"
@@ -77,7 +80,7 @@ var _ = Describe("EndpointController", func() {
 			})
 			It("should create endpoint", func() {
 				assertEndpointsNum(ctx, 1)
-				assertHasEndpoint(ctx, matchDynamic(vnic.GetID(), vnic.InterfaceID, nil, nil))
+				assertHasEndpoint(ctx, matchDynamic(vnic, nil, nil))
 			})
 
 			When("delete vm", func() {
@@ -117,8 +120,8 @@ var _ = Describe("EndpointController", func() {
 			})
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 2)
-				assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
-				assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB), nil))
+				assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA, labelB), nil))
+				assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA, labelB), nil))
 			})
 
 			When("add vnic to vm", func() {
@@ -131,7 +134,7 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should create endpoints", func() {
 					assertEndpointsNum(ctx, 3)
-					assertHasEndpoint(ctx, matchDynamic(newVNic.GetID(), newVNic.InterfaceID, AggregateLabels(labelA, labelB), nil))
+					assertHasEndpoint(ctx, matchDynamic(newVNic, AggregateLabels(labelA, labelB), nil))
 				})
 			})
 
@@ -143,7 +146,7 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should remove endpoint", func() {
 					assertEndpointsNum(ctx, 1)
-					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA, labelB), nil))
 					assertNoEnpoint(ctx, vnicB.GetID())
 				})
 			})
@@ -156,8 +159,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB, labelC), nil))
-					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB, labelC), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA, labelB, labelC), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA, labelB, labelC), nil))
 				})
 			})
 
@@ -169,8 +172,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA), nil))
-					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA), nil))
 				})
 			})
 
@@ -182,8 +185,8 @@ var _ = Describe("EndpointController", func() {
 				})
 				It("should update endpoint labels", func() {
 					assertEndpointsNum(ctx, 2)
-					assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA, labelB), nil))
-					assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA, labelB), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA, labelB), nil))
+					assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA, labelB), nil))
 				})
 			})
 
@@ -241,8 +244,8 @@ var _ = Describe("EndpointController", func() {
 			It("should create endpoints", func() {
 				assertEndpointsNum(ctx, 2)
 				expectExtendLabels := map[string][]string{labelB.Key: {labelB.Value, labelC.Value}, labelD.Key: {labelD.Value}}
-				assertHasEndpoint(ctx, matchDynamic(vnicA.GetID(), vnicA.InterfaceID, AggregateLabels(labelA), expectExtendLabels))
-				assertHasEndpoint(ctx, matchDynamic(vnicB.GetID(), vnicB.InterfaceID, AggregateLabels(labelA), expectExtendLabels))
+				assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA), expectExtendLabels))
+				assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA), expectExtendLabels))
 			})
 		})
 	})
@@ -444,14 +447,25 @@ func matchStatic(ip string) matchEndpointFunc {
 	}
 }
 
-func matchDynamic(epName, externalIDValue string, labels map[string]string, extendLabels map[string][]string) matchEndpointFunc {
+func matchDynamic(vnic *schema.VMNic, labels map[string]string, extendLabels map[string][]string) matchEndpointFunc {
 	lessFunc := func(x, y string) bool { return x < y }
 	return func(endpoint *v1alpha1.Endpoint) bool {
-		return endpoint.GetName() == epName &&
+		expectIPsets := sets.New(endpoint.Spec.ExpectIPs...)
+		vnicIPsets := sets.New[types.IPAddress]()
+
+		for _, ipStr := range append(vnic.GuestIPAddr, vnic.GuestIPAddrV6...) {
+			vnicIPsets.Insert(types.IPAddress(strings.Split(ipStr, "/")[0]))
+		}
+
+		if !expectIPsets.Equal(vnicIPsets) {
+			return false
+		}
+
+		return endpoint.GetName() == vnic.GetID() &&
 			cmp.Equal(endpoint.GetLabels(), labels, cmpopts.EquateEmpty()) &&
 			cmp.Equal(endpoint.Spec.ExtendLabels, extendLabels, cmpopts.EquateEmpty(), cmpopts.SortSlices(lessFunc)) &&
 			endpoint.Spec.Reference.ExternalIDName == controller.ExternalIDName &&
-			endpoint.Spec.Reference.ExternalIDValue == externalIDValue &&
+			endpoint.Spec.Reference.ExternalIDValue == vnic.InterfaceID &&
 			endpoint.Spec.Type == v1alpha1.EndpointDynamic
 	}
 }

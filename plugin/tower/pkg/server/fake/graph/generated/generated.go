@@ -45,6 +45,7 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
+	VMNic() VMNicResolver
 }
 
 type DirectiveRoot struct {
@@ -315,14 +316,16 @@ type ComplexityRoot struct {
 	}
 
 	VMNic struct {
-		Enabled     func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IPAddress   func(childComplexity int) int
-		InterfaceID func(childComplexity int) int
-		MacAddress  func(childComplexity int) int
-		Mirror      func(childComplexity int) int
-		Model       func(childComplexity int) int
-		Vlan        func(childComplexity int) int
+		Enabled                func(childComplexity int) int
+		GuestInfoIPAddresses   func(childComplexity int) int
+		GuestInfoIPAddressesV6 func(childComplexity int) int
+		ID                     func(childComplexity int) int
+		IPAddress              func(childComplexity int) int
+		InterfaceID            func(childComplexity int) int
+		MacAddress             func(childComplexity int) int
+		Mirror                 func(childComplexity int) int
+		Model                  func(childComplexity int) int
+		Vlan                   func(childComplexity int) int
 	}
 
 	Vlan struct {
@@ -369,6 +372,10 @@ type SubscriptionResolver interface {
 	Task(ctx context.Context) (<-chan *model.TaskEvent, error)
 	SecurityGroup(ctx context.Context) (<-chan *model.SecurityGroupEvent, error)
 	NetworkPolicyRuleService(ctx context.Context) (<-chan *model.ServiceEvent, error)
+}
+type VMNicResolver interface {
+	GuestInfoIPAddresses(ctx context.Context, obj *schema.VMNic) ([]string, error)
+	GuestInfoIPAddressesV6(ctx context.Context, obj *schema.VMNic) ([]string, error)
 }
 
 type executableSchema struct {
@@ -1446,6 +1453,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.VMNic.Enabled(childComplexity), true
 
+	case "VMNic.guest_info_ip_addresses":
+		if e.complexity.VMNic.GuestInfoIPAddresses == nil {
+			break
+		}
+
+		return e.complexity.VMNic.GuestInfoIPAddresses(childComplexity), true
+
+	case "VMNic.guest_info_ip_addresses_v6":
+		if e.complexity.VMNic.GuestInfoIPAddressesV6 == nil {
+			break
+		}
+
+		return e.complexity.VMNic.GuestInfoIPAddressesV6(childComplexity), true
+
 	case "VMNic.id":
 		if e.complexity.VMNic.ID == nil {
 			break
@@ -1918,6 +1939,8 @@ type VMNic {
     mac_address: String
     ip_address: String
     interface_id: String
+    guest_info_ip_addresses: [String!]!
+    guest_info_ip_addresses_v6: [String!]!
 }
 
 enum VMNicModel {
@@ -9255,6 +9278,10 @@ func (ec *executionContext) fieldContext_VM_vm_nics(ctx context.Context, field g
 				return ec.fieldContext_VMNic_ip_address(ctx, field)
 			case "interface_id":
 				return ec.fieldContext_VMNic_interface_id(ctx, field)
+			case "guest_info_ip_addresses":
+				return ec.fieldContext_VMNic_guest_info_ip_addresses(ctx, field)
+			case "guest_info_ip_addresses_v6":
+				return ec.fieldContext_VMNic_guest_info_ip_addresses_v6(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VMNic", field.Name)
 		},
@@ -9791,6 +9818,94 @@ func (ec *executionContext) fieldContext_VMNic_interface_id(ctx context.Context,
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VMNic_guest_info_ip_addresses(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_VMNic_guest_info_ip_addresses(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.VMNic().GuestInfoIPAddresses(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_VMNic_guest_info_ip_addresses(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VMNic",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VMNic_guest_info_ip_addresses_v6(ctx context.Context, field graphql.CollectedField, obj *schema.VMNic) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_VMNic_guest_info_ip_addresses_v6(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.VMNic().GuestInfoIPAddressesV6(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_VMNic_guest_info_ip_addresses_v6(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VMNic",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -13716,7 +13831,7 @@ func (ec *executionContext) _VMNic(ctx context.Context, sel ast.SelectionSet, ob
 			out.Values[i] = ec._VMNic_id(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "vlan":
 
@@ -13746,6 +13861,46 @@ func (ec *executionContext) _VMNic(ctx context.Context, sel ast.SelectionSet, ob
 
 			out.Values[i] = ec._VMNic_interface_id(ctx, field, obj)
 
+		case "guest_info_ip_addresses":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._VMNic_guest_info_ip_addresses(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
+		case "guest_info_ip_addresses_v6":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._VMNic_guest_info_ip_addresses_v6(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15027,6 +15182,38 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNSystemEndpoints2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐSystemEndpoints(ctx context.Context, sel ast.SelectionSet, v schema.SystemEndpoints) graphql.Marshaler {

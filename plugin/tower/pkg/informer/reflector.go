@@ -130,7 +130,7 @@ func (r *reflector) crcEventHandler(stopCh <-chan struct{}) {
 			}
 
 			klog.V(4).Infof("get %s crc event of type %s: new %+v old %+v",
-				event.EventType, r.expectType.TypeName(), event.NewObj, event.OldObj)
+				event.EventType, r.expectType.TypeName(), newObj, event.OldObj)
 
 			switch event.EventType {
 			case CrcEventInsert:
