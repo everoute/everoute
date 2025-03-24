@@ -1056,12 +1056,16 @@ func (l *LocalBridge) addAccessPortEndpoint(endpoint *Endpoint) error {
 	log.Infof("add from local endpoint flow: %v", vlanInputTableFromLocalFlow)
 	l.fromLocalEndpointFlow[endpoint.PortNo] = []*ofctrl.Flow{vlanInputTableFromLocalFlow}
 
+	pVlanID := &endpoint.VlanID
+	if endpoint.VlanID == 0 {
+		pVlanID = nil
+	}
 	// Table 5, from local to local bum redirect flow
 	endpointMac, _ := net.ParseMAC(endpoint.MacAddrStr)
 	localToLocalBUMFlow, _ := l.localEndpointL2ForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:   MID_MATCH_FLOW_PRIORITY,
 		MacSa:      &endpointMac,
-		VlanId:     &endpoint.VlanID,
+		VlanId:     pVlanID,
 		VlanIdMask: &vlanIDAndFlagMask,
 	})
 	if err := localToLocalBUMFlow.LoadField("nxm_of_vlan_tci", 0, openflow13.NewNXRange(0, 12)); err != nil {
@@ -1171,11 +1175,15 @@ func (l *LocalBridge) addTrunkPortEndpoint(endpoint *Endpoint) error {
 	// Table 1 : vlan filter flow
 	// vlan trunk port vlan id filter flow, ignore default vlan && vlan 0, it use access processing logic
 	for vlanID, vlanMask := range getVlanTrunkMask(trunks) {
+		pVlan := &vlanID
+		if vlanID == 0 {
+			pVlan = nil
+		}
 		vidMask := vlanMask
 		fromLocalVlanFilterFlow, _ := l.vlanFilterTable.NewFlow(ofctrl.FlowMatch{
 			Priority:   MID_MATCH_FLOW_PRIORITY,
 			InputPort:  endpoint.PortNo,
-			VlanId:     &vlanID,
+			VlanId:     pVlan,
 			VlanIdMask: &vidMask,
 		})
 		if err := fromLocalVlanFilterFlow.Resubmit(nil, &l.localEndpointL2LearningTable.TableId); err != nil {
