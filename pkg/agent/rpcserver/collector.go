@@ -90,6 +90,12 @@ func (c *Collector) Policy(ctx context.Context, req *v1alpha1.PolicyRequest) (*v
 	return &v1alpha1.PolicyResponse{List: policyList}, nil
 }
 
+func (c *Collector) GetBridgeIndexWithFlowID(ctx context.Context, req *v1alpha1.BridgeIndexRequest) (*v1alpha1.BridgeIndexResponse, error) {
+	_ = ctx
+	bridgeIndex := c.dpManager.GetBridgeIndexWithFlowID(req.FlowID)
+	return &v1alpha1.BridgeIndexResponse{Index: bridgeIndex}, nil
+}
+
 func NewCollectorServer(datapathManager *datapath.DpManager, stopChan <-chan struct{}) *Collector {
 	c := &Collector{
 		dpManager: datapathManager,
