@@ -244,6 +244,7 @@ type DpManager struct {
 	Info                      *DpManagerInfo
 	Rules                     map[string]*EveroutePolicyRuleEntry // rules database
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
+	FlowIDToVdsID             map[uint64]string
 	policyRuleNums            map[string]int
 	flowReplayMutex           *lock.CASMutex
 	SeqIDAlloctorForRule      *NumAllocator
@@ -358,6 +359,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
+	datapathManager.FlowIDToVdsID = make(map[uint64]string)
 	datapathManager.SeqIDAlloctorForRule = NewRuleSeqIDAlloctor()
 	datapathManager.policyRuleNums = make(map[string]int)
 	datapathManager.Config = datapathConfig
@@ -521,6 +523,13 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 	}
 
 	return policyInfoList
+}
+
+func (dp *DpManager) GetBridgeIndexWithFlowID(flowID uint64) uint32 {
+	dp.lockRflowReplayWithTimeout()
+	defer dp.flowReplayMutex.RUnlock()
+	vdsID := dp.FlowIDToVdsID[flowID]
+	return dp.BridgeChainPortMap[vdsID][POLICY_BRIDGE_KEYWORD]
 }
 
 func (dp *DpManager) GetRulesByFlowIDs(flowIDs ...uint64) []*v1alpha1.RuleEntry {
@@ -935,6 +944,7 @@ func (dp *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error {
 
 		// update new flowID to policy entry map
 		dp.FlowIDToRules[flowEntry.FlowID] = entry
+		dp.FlowIDToVdsID[flowEntry.FlowID] = vdsID
 	}
 
 	// TODO: clear except table if we support helpers
@@ -1277,6 +1287,8 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 			return err
 		}
 		ruleFlowMap[vdsID] = flowEntry
+		// save flowID to vdsID map
+		dp.FlowIDToVdsID[flowEntry.FlowID] = vdsID
 	}
 
 	dp.cleanConntrackFlow(ctx, rule)
@@ -1346,6 +1358,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		log.V(2).Info("Success to delete flow for rule", "vdsID", vdsID)
 		// remove flowID reference
 		delete(dp.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
+		delete(dp.FlowIDToVdsID, pRule.RuleFlowMap[vdsID].FlowID)
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
