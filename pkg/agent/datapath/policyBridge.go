@@ -270,8 +270,7 @@ func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 	})
-	outputPort, _ = sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
-	if err := inputFromUpstreamFlow.Next(outputPort); err != nil {
+	if err := inputFromUpstreamFlow.Next(p.toLocalTable); err != nil {
 		return fmt.Errorf("failed to install input from upstream flow, error: %v", err)
 	}
 
