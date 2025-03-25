@@ -1193,6 +1193,26 @@ func isIp6(flow string) bool {
 	return strings.Contains(flow, "ipv6")
 }
 
+func isTcp(flow string) bool {
+	return strings.Contains(flow, "tcp") && !isTcp6(flow)
+}
+
+func isTcp6(flow string) bool {
+	return strings.Contains(flow, "tcp6")
+}
+
+func isUdp(flow string) bool {
+	return strings.Contains(flow, "udp") && !isUdp6(flow)
+}
+
+func isUdp6(flow string) bool {
+	return strings.Contains(flow, "udp6")
+}
+
+func hasTpDst(flow string, port int) bool {
+	return strings.Contains(flow, fmt.Sprintf("tp_dst=%d", port))
+}
+
 func TestPolicyBridgeFlows1(t *testing.T) {
 	RegisterTestingT(t)
 	flow := "cookie=0x9000000a, duration=68457.315s, table=70, n_packets=47517, n_bytes=14781529, idle_age=1, hard_age=65534, priority=200,ct_state=+new+trk,ipv6 actions=ct(commit,table=71,zone=65520,exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))"
@@ -1235,5 +1255,56 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		Expect(ipv6NewFlow).Should(BeTrue())
 		Expect(ipRplFlow).Should(BeTrue())
 		Expect(ipv6RplFlow).Should(BeTrue())
+	})
+
+	t.Run("test policy bridge ALG flows", func(t *testing.T) {
+		RegisterTestingT(t)
+		flows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(flows).ShouldNot(BeEmpty())
+		table70Flows := []string{}
+		for _, flow := range flows {
+			if strings.Contains(flow, "table=70,") && strings.Contains(flow, "tp_dst") {
+				table70Flows = append(table70Flows, flow)
+			}
+		}
+		var (
+			ftpNewFlow   = false // tcp 21
+			ftp6NewFlow  = false // tcp6 21
+			tftpNewFlow  = false // udp 69
+			tftp6NewFlow = false // udp6 69
+			ftpRplFlow   = false // tcp 21
+			ftp6RplFlow  = false // tcp6 21
+			tftpRplFlow  = false // udp 69
+			tftp6RplFlow = false // udp6 69
+		)
+		for _, flow := range table70Flows {
+			switch {
+			case isTcp(flow) && hasTpDst(flow, 21) && isNewFlow(flow):
+				ftpNewFlow = true
+			case isTcp6(flow) && hasTpDst(flow, 21) && isNewFlow(flow):
+				ftp6NewFlow = true
+			case isUdp(flow) && hasTpDst(flow, 69) && isNewFlow(flow):
+				tftpNewFlow = true
+			case isUdp6(flow) && hasTpDst(flow, 69) && isNewFlow(flow):
+				tftp6NewFlow = true
+			case isTcp(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
+				ftpRplFlow = true
+			case isTcp6(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
+				ftp6RplFlow = true
+			case isUdp(flow) && hasTpDst(flow, 69) && isRplFlow(flow):
+				tftpRplFlow = true
+			case isUdp6(flow) && hasTpDst(flow, 69) && isRplFlow(flow):
+				tftp6RplFlow = true
+			}
+		}
+		Expect(ftpNewFlow).Should(BeTrue())
+		Expect(ftp6NewFlow).Should(BeTrue())
+		Expect(tftpNewFlow).Should(BeTrue())
+		Expect(tftp6NewFlow).Should(BeTrue())
+		Expect(ftpRplFlow).Should(BeTrue())
+		Expect(ftp6RplFlow).Should(BeTrue())
+		Expect(tftpRplFlow).Should(BeTrue())
+		Expect(tftp6RplFlow).Should(BeTrue())
 	})
 }
