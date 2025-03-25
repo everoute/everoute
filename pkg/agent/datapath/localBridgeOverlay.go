@@ -281,6 +281,12 @@ func (l *LocalBridgeOverlay) initInputTable() error {
 		Ethertype: PROTOCOL_IP,
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
 	})
+	if err := MarkInputPort(ipFlow); err != nil {
+		return fmt.Errorf("failed to setup input table ip flow mark input port action, err: %v", err)
+	}
+	if err := MarkPacketSourceBridge(ipFlow); err != nil {
+		return fmt.Errorf("failed to setup input table ip flow mark packet source bridge action, err: %v", err)
+	}
 	if err := ipFlow.Resubmit(nil, &LBOInPortTable); err != nil {
 		return fmt.Errorf("failed to setup input table ip flow resubmit to in port table action, err: %v", err)
 	}

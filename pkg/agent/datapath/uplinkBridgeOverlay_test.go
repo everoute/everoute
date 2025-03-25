@@ -180,7 +180,7 @@ func validFlow(allFlows []string, tableID uint8, matchStr string) bool {
 func checkUplinkFlow(allFlows []string, enableErIPam bool) bool {
 	gwOfPort := uplinkDpMgr.Info.GatewayOfPort
 	toNatOfPort := uplinkDpMgr.BridgeChainPortMap["testuplink"][UplinkToNatSuffix]
-	if !validFlow(allFlows, 0, "priority=100,ip actions=resubmit(,15)") {
+	if !validFlow(allFlows, 0, "priority=100,ip actions=move:NXM_OF_IN_PORT[]->NXM_NX_PKT_MARK[0..15],load:0x3->NXM_NX_PKT_MARK[17..18],resubmit(,15)") {
 		return false
 	}
 	if !validFlow(allFlows, UBOArpProxyTable, fmt.Sprintf("priority=100,arp,in_port=%d,arp_op=1 actions=move:NXM_OF_ARP_TPA[]->NXM_OF_ARP_SPA[],move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],load:0xeeeeeeeeeeee->NXM_NX_ARP_SHA[],load:0x2->NXM_OF_ARP_OP[],move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],set_field:ee:ee:ee:ee:ee:ee->eth_src,IN_PORT", gwOfPort)) {

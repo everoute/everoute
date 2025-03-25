@@ -149,19 +149,19 @@ var (
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	rule1v6Flow = `table=60, priority=200,icmp6,ipv6_src=2401::10:100:100:1,ipv6_dst=2401::10:100:100:2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
-	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
+	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x2->NXM_NX_PKT_MARK[17..18],load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
-	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
-	ep2VlanInputFlow1              = "table=0, priority=197,in_port=22 actions=load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
+	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x2->NXM_NX_PKT_MARK[17..18],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
+	ep2VlanInputFlow1              = "table=0, priority=197,in_port=22 actions=load:0x2->NXM_NX_PKT_MARK[17..18],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep2VlanFilterFlow1             = "table=1, priority=200,in_port=22,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep2VlanFilterFlow2             = "table=1, priority=200,in_port=22,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
 	vlanFilterDefaultFlow          = "table=1, priority=10 actions=drop"
 	ep2LocalToLocalFlow            = "table=5, priority=200,dl_src=00:00:aa:aa:aa:bb actions=load:0x16->NXM_OF_IN_PORT[],NORMAL"
-	newep2VlanInputFlow            = "table=0, priority=200,in_port=22 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
+	newep2VlanInputFlow            = "table=0, priority=200,in_port=22 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x2->NXM_NX_PKT_MARK[17..18],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	newep2LocalToLocalFlow         = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:bb actions=load:0x16->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 	fromLocalLearningFlow          = "table=10, priority=100 actions=learn(table=5,idle_timeout=300,hard_timeout=300,priority=203,NXM_OF_VLAN_TCI[0..11],NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],load:0->NXM_OF_VLAN_TCI[0..12],output:NXM_OF_IN_PORT[])"
 	fromLocalTrunkPortLearningFlow = "table=10, priority=103,reg3=0x1/0x3 actions=learn(table=5,idle_timeout=300,hard_timeout=300,priority=203,NXM_OF_VLAN_TCI[0..11],NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],output:NXM_OF_IN_PORT[])"
-	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
+	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x2->NXM_NX_PKT_MARK[17..18],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
 	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
 	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
@@ -238,6 +238,10 @@ func TestEverouteDp(t *testing.T) {
 	testFlowReplay(t)
 	testRoundNumFlip(t)
 	testHandleEndpointIPTimeout(t)
+
+	testUplinkBridgeMarkFlows(t)
+	// test local bridge mark flows in "validate local endpoint forwarding flow add"
+	TestPolicyBridgeFlows(t)
 }
 
 func testLocalEndpoint(t *testing.T) {
@@ -1114,4 +1118,122 @@ func TestReleaseRuleSeqID(t *testing.T) {
 	if allo.used.Contains(0x13-0x10) || allo.used.Contains(0x14-0x10) {
 		t.Errorf("release seqID failed when no ress")
 	}
+}
+
+func testUplinkBridgeMarkFlows(t *testing.T) {
+	t.Run("test uplink bridge mark flows", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		flows, err := dumpAllFlows("ovsbr0-uplink")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(flows).ShouldNot(BeEmpty())
+
+		var (
+			containsClsToUplinkFlow = false
+			containsMarkFlow        = false
+		)
+		for _, flow := range flows {
+			if strings.Contains(flow, "table=0") {
+				switch {
+				case strings.Contains(flow, fmt.Sprintf("priority=%d", NORMAL_MATCH_FLOW_PRIORITY)) &&
+					strings.Contains(flow, "in_port=") &&
+					strings.Contains(flow, "actions=NORMAL"):
+					containsClsToUplinkFlow = true
+				case strings.Contains(flow, "priority=10") &&
+					strings.Contains(flow, "load:0x3->NXM_NX_PKT_MARK[17..18]") &&
+					strings.Contains(flow, "move:NXM_OF_IN_PORT[]->NXM_NX_PKT_MARK[0..15]"):
+					containsMarkFlow = true
+				}
+			}
+		}
+		Expect(containsClsToUplinkFlow).Should(BeTrue())
+		Expect(containsMarkFlow).Should(BeTrue())
+	})
+}
+
+func containsAll(flow string, strs ...string) bool {
+	for _, str := range strs {
+		if !strings.Contains(flow, str) {
+			return false
+		}
+	}
+	return true
+}
+
+func isNewFlow(flow string) bool {
+	checkNew := strings.Contains(flow, "ct_state=+new+trk")
+	checkActions := containsAll(flow,
+		"move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127]", // policy actions
+		"move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3]",         // round number
+		"move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87]",     // flow IDs
+		"load:0x3->NXM_NX_CT_LABEL[124..125]",                     // mark micro-segment
+		"move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89]",   // origin packet source
+		"load:0->NXM_NX_CT_LABEL[90..91]",                         // reset reply packet source
+		"move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107]",   // origin inport
+		"load:0->NXM_NX_CT_LABEL[108..123]",                       // reset reply inport
+	)
+	return checkNew && checkActions
+}
+
+func isRplFlow(flow string) bool {
+	checkRpl := strings.Contains(flow, "ct_state=+rpl+trk")
+	checkActions := containsAll(flow,
+		"load:0x3->NXM_NX_CT_LABEL[124..125]",                    // mark micro-segment
+		"move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91]",  // reply packet source
+		"move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123]", // reply inport
+	)
+	return checkRpl && checkActions
+}
+
+func isIp(flow string) bool {
+	return strings.Contains(flow, "ip") && !isIp6(flow)
+}
+
+func isIp6(flow string) bool {
+	return strings.Contains(flow, "ipv6")
+}
+
+func TestPolicyBridgeFlows1(t *testing.T) {
+	RegisterTestingT(t)
+	flow := "cookie=0x9000000a, duration=68457.315s, table=70, n_packets=47517, n_bytes=14781529, idle_age=1, hard_age=65534, priority=200,ct_state=+new+trk,ipv6 actions=ct(commit,table=71,zone=65520,exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))"
+	Expect(isIp6(flow)).Should(BeTrue())
+	Expect(isNewFlow(flow)).Should(BeTrue())
+}
+
+func TestPolicyBridgeFlows(t *testing.T) {
+	t.Run("test policy bridge general flows", func(t *testing.T) {
+		RegisterTestingT(t)
+		flows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(flows).ShouldNot(BeEmpty())
+		table70Flows := []string{}
+		for _, flow := range flows {
+			// skip ALG flows and it should be in table 70
+			if strings.Contains(flow, "table=70,") && !strings.Contains(flow, "tp_dst") {
+				table70Flows = append(table70Flows, flow)
+			}
+		}
+		var (
+			ipNewFlow   = false
+			ipv6NewFlow = false
+			ipRplFlow   = false
+			ipv6RplFlow = false
+		)
+		for _, flow := range table70Flows {
+			switch {
+			case isIp(flow) && isNewFlow(flow):
+				ipNewFlow = true
+			case isIp6(flow) && isNewFlow(flow):
+				ipv6NewFlow = true
+			case isIp(flow) && isRplFlow(flow):
+				ipRplFlow = true
+			case isIp6(flow) && isRplFlow(flow):
+				ipv6RplFlow = true
+			}
+		}
+		Expect(ipNewFlow).Should(BeTrue())
+		Expect(ipv6NewFlow).Should(BeTrue())
+		Expect(ipRplFlow).Should(BeTrue())
+		Expect(ipv6RplFlow).Should(BeTrue())
+	})
 }
