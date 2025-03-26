@@ -1217,7 +1217,7 @@ func (l *LocalBridge) storePortNumberByPktMark(f *ofctrl.Flow, ep *Endpoint) err
 // MarkPacketSourceBridge marks the packet source bridge with 0x2(local bridge)
 // http://jira.smartx.com/browse/ER-1128
 func MarkPacketSourceBridge(f *ofctrl.Flow) error {
-	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", 0x2, openflow13.NewNXRange(17, 18))
+	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", PacketSourceLocalBridge, openflow13.NewNXRange(PacketSourcePKTMARKBitStart, PacketSourcePKTMARKBitEnd))
 	if err != nil {
 		return fmt.Errorf("failed to create source action, error: %v", err)
 	}
@@ -1225,7 +1225,7 @@ func MarkPacketSourceBridge(f *ofctrl.Flow) error {
 }
 
 func MarkInputPort(f *ofctrl.Flow) error {
-	markInputPortAction, err := ofctrl.NewNXMoveAction(16, 0, 0, "nxm_of_in_port", "nxm_nx_pkt_mark", true)
+	markInputPortAction, err := ofctrl.NewNXMoveAction(InportPKTMARKBitSize, 0, InportPKTMARKBitStart, "nxm_of_in_port", "nxm_nx_pkt_mark", true)
 	if err != nil {
 		return fmt.Errorf("failed to create source action, error: %v", err)
 	}

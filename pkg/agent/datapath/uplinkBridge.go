@@ -61,7 +61,7 @@ func (u *UplinkBridge) BridgeInit() {
 
 	// http://jira.smartx.com/browse/ER-1128
 	// Mark packet source bridge with 0x3(uplink bridge)
-	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", 0x3, openflow13.NewNXRange(17, 18))
+	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", PacketSourceUplinkBridge, openflow13.NewNXRange(PacketSourcePKTMARKBitStart, PacketSourcePKTMARKBitEnd))
 	if err != nil {
 		log.Fatalf("Failed to create source action, error: %v", err)
 	}
@@ -70,7 +70,7 @@ func (u *UplinkBridge) BridgeInit() {
 	}
 
 	// Mark Inport
-	markInportAction, err := ofctrl.NewNXMoveAction(16, 0, 0, "nxm_of_in_port", "nxm_nx_pkt_mark", false)
+	markInportAction, err := ofctrl.NewNXMoveAction(InportPKTMARKBitSize, 0, InportPKTMARKBitStart, "nxm_of_in_port", "nxm_nx_pkt_mark", false)
 	if err != nil {
 		log.Fatalf("Failed to create mark inport action, error: %v", err)
 	}

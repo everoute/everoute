@@ -52,6 +52,7 @@ const (
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
 
+	// XX_REG0 has same layout as CT_LABEL
 	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
 	RoundNumXXREG0BitEnd                = 3 // codepoint0 bit end
 	RoundNumXXREG0BitSize               = RoundNumXXREG0BitEnd - RoundNumXXREG0BitStart + 1
@@ -60,8 +61,45 @@ const (
 	MonitorTier3FlowSpaceXXREG0BitStart = 32 // codepoint2 bit start
 	MonitorTier3FlowSpaceXXREG0BitEnd   = 59 // codepoint2 bit end
 	MonitorTier3FlowSpaceXXREG0BitSize  = MonitorTier3FlowSpaceXXREG0BitEnd - MonitorTier3FlowSpaceXXREG0BitStart + 1
-	WorkPolicyActionXXREG0Bit           = 127 // codepoint6
-	MonitorTier3PolicyActionXXREG0Bit   = 126 // codepoint5
+	WorkTier3FlowSpaceXXREG0BitStart    = 60 // codepoint3 bit start
+	WorkTier3FlowSpaceXXREG0BitEnd      = 87 // codepoint3 bit end
+	WorkTier3FlowSpaceXXREG0BitSize     = WorkTier3FlowSpaceXXREG0BitEnd - WorkTier3FlowSpaceXXREG0BitStart + 1
+	AllFlowSpaceXXREG0BitStart          = 32
+	AllFlowSpaceXXREG0BitEnd            = 87
+	AllFlowSpaceXXREG0BitSize           = AllFlowSpaceXXREG0BitEnd - AllFlowSpaceXXREG0BitStart + 1
+	WorkPolicyActionXXREG0Bit           = 127
+	MonitorTier3PolicyActionXXREG0Bit   = 126
+	AllPolicyActionXXREG0BitStart       = 126
+	AllPolicyActionXXREG0BitEnd         = 127
+	AllPolicyActionXXREG0BitSize        = AllPolicyActionXXREG0BitEnd - AllPolicyActionXXREG0BitStart + 1
+	// packet source
+	OriginPacketSourceXXREG0BitStart = 88
+	OriginPacketSourceXXREG0BitEnd   = 89
+	OriginPacketSourceXXREG0BitSize  = OriginPacketSourceXXREG0BitEnd - OriginPacketSourceXXREG0BitStart + 1
+	ReplyPacketSourceXXREG0BitStart  = 90
+	ReplyPacketSourceXXREG0BitEnd    = 91
+	ReplyPacketSourceXXREG0BitSize   = ReplyPacketSourceXXREG0BitEnd - ReplyPacketSourceXXREG0BitStart + 1
+	PacketSourcePKTMARKBitStart      = 17
+	PacketSourcePKTMARKBitEnd        = 18
+	PacketSourcePKTMARKBitSize       = PacketSourcePKTMARKBitEnd - PacketSourcePKTMARKBitStart + 1
+	// inport
+	OriginInportXXREG0BitStart   = 92
+	OriginInportXXREG0BitEnd     = 107
+	OriginInportXXREG0BitSize    = OriginInportXXREG0BitEnd - OriginInportXXREG0BitStart + 1
+	ReplyInportXXREG0BitStart    = 108
+	ReplyInportXXREG0BitEnd      = 123
+	ReplyInportXXREG0BitSize     = ReplyInportXXREG0BitEnd - ReplyInportXXREG0BitStart + 1
+	InportPKTMARKBitStart        = 0
+	InportPKTMARKBitEnd          = 15
+	InportPKTMARKBitSize         = InportPKTMARKBitEnd - InportPKTMARKBitStart + 1
+	EncodingSchemeXXREG0BitStart = 124
+	EncodingSchemeXXREG0BitEnd   = 125
+	EncodingSchemeXXREG0BitSize  = EncodingSchemeXXREG0BitEnd - EncodingSchemeXXREG0BitStart + 1
+
+	EncodingSchemeMicroSegmentationMask = 0b11
+
+	PacketSourceUplinkBridge = 0b11
+	PacketSourceLocalBridge  = 0b10
 )
 
 var (
@@ -368,21 +406,21 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	})
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
-	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
-	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveActionAct := openflow13.NewNXActionRegMove(AllPolicyActionXXREG0BitSize, AllPolicyActionXXREG0BitStart, AllPolicyActionXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	movePolicyAct := openflow13.NewNXActionRegMove(AllFlowSpaceXXREG0BitSize, AllFlowSpaceXXREG0BitStart, AllFlowSpaceXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveRoundNumAct := openflow13.NewNXActionRegMove(RoundNumXXREG0BitSize, RoundNumXXREG0BitStart, RoundNumXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
 
 	// http://jira.smartx.com/browse/ER-1128
-	// save nxm_nx_pkt_mark[17:20](source bridge src) to ct label
-	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
-	// save nxm_nx_pkt_mark[0:15](inport) to ct label
-	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	// save nxm_nx_pkt_mark[17:18](origin packet source) to ct label
+	markOriginSourceAct := openflow13.NewNXActionRegMove(PacketSourcePKTMARKBitSize, PacketSourcePKTMARKBitStart, OriginPacketSourceXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	// save nxm_nx_pkt_mark[0:15](inport) to ct label(origin packet source)
+	markInportAct := openflow13.NewNXActionRegMove(InportPKTMARKBitSize, InportPKTMARKBitStart, OriginInportXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// reset ct label[90..91] to 0
-	markResetOriginSourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), NXM_NX_CT_LABEL, 0)
+	markResetOriginSourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(ReplyPacketSourceXXREG0BitStart, ReplyPacketSourceXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// reset ct label[108..123] to 0
-	markResetInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), NXM_NX_CT_LABEL, 0)
+	markResetInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(ReplyInportXXREG0BitStart, ReplyInportXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
-	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), NXM_NX_CT_LABEL, 0x3)
+	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(EncodingSchemeXXREG0BitStart, EncodingSchemeXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, EncodingSchemeMicroSegmentationMask)
 
 	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
@@ -402,8 +440,8 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
 	}
 
-	markReplySourceAct := openflow13.NewNXActionRegMove(2, 17, 90, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
-	markReplyInportAct := openflow13.NewNXActionRegMove(16, 0, 108, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markReplySourceAct := openflow13.NewNXActionRegMove(PacketSourcePKTMARKBitSize, PacketSourcePKTMARKBitStart, ReplyPacketSourceXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markReplyInportAct := openflow13.NewNXActionRegMove(InportPKTMARKBitSize, InportPKTMARKBitStart, ReplyInportXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	ctCommitRplAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		markReplySourceAct, markReplyInportAct, // inport and reply source bridge
 		markMSAct, // micro segmentation
@@ -682,21 +720,21 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	var policyConntrackZone = constants.CTZoneForPolicy
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionAct := openflow13.NewNXActionRegMove(2, 126, 126, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
-	movePolicyAct := openflow13.NewNXActionRegMove(56, 32, 32, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
-	moveRoundNumAct := openflow13.NewNXActionRegMove(4, 0, 0, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveActionAct := openflow13.NewNXActionRegMove(AllPolicyActionXXREG0BitSize, AllPolicyActionXXREG0BitStart, AllPolicyActionXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	movePolicyAct := openflow13.NewNXActionRegMove(AllFlowSpaceXXREG0BitSize, AllFlowSpaceXXREG0BitStart, AllFlowSpaceXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
+	moveRoundNumAct := openflow13.NewNXActionRegMove(RoundNumXXREG0BitSize, RoundNumXXREG0BitStart, RoundNumXXREG0BitStart, NXM_NX_XXREG0, NXM_NX_CT_LABEL)
 
 	// http://jira.smartx.com/browse/ER-1128
 	// save nxm_nx_pkt_mark[17..20](source bridge src) to ct label[88..89]
-	markOriginSourceAct := openflow13.NewNXActionRegMove(2, 17, 88, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markOriginSourceAct := openflow13.NewNXActionRegMove(PacketSourcePKTMARKBitSize, PacketSourcePKTMARKBitStart, OriginPacketSourceXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// save nxm_nx_pkt_mark[0..15](inport) to ct label[92..107]
-	markInportAct := openflow13.NewNXActionRegMove(16, 0, 92, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markInportAct := openflow13.NewNXActionRegMove(InportPKTMARKBitSize, InportPKTMARKBitStart, OriginInportXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	// reset ct label[90..91] to 0
-	resetReplySourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(90, 91).ToOfsBits(), NXM_NX_CT_LABEL, 0)
+	resetReplySourceAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(ReplyPacketSourceXXREG0BitStart, ReplyPacketSourceXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// reset ct label[108..123] to 0
-	resetReplyInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(108, 123).ToOfsBits(), NXM_NX_CT_LABEL, 0)
+	resetReplyInportAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(ReplyInportXXREG0BitStart, ReplyInportXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, 0)
 	// mark 0x3(micro segmentation) to ct label[124..125]
-	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(124, 125).ToOfsBits(), NXM_NX_CT_LABEL, 0x3)
+	markMSAct := openflow13.NewNXActionRegLoad(openflow13.NewNXRange(EncodingSchemeXXREG0BitStart, EncodingSchemeXXREG0BitEnd).ToOfsBits(), NXM_NX_CT_LABEL, EncodingSchemeMicroSegmentationMask)
 
 	// Table 70 commit ct with alg=ftp
 	ftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
@@ -725,12 +763,8 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ftp ipv6 flow, err: %v", err)
 	}
 
-	markReplySourceSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markReplySourceDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markReplySourceAct := openflow13.NewNXActionRegMove(2, 17, 90, markReplySourceSrcField, markReplySourceDstField)
-	markReplyInportSrcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false)
-	markReplyInportDstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
-	markReplyInportAct := openflow13.NewNXActionRegMove(16, 0, 108, markReplyInportSrcField, markReplyInportDstField)
+	markReplySourceAct := openflow13.NewNXActionRegMove(PacketSourcePKTMARKBitSize, PacketSourcePKTMARKBitStart, ReplyPacketSourceXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
+	markReplyInportAct := openflow13.NewNXActionRegMove(InportPKTMARKBitSize, InportPKTMARKBitStart, ReplyInportXXREG0BitStart, NXM_NX_PKT_MARK, NXM_NX_CT_LABEL)
 	ftpRplAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone,
 		markReplySourceAct, markReplyInportAct, // inport and reply source bridge
 		markMSAct, // micro segmentation
