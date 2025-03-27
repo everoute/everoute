@@ -76,6 +76,11 @@ var (
 	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
 	WorkPolicyActionNXRange         = openflow13.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
 	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
+
+	policyCTZoneReg                           = "nxm_nx_reg4"
+	policyCTZoneRange     *openflow13.NXRange = openflow13.NewNXRange(16, 31)
+	policyCTZoneBaseRange *openflow13.NXRange = openflow13.NewNXRange(28, 31)
+	policyCTZoneVlanRange *openflow13.NXRange = openflow13.NewNXRange(16, 27)
 )
 
 type PolicyBridge struct {
@@ -226,13 +231,20 @@ func (p *PolicyBridge) initInputTable(_ *ofctrl.OFSwitch) error {
 	}
 
 	var ctStateTableID uint8 = CT_STATE_TABLE
-	var policyConntrackZone = constants.CTZoneForPolicy
-	ctAction := ofctrl.NewConntrackAction(false, false, &ctStateTableID, &policyConntrackZone)
 	inputIPRedirectFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: protocol.IPv4_MSG,
 	})
+
+	ctAction, _ := ofctrl.NewConntrackActionWithZoneField(false, false, &ctStateTableID, policyCTZoneReg, policyCTZoneRange)
 	_ = inputIPRedirectFlow.SetConntrack(ctAction)
+
+	if err := inputIPRedirectFlow.LoadField(policyCTZoneReg, uint64(constants.CTZoneForPolicyBaseVal), policyCTZoneBaseRange); err != nil {
+		return fmt.Errorf("failed to install input ip redirect flow, error: %v", err)
+	}
+	if err := inputIPRedirectFlow.MoveField(12, 0, policyCTZoneVlanRange.GetOfs(), "NXM_OF_VLAN_TCI", policyCTZoneReg, false); err != nil {
+		return fmt.Errorf("failed to install input ip redirect flow, error: %v", err)
+	}
 	if err := inputIPRedirectFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install input ip redirect flow, error: %v", err)
 	}
@@ -279,7 +291,6 @@ func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 
 //nolint:funlen
 func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
-	var policyConntrackZone = constants.CTZoneForPolicy
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -369,7 +380,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
 	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
 	moveAct := openflow13.NewNXActionRegMove(128, 0, 0, srcField, dstField)
-	ctCommitAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	ctCommitAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange, moveAct)
 	_ = ctCommitFlow.SetConntrack(ctCommitAction)
 	if err := ctCommitFlow.Next(ofctrl.NewEmptyElem()); err != nil {
 		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
@@ -627,7 +638,6 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	ctTrkState := openflow13.NewCTStates()
 	ctTrkState.SetNew()
 	ctTrkState.SetTrk()
-	var policyConntrackZone = constants.CTZoneForPolicy
 	var ctDropTable uint8 = CT_DROP_TABLE
 	srcField, _ := openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)
 	dstField, _ := openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false)
@@ -642,7 +652,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		TcpDstPortMask: PortMaskMatchFullBit,
 		CtStates:       ctTrkState,
 	})
-	ftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	ftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange, moveAct)
 	ftpAction.SetAlg(FTPPort)
 	_ = ftpFlow.SetConntrack(ftpAction)
 	if err := ftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -663,7 +673,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		UdpDstPortMask: PortMaskMatchFullBit,
 		CtStates:       ctTrkState,
 	})
-	tftpAction := ofctrl.NewConntrackAction(true, false, &ctDropTable, &policyConntrackZone, moveAct)
+	tftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange, moveAct)
 	tftpAction.SetAlg(TFTPPort)
 	_ = tftpFlow.SetConntrack(tftpAction)
 	if err := tftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
