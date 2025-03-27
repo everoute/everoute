@@ -177,6 +177,9 @@ var (
 	IcmpTypeReply   uint8
 
 	lockTimeout = 5 * time.Minute
+
+	maxVDSCTZoneIndex    = 5
+	vDSCTZoneIndexPrefix = "vds-ct-zone-index-"
 )
 
 var IPv6AllFF = net.IP{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -409,11 +412,81 @@ func (dp *DpManager) lockflushWithTimeout() {
 	}
 }
 
+func (dp *DpManager) initVDSindex() {
+	var dbDriber *ovsdbDriver.OvsDriver
+
+	brIndexMap := make(map[string]int)
+	brNameToVDS := make(map[string]string)
+	for vdsID, ovsbrName := range dp.Config.ManagedVDSMap {
+		if dbDriber == nil {
+			dbDriber = dp.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD]
+		}
+		brIndexMap[ovsbrName] = -1
+		brNameToVDS[ovsbrName] = vdsID
+	}
+	extIDs, err := dbDriber.GetRootExternalIds()
+	if err != nil {
+		klog.Fatalf("fail to get external ids in Open_vSwtich table, err = %s", err)
+	}
+	klog.Infof("external ids in Open_vSwtich table = %v", extIDs)
+
+	ctZoneIndex := make([]sets.Set[string], maxVDSCTZoneIndex)
+	for index := range ctZoneIndex {
+		ctZoneIndex[index] = sets.New[string]()
+	}
+
+	for indexStr, brListStr := range extIDs {
+		index, err := strconv.Atoi(strings.TrimPrefix(indexStr, vDSCTZoneIndexPrefix))
+		if err != nil {
+			continue
+		}
+		brList := strings.Split(brListStr, ",")
+		for _, brName := range brList {
+			if _, ok := brIndexMap[brName]; ok {
+				brIndexMap[brName] = index
+				ctZoneIndex[index].Insert(brName)
+			}
+		}
+	}
+
+	for brName, index := range brIndexMap {
+		if index == -1 {
+			minIndex := 0
+			minNum := ctZoneIndex[0].Len()
+			for index, brSet := range ctZoneIndex {
+				if brSet.Len() < minNum {
+					minNum = brSet.Len()
+					minIndex = index
+				}
+			}
+			ctZoneIndex[minIndex].Insert(brName)
+			brIndexMap[brName] = minIndex
+		}
+		dp.BridgeChainMap[brNameToVDS[brName]][POLICY_BRIDGE_KEYWORD].(*PolicyBridge).SetCTZoneIndex(brIndexMap[brName])
+	}
+
+	for index, brSet := range ctZoneIndex {
+		indexKey := fmt.Sprintf("%s%d", vDSCTZoneIndexPrefix, index)
+		if brSet.Len() == 0 {
+			delete(extIDs, indexKey)
+			continue
+		}
+		brList := strings.Join(brSet.UnsortedList(), ",")
+		extIDs[indexKey] = brList
+	}
+
+	if err = dbDriber.SetRootExternalIds(extIDs); err != nil {
+		klog.Fatalf("fail to set external ids in Open_vSwtich table, err = %s", err)
+	}
+}
+
 func (dp *DpManager) InitializeDatapath(ctx context.Context) {
 	log := ctrl.LoggerFrom(ctx)
 	if !dp.IsBridgesConnected() {
 		dp.WaitForBridgeConnected()
 	}
+
+	dp.initVDSindex()
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrName := range dp.Config.ManagedVDSMap {
