@@ -164,6 +164,8 @@ var (
 	ep3VlanInputFlow1              = "table=0, priority=200,in_port=33 actions=load:0x1->NXM_NX_REG3[0..1],load:0x2->NXM_NX_PKT_MARK[17..18],load:0x21->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
 	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
+	ctInputFlow                    = "table=0, priority=300,ip actions=move:NXM_OF_VLAN_TCI[0..11]->NXM_NX_REG4[16..27],load:0x8->NXM_NX_REG4[28..31],ct(table=1,zone=NXM_NX_REG4[16..31])"
+	ctCommitFlow                   = "table=70, priority=200,ct_state=+new+trk,ip actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))"
 	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
 	ingressTier3MonitorDropFlow    = "table=59, priority=603,ct_label=0x40000000000000000000000000000000/0x40000000000000000000000000000000,ip actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
 	ingressTier3MonitorDefaultFlow = "table=59, priority=10 actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
@@ -653,7 +655,12 @@ func testERPolicyRule(t *testing.T) {
 func testPolicyTableInit(t *testing.T) {
 	t.Run("check policy table init flow", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{ctDropMatchFlow, ingressTier3MonitorDropFlow, ingressTier3MonitorDefaultFlow})
+			return flowValidator([]string{
+				ctInputFlow,
+				ctCommitFlow,
+				ctDropMatchFlow,
+				ingressTier3MonitorDropFlow,
+				ingressTier3MonitorDefaultFlow})
 		}, timeout, interval).Should(Succeed())
 	})
 }

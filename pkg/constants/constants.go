@@ -76,7 +76,12 @@ const (
 	PktMarkResetValue uint64 = 0x0
 
 	// ct zone used by securitypolicy
-	CTZoneForPolicy uint16 = 65520
+	// vds(4bit) + vlan id(12bit)
+	// 0x8000(32768) - 0xcfff(53247)
+	CTZoneForPolicyBase uint16 = 0x8000
+	CTZoneForVlanLen    uint16 = 12
+	CTZoneForPolicyMin  uint16 = 0x8000
+	CTZoneForPolicyMax  uint16 = 0xcfff
 
 	// endpoint
 	EndpointExternalIDKey = "iface-id"
