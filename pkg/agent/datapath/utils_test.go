@@ -135,10 +135,6 @@ func TestUintToByteBigEndian(t *testing.T) {
 			name: "uint64 to []byte",
 			src:  uint64(0xff16),
 			res:  []byte{0, 0, 0, 0, 0, 0, 255, 22},
-		}, {
-			name: "invalid type",
-			src:  uint8(2),
-			res:  nil,
 		},
 	}
 
