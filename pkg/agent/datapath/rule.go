@@ -8,6 +8,8 @@ import (
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/vishvananda/netlink"
 	"k8s.io/klog/v2"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 const (
@@ -180,6 +182,9 @@ func matchPort(mask, port1, port2 uint16) bool {
 type EveroutePolicyRuleList []EveroutePolicyRuleForCT
 
 func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+	if flow.Zone < constants.CTZoneForPolicyMin || flow.Zone > constants.CTZoneForPolicyMax {
+		return false
+	}
 	for _, rule := range list {
 		if rule.MatchConntrackFlow(flow) {
 			return true
