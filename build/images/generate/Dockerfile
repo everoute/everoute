@@ -1,4 +1,4 @@
-FROM golang:1.19
+FROM golang:1.22.0
 
 ENV GOPROXY=http://goproxy.smartx.com,https://proxy.golang.org,direct
 
