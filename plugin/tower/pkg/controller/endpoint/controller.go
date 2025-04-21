@@ -360,7 +360,7 @@ func (c *Controller) addEverouteCluster(new interface{}) {
 	cluster := new.(*schema.EverouteCluster)
 	klog.Infof("receive everouteCluster add: %+v", cluster)
 	for _, controller := range cluster.ControllerInstances {
-		if validation.IsValidIP(controller.IPAddr) == nil {
+		if validation.IsValidIP(nil, controller.IPAddr) == nil {
 			c.staticEndpointQueue.Add(GetCtrlEndpointName(cluster.ID, controller))
 		} else {
 			klog.Infof("invalid controller ip address %s in enveroute cluster %s", controller.IPAddr, cluster.ID)
@@ -394,7 +394,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 		c.staticEndpointQueue.Add(GetCtrlEndpointName(oldEverouteCluster.ID, ctrl))
 	}
 	for _, ctrl := range newEverouteCluster.ControllerInstances {
-		if validation.IsValidIP(ctrl.IPAddr) == nil {
+		if validation.IsValidIP(nil, ctrl.IPAddr) == nil {
 			c.staticEndpointQueue.Add(GetCtrlEndpointName(newEverouteCluster.ID, ctrl))
 		} else {
 			klog.Infof("invalid controller ip address %s in enveroute cluster %s", ctrl.IPAddr, newEverouteCluster.ID)
@@ -405,7 +405,7 @@ func (c *Controller) updateEverouteCluster(old, new interface{}) {
 func (c *Controller) addSystemEndpoints(new interface{}) {
 	klog.Infof("receive systemEndpoints add: %+v", new.(*schema.SystemEndpoints))
 	for _, ip := range new.(*schema.SystemEndpoints).IPPortEndpoints {
-		if validation.IsValidIP(ip.IP) == nil {
+		if validation.IsValidIP(nil, ip.IP) == nil {
 			c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 		} else {
 			klog.Infof("invalid ip address %+v in system endpoint", ip)
@@ -435,7 +435,7 @@ func (c *Controller) updateSystemEndpoints(old, new interface{}) {
 		c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 	}
 	for _, ip := range newSystemEndpoints.IPPortEndpoints {
-		if validation.IsValidIP(ip.IP) == nil {
+		if validation.IsValidIP(nil, ip.IP) == nil {
 			c.staticEndpointQueue.Add(GetSystemEndpointName(ip.Key))
 		} else {
 			klog.Infof("invalid ip address %+v in system endpoint", ip)
