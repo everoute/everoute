@@ -64,16 +64,8 @@ type CNIConf struct {
 	SvcInternalIP    string `yaml:"svcInternalIP,omitempty"`
 }
 
-type vdsConfig struct {
-	BrideName string `yaml:"bridgeName"`
-	EnableDPI bool   `yaml:"enableDPI"`
-	EnableMS  bool   `yaml:"enableMS"`
-}
-
 type agentConfig struct {
-	// remain for cni
-	DatapathConfig map[string]string    `yaml:"datapathConfig"`
-	VdsConfigs     map[string]vdsConfig `yaml:"vdsConfigs"`
+	DatapathConfig map[string]string `yaml:"datapathConfig"`
 
 	// InternalIPs allow the items all ingress and egress traffics
 	InternalIPs []string `yaml:"internalIPs,omitempty"`
@@ -200,9 +192,6 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	managedVDSMap := make(map[string]string)
 	for managedvds, ovsbrname := range agentConfig.DatapathConfig {
 		managedVDSMap[managedvds] = ovsbrname
-	}
-	for managedvds, ovsbr := range agentConfig.VdsConfigs {
-		managedVDSMap[managedvds] = ovsbr.BrideName
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
 

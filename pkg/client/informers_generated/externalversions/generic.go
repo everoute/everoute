@@ -29,7 +29,6 @@ import (
 	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
-	servicechainv1alpha1 "github.com/everoute/everoute/pkg/apis/servicechain/v1alpha1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -87,10 +86,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=service.everoute.io, Version=v1alpha1
 	case servicev1alpha1.SchemeGroupVersion.WithResource("serviceports"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Service().V1alpha1().ServicePorts().Informer()}, nil
-
-		// Group=servicechain.everoute.io, Version=v1alpha1
-	case servicechainv1alpha1.SchemeGroupVersion.WithResource("trafficredirects"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Servicechain().V1alpha1().TrafficRedirects().Informer()}, nil
 
 	}
 

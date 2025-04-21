@@ -30,7 +30,6 @@ import (
 	podv1alpha1 "github.com/everoute/everoute/pkg/apis/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/apis/service/v1alpha1"
-	servicechainv1alpha1 "github.com/everoute/everoute/pkg/apis/servicechain/v1alpha1"
 )
 
 var scheme = runtime.NewScheme()
@@ -42,7 +41,6 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	podv1alpha1.AddToScheme,
 	securityv1alpha1.AddToScheme,
 	servicev1alpha1.AddToScheme,
-	servicechainv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

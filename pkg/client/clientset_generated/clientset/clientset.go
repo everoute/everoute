@@ -31,7 +31,6 @@ import (
 	podv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/pod/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/security/v1alpha1"
 	servicev1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/service/v1alpha1"
-	servicechainv1alpha1 "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/servicechain/v1alpha1"
 )
 
 type Interface interface {
@@ -41,18 +40,16 @@ type Interface interface {
 	PodV1alpha1() podv1alpha1.PodV1alpha1Interface
 	SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interface
 	ServiceV1alpha1() servicev1alpha1.ServiceV1alpha1Interface
-	ServicechainV1alpha1() servicechainv1alpha1.ServicechainV1alpha1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	agentV1alpha1        *agentv1alpha1.AgentV1alpha1Client
-	groupV1alpha1        *groupv1alpha1.GroupV1alpha1Client
-	podV1alpha1          *podv1alpha1.PodV1alpha1Client
-	securityV1alpha1     *securityv1alpha1.SecurityV1alpha1Client
-	serviceV1alpha1      *servicev1alpha1.ServiceV1alpha1Client
-	servicechainV1alpha1 *servicechainv1alpha1.ServicechainV1alpha1Client
+	agentV1alpha1    *agentv1alpha1.AgentV1alpha1Client
+	groupV1alpha1    *groupv1alpha1.GroupV1alpha1Client
+	podV1alpha1      *podv1alpha1.PodV1alpha1Client
+	securityV1alpha1 *securityv1alpha1.SecurityV1alpha1Client
+	serviceV1alpha1  *servicev1alpha1.ServiceV1alpha1Client
 }
 
 // AgentV1alpha1 retrieves the AgentV1alpha1Client
@@ -78,11 +75,6 @@ func (c *Clientset) SecurityV1alpha1() securityv1alpha1.SecurityV1alpha1Interfac
 // ServiceV1alpha1 retrieves the ServiceV1alpha1Client
 func (c *Clientset) ServiceV1alpha1() servicev1alpha1.ServiceV1alpha1Interface {
 	return c.serviceV1alpha1
-}
-
-// ServicechainV1alpha1 retrieves the ServicechainV1alpha1Client
-func (c *Clientset) ServicechainV1alpha1() servicechainv1alpha1.ServicechainV1alpha1Interface {
-	return c.servicechainV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -149,10 +141,6 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
-	cs.servicechainV1alpha1, err = servicechainv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
-	if err != nil {
-		return nil, err
-	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
@@ -179,7 +167,6 @@ func New(c rest.Interface) *Clientset {
 	cs.podV1alpha1 = podv1alpha1.New(c)
 	cs.securityV1alpha1 = securityv1alpha1.New(c)
 	cs.serviceV1alpha1 = servicev1alpha1.New(c)
-	cs.servicechainV1alpha1 = servicechainv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
