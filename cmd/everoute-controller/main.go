@@ -50,6 +50,7 @@ import (
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/controller/common"
 	endpointctrl "github.com/everoute/everoute/pkg/controller/endpoint"
 	groupctrl "github.com/everoute/everoute/pkg/controller/group"
@@ -80,7 +81,7 @@ func main() {
 	var disableAutoTLS bool
 	opts = NewOptions()
 	var towerPluginOptions towerplugin.Options
-
+	var product string
 	flag.BoolVar(&disableAutoTLS, "disable-auto-tls", false, "Disable auto tls cert generate for webhook.")
 	flag.StringVar(&opts.metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&opts.enableLeaderElection, "enable-leader-election", true,
@@ -90,10 +91,12 @@ func main() {
 	flag.StringVar(&opts.namespace, "namespace", "", "The namespace which everoute deploy in.")
 	flag.IntVar(&opts.serverPort, "port", 9443, "The port for the Everoute controller to serve on.")
 	flag.StringVar(&opts.serverAddr, "host", "", "The host for the Everoute controller to serve on.")
+	flag.StringVar(&product, "product", msconst.ProductEveroute, "everoute product name")
 
 	klog.InitFlags(nil)
 	towerplugin.InitFlags(&towerPluginOptions, nil, "plugins.tower.")
 	flag.Parse()
+	initGlobalVar(product)
 
 	ctrl.SetLogger(klog.Background())
 	stopCtx := ctrl.SetupSignalHandler()
@@ -245,6 +248,14 @@ func main() {
 	if err := mgr.Start(stopCtx); err != nil {
 		klog.Fatalf("error while running manager: %s", err.Error())
 	}
+}
+
+func initGlobalVar(product string) {
+	msconst.K8sMPKubeconfigNameInCloudPlatform = "sks-mgmt-kubeconfig"
+	if product == msconst.ProductANS {
+		msconst.K8sMPKubeconfigNameInCloudPlatform = "ake-mgmt-kubeconfig"
+	}
+	klog.Infof("product is %s, K8sMPKubeconfigNameInCloudPlatform is %s", product, msconst.K8sMPKubeconfigNameInCloudPlatform)
 }
 
 func setWebhookCert(k8sReader client.Reader) {

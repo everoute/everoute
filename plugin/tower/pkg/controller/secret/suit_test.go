@@ -17,19 +17,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 )
 
 var (
-	k8sClient          client.Client // You'll be using this client in your tests.
-	testEnv            *envtest.Environment
-	useExistingCluster bool
-	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
-	timeout            = time.Second * 20
-	interval           = time.Second
-	queue              = make(chan event.GenericEvent, 1)
-	pCtrl              *Process
-	mockCtl            *gomock.Controller
-	towerSpace         = "tower-space"
+	k8sClient             client.Client // You'll be using this client in your tests.
+	testEnv               *envtest.Environment
+	useExistingCluster    bool
+	ctx, cancel           = context.WithCancel(ctrl.SetupSignalHandler())
+	timeout               = time.Second * 20
+	interval              = time.Second
+	queue                 = make(chan event.GenericEvent, 1)
+	pCtrl                 *Process
+	mockCtl               *gomock.Controller
+	towerSpace            = "tower-space"
+	testSksKubeconfigName = "sks-mgmt-test"
 )
 
 const (
@@ -54,6 +57,7 @@ var _ = BeforeSuite(func() {
 		UseExistingCluster: &useExistingCluster,
 	}
 
+	msconst.K8sMPKubeconfigNameInCloudPlatform = testSksKubeconfigName
 	ctrl.SetLogger(klog.Background())
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())

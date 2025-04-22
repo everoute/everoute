@@ -22,14 +22,14 @@ import (
 var _ = Describe("secret-process", func() {
 	towerKey := types.NamespacedName{
 		Namespace: msconst.K8sMPKubeconfigNsInCloudPlatform,
-		Name:      msconst.K8sMPKubeconfigNameInCloudPlatform,
+		Name:      testSksKubeconfigName,
 	}
 	erKey := types.NamespacedName{
 		Namespace: towerSpace,
 		Name:      msconst.K8sMPKubeconfigName,
 	}
 	ev := ersource.Event{}
-	ev.Name = msconst.K8sMPKubeconfigNameInCloudPlatform
+	ev.Name = testSksKubeconfigName
 	ev.Namespace = msconst.K8sMPKubeconfigNsInCloudPlatform
 
 	BeforeEach(func() {
@@ -71,7 +71,7 @@ var _ = Describe("secret-process", func() {
 		BeforeEach(func() {
 			towerSecret := corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.K8sMPKubeconfigNameInCloudPlatform,
+					Name:      testSksKubeconfigName,
 					Namespace: msconst.K8sMPKubeconfigNsInCloudPlatform,
 				},
 				Data: make(map[string][]byte, 1),
@@ -131,7 +131,7 @@ var _ = Describe("secret-process", func() {
 		BeforeEach(func() {
 			towerSecret := corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      msconst.K8sMPKubeconfigNameInCloudPlatform,
+					Name:      testSksKubeconfigName,
 					Namespace: msconst.K8sMPKubeconfigNsInCloudPlatform,
 				},
 				Data: make(map[string][]byte, 1),
@@ -208,7 +208,7 @@ var _ = Describe("secret-process", func() {
 		It("delete success for tower secret DeletionTimestamp", func() {
 			towerSecret := corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       msconst.K8sMPKubeconfigNameInCloudPlatform,
+					Name:       testSksKubeconfigName,
 					Namespace:  msconst.K8sMPKubeconfigNsInCloudPlatform,
 					Finalizers: []string{"test.io/temp"},
 				},
