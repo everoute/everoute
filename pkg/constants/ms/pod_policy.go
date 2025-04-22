@@ -18,7 +18,11 @@ const (
 	EICLabelKeyClusterID       = "everoute.io/k8scluster"
 
 	// k8s management platform kubeconfig
-	K8sMPKubeconfigNameInCloudPlatform = "sks-mgmt-kubeconfig"
-	K8sMPKubeconfigNsInCloudPlatform   = "default"
-	K8sMPKubeconfigName                = "k8s-mgmt-kubeconfig"
+	K8sMPKubeconfigNsInCloudPlatform = "default"
+	K8sMPKubeconfigName              = "k8s-mgmt-kubeconfig"
+
+	ProductEveroute = "everoute"
+	ProductANS      = "ans"
 )
+
+var K8sMPKubeconfigNameInCloudPlatform string
