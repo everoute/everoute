@@ -1,4 +1,4 @@
-FROM golang:1.22.0
+FROM golang:1.23
 
 ENV APISERVER_BOOT_RELEASE_URL=https://github.com/kubernetes-sigs/apiserver-builder-alpha/releases/download/v1.18.0/apiserver-builder-alpha-v1.18.0-linux-amd64.tar.gz
 RUN wget -qO- $APISERVER_BOOT_RELEASE_URL | tar -C /go -zxf -

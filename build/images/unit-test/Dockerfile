@@ -1,7 +1,7 @@
 # This dockerfile is used to build the unit-test image.
 # It is used to run the unit-test container.
 
-FROM golang:1.22.0 as downloader
+FROM golang:1.23 as downloader
 
 ENV ETCD_RELEASE_URL=https://github.com/etcd-io/etcd/releases/download
 ENV ETCD_VERSION=v3.5.6
