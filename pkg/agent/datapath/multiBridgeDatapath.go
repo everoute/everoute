@@ -379,6 +379,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ippoolSubnets = sets.New[string]()
 	datapathManager.ippoolGWs = sets.New[string]()
 	datapathManager.AgentMetric = agentMetric
+	datapathManager.SeqIDAlloctorForRule.SetFunc(agentMetric.SetPolicySeqIDInfo)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -889,6 +890,14 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 			klog.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 		}
 	}(vdsID)
+}
+
+func (dp *DpManager) PolicySeqIDExhaust() bool {
+	if dp.SeqIDAlloctorForRule != nil {
+		return dp.SeqIDAlloctorForRule.Exhaust()
+	}
+
+	return false
 }
 
 func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridgeKeyword string) error {
@@ -1418,7 +1427,9 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 
 	var errs []error
 	var delFlowIDs, resFlowIDs []uint64
-	defer dp.releaseRuleSeqID(ctx, delFlowIDs, resFlowIDs)
+	defer func() {
+		dp.releaseRuleSeqID(ctx, delFlowIDs, resFlowIDs)
+	}()
 	for vdsID := range dp.BridgeChainMap {
 		err := ofctrl.DeleteFlow(pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
@@ -1447,6 +1458,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 
 func (dp *DpManager) releaseRuleSeqID(ctx context.Context, dels, ress []uint64) {
 	log := ctrl.LoggerFrom(ctx)
+	log.V(4).Info("release rule seq id", "all", dels, "res", ress)
 	if len(dels) == 0 {
 		return
 	}

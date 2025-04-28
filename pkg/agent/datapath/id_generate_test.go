@@ -41,8 +41,8 @@ func TestNumAllocator(t *testing.T) {
 	}
 
 	r, err = a.Allocate()
-	if err == nil || err != ErrNumExghaust {
-		t.Errorf("expect err is %s, real is: %s", ErrNumExghaust, err)
+	if err == nil || err != ErrNumExhaust {
+		t.Errorf("expect err is %s, real is: %s", ErrNumExhaust, err)
 	}
 
 	a.Release(3)

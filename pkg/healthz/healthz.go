@@ -123,6 +123,56 @@ func (l *loadModule) Check(_ *http.Request) error {
 	return nil
 }
 
+var _ healthz.HealthChecker = &multiChecks{}
+
+type multiChecks struct {
+	checks []healthz.HealthChecker
+}
+
+func (m *multiChecks) Name() string {
+	return "multi-checks"
+}
+
+func (m *multiChecks) Check(req *http.Request) error {
+	for i := range m.checks {
+		if err := m.checks[i].Check(req); err != nil {
+			return fmt.Errorf("check module: %s, err: %s", m.checks[i].Name(), err)
+		}
+	}
+	return nil
+}
+
+func NewMultiChecks(c ...healthz.HealthChecker) healthz.HealthChecker {
+	return &multiChecks{
+		checks: c,
+	}
+}
+
+var _ healthz.HealthChecker = &policySeqIDExhaust{}
+
+type policySeqIDExhaust struct {
+	exhaust func() bool
+}
+
+func (p *policySeqIDExhaust) Name() string {
+	return "policy-seq-id-exhaust"
+}
+
+func (p *policySeqIDExhaust) Check(_ *http.Request) error {
+	if p.exhaust != nil {
+		if p.exhaust() {
+			return fmt.Errorf("policy seq id has exhaust")
+		}
+	}
+	return nil
+}
+
+func NewPolicySeqIDExhaustCheck(f func() bool) healthz.HealthChecker {
+	return &policySeqIDExhaust{
+		exhaust: f,
+	}
+}
+
 // WithEnable returns checker when enable is nill or true, else returns nopHealthz.
 func WithEnable(enable *bool, checker healthz.HealthChecker) healthz.HealthChecker {
 	if enable == nil || *enable {
