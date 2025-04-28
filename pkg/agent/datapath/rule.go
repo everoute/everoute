@@ -202,12 +202,12 @@ func NewRuleSeqIDAlloctor() *NumAllocator {
 }
 
 func GetSeqIDByFlowID(flowID uint64) uint32 {
-	return uint32(flowID & CookieRuleSeqIDMask)
+	return uint32(flowID&CookieRuleSeqIDMask) + uint32(CookieRuleFix)
 }
 
 func AssemblyRuleFlowID(roundNumber uint64, seqIDIn uint32) (uint64, error) {
 	seqID := uint64(seqIDIn)
-	if seqID >= 1<<CookieRuleUsedBitWidth+CookieRuleFix {
+	if seqID >= 1<<CookieRuleUsedBitWidth+CookieRuleFix || seqID < CookieRuleFix {
 		return 0, fmt.Errorf("invalid seqID %#x for rule", seqIDIn)
 	}
 	roundCookie, _ := cookie.RoundCookieWithMask(roundNumber)

@@ -7,7 +7,7 @@ import (
 
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/kelindar/bitmap"
-	log "github.com/sirupsen/logrus"
+	"k8s.io/klog/v2"
 )
 
 const InvalidGroupID uint32 = 0
@@ -41,21 +41,23 @@ var learnCookieID = &idGenerate{}
 func getLearnCookieID() (uint64, error) {
 	id := learnCookieID.ascendUint64()
 	if id >= (uint64(1) << cookie.BitWidthFlowId) {
-		log.Error("No enough avalible cookie id")
+		klog.Error("No enough avalible cookie id")
 		return 0, errors.New("no enough avalible cookie id")
 	}
 	return id, nil
 }
 
-var ErrNumExghaust = fmt.Errorf("no availabel number to allocate")
+var ErrNumExhaust = fmt.Errorf("no availabel number to allocate")
 
 type NumAllocator struct {
 	lock sync.Mutex
 	// the bitmap will used end-start/8/1024/1024 MiB cache
-	used   bitmap.Bitmap
-	start  uint32
-	end    uint32
-	offset uint32
+	used      bitmap.Bitmap
+	start     uint32
+	end       uint32
+	offset    uint32
+	exhaust   bool
+	setStatus func(bool, int)
 }
 
 func NewNumAllocator(start, end uint32) (*NumAllocator, error) {
@@ -63,28 +65,41 @@ func NewNumAllocator(start, end uint32) (*NumAllocator, error) {
 		return nil, fmt.Errorf("invalid param, start %#x can't bigger than end %#x", start, end)
 	}
 	return &NumAllocator{
-		used:   bitmap.Bitmap{},
-		start:  start,
-		end:    end,
-		offset: 0,
+		used:      bitmap.Bitmap{},
+		start:     start,
+		end:       end,
+		offset:    0,
+		setStatus: func(bool, int) {},
 	}, nil
+}
+
+func (a *NumAllocator) SetFunc(f func(bool, int)) {
+	a.setStatus = f
+	klog.Info("Success set setStatus func")
 }
 
 func (a *NumAllocator) Allocate() (uint32, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-
+	if a.exhaust {
+		return 0, ErrNumExhaust
+	}
 	oldOffset := a.offset
 	for {
 		if !a.used.Contains(a.offset) {
 			res := a.start + a.offset
 			a.used.Set(a.offset)
 			a.offset = a.nextOffset(a.offset)
+			a.setStatus(a.exhaust, a.used.Count())
+			klog.V(4).Infof("success to allocate number %x", res)
 			return res, nil
 		}
 		a.offset = a.nextOffset(a.offset)
 		if a.offset == oldOffset {
-			return 0, ErrNumExghaust
+			klog.Errorf("number has exhaust, oldOffset %x, used number count %x", oldOffset, a.used.Count())
+			a.exhaust = true
+			a.setStatus(a.exhaust, a.used.Count())
+			return 0, ErrNumExhaust
 		}
 	}
 }
@@ -94,9 +109,20 @@ func (a *NumAllocator) Release(n uint32) {
 	defer a.lock.Unlock()
 
 	if n < a.start || n > a.end {
-		log.Warning("release invalid number")
+		klog.Errorf("release invalid number %x, start %x, end %x", n, a.start, a.end)
+		return
 	}
 	a.used.Remove(n - a.start)
+	a.exhaust = false
+	a.setStatus(a.exhaust, a.used.Count())
+	klog.V(4).Infof("success release number %x status: %v", n, a.used.Contains(n-a.start))
+}
+
+func (a *NumAllocator) Exhaust() bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	return a.exhaust
 }
 
 func (a *NumAllocator) nextOffset(cur uint32) uint32 {

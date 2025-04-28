@@ -32,6 +32,9 @@ type AgentMetric struct {
 	ruleEntryLimitNum prometheus.GaugeVec
 
 	policyNameMap map[string]string
+
+	policyRuleFlowIDUsedCount prometheus.Gauge
+	policyRuleFlowIDExhaust   prometheus.Gauge
 }
 
 func newAgentCounterOpt(name, help string) prometheus.CounterOpts {
@@ -74,6 +77,14 @@ func NewAgentMetric() *AgentMetric {
 			"The count of datapath policy rule for each policy currently limited",
 		), []string{constants.MetricRuleEntryPolicyNameLabel}),
 		policyNameMap: map[string]string{},
+		policyRuleFlowIDUsedCount: prometheus.NewGauge(newAgentGaugeOpt(
+			constants.MetricPolicyRuleFlowIDUsedCount,
+			"the count policy rule seq id has allocated",
+		)),
+		policyRuleFlowIDExhaust: prometheus.NewGauge(newAgentGaugeOpt(
+			constants.MetricPolicyRuleFlowIDExhaust,
+			"policy rule seq ids has exhaust or not",
+		)),
 	}
 	if err := m.reg.Register(m.arpCount); err != nil {
 		klog.Fatalf("Failed to init arp count metric %s", err)
@@ -150,5 +161,14 @@ func (m *AgentMetric) SetRuleEntryTotalNum(num int) {
 
 func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 	return []prometheus.Collector{m.arpCount, m.arpRejectCount,
-		m.ruleEntryTotalNum, m.ruleEntryNum}
+		m.ruleEntryTotalNum, m.ruleEntryNum, m.policyRuleFlowIDUsedCount, m.policyRuleFlowIDExhaust}
+}
+
+func (m *AgentMetric) SetPolicySeqIDInfo(exhaust bool, used int) {
+	exhF := float64(0)
+	if exhaust {
+		exhF = 1
+	}
+	m.policyRuleFlowIDExhaust.Set(exhF)
+	m.policyRuleFlowIDUsedCount.Set(float64(used))
 }

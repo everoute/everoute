@@ -32,6 +32,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/metrics"
@@ -185,6 +187,7 @@ func setupEverouteDp() {
 		log.Fatalf("Failed to setup bridgechain, error: %v", err)
 	}
 
+	ctrl.SetLogger(klog.Background())
 	datapathManager = NewDatapathManager(&datapathConfig, endpointIPChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(ctx)
 }
@@ -1097,32 +1100,33 @@ func randomIPv6() string {
 }
 
 func TestReleaseRuleSeqID(t *testing.T) {
-	allo, _ := NewNumAllocator(0x10, 0x1f)
+	start := uint32(0x8000010)
+	allo, _ := NewNumAllocator(start, 0x800001f)
 	dp := &DpManager{
 		SeqIDAlloctorForRule: allo,
 	}
 
-	allo.used.Set(0x12 - 0x10)
-	allo.used.Set(0x13 - 0x10)
-	allo.used.Set(0x14 - 0x10)
+	allo.used.Set(0x8000012 - start)
+	allo.used.Set(0x8000013 - start)
+	allo.used.Set(0x8000014 - start)
 
-	dp.releaseRuleSeqID(context.Background(), nil, []uint64{0x0000009, 0x1000013})
-	if !allo.used.Contains(0x13 - 0x10) {
+	dp.releaseRuleSeqID(context.Background(), nil, []uint64{0xb8000009, 0xb8000013})
+	if !allo.used.Contains(0x8000013 - start) {
 		t.Errorf("release seqID failed when no dels")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0x1000013, 0x14}, []uint64{0x3000013, 0x13, 0x14})
-	if !allo.used.Contains(0x13-0x10) || !allo.used.Contains(0x14-0x10) {
+	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xc8000014}, []uint64{0xb8000013, 0xc8000014})
+	if !allo.used.Contains(0x8000013-start) || !allo.used.Contains(0x8000014-start) {
 		t.Errorf("can't release dels in ress when all dels is in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0x1000013, 0xa000012}, []uint64{0x3000013, 0x13, 0x14})
-	if !allo.used.Contains(0x13-0x10) || allo.used.Contains(0x12-0x10) {
+	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xb8000012}, []uint64{0xb8000013, 0xb8000015})
+	if !allo.used.Contains(0x8000013-start) || allo.used.Contains(0x8000012-start) {
 		t.Errorf("release seqID failed for part dels in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0x8000013, 0x6000013, 0x14}, nil)
-	if allo.used.Contains(0x13-0x10) || allo.used.Contains(0x14-0x10) {
+	dp.releaseRuleSeqID(context.Background(), []uint64{0x8000013, 0xc8000013, 0x8000014}, nil)
+	if allo.used.Contains(0x8000013-start) || allo.used.Contains(0x800001-start) {
 		t.Errorf("release seqID failed when no ress")
 	}
 }

@@ -1116,7 +1116,7 @@ func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*
 
 //nolint:funlen
 func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
-	log := ctrl.LoggerFrom(ctx)
+	log := ctrl.LoggerFrom(ctx, "seqid", seqID)
 	var ipDa, ipDaMask, ipSa, ipSaMask *net.IP
 	var err error
 

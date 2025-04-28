@@ -23,6 +23,9 @@ const (
 	MetricRuleEntryNumLimit        = "rule_entry_num_limit"
 	MetricRuleEntryPolicyNameLabel = "name"
 
+	MetricPolicyRuleFlowIDUsedCount = "rule_flowid_used_count"
+	MetricPolicyRuleFlowIDExhaust   = "rule_flowid_exhaust"
+
 	// globalRule
 	GlobalRuleFirstDelayTime = 20 * time.Second
 	GlobalRuleDelayTimeout   = 5 * time.Minute
