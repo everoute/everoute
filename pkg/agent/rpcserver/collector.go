@@ -92,8 +92,12 @@ func (c *Collector) Policy(ctx context.Context, req *v1alpha1.PolicyRequest) (*v
 
 func (c *Collector) GetBridgeIndexWithFlowID(ctx context.Context, req *v1alpha1.BridgeIndexRequest) (*v1alpha1.BridgeIndexResponse, error) {
 	_ = ctx
-	bridgeIndex := c.dpManager.GetBridgeIndexWithFlowID(req.FlowID)
-	return &v1alpha1.BridgeIndexResponse{Index: bridgeIndex}, nil
+	bridgeIndexes := c.dpManager.GetBridgeIndexesWithFlowID(req.FlowID)
+	// Assert there is only one bridge index or empty.
+	if len(bridgeIndexes) == 0 {
+		return &v1alpha1.BridgeIndexResponse{Index: 0}, nil
+	}
+	return &v1alpha1.BridgeIndexResponse{Index: bridgeIndexes[0]}, nil
 }
 
 func NewCollectorServer(datapathManager *datapath.DpManager, stopChan <-chan struct{}) *Collector {
