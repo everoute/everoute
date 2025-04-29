@@ -3,15 +3,18 @@ package datapath
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
 )
 
 type BaseBridge struct {
 	name      string
+	index     uint32
 	ovsBrName string
 	OfSwitch  *ofctrl.OFSwitch
 	//nolint: structcheck
@@ -37,6 +40,19 @@ func (b *BaseBridge) getDisconnectChan() chan struct{} {
 
 func (b *BaseBridge) GetName() string {
 	return b.name
+}
+
+func (b *BaseBridge) GetIndex() (uint32, error) {
+	index := atomic.LoadUint32(&b.index)
+	if index == 0 {
+		link, err := netlink.LinkByName(b.GetName())
+		if err != nil {
+			return 0, err
+		}
+		index = uint32(link.Attrs().Index)
+		atomic.StoreUint32(&b.index, index)
+	}
+	return index, nil
 }
 
 func (b *BaseBridge) SetRoundNumber(n uint64) {
