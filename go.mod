@@ -16,6 +16,7 @@ require (
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
+	github.com/everoute/trafficredirect v0.0.0-20250604060121-7078b1baad07
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-openapi/runtime v0.28.0
@@ -43,6 +44,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smartxworks/cloudtower-go-sdk/v2 v2.20.0-rc.4
 	github.com/spf13/cobra v1.6.0
+	github.com/stretchr/testify v1.9.0
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
@@ -121,6 +123,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
@@ -156,11 +159,7 @@ require (
 replace (
 	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-<<<<<<< HEAD
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b
-=======
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250217055000-b35c08550dbc
->>>>>>> 068af00 (feat: policy bridge flow init for forward packets to svm)
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0

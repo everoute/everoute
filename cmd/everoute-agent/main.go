@@ -24,6 +24,7 @@ import (
 	"time"
 
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
+	trv1alpha1 "github.com/everoute/trafficredirect/api/trafficredirect/v1alpha1"
 	"github.com/gonetx/ipset"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +49,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/overlay"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
+	trctrl "github.com/everoute/everoute/pkg/agent/controller/trafficredirect"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
@@ -60,6 +62,7 @@ import (
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/monitor"
 	ersource "github.com/everoute/everoute/pkg/source"
+	"github.com/everoute/everoute/pkg/trafficredirect/dpihealthy"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -74,6 +77,7 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(appsv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(ipamv1alpha1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(trv1alpha1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
@@ -125,12 +129,16 @@ func main() {
 		mgr = initK8sCtrlManager(stopCtx, config)
 	}
 
+	if opts.IsEnableTR() {
+		dpihealthy.Run(stopCtx, datapathManager.ProcessDPIHealthyStatus)
+	}
+
 	// registry metrics
 	ctrlmetrics.Registry.MustRegister(agentMetric.GetCollectors()...)
 
 	// add health check handler
 	loadModuleHealthz := evehealthz.NewLoadModuleHealthz(constants.AlgNeedModules)
-	policySeqIDExhaustHealthz := evehealthz.NewPolicySeqIDExhaustCheck(datapathManager.PolicySeqIDExhaust)
+	policySeqIDExhaustHealthz := evehealthz.NewPolicySeqIDExhaustCheck(datapathManager.SeqIDExhaust)
 	erAgentHealthz := evehealthz.NewMultiChecks(loadModuleHealthz, policySeqIDExhaustHealthz)
 	err = mgr.AddMetricsExtraHandler(constants.HealthCheckPath, healthz.CheckHandler{Checker: erAgentHealthz.Check})
 	if err != nil {
@@ -202,7 +210,7 @@ func initK8sCtrlManager(stopCtx context.Context, config *rest.Config) manager.Ma
 }
 
 func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan *types.EndpointIP, stopChan <-chan struct{}) {
-	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
+	ovsdbMonitor, err := monitor.NewOVSDBMonitor(datapathManager.IsEnableTR())
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
 	}
@@ -242,14 +250,24 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
 	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
 	var err error
-	// Policy controller: watch policy related resource and update
-	if err = (&policy.Reconciler{
-		Client:                   mgr.GetClient(),
-		Scheme:                   mgr.GetScheme(),
-		DatapathManager:          datapathManager,
-		ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
-	}).SetupWithManager(mgr); err != nil {
-		klog.Fatalf("unable to create policy controller: %s", err.Error())
+	if opts.IsEnableMS() {
+		// Policy controller: watch policy related resource and update
+		if err = (&policy.Reconciler{
+			Client:                   mgr.GetClient(),
+			Scheme:                   mgr.GetScheme(),
+			DatapathManager:          datapathManager,
+			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create policy controller: %s", err.Error())
+		}
+	}
+	if opts.IsEnableTR() {
+		if err = (&trctrl.Reconciler{
+			Client: mgr.GetClient(),
+			DpMgr:  datapathManager,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create trafficredirect controller: %s", err.Error())
+		}
 	}
 
 	var proxyCache *ctrlProxy.Cache

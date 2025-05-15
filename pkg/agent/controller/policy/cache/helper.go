@@ -18,8 +18,6 @@ package cache
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -36,7 +34,6 @@ const (
 	emptyPort    = `^$`
 	singlePort   = `^(\d{1,5})$`
 	multiplePort = `^(\d{1,5}-\d{1,5})$`
-	allowRunes   = "abcdefghijklmnopqrstuvwxyz1234567890"
 )
 
 func GetIPCidr(ip types.IPAddress) string {
@@ -49,18 +46,6 @@ func GetIPCidr(ip types.IPAddress) string {
 	}
 
 	return ipCidr
-}
-
-// HashName return a Name with keys hash, length should <= 20.
-func HashName(length int, keys ...interface{}) string {
-	jsonKey, _ := json.Marshal(keys)
-	var name string
-
-	for _, char := range sha256.Sum256(jsonKey) {
-		name += string(allowRunes[int(char)%len(allowRunes)])
-	}
-
-	return name[:length]
 }
 
 func UnmarshalPortRange(portRange string) (uint16, uint16, error) {

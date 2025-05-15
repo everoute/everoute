@@ -89,10 +89,12 @@ type OVSDBMonitor struct {
 
 	// syncQueue used to notify ovsdb update
 	syncQueue workqueue.RateLimitingInterface
+
+	enableTR bool
 }
 
 // NewOVSDBMonitor create a new instance of OVSDBMonitor
-func NewOVSDBMonitor() (*OVSDBMonitor, error) {
+func NewOVSDBMonitor(enableTR bool) (*OVSDBMonitor, error) {
 	ovsClient, err := ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
 	if err != nil {
 		return nil, err
@@ -106,6 +108,7 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		syncQueue:        workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 		bridgeMap:        make(map[string]sets.Set[string]),
 		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
+		enableTR:         enableTR,
 	}
 
 	return monitor, nil
@@ -157,9 +160,13 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 		Delete:  true,
 		Modify:  true,
 	}
+	intfFields := []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error", "status"}
+	if monitor.enableTR {
+		intfFields = append(intfFields, "link_state")
+	}
 	requests := map[string]ovsdb.MonitorRequest{
 		"Port":         {Select: selectAll, Columns: []string{"name", "interfaces", "mac", "external_ids", "bond_mode", "vlan_mode", "tag", "trunks"}},
-		"Interface":    {Select: selectAll, Columns: []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error", "status"}},
+		"Interface":    {Select: selectAll, Columns: intfFields},
 		"Bridge":       {Select: selectAll, Columns: []string{"name", "ports"}},
 		"Open_vSwitch": {Select: selectAll, Columns: []string{"ovs_version"}},
 	}
@@ -395,6 +402,9 @@ func (monitor *OVSDBMonitor) processOvsInterfaceAdd(uuid string, rowupdate ovsdb
 		monitor.endpointMap[uuid].IPAddr = getIPv4Addr(newExternalIDs.GoMap)
 		monitor.endpointMap[uuid].IfaceID = getIfaceID(newExternalIDs.GoMap)
 	}
+	if linkState, ok := rowupdate.New.Fields["link_state"].(string); ok {
+		monitor.endpointMap[uuid].State = transferLinkState(linkState)
+	}
 
 	// if endpoint info is ready, trigger endpoint add callback
 	if monitor.isEndpointReady(monitor.endpointMap[uuid]) {
@@ -492,9 +502,13 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 
 	var newIP net.IP
 	var ifaceID string
+	newState := datapath.LinkUnknow
 	if newExternalIDs, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
 		newIP = getIPv4Addr(newExternalIDs.GoMap)
 		ifaceID = getIfaceID(newExternalIDs.GoMap)
+	}
+	if linkState, ok := rowupdate.New.Fields["link_state"].(string); ok {
+		newState = transferLinkState(linkState)
 	}
 
 	var newEndpoint, oldEndpoint *datapath.Endpoint
@@ -507,6 +521,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 			IPAddr:        utils.IPCopy(newIP),
 			IfaceID:       ifaceID,
 			PortNo:        newOfPort,
+			State:         newState,
 		}
 		return
 	}
@@ -521,6 +536,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 		PortNo:        oldEndpoint.PortNo,
 		VlanID:        oldEndpoint.VlanID,
 		Trunk:         oldEndpoint.Trunk,
+		State:         newState,
 	}
 
 	if oldEndpoint.MacAddrStr != newMacStr {

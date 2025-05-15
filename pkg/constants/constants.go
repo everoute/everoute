@@ -92,6 +92,17 @@ const (
 	IcmpTypeInformationReq uint8 = 15
 
 	DuplicatePktMarkBit = 31
+
+	LearnActIdleTimeout = 300
+	LearnActHardTimeout = 300
+
+	MetricFlowIDUsedCount = "flowid_used_count"
+	MetricFlowIDExhaust   = "flowid_exhaust"
+	MetricFlowIDLabel     = "module"
+
+	FlowIDModuleBits   = 3  // 63-61
+	FlowIDReservedBits = 29 // 60-32
+	RoundNumberBits    = 4  // 31-28
 )
 
 const (

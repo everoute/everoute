@@ -30,6 +30,8 @@ type BaseBridge struct {
 	roundNum uint64
 }
 
+var _ Bridge = &BaseBridge{}
+
 func (b *BaseBridge) getDisconnectChan() chan struct{} {
 	b.disconnectChanMutex.Lock()
 	defer b.disconnectChanMutex.Unlock()
@@ -106,6 +108,8 @@ func (b *BaseBridge) WaitForSwitchConnection() {
 
 func (b *BaseBridge) BridgeInit() {}
 
+func (b *BaseBridge) BridgeInitCNI() {}
+
 func (b *BaseBridge) AddVNFInstance() error {
 	return nil
 }
@@ -163,5 +167,23 @@ func (b *BaseBridge) AddIPPoolGW(string) error {
 }
 
 func (b *BaseBridge) DelIPPoolGW(string) error {
+	return nil
+}
+
+func (b *BaseBridge) UpdateTREndpoint(*Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) DeleteTREndpoint(*Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) UpdateDPIHealthy(bool) {}
+
+func (b *BaseBridge) AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, error) {
+	return 0, nil
+}
+
+func (b *BaseBridge) DeleteTRRuleFlow(context.Context, *DPTRRuleSpec, uint64) error {
 	return nil
 }

@@ -302,13 +302,10 @@ github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155 h1:JwthEk9kaDQF2
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155/go.mod h1:qV7bn/XogGqNiuk52aU4x8WqOb2JEU1CYDpf8D1jkRg=
 github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe h1:3++NPEpYdP4ccpnN7t5Mi/DJMqzQM19NbpO4orkeJT8=
 github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
-<<<<<<< HEAD
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b h1:mRZd6J5gjd92VEcyeRQmJJ3DlYqIbVtbWOn4mFp0DLk=
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b/go.mod h1:3zZoS9Hn0uw2Q3ypIuyYIIrRfB7/KODEzXl/irx1P7c=
-=======
-github.com/everoute/ofnet v0.0.0-20250217055000-b35c08550dbc h1:Tr4pbh0U1hO5AbbmnpPK1Fyfl1FZm+Y4Ukh2cenkJSo=
-github.com/everoute/ofnet v0.0.0-20250217055000-b35c08550dbc/go.mod h1:3zZoS9Hn0uw2Q3ypIuyYIIrRfB7/KODEzXl/irx1P7c=
->>>>>>> 068af00 (feat: policy bridge flow init for forward packets to svm)
+github.com/everoute/trafficredirect v0.0.0-20250604060121-7078b1baad07 h1:XICKDECtJqFkwLKzQ/18NBFITYlNamTzHpq3E3AEiEI=
+github.com/everoute/trafficredirect v0.0.0-20250604060121-7078b1baad07/go.mod h1:76987SyYCwGeU5Dh+EmSmG+aMrZ0VisXW/XwFxzpgZU=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
@@ -902,6 +899,7 @@ github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o
 github.com/stretchr/testify v1.8.2/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
+github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/syndtr/gocapability v0.0.0-20170704070218-db04d3cc01c8/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=

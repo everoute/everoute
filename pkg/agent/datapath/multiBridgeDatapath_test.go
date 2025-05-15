@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -45,6 +46,12 @@ const (
 	ovsVswitchdRestartInterval = 1
 	ifaceUUID                  = "10000000-0000-0000-0000-000000000000"
 	iface2UUID                 = "20000000-0000-0000-0000-000000000000"
+	TRNicInIfaceID             = "ddb7623c-fa17-4ad4-9bbb-d03d982c52bc"
+	TRNicOutIfaceID            = "3a32fe96-072c-4c29-be38-edfe87aae0b0"
+	TRNicInUUID                = "9a8393a3-ce1a-434d-816d-c419a996da23"
+	TRNicOutUUID               = "6882f9c0-ce2f-43cd-8c8c-48c1fdf48028"
+	TRNicInPortNO              = uint32(1)
+	TRNicOutPortNO             = uint32(2)
 )
 
 const (
@@ -59,7 +66,14 @@ var (
 		ManagedVDSMap: map[string]string{
 			"ovsbr0": "ovsbr0",
 		},
+		MSVdsSet:         sets.New[string]("ovsbr0"),
 		EnableIPLearning: true,
+		TRConfig: map[string]VDSTRConfig{
+			"ovsbr0": {
+				NicIn:  TRNicInIfaceID,
+				NicOut: TRNicOutIfaceID,
+			},
+		},
 	}
 
 	cniDpMgr  *DpManager
@@ -1101,31 +1115,29 @@ func randomIPv6() string {
 
 func TestReleaseRuleSeqID(t *testing.T) {
 	start := uint32(0x8000010)
-	allo, _ := NewNumAllocator(start, 0x800001f)
-	dp := &DpManager{
-		SeqIDAlloctorForRule: allo,
-	}
+	fAllo := NewFlowIDAlloctor(MSModuleName, start, 0x800001f, 0x0)
+	allo := fAllo.GetNumAlloctor()
 
 	allo.used.Set(0x8000012 - start)
 	allo.used.Set(0x8000013 - start)
 	allo.used.Set(0x8000014 - start)
 
-	dp.releaseRuleSeqID(context.Background(), nil, []uint64{0xb8000009, 0xb8000013})
+	fAllo.Release(context.Background(), nil, []uint64{0xb8000009, 0xb8000013})
 	if !allo.used.Contains(0x8000013 - start) {
 		t.Errorf("release seqID failed when no dels")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xc8000014}, []uint64{0xb8000013, 0xc8000014})
+	fAllo.Release(context.Background(), []uint64{0xb8000013, 0xc8000014}, []uint64{0xb8000013, 0xc8000014})
 	if !allo.used.Contains(0x8000013-start) || !allo.used.Contains(0x8000014-start) {
 		t.Errorf("can't release dels in ress when all dels is in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xb8000012}, []uint64{0xb8000013, 0xb8000015})
+	fAllo.Release(context.Background(), []uint64{0xb8000013, 0xb8000012}, []uint64{0xb8000013, 0xb8000015})
 	if !allo.used.Contains(0x8000013-start) || allo.used.Contains(0x8000012-start) {
 		t.Errorf("release seqID failed for part dels in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0x8000013, 0xc8000013, 0x8000014}, nil)
+	fAllo.Release(context.Background(), []uint64{0x8000013, 0xc8000013, 0x8000014}, nil)
 	if allo.used.Contains(0x8000013-start) || allo.used.Contains(0x800001-start) {
 		t.Errorf("release seqID failed when no ress")
 	}
@@ -1318,4 +1330,136 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		Expect(tftpRplFlow).Should(BeTrue())
 		Expect(tftp6RplFlow).Should(BeTrue())
 	})
+}
+
+func TestTREp(t *testing.T) {
+	nicFlows := []string{
+		fmt.Sprintf("table=0, priority=600,in_port=%d actions=goto_table:120", TRNicInPortNO),
+		fmt.Sprintf("table=0, priority=600,in_port=%d actions=goto_table:130", TRNicOutPortNO),
+		fmt.Sprintf("table=106, priority=100 actions=learn(table=125,idle_timeout=300,hard_timeout=300,priority=100,NXM_OF_ETH_SRC[],load:NXM_NX_PKT_MARK[0..14]->NXM_NX_PKT_MARK[0..14]),output:%d", TRNicOutPortNO),
+		fmt.Sprintf("table=116, priority=100 actions=output:%d", TRNicInPortNO),
+	}
+	healthyFlows := []string{
+		"table=105, priority=100 actions=resubmit(,106)",
+		"table=115, priority=100 actions=resubmit(,116)",
+	}
+	RegisterTestingT(t)
+	// add nicOut ep
+	ep := Endpoint{
+		InterfaceUUID: TRNicOutUUID,
+		BridgeName:    "ovsbr0-policy",
+		PortNo:        TRNicOutPortNO,
+		InterfaceName: "nic1",
+		State:         LinkUp,
+		IfaceID:       TRNicOutIfaceID,
+	}
+	res := datapathManager.skipLocalEndpoint(&ep)
+	Expect(res).Should(BeFalse())
+	err := datapathManager.AddLocalEndpoint(&ep)
+	Expect(err).ShouldNot(HaveOccurred())
+	p := datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.NicOut.PortNo).Should(Equal(TRNicOutPortNO))
+	Expect(p.TrafficRedirect.Info.NicOut.State).Should(Equal(LinkUp))
+	flows, err := dumpAllFlows("ovsbr0-policy")
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(flows).ShouldNot(BeEmpty())
+	for i := range nicFlows {
+		err = flowValidator([]string{nicFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+	for i := range healthyFlows {
+		err = flowValidator([]string{healthyFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+
+	//add nic in ep
+	ep = Endpoint{
+		InterfaceUUID: TRNicInUUID,
+		BridgeName:    "ovsbr0-policy",
+		PortNo:        TRNicInPortNO,
+		InterfaceName: "nic2",
+		State:         LinkUnknown,
+		IfaceID:       TRNicInIfaceID,
+	}
+	err = datapathManager.AddLocalEndpoint(&ep)
+	Expect(err).ShouldNot(HaveOccurred())
+	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.NicIn.PortNo).Should(Equal(TRNicInPortNO))
+	Expect(p.TrafficRedirect.Info.NicIn.State).Should(Equal(LinkUnknown))
+	flows, err = dumpAllFlows("ovsbr0-policy")
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(flows).ShouldNot(BeEmpty())
+	err = flowValidator(nicFlows)
+	Expect(err).ShouldNot(HaveOccurred())
+	for i := range healthyFlows {
+		err = flowValidator([]string{healthyFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+
+	// dpi health
+	datapathManager.ProcessDPIHealthyStatus(types.DPIAlive)
+	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.DPIHealthy).Should(BeTrue())
+	Expect(p.TrafficRedirect.Info.OldHealthy).Should(BeFalse())
+	err = flowValidator(nicFlows)
+	Expect(err).ShouldNot(HaveOccurred())
+	for i := range healthyFlows {
+		err = flowValidator([]string{healthyFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+
+	// update nic in link up
+	ep = Endpoint{
+		InterfaceUUID: TRNicInUUID,
+		BridgeName:    "ovsbr0-policy",
+		PortNo:        TRNicInPortNO,
+		InterfaceName: "nic2",
+		State:         LinkUp,
+		IfaceID:       TRNicInIfaceID,
+	}
+	err = datapathManager.UpdateLocalEndpoint(&ep, &ep)
+	Expect(err).ShouldNot(HaveOccurred())
+	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.NicIn.PortNo).Should(Equal(TRNicInPortNO))
+	Expect(p.TrafficRedirect.Info.NicIn.State).Should(Equal(LinkUp))
+	Expect(p.TrafficRedirect.Info.OldHealthy).Should(BeTrue())
+	err = flowValidator(nicFlows)
+	Expect(err).ShouldNot(HaveOccurred())
+	err = flowValidator(healthyFlows)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	// dpi unhealthy
+	datapathManager.ProcessDPIHealthyStatus(types.DPIDead)
+	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.DPIHealthy).Should(BeFalse())
+	Expect(p.TrafficRedirect.Info.OldHealthy).Should(BeFalse())
+	err = flowValidator(nicFlows)
+	Expect(err).ShouldNot(HaveOccurred())
+	for i := range healthyFlows {
+		err = flowValidator([]string{healthyFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+
+	// del out ep
+	ep = Endpoint{
+		InterfaceUUID: TRNicOutUUID,
+		BridgeName:    "ovsbr0-policy",
+		PortNo:        TRNicOutPortNO,
+		InterfaceName: "nic2",
+		State:         LinkUp,
+		IfaceID:       TRNicOutIfaceID,
+	}
+	err = datapathManager.RemoveLocalEndpoint(&ep)
+	Expect(err).ShouldNot(HaveOccurred())
+	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+	Expect(p.TrafficRedirect.Info.NicOut.PortNo).Should(Equal(uint32(0)))
+	Expect(p.TrafficRedirect.Info.NicOut.State).Should(Equal(LinkUnknown))
+	for i := range nicFlows {
+		err = flowValidator([]string{nicFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
+	for i := range healthyFlows {
+		err = flowValidator([]string{healthyFlows[i]})
+		Expect(err).Should(HaveOccurred())
+	}
 }

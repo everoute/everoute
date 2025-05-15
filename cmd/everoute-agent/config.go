@@ -28,21 +28,20 @@ import (
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
 	"github.com/everoute/ipam/pkg/ipam"
 	"github.com/gonetx/ipset"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/config"
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
-
 type Options struct {
-	Config *agentConfig
+	Config *config.AgentConfig
 
 	metricsAddr              string
 	namespace                string
@@ -54,42 +53,18 @@ type Options struct {
 	lbSvcSet  ipset.IPSet
 }
 
-type CNIConf struct {
-	EnableProxy      bool   `yaml:"enableProxy,omitempty"`
-	EncapMode        string `yaml:"encapMode,omitempty"`
-	MTU              int    `yaml:"mtu,omitempty"`
-	IPAM             string `yaml:"ipam,omitempty"`
-	LocalGwIP        string `yaml:"localGwIP,omitempty"`
-	KubeProxyReplace bool   `yaml:"kubeProxyReplace,omitempty"`
-	SvcInternalIP    string `yaml:"svcInternalIP,omitempty"`
-}
-
-type vdsConfig struct {
-	BrideName string `yaml:"bridgeName"`
-	EnableDPI bool   `yaml:"enableDPI"`
-	EnableMS  bool   `yaml:"enableMS"`
-}
-
-type agentConfig struct {
-	// remain for cni
-	DatapathConfig map[string]string    `yaml:"datapathConfig"`
-	VdsConfigs     map[string]vdsConfig `yaml:"vdsConfigs"`
-
-	// InternalIPs allow the items all ingress and egress traffics
-	InternalIPs []string `yaml:"internalIPs,omitempty"`
-
-	// use it to connect kube-apiServer
-	APIServer string `yaml:"apiServer,omitempty"`
-
-	// cni config
-	EnableCNI bool    `yaml:"enableCNI,omitempty"`
-	CNIConf   CNIConf `yaml:"CNIConf,omitempty"`
-}
-
 func NewOptions() *Options {
 	return &Options{
-		Config: &agentConfig{},
+		Config: &config.AgentConfig{},
 	}
+}
+
+func (o *Options) IsEnableTR() bool {
+	return o.Config.IsEnableTR()
+}
+
+func (o *Options) IsEnableMS() bool {
+	return o.Config.IsEnableMS()
 }
 
 func (o *Options) IsEnableCNI() bool {
@@ -133,7 +108,7 @@ func (o *Options) getAPIServer() string {
 }
 
 func (o *Options) complete() error {
-	agentConfig, err := getAgentConfig()
+	agentConfig, err := config.GetAgentConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get agentConfig, error: %v. ", err)
 	}
@@ -195,14 +170,30 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 		InternalIPs:      agentConfig.InternalIPs,
 		EnableIPLearning: true,
 		EnableCNI:        agentConfig.EnableCNI,
+		MSVdsSet:         sets.New[string](),
+		TRConfig:         make(map[string]datapath.VDSTRConfig),
 	}
 
 	managedVDSMap := make(map[string]string)
-	for managedvds, ovsbrname := range agentConfig.DatapathConfig {
-		managedVDSMap[managedvds] = ovsbrname
-	}
-	for managedvds, ovsbr := range agentConfig.VdsConfigs {
-		managedVDSMap[managedvds] = ovsbr.BrideName
+	if o.IsEnableCNI() {
+		for managedvds, ovsbrname := range agentConfig.DatapathConfig {
+			managedVDSMap[managedvds] = ovsbrname
+			dpConfig.MSVdsSet.Insert(managedvds)
+		}
+	} else {
+		for managedvds, ovsbr := range agentConfig.VdsConfigs {
+			managedVDSMap[managedvds] = ovsbr.BrideName
+			if ovsbr.EnableMS {
+				dpConfig.MSVdsSet.Insert(managedvds)
+			}
+			if len(ovsbr.TrafficRedirects) > 0 {
+				// only support one tr config
+				dpConfig.TRConfig[managedvds] = datapath.VDSTRConfig{
+					NicIn:  ovsbr.TrafficRedirects[0].NicIn,
+					NicOut: ovsbr.TrafficRedirects[0].NicOut,
+				}
+			}
+		}
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
 
@@ -389,23 +380,6 @@ func getGatewayIP(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) er
 	agentInfo.GatewayMask = ipInfo.IPs[0].Address.Mask
 	agentInfo.ClusterPodGw = &ipInfo.IPs[0].Gateway
 	return nil
-}
-
-func getAgentConfig() (*agentConfig, error) {
-	var err error
-	agentConfig := agentConfig{}
-
-	configdata, err := os.ReadFile(agentConfigFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read agentConfig, error: %v. ", err)
-	}
-
-	err = yaml.Unmarshal(configdata, &agentConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to Unmarshal agentConfig, error: %v. ", err)
-	}
-
-	return &agentConfig, nil
 }
 
 func getPodMTU(node *corev1.Node) (int, error) {

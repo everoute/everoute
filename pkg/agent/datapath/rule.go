@@ -1,13 +1,10 @@
 package datapath
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/contiv/ofnet/ofctrl"
-	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/vishvananda/netlink"
-	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -15,6 +12,8 @@ import (
 const (
 	EveroutePolicyAllow string = "allow"
 	EveroutePolicyDeny  string = "deny"
+
+	MSModuleName string = "microsegmentation"
 )
 
 type EveroutePolicyRule struct {
@@ -197,23 +196,6 @@ func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlo
 	return false
 }
 
-func NewRuleSeqIDAlloctor() *NumAllocator {
-	allo, err := NewNumAllocator(uint32(CookieRuleFix), 1<<CookieRuleUsedBitWidth-1+uint32(CookieRuleFix))
-	if err != nil {
-		klog.Fatalf("failed to new rule seqID allocator: %s", err)
-	}
-	return allo
-}
-
-func GetSeqIDByFlowID(flowID uint64) uint32 {
-	return uint32(flowID&CookieRuleSeqIDMask) + uint32(CookieRuleFix)
-}
-
-func AssemblyRuleFlowID(roundNumber uint64, seqIDIn uint32) (uint64, error) {
-	seqID := uint64(seqIDIn)
-	if seqID >= 1<<CookieRuleUsedBitWidth+CookieRuleFix || seqID < CookieRuleFix {
-		return 0, fmt.Errorf("invalid seqID %#x for rule", seqIDIn)
-	}
-	roundCookie, _ := cookie.RoundCookieWithMask(roundNumber)
-	return roundCookie + seqID, nil
+func NewPolicyFlowIDAlloctor() *FlowIDAlloctor {
+	return NewFlowIDAlloctor(MSModuleName, uint32(CookieRuleFix), uint32(1<<CookieRuleUsedBitWidth-1+CookieRuleFix), 0x0)
 }
