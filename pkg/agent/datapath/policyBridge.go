@@ -161,15 +161,15 @@ type PolicyBridge struct {
 	policyForwardingTable          *ofctrl.Table
 	toLocalTable                   *ofctrl.Table
 
-	ctZoneVDSVal uint64
-	l7EgressPolicyTable            *ofctrl.Table
-	l7IngressPolicyTable           *ofctrl.Table
-	egressForwardTable             *ofctrl.Table
-	ingresForwardTable             *ofctrl.Table
-	toClsTable                     *ofctrl.Table
-	fromL7IngressTable             *ofctrl.Table
-	fromL7EgressTable              *ofctrl.Table
-	setPortMarkTable               *ofctrl.Table
+	ctZoneVDSVal         uint64
+	l7EgressPolicyTable  *ofctrl.Table
+	l7IngressPolicyTable *ofctrl.Table
+	egressForwardTable   *ofctrl.Table
+	ingresForwardTable   *ofctrl.Table
+	toClsTable           *ofctrl.Table
+	fromL7IngressTable   *ofctrl.Table
+	fromL7EgressTable    *ofctrl.Table
+	setPortMarkTable     *ofctrl.Table
 }
 
 func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
