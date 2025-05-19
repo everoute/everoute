@@ -43,6 +43,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smartxworks/cloudtower-go-sdk/v2 v2.20.0-rc.4
 	github.com/spf13/cobra v1.6.0
+	github.com/stretchr/testify v1.9.0
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
@@ -121,6 +122,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect

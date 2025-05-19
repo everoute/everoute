@@ -22,6 +22,7 @@ import (
 	ovsdb "github.com/contiv/libovsdb"
 	klog "k8s.io/klog/v2"
 
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
@@ -87,6 +88,17 @@ func getIPv4Addr(externalIDs map[interface{}]interface{}) net.IP {
 	}
 
 	return nil
+}
+
+func transferLinkState(s string) datapath.LinkState {
+	if s == "up" {
+		return datapath.LinkUp
+	}
+
+	if s == "down" {
+		return datapath.LinkDown
+	}
+	return datapath.LinkUnknown
 }
 
 func getDriverNameFromInterface(row ovsdb.Row) string {

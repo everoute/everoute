@@ -5,7 +5,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/config"
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 func Reset(cfg *config.AgentConfig) error {
@@ -85,7 +85,9 @@ func processVds(ovsbrName string, cfg *config.TRConfig) error {
 }
 
 func ovsbrUnmountTrafficRedirect(ovsbrName string, directs ...types.NicDirect) error {
-	// todo del flows
+	if err := DelTRNicFlows(ovsbrName); err != nil {
+		return err
+	}
 	if len(directs) == 0 || directs[0] == types.NicIn {
 		if err := UnmountTRNic(ovsbrName, types.NicIn); err != nil {
 			klog.Errorf("Failed to unmount ovs bridge %s trafficredirect nic direct %s: %s", ovsbrName, types.NicIn, err)
