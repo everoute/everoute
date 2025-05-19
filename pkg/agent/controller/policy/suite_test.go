@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	gtypes "github.com/onsi/gomega/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -129,7 +130,9 @@ var _ = BeforeSuite(func() {
 	datapathManager := datapath.NewDatapathManager(&datapath.DpManagerConfig{
 		ManagedVDSMap: map[string]string{
 			brName: brName,
-		}}, updateChan, metrics.NewAgentMetric())
+		},
+		MSVdsSet: sets.New[string](brName),
+	}, updateChan, metrics.NewAgentMetric())
 	datapathManager.InitializeDatapath(ctx)
 
 	pCtrl = &Reconciler{

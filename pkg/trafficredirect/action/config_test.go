@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
 
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 var _ = Describe("test config", func() {
