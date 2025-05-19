@@ -61,6 +61,7 @@ import (
 
 //nolint:all
 const (
+	HIGHER_MATCH_FLOW_PRIORITY          = 600
 	HIGH_MATCH_FLOW_PRIORITY            = 300
 	MID_MATCH_FLOW_PRIORITY             = 200
 	NORMAL_MATCH_FLOW_PRIORITY          = 100
@@ -161,6 +162,8 @@ const (
 	MaxCleanConntrackChanSize = 5000
 
 	RuleEntryCap = 10000
+
+	PolicyBridgeSuffix = "-policy"
 )
 
 var (
@@ -234,6 +237,10 @@ type Bridge interface {
 	getOfSwitch() *ofctrl.OFSwitch
 
 	SetRoundNumber(uint64)
+
+	UpdateTREndpoint(*Endpoint) error
+	DeleteTREndpoint(*Endpoint) error
+	UpdateDPIHealthy(bool)
 }
 
 type DpManager struct {
@@ -303,6 +310,8 @@ type DpManagerConfig struct {
 	EnableIPLearning bool                // enable ip learning
 	EnableCNI        bool                // enable CNI in Everoute
 	CNIConfig        *DpManagerCNIConfig // config related CNI
+	TRConfig         map[string]VDSTRConfig
+	MSVdsSet         sets.Set[string]
 }
 
 type DpManagerCNIConfig struct {
@@ -313,6 +322,32 @@ type DpManagerCNIConfig struct {
 	KubeProxyReplace bool
 	SvcInternalIP    net.IP // kube-proxy replace need it
 }
+
+type VDSTRConfig struct {
+	NicIn  string
+	NicOut string
+}
+
+type LinkState uint8
+
+func (l LinkState) String() string {
+	if l == LinkUp {
+		return "up"
+	}
+	if l == LinkDown {
+		return "down"
+	}
+	if l == LinkUnknown {
+		return "unknow"
+	}
+	return ""
+}
+
+const (
+	LinkUp      LinkState = 2
+	LinkDown    LinkState = 1
+	LinkUnknown LinkState = 0
+)
 
 type Endpoint struct {
 	InterfaceUUID        string
@@ -326,6 +361,7 @@ type Endpoint struct {
 	VlanID               uint16 // endpoint vlan id
 	Trunk                string // vlan trunk config
 	BridgeName           string // bridge name that endpoint attached to
+	State                LinkState
 }
 
 type RoundInfo struct {
@@ -1314,6 +1350,13 @@ func (dp *DpManager) AddLocalEndpoint(endpoint *Endpoint) error {
 		return nil
 	}
 
+	if IsTREndpoint(endpoint) {
+		if dp.IsEnableTR() {
+			return dp.AddTREndpoint(endpoint)
+		}
+		return nil
+	}
+
 	for vdsID, ovsbrname := range dp.Config.ManagedVDSMap {
 		if ovsbrname == endpoint.BridgeName {
 			if ep, _ := dp.localEndpointDB.Get(endpoint.InterfaceUUID); ep != nil {
@@ -1346,6 +1389,16 @@ func (dp *DpManager) UpdateLocalEndpoint(newEndpoint, oldEndpoint *Endpoint) err
 		dp.WaitForBridgeConnected()
 	}
 	var err error
+
+	if IsTREndpoint(newEndpoint) {
+		if dp.skipLocalEndpoint(newEndpoint) {
+			return nil
+		}
+		if dp.IsEnableTR() {
+			return dp.UpdateTREndpoint(newEndpoint)
+		}
+		return nil
+	}
 
 	for vdsID, ovsbrname := range dp.Config.ManagedVDSMap {
 		if ovsbrname == newEndpoint.BridgeName {
@@ -1396,6 +1449,17 @@ func (dp *DpManager) RemoveLocalEndpoint(endpoint *Endpoint) error {
 	if !dp.IsBridgesConnected() {
 		dp.WaitForBridgeConnected()
 	}
+
+	if IsTREndpoint(endpoint) {
+		if dp.skipLocalEndpoint(endpoint) {
+			return nil
+		}
+		if dp.IsEnableTR() {
+			return dp.DeleteTREndpoint(endpoint)
+		}
+		return nil
+	}
+
 	ep, _ := dp.localEndpointDB.Get(endpoint.InterfaceUUID)
 	if ep == nil {
 		return fmt.Errorf("Endpoint with interface name: %v, ofport: %v wasnot found", endpoint.InterfaceName, endpoint.PortNo)
@@ -1480,6 +1544,9 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		if !dp.Config.MSVdsSet.Has(vdsID) {
+			continue
+		}
 		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
 		ctxL := ctrl.LoggerInto(ctx, logL)
 		flowEntry, err := bridgeChain[POLICY_BRIDGE_KEYWORD].AddMicroSegmentRule(ctxL, seqID, rule, ruleBase.Direction, ruleBase.Tier, ruleBase.Mode)
@@ -1563,6 +1630,9 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		dp.releaseRuleSeqID(ctx, delFlowIDs, resFlowIDs)
 	}()
 	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		if !dp.Config.MSVdsSet.Has(vdsID) {
+			continue
+		}
 		err := bridgeChain[POLICY_BRIDGE_KEYWORD].RemoveMicroSegmentRule(
 			pRule, pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {

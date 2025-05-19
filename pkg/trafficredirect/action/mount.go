@@ -8,14 +8,14 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants/tr"
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 func excuteCommand(commandStr string) (string, error) {
 	out, err := exec.Command("/bin/sh", "-c", commandStr).CombinedOutput()
 	if err != nil {
 		klog.Errorf("Failed to excute cmd: %s, out: %s, error: %v", commandStr, string(out), err)
-		return "", fmt.Errorf("failed to excute cmd: %s, error: %v", commandStr, err)
+		return "", fmt.Errorf("failed to excute cmd: %s, out: %s, error: %v", commandStr, string(out), err)
 	}
 
 	res := strings.TrimSpace(string(out))
@@ -189,6 +189,18 @@ func UnmountTRNic(ovsbrName string, d types.NicDirect) error {
 	}
 	klog.Infof("Success to unmount trafficredirect nic %v from ovs bridge %s", *p, ovsbrName)
 	return nil
+}
+
+func MustMountTRNic(ovsbrName, ifaceName, ifaceID string, d types.NicDirect) {
+	for i := 0; i < tr.DpActionMaxRetryTimes; i++ {
+		if err := MountTRNic(ovsbrName, ifaceName, ifaceID, d); err != nil {
+			klog.Errorf("Try %d times, failed to mount tr nic %s with ifaceID %s to policy bridge %s-policy: %s", i, ifaceName, ifaceID, ovsbrName, err)
+			continue
+		}
+		klog.Infof("Try %d times, success to mount tr nic %s with ifaceID %s to policy bridge %s-policy", i, ifaceName, ifaceID, ovsbrName)
+		return
+	}
+	klog.Fatalf("Failed to mount tr nic %s to policy brige %s-policy after %d times", ifaceName, ovsbrName, tr.DpActionMaxRetryTimes)
 }
 
 func MountTRNic(ovsbrName, ifaceName, ifaceID string, d types.NicDirect) error {
