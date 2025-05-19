@@ -29,6 +29,7 @@ import (
 	"github.com/everoute/ipam/pkg/ipam"
 	"github.com/gonetx/ipset"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -56,6 +57,14 @@ func NewOptions() *Options {
 	return &Options{
 		Config: &config.AgentConfig{},
 	}
+}
+
+func (o *Options) IsEnableTR() bool {
+	return o.Config.IsEnableTR()
+}
+
+func (o *Options) IsEnableMS() bool {
+	return o.Config.IsEnableMS()
 }
 
 func (o *Options) IsEnableCNI() bool {
@@ -161,14 +170,30 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 		InternalIPs:      agentConfig.InternalIPs,
 		EnableIPLearning: true,
 		EnableCNI:        agentConfig.EnableCNI,
+		MSVdsSet:         sets.New[string](),
+		TRConfig:         make(map[string]datapath.VDSTRConfig),
 	}
 
 	managedVDSMap := make(map[string]string)
-	for managedvds, ovsbrname := range agentConfig.DatapathConfig {
-		managedVDSMap[managedvds] = ovsbrname
-	}
-	for managedvds, ovsbr := range agentConfig.VdsConfigs {
-		managedVDSMap[managedvds] = ovsbr.BrideName
+	if o.IsEnableCNI() {
+		for managedvds, ovsbrname := range agentConfig.DatapathConfig {
+			managedVDSMap[managedvds] = ovsbrname
+			dpConfig.MSVdsSet.Insert(managedvds)
+		}
+	} else {
+		for managedvds, ovsbr := range agentConfig.VdsConfigs {
+			managedVDSMap[managedvds] = ovsbr.BrideName
+			if ovsbr.EnableMS {
+				dpConfig.MSVdsSet.Insert(managedvds)
+			}
+			if len(ovsbr.TrafficRedirects) > 0 {
+				// only support one tr config
+				dpConfig.TRConfig[managedvds] = datapath.VDSTRConfig{
+					NicIn:  ovsbr.TrafficRedirects[0].NicIn,
+					NicOut: ovsbr.TrafficRedirects[0].NicOut,
+				}
+			}
+		}
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
 

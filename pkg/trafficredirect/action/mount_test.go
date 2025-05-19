@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 var _ = Describe("mount unit test", func() {

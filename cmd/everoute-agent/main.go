@@ -60,6 +60,7 @@ import (
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/monitor"
 	ersource "github.com/everoute/everoute/pkg/source"
+	"github.com/everoute/everoute/pkg/trafficredirect/dpihealthy"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -123,6 +124,10 @@ func main() {
 		// In the virtualization scenario, k8sCtrl manager initializer reply on ovsdbmonitor initialization to connect to kube-apiserver
 		startMonitor(datapathManager, config, ofportIPMonitorChan, stopCtx.Done())
 		mgr = initK8sCtrlManager(stopCtx, config)
+	}
+
+	if opts.IsEnableTR() {
+		dpihealthy.Run(stopCtx, datapathManager.ProcessDPIHealthyStatus)
 	}
 
 	// registry metrics
@@ -202,7 +207,7 @@ func initK8sCtrlManager(stopCtx context.Context, config *rest.Config) manager.Ma
 }
 
 func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan *types.EndpointIP, stopChan <-chan struct{}) {
-	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
+	ovsdbMonitor, err := monitor.NewOVSDBMonitor(datapathManager.IsEnableTR())
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
 	}
@@ -242,14 +247,16 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
 	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
 	var err error
-	// Policy controller: watch policy related resource and update
-	if err = (&policy.Reconciler{
-		Client:                   mgr.GetClient(),
-		Scheme:                   mgr.GetScheme(),
-		DatapathManager:          datapathManager,
-		ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
-	}).SetupWithManager(mgr); err != nil {
-		klog.Fatalf("unable to create policy controller: %s", err.Error())
+	if opts.IsEnableMS() {
+		// Policy controller: watch policy related resource and update
+		if err = (&policy.Reconciler{
+			Client:                   mgr.GetClient(),
+			Scheme:                   mgr.GetScheme(),
+			DatapathManager:          datapathManager,
+			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create policy controller: %s", err.Error())
+		}
 	}
 
 	var proxyCache *ctrlProxy.Cache
