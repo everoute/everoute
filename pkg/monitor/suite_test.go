@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 		klog.Fatalf("fail to connect ovs client: %s", err)
 	}
 
-	ovsdbMonitor, err = NewOVSDBMonitor()
+	ovsdbMonitor, err = NewOVSDBMonitor(false)
 	if err != nil {
 		klog.Fatalf("fail to create ovsdb monitor: %s", err)
 	}

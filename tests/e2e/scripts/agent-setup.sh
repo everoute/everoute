@@ -69,8 +69,10 @@ ovs-ofctl add-flow ${UPLINK_BRIDGE} "table=0,priority=10,actions=normal"
 echo "generate everoute-agent config"
 mkdir -p "$(dirname ${AGENT_CONFIG_PATH})"
 cat > ${AGENT_CONFIG_PATH} << EOF
-datapathConfig:
-    ${DEFAULT_BRIDGE}: ${DEFAULT_BRIDGE}
+vdsConfigs:
+    ${DEFAULT_BRIDGE}:
+        bridgeName: ${DEFAULT_BRIDGE}
+        enableMS: true
 EOF
 mkdir -p "$(dirname ${AGENT_NAME_PATH})"
 cat /proc/sys/kernel/random/uuid > ${AGENT_NAME_PATH}
