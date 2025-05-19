@@ -17,3 +17,15 @@ const (
 	NicIn  NicDirect = 1
 	NicOut NicDirect = 2
 )
+
+type DPIStatus string
+
+const (
+	DPIAlive   DPIStatus = "alive"
+	DPIDead    DPIStatus = "dead"
+	DPIUnknown DPIStatus = "unknown"
+)
+
+func (d DPIStatus) ToHealthy() bool {
+	return d == DPIAlive
+}
