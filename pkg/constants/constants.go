@@ -92,6 +92,9 @@ const (
 	IcmpTypeInformationReq uint8 = 15
 
 	DuplicatePktMarkBit = 31
+
+	LearnActIdleTimeout = 300
+	LearnActHardTimeout = 300
 )
 
 const (

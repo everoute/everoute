@@ -50,6 +50,31 @@ type AgentConfig struct {
 	CNIConf   CNIConf `yaml:"CNIConf,omitempty"`
 }
 
+func (a *AgentConfig) IsEnableMS() bool {
+	if a.EnableCNI {
+		return true
+	}
+
+	for k := range a.VdsConfigs {
+		if a.VdsConfigs[k].EnableMS {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *AgentConfig) IsEnableTR() bool {
+	if a.EnableCNI {
+		return false
+	}
+	for k := range a.VdsConfigs {
+		if len(a.VdsConfigs[k].TrafficRedirects) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func GetAgentConfig() (*AgentConfig, error) {
 	var err error
 	agentConfig := AgentConfig{}

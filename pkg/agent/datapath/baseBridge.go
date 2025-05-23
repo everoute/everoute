@@ -160,3 +160,13 @@ func (b *BaseBridge) AddIPPoolGW(string) error {
 func (b *BaseBridge) DelIPPoolGW(string) error {
 	return nil
 }
+
+func (b *BaseBridge) UpdateTREndpoint(*Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) DeleteTREndpoint(*Endpoint) error {
+	return nil
+}
+
+func (b *BaseBridge) UpdateDPIHealthy(bool) {}
