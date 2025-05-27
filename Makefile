@@ -58,7 +58,9 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/refs/heads/main/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
+	rm -rf ut_tmp
 
 debug-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)

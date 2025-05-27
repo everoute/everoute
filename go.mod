@@ -16,6 +16,7 @@ require (
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
+	github.com/everoute/trafficredirect v0.0.0-20250603052638-439da7b073eb
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-openapi/runtime v0.28.0

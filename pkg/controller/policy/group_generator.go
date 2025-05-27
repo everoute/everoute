@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
+	"github.com/everoute/everoute/pkg/utils"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -269,7 +269,7 @@ func AppliedAsSecurityPeer(namespace string, applied securityv1alpha1.ApplyToPee
 
 // GenerateGroupName use spec hash as EndpointGroup name
 func GenerateGroupName(spec *groupv1alpha1.EndpointGroupSpec) string {
-	hashName := cache.HashName(32, spec)
+	hashName := utils.HashName(32, spec)
 	return fmt.Sprintf("sys-%s", hashName)
 }
 

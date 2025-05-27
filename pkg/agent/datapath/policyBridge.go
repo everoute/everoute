@@ -1817,3 +1817,68 @@ func (p *PolicyBridge) RemoveSFCRule() error {
 func (p *PolicyBridge) BridgeInitCNI() {
 
 }
+
+func (p *PolicyBridge) AddTRRule(ctx context.Context, r *DPTRRuleSpec, seqID uint32) (uint64, error) {
+	log := ctrl.LoggerFrom(ctx, "bridge", p.name)
+	t := p.l7IngressPolicyTable
+	nextT := p.ingressForwardTable
+	if r.Direct == DirEgress {
+		t = p.l7EgressPolicyTable
+		nextT = p.egressForwardTable
+	}
+	fid := assemblyTRFlowID(p.roundNum, uint64(seqID))
+
+	var smac, smask, dmac, dmask *net.HardwareAddr
+	var err error
+	smac, smask, err = p.getMacAndMask(r.SrcMac)
+	if err != nil {
+		log.Error(err, "Failed to parse src mac")
+		return 0, err
+	}
+	dmac, dmask, err = p.getMacAndMask(r.DstMac)
+	if err != nil {
+		log.Error(err, "Failed to parse dst mac")
+		return 0, err
+	}
+
+	f, _ := t.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Ethertype: PROTOCOL_IP,
+		MacSa:     smac,
+		MacSaMask: smask,
+		MacDa:     dmac,
+		MacDaMask: dmask,
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+	}, fid)
+	if err := f.Next(nextT); err != nil {
+		log.Error(err, "Failed to install flow")
+		return 0, err
+	}
+	log.Info("Success to add flow")
+	return fid, nil
+}
+
+func (p *PolicyBridge) DeleteTRRuleFlow(ctx context.Context, r *DPTRRuleSpec, fid uint64) error {
+	log := ctrl.LoggerFrom(ctx, "bridge", p.name, "flowID", fid)
+	t := p.l7IngressPolicyTable
+	if r.Direct == DirEgress {
+		t = p.l7EgressPolicyTable
+	}
+	if err := ofctrl.DeleteFlow(t, NORMAL_MATCH_FLOW_PRIORITY, fid); err != nil {
+		log.Error(err, "Failed to delete flow")
+		return err
+	}
+	log.Info("Success to delete flow")
+	return nil
+}
+
+func (p *PolicyBridge) getMacAndMask(macStr string) (*net.HardwareAddr, *net.HardwareAddr, error) {
+	if macStr == "" {
+		return nil, nil, nil
+	}
+	m, err := net.ParseMAC(macStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	mask := net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	return &m, &mask, nil
+}
