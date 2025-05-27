@@ -24,6 +24,7 @@ import (
 	"time"
 
 	ipamv1alpha1 "github.com/everoute/ipam/api/ipam/v1alpha1"
+	trv1alpha1 "github.com/everoute/trafficredirect/api/trafficredirect/v1alpha1"
 	"github.com/gonetx/ipset"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +49,7 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/overlay"
 	"github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
+	trctrl "github.com/everoute/everoute/pkg/agent/controller/trafficredirect"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/agent/proxy"
 	"github.com/everoute/everoute/pkg/agent/rpcserver"
@@ -75,6 +77,7 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(appsv1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(ipamv1alpha1.AddToScheme(clientsetscheme.Scheme))
+	utilruntime.Must(trv1alpha1.AddToScheme(clientsetscheme.Scheme))
 }
 
 func main() {
@@ -256,6 +259,14 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
+		}
+	}
+	if opts.IsEnableTR() {
+		if err = (&trctrl.Reconciler{
+			Client: mgr.GetClient(),
+			DpMgr:  datapathManager,
+		}).SetupWithManager(mgr); err != nil {
+			klog.Fatalf("unable to create trafficredirect controller: %s", err.Error())
 		}
 	}
 

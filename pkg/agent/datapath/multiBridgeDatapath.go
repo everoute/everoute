@@ -240,6 +240,9 @@ type Bridge interface {
 	UpdateTREndpoint(*Endpoint) error
 	DeleteTREndpoint(*Endpoint) error
 	UpdateDPIHealthy(bool)
+
+	AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, error)
+	DeleteTRRuleFlow(ctx context.Context, r *DPTRRuleSpec, fid uint64) error
 }
 
 type DpManager struct {
@@ -258,6 +261,9 @@ type DpManager struct {
 	policyRuleNums            map[string]int
 	flowReplayMutex           *lock.CASMutex
 	SeqIDAlloctorForRule      *NumAllocator
+	SeqIDAlloctorForTR        *NumAllocator
+	TRRules                   map[string]*DPTRRule
+	FlowIDToTRRules           map[uint64]*DPTRRule
 
 	flushMutex           *lock.ChanMutex
 	needFlush            bool                         // need to flush
@@ -324,6 +330,23 @@ type DpManagerCNIConfig struct {
 type VDSTRConfig struct {
 	NicIn  string
 	NicOut string
+}
+
+type DPDirect uint8
+
+const (
+	DirIngress DPDirect = 1
+	DirEgress  DPDirect = 2
+)
+
+func (d DPDirect) String() string {
+	if d == DirIngress {
+		return "ingress"
+	}
+	if d == DirEgress {
+		return "egress"
+	}
+	return ""
 }
 
 type LinkState uint8
@@ -403,7 +426,10 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ControllerMap = make(map[string]map[string]*ofctrl.Controller)
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
+	datapathManager.TRRules = make(map[string]*DPTRRule)
+	datapathManager.FlowIDToTRRules = make(map[uint64]*DPTRRule)
 	datapathManager.SeqIDAlloctorForRule = NewRuleSeqIDAlloctor()
+	datapathManager.SeqIDAlloctorForTR = NewTRRuleSeqIDAllocator()
 	datapathManager.policyRuleNums = make(map[string]int)
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
@@ -1000,6 +1026,13 @@ func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridg
 	if bridgeKeyword == POLICY_BRIDGE_KEYWORD {
 		if err := dp.ReplayVDSMicroSegmentFlow(vdsID); err != nil {
 			return fmt.Errorf("failed to replay microsegment flow while vswitchd restart, error: %v", err)
+		}
+	}
+
+	// replay tr rule flow
+	if bridgeKeyword == POLICY_BRIDGE_KEYWORD {
+		if err := dp.ReplayVDSTRFlow(vdsID); err != nil {
+			return fmt.Errorf("failed to replay TRRule flow while vswitchd restart, error: %v", err)
 		}
 	}
 

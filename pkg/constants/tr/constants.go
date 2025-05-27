@@ -14,6 +14,7 @@ const (
 	FlowIDForHealthyMask   uint64 = 0xe000_0000_0fff_ffc0
 	FlowIDForHealthyMatch  uint64 = 0x2000_0000_0000_0040
 	FlowIDVariableLowBits  uint32 = 28
+	FlowIDRuleFixBit       uint32 = 27
 
 	DpActionMaxRetryTimes = 5
 
