@@ -91,7 +91,7 @@ func transferLinkState(s string) datapath.LinkState {
 	if s == "down" {
 		return datapath.LinkDown
 	}
-	return datapath.LinkUnknow
+	return datapath.LinkUnknown
 }
 
 func getIfaceID(externalIDs map[interface{}]interface{}) string {

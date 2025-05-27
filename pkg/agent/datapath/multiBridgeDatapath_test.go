@@ -1383,7 +1383,7 @@ func TestTREp(t *testing.T) {
 		PortNo:        TRNicInPortNO,
 		InterfaceName: "nic2",
 		Extend: &EndpointExtend{
-			State:   LinkUnknow,
+			State:   LinkUnknown,
 			IfaceID: TRNicInIfaceID,
 		},
 	}
@@ -1391,7 +1391,7 @@ func TestTREp(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
 	Expect(p.TrafficRedirect.Info.NicIn.PortNo).Should(Equal(TRNicInPortNO))
-	Expect(p.TrafficRedirect.Info.NicIn.State).Should(Equal(LinkUnknow))
+	Expect(p.TrafficRedirect.Info.NicIn.State).Should(Equal(LinkUnknown))
 	flows, err = dumpAllFlows("ovsbr0-policy")
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(flows).ShouldNot(BeEmpty())
@@ -1463,7 +1463,7 @@ func TestTREp(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	p = datapathManager.BridgeChainMap["ovsbr0"][POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
 	Expect(p.TrafficRedirect.Info.NicOut.PortNo).Should(Equal(uint32(0)))
-	Expect(p.TrafficRedirect.Info.NicOut.State).Should(Equal(LinkUnknow))
+	Expect(p.TrafficRedirect.Info.NicOut.State).Should(Equal(LinkUnknown))
 	for i := range nicFlows {
 		err = flowValidator([]string{nicFlows[i]})
 		Expect(err).Should(HaveOccurred())
