@@ -179,3 +179,11 @@ func (b *BaseBridge) DeleteTREndpoint(*Endpoint) error {
 }
 
 func (b *BaseBridge) UpdateDPIHealthy(bool) {}
+
+func (b *BaseBridge) AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, error) {
+	return 0, nil
+}
+
+func (b *BaseBridge) DeleteTRRuleFlow(context.Context, *DPTRRuleSpec, uint64) error {
+	return nil
+}

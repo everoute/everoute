@@ -493,7 +493,7 @@ func GenerateFlowKey(rule PolicyRule) string {
 	// We consider PolicyRule with the same spec but different action as the same flow.
 	// Some we remove the action to generate FlowKey here.
 	rule.Action = ""
-	return HashName(32, rule)
+	return utils.HashName(32, rule)
 }
 
 func AppendIPBlockPorts(dst []securityv1alpha1.NamedPort, src []securityv1alpha1.NamedPort) []securityv1alpha1.NamedPort {
