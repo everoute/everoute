@@ -304,6 +304,8 @@ github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe h1:3++NPEpYdP4ccp
 github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe/go.mod h1:cAAsePK2e15YDAMJNyOpGYEWNe4sIghTY7gpz4cX/Ik=
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b h1:mRZd6J5gjd92VEcyeRQmJJ3DlYqIbVtbWOn4mFp0DLk=
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b/go.mod h1:3zZoS9Hn0uw2Q3ypIuyYIIrRfB7/KODEzXl/irx1P7c=
+github.com/everoute/trafficredirect v0.0.0-20250604060121-7078b1baad07 h1:XICKDECtJqFkwLKzQ/18NBFITYlNamTzHpq3E3AEiEI=
+github.com/everoute/trafficredirect v0.0.0-20250604060121-7078b1baad07/go.mod h1:76987SyYCwGeU5Dh+EmSmG+aMrZ0VisXW/XwFxzpgZU=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
