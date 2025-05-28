@@ -10,7 +10,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/constants/tr"
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 type TRNicCfg struct {

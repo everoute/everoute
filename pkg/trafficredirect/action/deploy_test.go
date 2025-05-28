@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/everoute/everoute/pkg/config"
-	"github.com/everoute/everoute/pkg/trafficredirect/types"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 var _ = Describe("Reset", func() {
@@ -34,6 +34,12 @@ var _ = Describe("Reset", func() {
 			_, err = excuteCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl add-br %s-policy", testBr1)
+			_, err = excuteCommand(cmd)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			cmd = fmt.Sprintf("ovs-ofctl add-flow %s-policy 'cookie=0x2000000040000000,table=0,ip, priority=30 actions=drop'", testBr1)
+			_, err = excuteCommand(cmd)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			cmd = fmt.Sprintf("ovs-ofctl add-flow %s-policy 'cookie=0x50000000,table=0, icmp, priority=100 actions=drop'", testBr1)
 			_, err = excuteCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -101,6 +107,15 @@ var _ = Describe("Reset", func() {
 			c, err = getNicConfig(testBr1, types.NicOut)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(c).Should(BeNil())
+
+			cmd := fmt.Sprintf("ovs-ofctl dump-flows %s-policy 'cookie=0x50000000/-1'", testBr1)
+			res, err := excuteCommand(cmd)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(res).Should(ContainSubstring("cookie=0x50000000"))
+			cmd = fmt.Sprintf("ovs-ofctl dump-flows %s-policy 'cookie=0x2000000040000000/-1'", testBr1)
+			res, err = excuteCommand(cmd)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(res).ShouldNot(ContainSubstring("cookie=0x2000000040000000"))
 		})
 	})
 })
