@@ -260,8 +260,8 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	policyRuleNums            map[string]int
 	flowReplayMutex           *lock.CASMutex
-	SeqIDAlloctorForRule      *NumAllocator
-	SeqIDAlloctorForTR        *NumAllocator
+	FlowIDAlloctorForRule     *FlowIDAlloctor
+	FlowIDAlloctorForTR       *FlowIDAlloctor
 	TRRules                   map[string]*DPTRRule
 	FlowIDToTRRules           map[uint64]*DPTRRule
 
@@ -428,8 +428,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.TRRules = make(map[string]*DPTRRule)
 	datapathManager.FlowIDToTRRules = make(map[uint64]*DPTRRule)
-	datapathManager.SeqIDAlloctorForRule = NewRuleSeqIDAlloctor()
-	datapathManager.SeqIDAlloctorForTR = NewTRRuleSeqIDAllocator()
+	datapathManager.FlowIDAlloctorForRule = NewPolicyFlowIDAlloctor()
+	datapathManager.FlowIDAlloctorForTR = NewTRFlowIDAlloctor()
 	datapathManager.policyRuleNums = make(map[string]int)
 	datapathManager.Config = datapathConfig
 	datapathManager.localEndpointDB = cmap.New()
@@ -445,7 +445,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ippoolSubnets = sets.New[string]()
 	datapathManager.ippoolGWs = sets.New[string]()
 	datapathManager.AgentMetric = agentMetric
-	datapathManager.SeqIDAlloctorForRule.SetFunc(agentMetric.SetPolicySeqIDInfo)
+	datapathManager.FlowIDAlloctorForRule.GetNumAlloctor().SetFunc(agentMetric.SetSeqIDInfo)
+	datapathManager.FlowIDAlloctorForTR.GetNumAlloctor().SetFunc(agentMetric.SetSeqIDInfo)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -986,12 +987,20 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 	}(vdsID)
 }
 
-func (dp *DpManager) PolicySeqIDExhaust() bool {
-	if dp.SeqIDAlloctorForRule != nil {
-		return dp.SeqIDAlloctorForRule.Exhaust()
+func (dp *DpManager) SeqIDExhaust() (string, bool) {
+	if dp.FlowIDAlloctorForRule != nil {
+		if dp.FlowIDAlloctorForRule.GetNumAlloctor().Exhaust() {
+			return dp.FlowIDAlloctorForRule.GetName(), true
+		}
 	}
 
-	return false
+	if dp.FlowIDAlloctorForTR != nil {
+		if dp.FlowIDAlloctorForTR.GetNumAlloctor().Exhaust() {
+			return dp.FlowIDAlloctorForTR.GetName(), true
+		}
+	}
+
+	return "", false
 }
 
 func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridgeKeyword string) error {
@@ -1098,10 +1107,14 @@ func (dp *DpManager) ReplayVDSLocalEndpointFlow(vdsID string, keyWord string) er
 
 func (dp *DpManager) getSeqIDForReplayRule(vdsID string, entry *EveroutePolicyRuleEntry) (uint32, error) {
 	if entry.RuleFlowMap[vdsID] != nil {
-		seqID := GetSeqIDByFlowID(entry.RuleFlowMap[vdsID].FlowID)
-		return seqID, nil
+		flowID := entry.RuleFlowMap[vdsID].FlowID
+		seqID, err := dp.FlowIDAlloctorForRule.GetSeqIDByFlowID(flowID)
+		if err == nil {
+			return seqID, nil
+		}
+		klog.Errorf("Failed to get seqID from flowID %s, allocate another one, err: %s", flowID, err)
 	}
-	return dp.SeqIDAlloctorForRule.Allocate()
+	return dp.FlowIDAlloctorForRule.Allocate()
 }
 
 func (dp *DpManager) ReplayVDSMicroSegmentFlow(vdsID string) error {
@@ -1482,7 +1495,7 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	log = log.WithValues("oldRule", oldRule)
 	ctx = ctrl.LoggerInto(ctx, log)
 
-	seqID, err := dp.SeqIDAlloctorForRule.Allocate()
+	seqID, err := dp.FlowIDAlloctorForRule.Allocate()
 	if err != nil {
 		log.Error(err, "Failed to allocate seqID for rule")
 		return err
@@ -1557,7 +1570,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 	var errs []error
 	var delFlowIDs, resFlowIDs []uint64
 	defer func() {
-		dp.releaseRuleSeqID(ctx, delFlowIDs, resFlowIDs)
+		dp.FlowIDAlloctorForRule.Release(ctx, delFlowIDs, resFlowIDs)
 	}()
 	for vdsID := range dp.BridgeChainMap {
 		if !dp.Config.MSVdsSet.Has(vdsID) {
@@ -1585,30 +1598,6 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 	dp.decPolicyRuleNum(policyRef.Policy)
 	log.Info("Success delete rule")
 	return nil
-}
-
-func (dp *DpManager) releaseRuleSeqID(ctx context.Context, dels, ress []uint64) {
-	log := ctrl.LoggerFrom(ctx)
-	log.V(4).Info("release rule seq id", "all", dels, "res", ress)
-	if len(dels) == 0 {
-		return
-	}
-	delSeqIDs := sets.New[uint32]()
-	resSeqIDs := sets.New[uint32]()
-	for i := range dels {
-		delSeqIDs.Insert(GetSeqIDByFlowID(dels[i]))
-	}
-	for i := range ress {
-		resSeqIDs.Insert(GetSeqIDByFlowID(ress[i]))
-	}
-	needReleases := delSeqIDs.Difference(resSeqIDs)
-	if len(needReleases) == 0 {
-		return
-	}
-	for _, seqID := range needReleases.UnsortedList() {
-		dp.SeqIDAlloctorForRule.Release(seqID)
-	}
-	log.V(4).Info("success release seq ids", "seqIDs", needReleases)
 }
 
 func (dp *DpManager) GetNatBridges() []*NatBridge {

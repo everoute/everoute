@@ -1115,31 +1115,29 @@ func randomIPv6() string {
 
 func TestReleaseRuleSeqID(t *testing.T) {
 	start := uint32(0x8000010)
-	allo, _ := NewNumAllocator(start, 0x800001f)
-	dp := &DpManager{
-		SeqIDAlloctorForRule: allo,
-	}
+	fAllo := NewFlowIDAlloctor(MSModuleName, start, 0x800001f, 0x0)
+	allo := fAllo.GetNumAlloctor()
 
 	allo.used.Set(0x8000012 - start)
 	allo.used.Set(0x8000013 - start)
 	allo.used.Set(0x8000014 - start)
 
-	dp.releaseRuleSeqID(context.Background(), nil, []uint64{0xb8000009, 0xb8000013})
+	fAllo.Release(context.Background(), nil, []uint64{0xb8000009, 0xb8000013})
 	if !allo.used.Contains(0x8000013 - start) {
 		t.Errorf("release seqID failed when no dels")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xc8000014}, []uint64{0xb8000013, 0xc8000014})
+	fAllo.Release(context.Background(), []uint64{0xb8000013, 0xc8000014}, []uint64{0xb8000013, 0xc8000014})
 	if !allo.used.Contains(0x8000013-start) || !allo.used.Contains(0x8000014-start) {
 		t.Errorf("can't release dels in ress when all dels is in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0xb8000013, 0xb8000012}, []uint64{0xb8000013, 0xb8000015})
+	fAllo.Release(context.Background(), []uint64{0xb8000013, 0xb8000012}, []uint64{0xb8000013, 0xb8000015})
 	if !allo.used.Contains(0x8000013-start) || allo.used.Contains(0x8000012-start) {
 		t.Errorf("release seqID failed for part dels in ress")
 	}
 
-	dp.releaseRuleSeqID(context.Background(), []uint64{0x8000013, 0xc8000013, 0x8000014}, nil)
+	fAllo.Release(context.Background(), []uint64{0x8000013, 0xc8000013, 0x8000014}, nil)
 	if allo.used.Contains(0x8000013-start) || allo.used.Contains(0x800001-start) {
 		t.Errorf("release seqID failed when no ress")
 	}
