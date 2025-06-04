@@ -16,6 +16,10 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
+const (
+	TRModuleName = "trafficredirect"
+)
+
 type DPTRRuleSpec struct {
 	SrcMac string
 	DstMac string
@@ -55,29 +59,16 @@ func IsTREndpoint(endpoint *Endpoint) bool {
 	return false
 }
 
-func assemblyTRFlowID(roundNumber uint64, seqID uint64) uint64 {
-	if seqID >= 1<<trconst.FlowIDVariableLowBits {
-		klog.Fatalf("param seqID %d is invalid, max seqID is %d", seqID, 1<<trconst.FlowIDVariableLowBits-1)
-	}
-	return trconst.FlowIDPrefix + roundNumber<<trconst.FlowIDVariableLowBits + seqID
+func NewTRFlowIDAlloctor() *FlowIDAlloctor {
+	return NewFlowIDAlloctor(TRModuleName, trconst.FlowIDRuleBegin, trconst.FlowIDRuleEnd, trconst.FlowIDPrefix)
 }
 
-func GetTRNicFlowID(roundNumber uint64) uint64 {
-	return assemblyTRFlowID(roundNumber, trconst.FlowIDForTRNicSuffix)
+func (dm *DpManager) GetTRNicFlowID(roundNumber uint64) uint64 {
+	return dm.FlowIDAlloctorForTR.AssemblyFlowID(roundNumber, trconst.FlowIDForTRNicSuffix)
 }
 
-func GetTRHealthyFlowID(roundNumber uint64) uint64 {
-	return assemblyTRFlowID(roundNumber, trconst.FlowIDForHealthySuffix)
-}
-
-func NewTRRuleSeqIDAllocator() *NumAllocator {
-	n, _ := NewNumAllocator(1<<trconst.FlowIDRuleFixBit, 1<<(trconst.FlowIDRuleFixBit+1)-1)
-	return n
-}
-
-func GetTRRuleSeqIDByFlowID(fid uint64) uint32 {
-	mask := uint64(1<<trconst.FlowIDVariableLowBits - 1)
-	return uint32(fid & mask)
+func (dm *DpManager) GetTRHealthyFlowID(roundNumber uint64) uint64 {
+	return dm.FlowIDAlloctorForTR.AssemblyFlowID(roundNumber, trconst.FlowIDForHealthySuffix)
 }
 
 func (dm *DpManager) IsEnableTR() bool {
@@ -199,7 +190,7 @@ func (dm *DpManager) ProcessDPIHealthyStatus(s types.DPIStatus) {
 	for k := range dm.Config.TRConfig {
 		dm.BridgeChainMap[k][POLICY_BRIDGE_KEYWORD].UpdateDPIHealthy(dpiHealthy)
 	}
-	klog.Infof("Success process dpi Healthy status %s(healthy: %s)", s, dpiHealthy)
+	klog.Infof("Success process dpi Healthy status %s(healthy: %v)", s, dpiHealthy)
 }
 
 func (dm *DpManager) AddTRRule(ctx context.Context, spec *DPTRRuleSpec, k string) error {
@@ -226,7 +217,7 @@ func (dm *DpManager) AddTRRule(ctx context.Context, spec *DPTRRuleSpec, k string
 		return nil
 	}
 
-	seqID, err := dm.SeqIDAlloctorForTR.Allocate()
+	seqID, err := dm.FlowIDAlloctorForTR.Allocate()
 	if err != nil {
 		log.Error(err, "Failed to allocate seq id")
 		return err
@@ -264,6 +255,11 @@ func (dm *DpManager) DelTRRule(ctx context.Context, oldSpec *DPTRRuleSpec, k str
 		return nil
 	}
 
+	var errs []error
+	var delFlowIDs, resFlowIDs []uint64
+	defer func() {
+		dm.FlowIDAlloctorForTR.Release(ctx, delFlowIDs, resFlowIDs)
+	}()
 	ctx = ctrl.LoggerInto(ctx, log)
 	if len(cur.Refs) == 0 {
 		log.Info("old rule doesn't associated any TRRules")
@@ -274,9 +270,15 @@ func (dm *DpManager) DelTRRule(ctx context.Context, oldSpec *DPTRRuleSpec, k str
 		}
 		for vds, fid := range cur.FlowIDs {
 			if err := dm.BridgeChainMap[vds][POLICY_BRIDGE_KEYWORD].DeleteTRRuleFlow(ctx, &cur.DPTRRuleSpec, fid); err != nil {
-				return err
+				errs = append(errs, err)
+				resFlowIDs = append(resFlowIDs, fid)
+				continue
 			}
 			delete(dm.FlowIDToTRRules, fid)
+			delFlowIDs = append(delFlowIDs, fid)
+		}
+		if len(errs) > 0 {
+			return errors.Join(errs...)
 		}
 		delete(dm.TRRules, id)
 		return nil
@@ -297,9 +299,15 @@ func (dm *DpManager) DelTRRule(ctx context.Context, oldSpec *DPTRRuleSpec, k str
 	log.Info("old rule only associated current TRRule, should delete flow")
 	for vds, fid := range cur.FlowIDs {
 		if err := dm.BridgeChainMap[vds][POLICY_BRIDGE_KEYWORD].DeleteTRRuleFlow(ctx, &cur.DPTRRuleSpec, fid); err != nil {
-			return err
+			errs = append(errs, err)
+			resFlowIDs = append(resFlowIDs, fid)
+			continue
 		}
 		delete(dm.FlowIDToTRRules, fid)
+		delFlowIDs = append(delFlowIDs, fid)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	delete(dm.TRRules, id)
 	return nil
@@ -334,8 +342,11 @@ func (dm *DpManager) ReplayVDSTRFlow(vdsID string) error {
 
 func (dm *DpManager) getSeqIDForReplayTRRule(vdsID string, entry *DPTRRule) (uint32, error) {
 	if entry.FlowIDs[vdsID] != 0 {
-		seqID := GetTRRuleSeqIDByFlowID(entry.FlowIDs[vdsID])
-		return seqID, nil
+		seqID, err := dm.FlowIDAlloctorForTR.GetSeqIDByFlowID(entry.FlowIDs[vdsID])
+		if err == nil {
+			return seqID, nil
+		}
+		klog.Errorf("Failed to get TRRule seqID from flowID, allocate another one, err: %s", err)
 	}
-	return dm.SeqIDAlloctorForTR.Allocate()
+	return dm.FlowIDAlloctorForTR.Allocate()
 }
