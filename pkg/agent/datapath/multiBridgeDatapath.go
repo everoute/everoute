@@ -445,7 +445,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.ippoolSubnets = sets.New[string]()
 	datapathManager.ippoolGWs = sets.New[string]()
 	datapathManager.AgentMetric = agentMetric
-	datapathManager.SeqIDAlloctorForRule.SetFunc(agentMetric.SetPolicySeqIDInfo)
+	datapathManager.SeqIDAlloctorForRule.SetFunc(agentMetric.SetSeqIDInfo)
+	datapathManager.SeqIDAlloctorForTR.SetFunc(agentMetric.SetSeqIDInfo)
 
 	var wg sync.WaitGroup
 	for vdsID, ovsbrname := range datapathConfig.ManagedVDSMap {
@@ -986,12 +987,20 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 	}(vdsID)
 }
 
-func (dp *DpManager) PolicySeqIDExhaust() bool {
+func (dp *DpManager) SeqIDExhaust() (string, bool) {
 	if dp.SeqIDAlloctorForRule != nil {
-		return dp.SeqIDAlloctorForRule.Exhaust()
+		if dp.SeqIDAlloctorForRule.Exhaust() {
+			return dp.SeqIDAlloctorForRule.GetName(), true
+		}
 	}
 
-	return false
+	if dp.SeqIDAlloctorForTR != nil {
+		if dp.SeqIDAlloctorForTR.Exhaust() {
+			return dp.SeqIDAlloctorForTR.GetName(), true
+		}
+	}
+
+	return "", false
 }
 
 func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridgeKeyword string) error {

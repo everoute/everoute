@@ -9,8 +9,17 @@ import (
 	klog "k8s.io/klog/v2"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	call "github.com/everoute/everoute/pkg/constants"
 	constants "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
+)
+
+const (
+	MetricTRNicMount  = "tr_nic_mount"
+	MetricTRHealthy   = "tr_healthy"
+	MetrucTRNicStatus = "tr_nic_status"
+	BridgeLabel       = "ovs_bridge"
+	TypeLabel         = "type"
 )
 
 var limitTowerPolicyPrefix = []string{
@@ -33,8 +42,12 @@ type AgentMetric struct {
 
 	policyNameMap map[string]string
 
-	policyRuleFlowIDUsedCount prometheus.Gauge
-	policyRuleFlowIDExhaust   prometheus.Gauge
+	flowIDUsedCount prometheus.GaugeVec
+	flowIDExhaust   prometheus.GaugeVec
+
+	trNicMount  prometheus.GaugeVec
+	trNicStatus prometheus.GaugeVec
+	trHealthy   prometheus.GaugeVec
 }
 
 func newAgentCounterOpt(name, help string) prometheus.CounterOpts {
@@ -77,14 +90,26 @@ func NewAgentMetric() *AgentMetric {
 			"The count of datapath policy rule for each policy currently limited",
 		), []string{constants.MetricRuleEntryPolicyNameLabel}),
 		policyNameMap: map[string]string{},
-		policyRuleFlowIDUsedCount: prometheus.NewGauge(newAgentGaugeOpt(
-			constants.MetricPolicyRuleFlowIDUsedCount,
-			"the count policy rule seq id has allocated",
-		)),
-		policyRuleFlowIDExhaust: prometheus.NewGauge(newAgentGaugeOpt(
-			constants.MetricPolicyRuleFlowIDExhaust,
-			"policy rule seq ids has exhaust or not",
-		)),
+		flowIDUsedCount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
+			call.MetricFlowIDUsedCount,
+			"the count flow seq id has allocated",
+		), []string{call.MetricFlowIDLabel}),
+		flowIDExhaust: *prometheus.NewGaugeVec(newAgentGaugeOpt(
+			call.MetricFlowIDExhaust,
+			"flow seq ids has exhaust or not",
+		), []string{call.MetricFlowIDLabel}),
+		trNicMount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
+			MetricTRNicMount,
+			"trafficredirect nic mount status",
+		), []string{BridgeLabel, TypeLabel}),
+		trHealthy: *prometheus.NewGaugeVec(newAgentGaugeOpt(
+			MetricTRHealthy,
+			"trafficredirect dpi healthy",
+		), []string{BridgeLabel, TypeLabel}),
+		trNicStatus: *prometheus.NewGaugeVec(newAgentGaugeOpt(
+			MetrucTRNicStatus,
+			"trafficredirect nic link status",
+		), []string{BridgeLabel, TypeLabel}),
 	}
 	if err := m.reg.Register(m.arpCount); err != nil {
 		klog.Fatalf("Failed to init arp count metric %s", err)
@@ -161,14 +186,44 @@ func (m *AgentMetric) SetRuleEntryTotalNum(num int) {
 
 func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 	return []prometheus.Collector{m.arpCount, m.arpRejectCount,
-		m.ruleEntryTotalNum, m.ruleEntryNum, m.policyRuleFlowIDUsedCount, m.policyRuleFlowIDExhaust}
+		m.ruleEntryTotalNum, m.ruleEntryNum, m.flowIDUsedCount, m.flowIDExhaust, m.trHealthy, m.trNicMount, m.trNicStatus}
 }
 
-func (m *AgentMetric) SetPolicySeqIDInfo(exhaust bool, used int) {
+func (m *AgentMetric) SetSeqIDInfo(module string, exhaust bool, used int) {
 	exhF := float64(0)
 	if exhaust {
 		exhF = 1
 	}
-	m.policyRuleFlowIDExhaust.Set(exhF)
-	m.policyRuleFlowIDUsedCount.Set(float64(used))
+	m.flowIDExhaust.WithLabelValues(module).Set(exhF)
+	m.flowIDUsedCount.WithLabelValues(module).Set(float64(used))
+}
+
+func (m *AgentMetric) SetTRNicInfo(bridge string, trNic TRNicInfo, allHealthy bool) {
+	m.trNicMount.WithLabelValues(bridge, "nic_in").Set(float64(trNic.NicInMount))
+	m.trNicMount.WithLabelValues(bridge, "nic_out").Set(float64(trNic.NicOutMount))
+	m.trNicMount.WithLabelValues(bridge, "nic_all").Set(float64(trNic.NicMount))
+	m.trNicStatus.WithLabelValues(bridge, "nic_in").Set(float64(trNic.NicInStatus))
+	m.trNicStatus.WithLabelValues(bridge, "nic_out").Set(float64(trNic.NicOutStatus))
+	m.trHealthy.WithLabelValues(bridge, "all").Set(boolToFloat64(allHealthy))
+}
+
+func (m *AgentMetric) SetTRHealthy(bridge string, dpi, all bool) {
+	m.trHealthy.WithLabelValues(bridge, "dpi").Set(boolToFloat64(dpi))
+	m.trHealthy.WithLabelValues(bridge, "all").Set(boolToFloat64(all))
+}
+
+func boolToFloat64(in bool) float64 {
+	res := float64(0)
+	if in {
+		res = 1
+	}
+	return res
+}
+
+type TRNicInfo struct {
+	NicInMount   int
+	NicOutMount  int
+	NicMount     int
+	NicInStatus  uint8
+	NicOutStatus uint8
 }

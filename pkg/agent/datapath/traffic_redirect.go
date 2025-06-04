@@ -16,6 +16,10 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
+const (
+	TRModuleName = "trafficredirect"
+)
+
 type DPTRRuleSpec struct {
 	SrcMac string
 	DstMac string
@@ -71,7 +75,7 @@ func GetTRHealthyFlowID(roundNumber uint64) uint64 {
 }
 
 func NewTRRuleSeqIDAllocator() *NumAllocator {
-	n, _ := NewNumAllocator(1<<trconst.FlowIDRuleFixBit, 1<<(trconst.FlowIDRuleFixBit+1)-1)
+	n, _ := NewNumAllocator(TRModuleName, 1<<trconst.FlowIDRuleFixBit, 1<<(trconst.FlowIDRuleFixBit+1)-1)
 	return n
 }
 
@@ -199,7 +203,7 @@ func (dm *DpManager) ProcessDPIHealthyStatus(s types.DPIStatus) {
 	for k := range dm.Config.TRConfig {
 		dm.BridgeChainMap[k][POLICY_BRIDGE_KEYWORD].UpdateDPIHealthy(dpiHealthy)
 	}
-	klog.Infof("Success process dpi Healthy status %s(healthy: %s)", s, dpiHealthy)
+	klog.Infof("Success process dpi Healthy status %s(healthy: %v)", s, dpiHealthy)
 }
 
 func (dm *DpManager) AddTRRule(ctx context.Context, spec *DPTRRuleSpec, k string) error {
