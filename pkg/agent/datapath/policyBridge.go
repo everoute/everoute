@@ -19,6 +19,7 @@ import (
 
 	"github.com/everoute/everoute/pkg/constants"
 	trconst "github.com/everoute/everoute/pkg/constants/tr"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/trafficredirect/action"
 )
 
@@ -28,7 +29,6 @@ const (
 	CookieAutoAllocBitWidthForPolicyBr uint64 = 27
 	// 0x8000000->0x83fffff (mask is 0x3fffff) is used by rule flows
 	CookieRuleUsedBitWidth uint64 = 22
-	CookieRuleSeqIDMask    uint64 = 0x0000_0000_003f_ffff
 	CookieRuleFix          uint64 = 0x0000_0000_0800_0000
 )
 
@@ -181,6 +181,9 @@ type PolicyBridge struct {
 	ctZoneVDSVal    uint64
 	localBrName     string
 	TrafficRedirect TrafficRedirect
+
+	updateTRNicMountMetricFunc func(string, metrics.TRNicInfo, bool)
+	updateTRHealthyMetricFunc  func(string, bool, bool)
 }
 
 type TRCfg struct {
@@ -246,6 +249,8 @@ func NewPolicyBridge(brName, vdsID string, datapathManager *DpManager) *PolicyBr
 			}
 		}
 	}
+	policyBridge.updateTRHealthyMetricFunc = datapathManager.AgentMetric.SetTRHealthy
+	policyBridge.updateTRNicMountMetricFunc = datapathManager.AgentMetric.SetTRNicInfo
 	return policyBridge
 }
 
@@ -1291,7 +1296,7 @@ func (p *PolicyBridge) InitDuplicateDropFlow() error {
 }
 
 func (p *PolicyBridge) addTRHealthyFlows() error {
-	flowID := GetTRHealthyFlowID(p.roundNum)
+	flowID := p.datapathManager.GetTRHealthyFlowID(p.roundNum)
 
 	// table 105
 	f, _ := p.egressForwardTable.NewFlowWithFlowID(ofctrl.FlowMatch{
@@ -1338,7 +1343,7 @@ func (p *PolicyBridge) mustDelTRHealthyFlows() {
 }
 
 func (p *PolicyBridge) addTRNicFlows() error {
-	flowID := GetTRNicFlowID(p.roundNum)
+	flowID := p.datapathManager.GetTRNicFlowID(p.roundNum)
 
 	// table0
 	// process ingress traffic from svm
@@ -1471,6 +1476,7 @@ func (p *PolicyBridge) UpdateTREndpoint(ep *Endpoint) error {
 		return nil
 	}
 
+	defer p.updateTRNicMountMetric()
 	if ep.IfaceID == p.TrafficRedirect.Cfg.NicInIfaceID {
 		portIn := p.TrafficRedirect.Info.NicIn.PortNo
 		if ep.PortNo != portIn {
@@ -1537,6 +1543,8 @@ func (p *PolicyBridge) DeleteTREndpoint(ep *Endpoint) error {
 		return nil
 	}
 
+	defer p.updateTRNicMountMetric()
+
 	if ep.PortNo == p.TrafficRedirect.Info.NicIn.PortNo {
 		p.mustDelTRNicFlows()
 		p.TrafficRedirect.Info.NicIn.PortNo = 0
@@ -1554,6 +1562,7 @@ func (p *PolicyBridge) DeleteTREndpoint(ep *Endpoint) error {
 	if p.TrafficRedirect.Info.OldHealthy {
 		if !p.TrafficRedirect.Healthy() {
 			p.mustDelTRHealthyFlows()
+			p.TrafficRedirect.Info.OldHealthy = false
 		}
 	}
 
@@ -1571,6 +1580,8 @@ func (p *PolicyBridge) UpdateDPIHealthy(curHealthy bool) {
 		return
 	}
 
+	defer p.updateTRHealthyMetric()
+
 	p.TrafficRedirect.Info.DPIHealthy = curHealthy
 	defer klog.Infof("Success update policy bridge %s dpi healthy from %v to %v", p.name, old, curHealthy)
 	// do healthy flows
@@ -1585,6 +1596,38 @@ func (p *PolicyBridge) UpdateDPIHealthy(curHealthy bool) {
 		p.mustDelTRHealthyFlows()
 		p.TrafficRedirect.Info.OldHealthy = false
 	}
+}
+
+func (p *PolicyBridge) updateTRNicMountMetric() {
+	if p.updateTRNicMountMetricFunc == nil {
+		return
+	}
+
+	nicOut := 0
+	nicIn := 0
+	if p.TrafficRedirect.Info.NicIn.PortNo != 0 {
+		nicIn = 1
+	}
+
+	if p.TrafficRedirect.Info.NicOut.PortNo != 0 {
+		nicOut = 1
+	}
+	trNicInfo := metrics.TRNicInfo{
+		NicInMount:   nicIn,
+		NicOutMount:  nicOut,
+		NicMount:     nicIn + nicOut,
+		NicInStatus:  uint8(p.TrafficRedirect.Info.NicIn.State),
+		NicOutStatus: uint8(p.TrafficRedirect.Info.NicOut.State),
+	}
+	p.updateTRNicMountMetricFunc(p.name, trNicInfo, p.TrafficRedirect.Info.OldHealthy)
+}
+
+func (p *PolicyBridge) updateTRHealthyMetric() {
+	if p.updateTRHealthyMetricFunc == nil {
+		return
+	}
+
+	p.updateTRHealthyMetricFunc(p.name, p.TrafficRedirect.Info.DPIHealthy, p.TrafficRedirect.Info.OldHealthy)
 }
 
 func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*ofctrl.Table, *ofctrl.Table, error) {
@@ -1773,10 +1816,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 		p.WaitForSwitchConnection()
 	}
 
-	flowID, err := AssemblyRuleFlowID(p.roundNum, seqID)
-	if err != nil {
-		return nil, err
-	}
+	flowID := p.datapathManager.FlowIDAlloctorForRule.AssemblyFlowID(p.roundNum, seqID)
 
 	if p.isIsolationDropRule(tier, rule) {
 		return p.addIsolationDropRule(flowID, rule, direction)
@@ -1958,7 +1998,7 @@ func (p *PolicyBridge) AddTRRule(ctx context.Context, r *DPTRRuleSpec, seqID uin
 		t = p.l7EgressPolicyTable
 		nextT = p.egressForwardTable
 	}
-	fid := assemblyTRFlowID(p.roundNum, uint64(seqID))
+	fid := p.datapathManager.FlowIDAlloctorForTR.AssemblyFlowID(p.roundNum, seqID)
 
 	var smac, smask, dmac, dmask *net.HardwareAddr
 	var err error

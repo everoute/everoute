@@ -9,12 +9,12 @@ const (
 	FlowIDPrefix           uint64 = 1 << 61
 	FlowIDForTRNicMask     uint64 = 0xe000_0000_0fff_ffc0 // bit 61-63, bit 6-27
 	FlowIDForTRNicMatch    uint64 = 0x2000_0000_0000_0000
-	FlowIDForTRNicSuffix   uint64 = 0
-	FlowIDForHealthySuffix uint64 = 0x1 << 6
+	FlowIDForTRNicSuffix   uint32 = 0
+	FlowIDForHealthySuffix uint32 = 0x1 << 6
 	FlowIDForHealthyMask   uint64 = 0xe000_0000_0fff_ffc0
 	FlowIDForHealthyMatch  uint64 = 0x2000_0000_0000_0040
-	FlowIDVariableLowBits  uint32 = 28
-	FlowIDRuleFixBit       uint32 = 27
+	FlowIDRuleBegin        uint32 = 0x0800_0000
+	FlowIDRuleEnd          uint32 = 0x083f_ffff
 
 	DpActionMaxRetryTimes = 5
 

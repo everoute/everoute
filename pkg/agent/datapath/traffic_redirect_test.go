@@ -27,24 +27,30 @@ func TestIsTREndpoint(t *testing.T) {
 
 func TestAssemblyTRFlowID(t *testing.T) {
 	round := uint64(5)
-	seq := uint64(10)
-
+	seq := uint32(10)
+	all := NewTRFlowIDAlloctor()
 	expected := uint64(0x2000_0000_5000_000a)
-	result := assemblyTRFlowID(round, seq)
+	result := all.AssemblyFlowID(round, seq)
 	assert.Equal(t, expected, result)
 }
 
 func TestGetTRNicFlowID(t *testing.T) {
 	round := uint64(2)
 	expected := uint64(0x2000_0000_2000_0000)
-	result := GetTRNicFlowID(round)
+	dm := &DpManager{
+		FlowIDAlloctorForTR: NewTRFlowIDAlloctor(),
+	}
+	result := dm.GetTRNicFlowID(round)
 	assert.Equal(t, expected, result)
 }
 
 func TestGetTRHealthyFlowID(t *testing.T) {
 	round := uint64(3)
 	expected := uint64(0x2000_0000_3000_0040)
-	result := GetTRHealthyFlowID(round)
+	dm := &DpManager{
+		FlowIDAlloctorForTR: NewTRFlowIDAlloctor(),
+	}
+	result := dm.GetTRHealthyFlowID(round)
 	assert.Equal(t, expected, result)
 }
 
