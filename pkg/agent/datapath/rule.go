@@ -15,6 +15,8 @@ import (
 const (
 	EveroutePolicyAllow string = "allow"
 	EveroutePolicyDeny  string = "deny"
+
+	MSModuleName string = "microsegmentation"
 )
 
 type EveroutePolicyRule struct {
@@ -194,7 +196,7 @@ func (list EveroutePolicyRuleList) MatchConntrackFlow(flow *netlink.ConntrackFlo
 }
 
 func NewRuleSeqIDAlloctor() *NumAllocator {
-	allo, err := NewNumAllocator(uint32(CookieRuleFix), 1<<CookieRuleUsedBitWidth-1+uint32(CookieRuleFix))
+	allo, err := NewNumAllocator(MSModuleName, uint32(CookieRuleFix), 1<<CookieRuleUsedBitWidth-1+uint32(CookieRuleFix))
 	if err != nil {
 		klog.Fatalf("failed to new rule seqID allocator: %s", err)
 	}
