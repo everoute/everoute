@@ -138,7 +138,7 @@ func main() {
 
 	// add health check handler
 	loadModuleHealthz := evehealthz.NewLoadModuleHealthz(constants.AlgNeedModules)
-	policySeqIDExhaustHealthz := evehealthz.NewPolicySeqIDExhaustCheck(datapathManager.PolicySeqIDExhaust)
+	policySeqIDExhaustHealthz := evehealthz.NewPolicySeqIDExhaustCheck(datapathManager.SeqIDExhaust)
 	erAgentHealthz := evehealthz.NewMultiChecks(loadModuleHealthz, policySeqIDExhaustHealthz)
 	err = mgr.AddMetricsExtraHandler(constants.HealthCheckPath, healthz.CheckHandler{Checker: erAgentHealthz.Check})
 	if err != nil {

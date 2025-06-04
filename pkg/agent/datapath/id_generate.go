@@ -57,25 +57,34 @@ type NumAllocator struct {
 	end       uint32
 	offset    uint32
 	exhaust   bool
-	setStatus func(bool, int)
+	setStatus func(string, bool, int)
+	name      string
 }
 
-func NewNumAllocator(start, end uint32) (*NumAllocator, error) {
+func NewNumAllocator(name string, start, end uint32) (*NumAllocator, error) {
 	if start > end {
 		return nil, fmt.Errorf("invalid param, start %#x can't bigger than end %#x", start, end)
 	}
 	return &NumAllocator{
-		used:      bitmap.Bitmap{},
-		start:     start,
-		end:       end,
-		offset:    0,
-		setStatus: func(bool, int) {},
+		name:   name,
+		used:   bitmap.Bitmap{},
+		start:  start,
+		end:    end,
+		offset: 0,
 	}, nil
 }
 
-func (a *NumAllocator) SetFunc(f func(bool, int)) {
+func (a *NumAllocator) SetFunc(f func(string, bool, int)) {
 	a.setStatus = f
 	klog.Info("Success set setStatus func")
+}
+
+func (a *NumAllocator) SetStatus(name string, exhaust bool, used int) {
+	if a.setStatus == nil {
+		return
+	}
+
+	a.setStatus(name, exhaust, used)
 }
 
 func (a *NumAllocator) Allocate() (uint32, error) {
@@ -90,7 +99,7 @@ func (a *NumAllocator) Allocate() (uint32, error) {
 			res := a.start + a.offset
 			a.used.Set(a.offset)
 			a.offset = a.nextOffset(a.offset)
-			a.setStatus(a.exhaust, a.used.Count())
+			a.SetStatus(a.name, a.exhaust, a.used.Count())
 			klog.V(4).Infof("success to allocate number %x", res)
 			return res, nil
 		}
@@ -98,7 +107,7 @@ func (a *NumAllocator) Allocate() (uint32, error) {
 		if a.offset == oldOffset {
 			klog.Errorf("number has exhaust, oldOffset %x, used number count %x", oldOffset, a.used.Count())
 			a.exhaust = true
-			a.setStatus(a.exhaust, a.used.Count())
+			a.SetStatus(a.name, a.exhaust, a.used.Count())
 			return 0, ErrNumExhaust
 		}
 	}
@@ -114,7 +123,7 @@ func (a *NumAllocator) Release(n uint32) {
 	}
 	a.used.Remove(n - a.start)
 	a.exhaust = false
-	a.setStatus(a.exhaust, a.used.Count())
+	a.SetStatus(a.name, a.exhaust, a.used.Count())
 	klog.V(4).Infof("success release number %x status: %v", n, a.used.Contains(n-a.start))
 }
 
@@ -123,6 +132,10 @@ func (a *NumAllocator) Exhaust() bool {
 	defer a.lock.Unlock()
 
 	return a.exhaust
+}
+
+func (a *NumAllocator) GetName() string {
+	return a.name
 }
 
 func (a *NumAllocator) nextOffset(cur uint32) uint32 {

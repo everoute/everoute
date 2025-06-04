@@ -148,27 +148,28 @@ func NewMultiChecks(c ...healthz.HealthChecker) healthz.HealthChecker {
 	}
 }
 
-var _ healthz.HealthChecker = &policySeqIDExhaust{}
+var _ healthz.HealthChecker = &SeqIDExhaust{}
 
-type policySeqIDExhaust struct {
-	exhaust func() bool
+type SeqIDExhaust struct {
+	exhaust func() (string, bool)
 }
 
-func (p *policySeqIDExhaust) Name() string {
-	return "policy-seq-id-exhaust"
+func (p *SeqIDExhaust) Name() string {
+	return "seq-id-exhaust"
 }
 
-func (p *policySeqIDExhaust) Check(_ *http.Request) error {
+func (p *SeqIDExhaust) Check(_ *http.Request) error {
 	if p.exhaust != nil {
-		if p.exhaust() {
-			return fmt.Errorf("policy seq id has exhaust")
+		m, exhaust := p.exhaust()
+		if exhaust {
+			return fmt.Errorf("module %s seq id has exhaust", m)
 		}
 	}
 	return nil
 }
 
-func NewPolicySeqIDExhaustCheck(f func() bool) healthz.HealthChecker {
-	return &policySeqIDExhaust{
+func NewPolicySeqIDExhaustCheck(f func() (string, bool)) healthz.HealthChecker {
+	return &SeqIDExhaust{
 		exhaust: f,
 	}
 }
