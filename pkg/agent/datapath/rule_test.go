@@ -174,19 +174,17 @@ func TestToEveroutePolicyRuleForCT(t *testing.T) {
 
 func TestPolicySeqID(t *testing.T) {
 	var id uint64 = 0xb8307028
-	seqID := GetSeqIDByFlowID(id)
-	res, err := AssemblyRuleFlowID(11, seqID)
+	allo := NewPolicyFlowIDAlloctor()
+	seqID, err := allo.GetSeqIDByFlowID(id)
 	if err != nil {
 		t.Errorf("expect return no err, real err is: %s", err)
 	}
+	res := allo.AssemblyFlowID(11, seqID)
 	if res != id {
 		t.Errorf("expect is %x, real is %x", id, res)
 	}
 
-	res, err = AssemblyRuleFlowID(12, seqID)
-	if err != nil {
-		t.Errorf("expect return no err, real err is: %s", err)
-	}
+	res = allo.AssemblyFlowID(12, seqID)
 	if res != 0xc8307028 {
 		t.Errorf("expect is %x, real is %x", 0xc8307028, res)
 	}

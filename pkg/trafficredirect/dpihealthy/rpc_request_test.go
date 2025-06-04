@@ -46,27 +46,27 @@ func TestHealthyCheck(t *testing.T) {
 		},
 		{
 			name:         "Successful Alive",
-			responseJSON: `{"ec":"EOK","error":"","data":{"DPI":"alive"}}`,
+			responseJSON: `{"result":{"ec":"E_OK","error":"","data":{"DPI":"alive"}},"id":2}`,
 			expected:     types.DPIAlive,
 		},
 		{
 			name:         "Successful Dead",
-			responseJSON: `{"ec":"EOK","error":"","data":{"DPI":"dead"}}`,
+			responseJSON: `{"result":{"ec":"E_OK","error":"","data":{"DPI":"dead"}}, "id":2}`,
 			expected:     types.DPIDead,
 		},
 		{
 			name:         "Wrong ec",
-			responseJSON: `{"ec":"FAIL","error":"some error","data":{"DPI":"alive"}}`,
+			responseJSON: `{"result":{"ec":"FAIL","error":"some error","data":{"DPI":"alive"}},"id":2}`,
 			expected:     types.DPIUnknown,
 		},
 		{
 			name:         "Missing DPI field",
-			responseJSON: `{"ec":"EOK","error":"","data":{"Other":"alive"}}`,
+			responseJSON: `{"result":{"ec":"E_OK","error":"","data":{"Other":"alive"}},"id":2}`,
 			expected:     types.DPIUnknown,
 		},
 		{
 			name:         "DPI module unknown",
-			responseJSON: `{"ec":"EOK","error":"","data":{"DPI":"unexpected"}}`,
+			responseJSON: `{"result":{"ec":"E_OK","error":"","data":{"DPI":"unexpected"}},"id":2}`,
 			expected:     types.DPIUnknown,
 		},
 	}
