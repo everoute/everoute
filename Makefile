@@ -26,7 +26,7 @@ image-net-utils:
 yaml:
 	helm template -n kube-system deploy/chart > deploy/everoute.yaml
 
-generate: codegen mock gqlgen protopb manifests yaml apidocs-gen
+generate: protopb
 	find . -name "*.go" -exec gci write --section 'standard' --section 'default' --section 'prefix(github.com/everoute/everoute)' {} +
 
 docker-generate: image-generate

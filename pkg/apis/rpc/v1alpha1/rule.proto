@@ -122,4 +122,22 @@ service Getter {
   rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
   rpc GetRulesByFlow(FlowIDs) returns (RuleEntries){}
   rpc GetSvcInfoBySvcID(SvcID) returns (SvcInfo) {}
+  rpc GetTRRulesByFlowIDs(FlowIDs) returns (TRRules) {}
+  rpc GetTRRulesByRuleKeys(TRRuleKeys) returns (TRRules) {}
+}
+
+message TRRule{
+  string SrcMac = 1;
+  string DstMac = 2;
+  string Direct = 3;
+  map<string, uint64> FlowIDs = 4;
+  repeated string Refs = 5;
+}
+
+message TRRules{
+  repeated TRRule TRRules = 1;
+}
+
+message TRRuleKeys {
+  repeat string TRRuleKeys = 1;
 }

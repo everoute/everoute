@@ -45,6 +45,23 @@ type DPTRRule struct {
 	Refs sets.Set[string]
 }
 
+func (d *DPTRRule) DeepCopy() *DPTRRule {
+	res := &DPTRRule{
+		DPTRRuleSpec: DPTRRuleSpec{
+			SrcMac: d.SrcMac,
+			DstMac: d.DstMac,
+			Direct: d.Direct,
+		},
+		Refs:    d.Refs.Clone(),
+		FlowIDs: make(map[string]uint64),
+	}
+
+	for k, v := range d.FlowIDs {
+		res.FlowIDs[k] = v
+	}
+	return res
+}
+
 func (s DPTRRuleSpec) genTRRuleID() string {
 	return utils.HashName(20, s)
 }
@@ -342,4 +359,38 @@ func (dm *DpManager) getSeqIDForReplayTRRule(vdsID string, entry *DPTRRule) (uin
 		return seqID, nil
 	}
 	return dm.SeqIDAlloctorForTR.Allocate()
+}
+
+func (dm *DpManager) GetTRRulesByFlowIDs(fids ...uint64) []*DPTRRule {
+	dm.lockRflowReplayWithTimeout()
+	defer dm.flowReplayMutex.RUnlock()
+	res := []*DPTRRule{}
+	for _, fid := range fids {
+		r := dm.FlowIDToTRRules[fid]
+		if r == nil {
+			continue
+		}
+		res = append(res, r.DeepCopy())
+	}
+	return res
+}
+
+func (dm *DpManager) GetTRRulesByRuleKeys(ks ...string) []*DPTRRule {
+	dm.lockRflowReplayWithTimeout()
+	defer dm.flowReplayMutex.RUnlock()
+
+	if len(ks) == 0 {
+		return nil
+	}
+
+	res := []*DPTRRule{}
+	for i := range dm.TRRules {
+		if dm.TRRules[i] == nil {
+			continue
+		}
+		if dm.TRRules[i].Refs.HasAny(ks...) {
+			res = append(res, dm.TRRules[i].DeepCopy())
+		}
+	}
+	return res
 }

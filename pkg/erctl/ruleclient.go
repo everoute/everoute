@@ -97,6 +97,14 @@ func GetSvcInfoBySvcID(svcID string) (*v1alpha1.SvcInfo, error) {
 	return ruleconn.GetSvcInfoBySvcID(context.Background(), &v1alpha1.SvcID{ID: svcID})
 }
 
+func GetTRRulesByFlowIDs(flowIDs []int64) ([]*v1alpha1.TRRules, error) {
+	p := []uint64{}
+	for i := range flowIDs {
+		p = append(p, uint64(flowIDs[i]))
+	}
+	ruleconn.GetTRRulesByFlowIDs()
+}
+
 type tuple struct {
 	srcIP, dstIP, status string
 	srcPort, dstPort     uint32

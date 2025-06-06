@@ -114,6 +114,33 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 	return svcInfo, nil
 }
 
+func (g *Getter) GetTRRulesByFlowIDs(_ context.Context, fids ...uint64) (*v1alpha1.TRRules, error) {
+	dpRules := g.dpManager.GetTRRulesByFlowIDs(fids...)
+	return &v1alpha1.TRRules{TRRules: trRulesDpToRpc(dpRules)}, nil
+}
+
+func (g *Getter) GetTRRulesByRuleKeys(_ context.Context, ks ...string) (*v1alpha1.TRRules, error) {
+	dpRules := g.dpManager.GetTRRulesByRuleKeys(ks...)
+	return &v1alpha1.TRRules{TRRules: trRulesDpToRpc(dpRules)}, nil
+}
+
+func trRulesDpToRpc(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
+	res := []*v1alpha1.TRRule{}
+	for i := range dpRules {
+		if dpRules[i] == nil {
+			continue
+		}
+		res = append(res, &v1alpha1.TRRule{
+			SrcMac:  dpRules[i].SrcMac,
+			DstMac:  dpRules[i].DstMac,
+			Direct:  dpRules[i].Direct.String(),
+			FlowIDs: dpRules[i].FlowIDs,
+			Refs:    dpRules[i].Refs.UnsortedList(),
+		})
+	}
+	return res
+}
+
 func NewGetterServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache) *Getter {
 	s := &Getter{
 		dpManager:  datapathManager,
