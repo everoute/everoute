@@ -95,6 +95,10 @@ const (
 
 	LearnActIdleTimeout = 300
 	LearnActHardTimeout = 300
+
+	MetricFlowIDUsedCount = "flowid_used_count"
+	MetricFlowIDExhaust   = "flowid_exhaust"
+	MetricFlowIDLabel     = "module"
 )
 
 const (

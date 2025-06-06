@@ -177,6 +177,9 @@ type PolicyBridge struct {
 	ctZoneVDSVal    uint64
 	localBrName     string
 	TrafficRedirect TrafficRedirect
+
+	updateTRNicMountMetricFunc func(string, bool, bool, bool)
+	updateTRHealthyMetricFunc  func(string, uint8, uint8, bool, bool)
 }
 
 type TRCfg struct {
@@ -241,6 +244,8 @@ func NewPolicyBridge(brName string, datapathManager *DpManager) *PolicyBridge {
 			}
 		}
 	}
+	policyBridge.updateTRHealthyMetricFunc = datapathManager.AgentMetric.SetTRHealthy
+	policyBridge.updateTRNicMountMetricFunc = datapathManager.AgentMetric.SetTRNicMount
 	return policyBridge
 }
 
@@ -1443,6 +1448,7 @@ func (p *PolicyBridge) UpdateTREndpoint(ep *Endpoint) error {
 		return nil
 	}
 
+	defer p.updateTRNicMountMetric()
 	if ep.Extend.IfaceID == p.TrafficRedirect.Cfg.NicInIfaceID {
 		portIn := p.TrafficRedirect.Info.NicIn.PortNo
 		if ep.PortNo != portIn {
@@ -1459,7 +1465,7 @@ func (p *PolicyBridge) UpdateTREndpoint(ep *Endpoint) error {
 		oldState := p.TrafficRedirect.Info.NicIn.State
 		if ep.Extend.State != oldState {
 			p.TrafficRedirect.Info.NicIn.State = ep.Extend.State
-			klog.Infof("Update policy bridge %s tr in nic state from %s to %s", oldState, ep.Extend.State)
+			klog.Infof("Update policy bridge %s tr in nic state from %s to %s", p.name, oldState, ep.Extend.State)
 		}
 	}
 
@@ -1513,6 +1519,8 @@ func (p *PolicyBridge) DeleteTREndpoint(ep *Endpoint) error {
 		return nil
 	}
 
+	defer p.updateTRNicMountMetric()
+
 	if ep.PortNo == p.TrafficRedirect.Info.NicIn.PortNo {
 		p.mustDelTRNicFlows()
 		p.TrafficRedirect.Info.NicIn.PortNo = 0
@@ -1547,6 +1555,8 @@ func (p *PolicyBridge) UpdateDPIHealthy(curHealthy bool) {
 		return
 	}
 
+	defer p.updateTRHealthyMetric()
+
 	p.TrafficRedirect.Info.DPIHealthy = curHealthy
 	defer klog.Infof("Success update policy bridge %s dpi healthy from %v to %v", p.name, old, curHealthy)
 	// do healthy flows
@@ -1561,6 +1571,24 @@ func (p *PolicyBridge) UpdateDPIHealthy(curHealthy bool) {
 		p.mustDelTRHealthyFlows()
 		p.TrafficRedirect.Info.OldHealthy = false
 	}
+}
+
+func (p *PolicyBridge) updateTRNicMountMetric() {
+	if p.updateTRNicMountMetricFunc == nil {
+		return
+	}
+
+	nicIn := p.TrafficRedirect.Info.NicIn.PortNo != 0
+	nicOut := p.TrafficRedirect.Info.NicOut.PortNo != 0
+	p.updateTRNicMountMetricFunc(p.name, nicIn, nicOut, p.TrafficRedirect.TRNicPrepared())
+}
+
+func (p *PolicyBridge) updateTRHealthyMetric() {
+	if p.updateTRHealthyMetricFunc == nil {
+		return
+	}
+	p.updateTRHealthyMetricFunc(p.name, uint8(p.TrafficRedirect.Info.NicIn.State), uint8(p.TrafficRedirect.Info.NicOut.State),
+		p.TrafficRedirect.Info.DPIHealthy, p.TrafficRedirect.Info.OldHealthy)
 }
 
 func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*ofctrl.Table, *ofctrl.Table, error) {
