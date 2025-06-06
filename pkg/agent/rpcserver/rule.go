@@ -12,6 +12,8 @@ import (
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
 
+var _ v1alpha1.GetterServer = &Getter{}
+
 type Getter struct {
 	dpManager  *datapath.DpManager
 	proxyCache *ctrlProxy.Cache
@@ -112,6 +114,35 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 
 	svcInfo.SvcFlow = svcFlow
 	return svcInfo, nil
+}
+
+func (g *Getter) GetTRRulesByFlowIDs(_ context.Context, in *v1alpha1.FlowIDs) (*v1alpha1.TRRules, error) {
+	fids := in.FlowIDs
+	dpRules := g.dpManager.GetTRRulesByFlowIDs(fids...)
+	return &v1alpha1.TRRules{TRRules: trRulesDpToRPC(dpRules)}, nil
+}
+
+func (g *Getter) GetTRRulesByRuleKeys(_ context.Context, in *v1alpha1.TRRuleKeys) (*v1alpha1.TRRules, error) {
+	ks := in.TRRuleKeys
+	dpRules := g.dpManager.GetTRRulesByRuleKeys(ks...)
+	return &v1alpha1.TRRules{TRRules: trRulesDpToRPC(dpRules)}, nil
+}
+
+func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
+	res := []*v1alpha1.TRRule{}
+	for i := range dpRules {
+		if dpRules[i] == nil {
+			continue
+		}
+		res = append(res, &v1alpha1.TRRule{
+			SrcMac:  dpRules[i].SrcMac,
+			DstMac:  dpRules[i].DstMac,
+			Direct:  dpRules[i].Direct.String(),
+			FlowIDs: dpRules[i].FlowIDs,
+			Refs:    dpRules[i].Refs.UnsortedList(),
+		})
+	}
+	return res
 }
 
 func NewGetterServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache) *Getter {
