@@ -652,12 +652,8 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 				continue
 			}
 			addRuleList = append(addRuleList, newRule)
-			reverseRules := newRule.ReverseForBlock()
-			addRuleList = append(addRuleList, reverseRules...)
 		} else if oldExist {
 			delRuleList = append(delRuleList, oldRule)
-			reverseRules := oldRule.ReverseForBlock()
-			delRuleList = append(delRuleList, reverseRules...)
 		}
 	}
 
