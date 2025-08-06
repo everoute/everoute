@@ -23,6 +23,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 var (
@@ -71,6 +72,13 @@ func listVlanTrunks(trunk interface{}) []float64 {
 	}
 
 	return trunkList
+}
+
+func getIfaceID(externalIDs map[interface{}]interface{}) string {
+	if id, ok := externalIDs[constants.EndpointExternalIDKey]; ok {
+		return id.(string)
+	}
+	return ""
 }
 
 func getIPv4Addr(externalIDs map[interface{}]interface{}) net.IP {

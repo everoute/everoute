@@ -68,6 +68,23 @@ func (cache *GroupCache) ListGroupIPBlocks(ctx context.Context, groupName string
 	return GroupMembersToIPBlocks(ctx, memberships), true
 }
 
+func (cache *GroupCache) ListGroupVNics(groupName string) []string {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	vnics := sets.New[string]()
+
+	memberships, ok := cache.members[groupName]
+	if !ok {
+		return []string{}
+	}
+
+	for _, member := range memberships {
+		vnics.Insert(member.EndpointReference.ExternalIDValue)
+	}
+
+	return vnics.UnsortedList()
+}
+
 func GroupMembersToIPBlocks(ctx context.Context, members []groupv1alpha1.GroupMember) map[string]*IPBlockItem {
 	log := ctrl.LoggerFrom(ctx)
 	res := make(map[string]*IPBlockItem)

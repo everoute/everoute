@@ -90,16 +90,17 @@ type IPAddressReference struct {
 	updateTimes    int
 }
 
-func NewLocalBridge(brName string, datapathManager *DpManager) Bridge {
+func NewLocalBridge(brName, vdsID string, datapathManager *DpManager) Bridge {
 	if datapathManager.IsEnableOverlay() {
 		return newLocalBridgeOverlay(brName, datapathManager)
 	}
-	return newLocalBridge(brName, datapathManager)
+	return newLocalBridge(brName, vdsID, datapathManager)
 }
 
-func newLocalBridge(brName string, datapathManager *DpManager) *LocalBridge {
+func newLocalBridge(brName, vdsID string, datapathManager *DpManager) *LocalBridge {
 	localBridge := new(LocalBridge)
 	localBridge.name = brName
+	localBridge.vdsID = vdsID
 	localBridge.datapathManager = datapathManager
 	localBridge.fromLocalEndpointFlow = make(map[uint32][]*ofctrl.Flow)
 	localBridge.fromLocalVlanFilterFlow = make(map[uint32][]*ofctrl.Flow)

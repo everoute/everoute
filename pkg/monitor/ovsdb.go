@@ -392,8 +392,8 @@ func (monitor *OVSDBMonitor) processOvsInterfaceAdd(uuid string, rowupdate ovsdb
 	monitor.endpointMap[uuid].MacAddrStr = macStr
 
 	if newExternalIDs, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
-		ip := getIPv4Addr(newExternalIDs.GoMap)
-		monitor.endpointMap[uuid].IPAddr = ip
+		monitor.endpointMap[uuid].IPAddr = getIPv4Addr(newExternalIDs.GoMap)
+		monitor.endpointMap[uuid].IfaceID = getIfaceID(newExternalIDs.GoMap)
 	}
 
 	// if endpoint info is ready, trigger endpoint add callback
@@ -491,8 +491,10 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 	}
 
 	var newIP net.IP
+	var ifaceID string
 	if newExternalIDs, ok := rowupdate.New.Fields["external_ids"].(ovsdb.OvsMap); ok {
 		newIP = getIPv4Addr(newExternalIDs.GoMap)
+		ifaceID = getIfaceID(newExternalIDs.GoMap)
 	}
 
 	var newEndpoint, oldEndpoint *datapath.Endpoint
@@ -503,6 +505,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 			InterfaceUUID: uuid,
 			MacAddrStr:    newMacStr,
 			IPAddr:        utils.IPCopy(newIP),
+			IfaceID:       ifaceID,
 			PortNo:        newOfPort,
 		}
 		return
@@ -514,6 +517,7 @@ func (monitor *OVSDBMonitor) processOvsInterfaceUpdate(uuid string, rowupdate ov
 		BridgeName:    oldEndpoint.BridgeName,
 		MacAddrStr:    oldEndpoint.MacAddrStr,
 		IPAddr:        utils.IPCopy(oldEndpoint.IPAddr),
+		IfaceID:       ifaceID,
 		PortNo:        oldEndpoint.PortNo,
 		VlanID:        oldEndpoint.VlanID,
 		Trunk:         oldEndpoint.Trunk,

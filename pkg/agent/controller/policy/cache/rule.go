@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/utils"
@@ -43,6 +44,7 @@ const (
 	RuleTypeGlobalDefaultRule RuleType = "GlobalDefaultRule"
 	RuleTypeDefaultRule       RuleType = "DefaultRule"
 	RuleTypeNormalRule        RuleType = "NormalRule"
+	RuleTypeIsolationDropRule RuleType = "IsolationDropRule"
 
 	RuleActionAllow RuleAction = "Allow"
 	RuleActionDrop  RuleAction = "Drop"
@@ -79,6 +81,9 @@ type PolicyRule struct {
 	DstPortMask     uint16        `json:"dstPortMask,omitempty"`
 	IcmpType        uint8
 	IcmpTypeEnable  bool
+
+	SrcVNicRef string
+	DstVNicRef string
 }
 
 func (p *PolicyRule) DeepCopy() *PolicyRule {
@@ -101,6 +106,8 @@ func (p *PolicyRule) DeepCopy() *PolicyRule {
 		DstPortMask:     p.DstPortMask,
 		IcmpType:        p.IcmpType,
 		IcmpTypeEnable:  p.IcmpTypeEnable,
+		SrcVNicRef:      p.SrcVNicRef,
+		DstVNicRef:      p.DstVNicRef,
 	}
 }
 
@@ -167,6 +174,9 @@ type CompleteRule struct {
 	// DefaultPolicyRule is true when the it's the default egress or ingress rule in policy.
 	DefaultPolicyRule bool
 
+	// FullIsolationPolicy is true when the policy is a full Isolation Policy.
+	FullIsolationPolicy bool
+
 	// SrcGroups is a groupName sets
 	SrcGroups sets.Set[string]
 	DstGroups sets.Set[string]
@@ -231,11 +241,52 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 func (rule *CompleteRule) ListRules(ctx context.Context, groupCache *GroupCache) []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
+	policyRuleList := rule.GenerateRuleList(ctx, rule.assemblySrcIPBlocks(ctx, groupCache),
+		rule.assemblyDstIPBlocks(ctx, groupCache), rule.Ports)
+	policyRuleList = append(policyRuleList, rule.GenerateFullIsolationRule(groupCache, nil)...)
 
-	return rule.GenerateRuleList(ctx, rule.assemblySrcIPBlocks(ctx, groupCache), rule.assemblyDstIPBlocks(ctx, groupCache), rule.Ports)
+	return policyRuleList
 }
 
-func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[string]*IPBlockItem, dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+func (rule *CompleteRule) GenerateFullIsolationRule(groupCache *GroupCache, gm *groupv1alpha1.GroupMembers) []PolicyRule {
+	var policyRuleList []PolicyRule
+	if rule.FullIsolationPolicy {
+		switch rule.Direction {
+		case RuleDirectionIn:
+			if groupCache != nil {
+				for group := range rule.DstGroups {
+					for _, vnic := range groupCache.ListGroupVNics(group) {
+						policyRuleList = append(policyRuleList, rule.generateRule("", "", rule.Direction, RulePort{}, "", vnic)...)
+					}
+				}
+			}
+			if gm != nil {
+				for _, member := range gm.GroupMembers {
+					policyRuleList = append(policyRuleList,
+						rule.generateRule("", "", rule.Direction, RulePort{}, "", member.EndpointReference.ExternalIDValue)...)
+				}
+			}
+		case RuleDirectionOut:
+			if groupCache != nil {
+				for group := range rule.SrcGroups {
+					for _, vnic := range groupCache.ListGroupVNics(group) {
+						policyRuleList = append(policyRuleList, rule.generateRule("", "", rule.Direction, RulePort{}, vnic, "")...)
+					}
+				}
+			}
+			if gm != nil {
+				for _, member := range gm.GroupMembers {
+					policyRuleList = append(policyRuleList,
+						rule.generateRule("", "", rule.Direction, RulePort{}, member.EndpointReference.ExternalIDValue, "")...)
+				}
+			}
+		}
+	}
+	return policyRuleList
+}
+
+func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[string]*IPBlockItem,
+	dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
 	log := ctrl.LoggerFrom(ctx)
 	var policyRuleList []PolicyRule
 
@@ -270,14 +321,14 @@ func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[
 					if rule.SymmetricMode {
 						// SymmetricMode will ignore rule direction, create both ingress and egress
 						if rule.hasLocalRule(dstIPBlock) {
-							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, dstPort)...)
+							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, dstPort, "", "")...)
 						}
 						if rule.hasLocalRule(srcIPBlock) {
-							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, dstPort)...)
+							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, dstPort, "", "")...)
 						}
 					} else if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock)) ||
 						(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock)) {
-						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, dstPort)...)
+						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, dstPort, "", "")...)
 					}
 				}
 			}
@@ -315,10 +366,13 @@ func (rule *CompleteRule) hasLocalRule(ipBlock *IPBlockItem) bool {
 	return false
 }
 
-func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort) []PolicyRule {
+func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort, srcVNicRef, dstVNicRef string) []PolicyRule {
 	var ruleType = RuleTypeNormalRule
 	if rule.DefaultPolicyRule {
 		ruleType = RuleTypeDefaultRule
+	}
+	if rule.FullIsolationPolicy && (srcVNicRef != "" || dstVNicRef != "") {
+		ruleType = RuleTypeIsolationDropRule
 	}
 
 	policyRule := PolicyRule{
@@ -336,6 +390,8 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		SrcPortMask:     port.SrcPortMask,
 		DstPortMask:     port.DstPortMask,
 		Action:          rule.Action,
+		SrcVNicRef:      srcVNicRef,
+		DstVNicRef:      dstVNicRef,
 	}
 
 	if policyRule.Tier == constants.Tier2 {
@@ -362,7 +418,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		policyRule.Name = fmt.Sprintf("%s-%s", rule.RuleID, GenerateFlowKey(policyRule))
 		ruleList = append(ruleList, policyRule)
 	}
-	if utils.IsIPv6Pair(policyRule.SrcIPAddr, policyRule.DstIPAddr) {
+	if ruleType != RuleTypeIsolationDropRule && utils.IsIPv6Pair(policyRule.SrcIPAddr, policyRule.DstIPAddr) {
 		policyRuleV6 := *policyRule.DeepCopy()
 		policyRuleV6.IPFamily = unix.AF_INET6
 		policyRuleV6.Name = fmt.Sprintf("%s-%s", rule.RuleID, GenerateFlowKey(policyRuleV6))

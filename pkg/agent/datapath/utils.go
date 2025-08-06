@@ -17,6 +17,7 @@ limitations under the License.
 package datapath
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -154,6 +155,18 @@ func ExcuteCommand(cmdStr, arg string) error {
 	}
 
 	return nil
+}
+
+func ExecteCommandWithOutput(cmdStr string) (string, error) {
+	cmd := exec.Command("/bin/sh", "-c", cmdStr)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s", stderr.String())
+	}
+	return strings.Trim(strings.TrimSpace(stdout.String()), "\n"), nil
 }
 
 func InitCNIDpMgrUT(ctx context.Context, brName string, enableProxy bool, enableOverlay bool, enableIPAM bool) (*DpManager, error) {
