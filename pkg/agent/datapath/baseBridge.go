@@ -16,6 +16,7 @@ type BaseBridge struct {
 	name      string
 	index     uint32
 	ovsBrName string
+	vdsID     string
 	OfSwitch  *ofctrl.OFSwitch
 	//nolint: structcheck
 	datapathManager *DpManager
@@ -123,6 +124,10 @@ func (b *BaseBridge) RemoveSFCRule() error {
 
 func (b *BaseBridge) AddMicroSegmentRule(context.Context, uint32, *EveroutePolicyRule, uint8, uint8, string) (*FlowEntry, error) {
 	return nil, nil
+}
+
+func (b *BaseBridge) RemoveMicroSegmentRule(*EveroutePolicyRuleEntry, *ofctrl.Table, uint16, uint64) error {
+	return nil
 }
 
 // Controller received a packet from the switch

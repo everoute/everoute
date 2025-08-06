@@ -79,6 +79,8 @@ func toEveroutePolicyRule(ruleID string, rule *policycache.PolicyRule) *datapath
 		DstPortMask:    rule.DstPortMask,
 		IcmpType:       rule.IcmpType,
 		IcmpTypeEnable: rule.IcmpTypeEnable,
+		SrcVNicRef:     rule.SrcVNicRef,
+		DstVNicRef:     rule.DstVNicRef,
 		Action:         ruleAction,
 	}
 

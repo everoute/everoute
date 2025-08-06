@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
@@ -54,6 +55,7 @@ var (
 	useExistingCluster    bool
 	ctx, cancel           = context.WithCancel(ctrl.SetupSignalHandler())
 	pCtrl                 *Reconciler
+	mocks                 = gomonkey.NewPatches()
 )
 
 const (
@@ -151,6 +153,13 @@ var _ = BeforeSuite(func() {
 	globalRuleCacheLister = pCtrl.GetGlobalRuleLister()
 	Expect(globalRuleCacheLister).ShouldNot(BeNil())
 
+	mocks.ApplyMethodFunc(datapathManager, "AddEveroutePolicyRule", func(_ context.Context, _ *datapath.EveroutePolicyRule, _ datapath.RuleBaseInfo) error {
+		return nil
+	})
+	mocks.ApplyMethodFunc(datapathManager, "RemoveEveroutePolicyRule", func(_ context.Context, _ string, _ datapath.RuleBaseInfo) error {
+		return nil
+	})
+
 	go func() {
 		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred())
@@ -163,6 +172,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	By("stop controller manager")
+	mocks.Reset()
 	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
@@ -190,7 +200,9 @@ func (matcher *PolicyRuleMatcher) Match(actual interface{}) (success bool, err e
 		expRule.DstPortMask == rule.DstPortMask &&
 		expRule.IPProtocol == rule.IPProtocol &&
 		expRule.IPFamily == rule.IPFamily &&
-		expRule.PriorityOffset == rule.PriorityOffset {
+		expRule.PriorityOffset == rule.PriorityOffset &&
+		expRule.SrcVNicRef == rule.SrcVNicRef &&
+		expRule.DstVNicRef == rule.DstVNicRef {
 		return true, nil
 	}
 	return false, nil

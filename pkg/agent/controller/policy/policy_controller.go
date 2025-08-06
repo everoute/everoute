@@ -247,6 +247,7 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
 		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
 		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
+		newRuleList = append(newRuleList, rule.GenerateFullIsolationRule(nil, gm)...)
 		if err := r.syncPolicyRulesUntilSuccess(ctx, []string{rule.Policy}, oldRuleList, newRuleList); err != nil {
 			return err
 		}
@@ -421,6 +422,11 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 				SrcIPs:            sets.New[string](""),       // matches all source IP
 				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
 			}
+			// check full isolation policy
+			if policy.Spec.Tier == constants.Tier0 && egressEnabled &&
+				len(policy.Spec.IngressRules) == 0 && len(policy.Spec.EgressRules) == 0 {
+				defaultIngressRule.FullIsolationPolicy = true
+			}
 			completeRules = append(completeRules, defaultIngressRule)
 		}
 	}
@@ -501,6 +507,11 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 				SrcIPs:            appliedIPs.Clone(),
 				DstIPs:            sets.New[string](""),       // matches all destination IP
 				Ports:             []policycache.RulePort{{}}, // has a port matches all ports
+			}
+			// check full isolation policy
+			if policy.Spec.Tier == constants.Tier0 && ingressEnabled &&
+				len(policy.Spec.IngressRules) == 0 && len(policy.Spec.EgressRules) == 0 {
+				defaultEgressRule.FullIsolationPolicy = true
 			}
 			completeRules = append(completeRules, defaultEgressRule)
 		}

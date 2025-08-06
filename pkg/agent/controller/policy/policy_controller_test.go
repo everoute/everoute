@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
+	"github.com/samber/lo"
 	"golang.org/x/sys/unix"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -96,6 +97,8 @@ var _ = Describe("PolicyController", func() {
 			group1 = newTestGroupMembers(0, endpointToMember(ep1))
 			group2 = newTestGroupMembers(0, endpointToMember(ep2))
 			group3 = newTestGroupMembers(0, endpointToMember(ep3))
+			epGroup1 := newTestGroupMembersSingle(0, ep1)
+			epGroup2 := newTestGroupMembersSingle(0, ep2)
 			group4 = []*testGroup{
 				{
 					ipBlock: &networkingv1.IPBlock{
@@ -115,6 +118,8 @@ var _ = Describe("PolicyController", func() {
 			Expect(k8sClient.Create(ctx, group1.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group2.GroupMembers)).Should(Succeed())
 			Expect(k8sClient.Create(ctx, group3.GroupMembers)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, epGroup1)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, epGroup2)).Should(Succeed())
 		})
 		When("create a sample policy with port range", func() {
 			var policy *securityv1alpha1.SecurityPolicy
@@ -1200,6 +1205,63 @@ var _ = Describe("PolicyController", func() {
 				})
 			})
 		})
+
+		When("create isolation policy", func() {
+			var policy *securityv1alpha1.SecurityPolicy
+
+			BeforeEach(func() {
+				policy = newTestIsolationPolicy(ep1.Name)
+
+				By("create policy " + policy.Name)
+				Expect(k8sClient.Create(ctx, policy)).Should(Succeed())
+			})
+
+			It("should flatten policy to rules", func() {
+				By("should flatten policy to rules")
+				Eventually(func(g Gomega) {
+					g.Expect(len(ruleCacheLister.ListKeys())).Should(Equal(2))
+					var policyRuleList = getRuleByPolicy(policy)
+					//g.Expect(len(policyRuleList)).Should(Equal(6))
+
+					expRule := newTestIsolationPolicyRule("Ingress", "", ep1.Spec.Reference.ExternalIDValue)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestIsolationPolicyRule("Egress", ep1.Spec.Reference.ExternalIDValue, "")
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+					expRule = newTestPolicyRule("Ingress", "Drop", "", "192.168.1.1/32", 0, 0, "", constants.Tier0, 0, unix.AF_INET)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "192.168.1.1/32", "", 0, 0, "", constants.Tier0, 0, unix.AF_INET)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Ingress", "Drop", "", "fe80::11/128", 0, 0, "", constants.Tier0, 0, unix.AF_INET6)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+					expRule = newTestPolicyRule("Egress", "Drop", "fe80::11/128", "", 0, 0, "", constants.Tier0, 0, unix.AF_INET6)
+					g.Expect(policyRuleList).Should(ContainElement(NewPolicyRuleMatcher(expRule)))
+
+				}, timeout, interval).Should(Succeed())
+			})
+			When("update isolation policy", func() {
+				BeforeEach(func() {
+					policy1 := newTestIsolationPolicy(ep1.Name, ep2.Name)
+					policy.Spec = policy1.Spec
+
+					By("update policy " + policy1.Name)
+					Expect(k8sClient.Update(ctx, policy)).Should(Succeed())
+				})
+				It("should flatten policy to rules", func() {
+					assertCompleteRuleNum(2)
+					assertPolicyRulesNum(policy, 12)
+				})
+			})
+			When("remove isolation policy", func() {
+				BeforeEach(func() {
+					Expect(k8sClient.Delete(ctx, policy)).Should(Succeed())
+				})
+				It("should remove all the policy generate rules", func() {
+					assertPolicyRulesNum(policy, 0)
+					assertCompleteRuleNum(0)
+				})
+			})
+		})
 	})
 
 	Context("partial endpoints do not on current agent", func() {
@@ -2199,6 +2261,37 @@ func newTestNamedPort(protocol, name string, port int32) securityv1alpha1.NamedP
 	}
 }
 
+func newTestIsolationPolicy(appliedToEndpoint ...string) *securityv1alpha1.SecurityPolicy {
+	var name = "policy-test-" + rand.String(6)
+
+	p := &securityv1alpha1.SecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: securityv1alpha1.SecurityPolicySpec{
+			AppliedTo:    []securityv1alpha1.ApplyToPeer{},
+			IngressRules: []securityv1alpha1.Rule{},
+			EgressRules:  []securityv1alpha1.Rule{},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+			Tier:                          constants.Tier0,
+			SecurityPolicyEnforcementMode: securityv1alpha1.WorkMode,
+		},
+	}
+
+	for _, item := range appliedToEndpoint {
+		p.Spec.AppliedTo = append(p.Spec.AppliedTo,
+			securityv1alpha1.ApplyToPeer{
+				Endpoint: lo.ToPtr(item),
+			})
+	}
+
+	return p
+}
+
 func newTestPolicy(appliedTo, ingress, egress []*testGroup, ingressPort, egressPort *securityv1alpha1.SecurityPolicyPort) *securityv1alpha1.SecurityPolicy {
 	var name = "policy-test-" + rand.String(6)
 
@@ -2288,6 +2381,26 @@ type testGroup struct {
 	*groupv1alpha1.GroupMembers
 	endpointSelector *labels.Selector
 	ipBlock          *networkingv1.IPBlock
+}
+
+func newTestGroupMembersSingle(revision int32, ep *securityv1alpha1.Endpoint) *groupv1alpha1.GroupMembers {
+	var namespaceDefault = metav1.NamespaceDefault
+	member := endpointToMember(ep)
+
+	return &groupv1alpha1.GroupMembers{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ctrlpolicy.GenerateGroupName(&groupv1alpha1.EndpointGroupSpec{
+				Endpoint: &securityv1alpha1.NamespacedName{
+					Name:      ep.Name,
+					Namespace: ep.Namespace,
+				},
+				Namespace: &namespaceDefault,
+			}),
+			Namespace: metav1.NamespaceNone,
+		},
+		Revision:     revision,
+		GroupMembers: []groupv1alpha1.GroupMember{*member},
+	}
 }
 
 func newTestGroupMembers(revision int32, members ...*groupv1alpha1.GroupMember) *testGroup {
@@ -2395,6 +2508,18 @@ func newTestPolicyRule(direction, action, srcCidr string, dstCidr string, dstPor
 	}
 }
 
+func newTestIsolationPolicyRule(direction, srcVNicRef, dstVNicRef string) cache.PolicyRule {
+	return cache.PolicyRule{
+		Direction:  cache.RuleDirection(direction),
+		Action:     cache.RuleActionDrop,
+		IPFamily:   unix.AF_INET,
+		Tier:       constants.Tier0,
+		RuleType:   cache.RuleTypeIsolationDropRule,
+		SrcVNicRef: srcVNicRef,
+		DstVNicRef: dstVNicRef,
+	}
+}
+
 func assertHasPolicyRuleWithPortRange(policy *securityv1alpha1.SecurityPolicy,
 	direction, action, srcCidr string, srcPort uint16, srcPortMask uint16, dstCidr string, dstPort uint16, dstPortMask uint16, protocol string, family uint8) {
 	Eventually(func() string {
@@ -2461,6 +2586,7 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule
 			return nil
 		}
 		policyRuleList = append(policyRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
+		policyRuleList = append(policyRuleList, rule.GenerateFullIsolationRule(pCtrl.GetGroupCache(), nil)...)
 	}
 	return policyRuleList
 }

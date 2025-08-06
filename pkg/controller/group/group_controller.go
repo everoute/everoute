@@ -554,11 +554,6 @@ func (r *Reconciler) fetchCurrGroupMembers(ctx context.Context, group *groupv1al
 	// conversion endpoint list to member list
 	memberList := make([]groupv1alpha1.GroupMember, 0, len(matchedEndpoints))
 	for _, ep := range matchedEndpoints {
-		if len(ep.Status.IPs) == 0 {
-			// skip ep with empty ip addresses
-			continue
-		}
-
 		if isAllEpsGroup && len(ep.Spec.Ports) == 0 {
 			// for AllEndpointsGroup skip endpoint has no named port
 			continue

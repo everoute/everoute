@@ -30,6 +30,8 @@ type EveroutePolicyRule struct {
 	DstPortMask    uint16
 	IcmpType       uint8
 	IcmpTypeEnable bool
+	SrcVNicRef     string
+	DstVNicRef     string
 	Action         string // rule action: 'allow' or 'deny'
 }
 
@@ -47,6 +49,8 @@ func (r *EveroutePolicyRule) DeepCopy() *EveroutePolicyRule {
 		DstPortMask:    r.DstPortMask,
 		IcmpType:       r.IcmpType,
 		IcmpTypeEnable: r.IcmpTypeEnable,
+		SrcVNicRef:     r.SrcVNicRef,
+		DstVNicRef:     r.DstVNicRef,
 		Action:         r.Action,
 	}
 }

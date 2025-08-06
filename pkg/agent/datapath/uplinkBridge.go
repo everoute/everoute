@@ -30,16 +30,17 @@ type UplinkBridge struct {
 	defaultTable *ofctrl.Table
 }
 
-func NewUplinkBridge(brName string, datapathManager *DpManager) Bridge {
+func NewUplinkBridge(brName, vdsID string, datapathManager *DpManager) Bridge {
 	if datapathManager.IsEnableOverlay() {
 		return newUplinkBridgeOverlay(brName, datapathManager)
 	}
-	return newUplinkBridge(brName, datapathManager)
+	return newUplinkBridge(brName, vdsID, datapathManager)
 }
 
-func newUplinkBridge(brName string, datapathManager *DpManager) *UplinkBridge {
+func newUplinkBridge(brName, vdsID string, datapathManager *DpManager) *UplinkBridge {
 	uplinkBridge := new(UplinkBridge)
 	uplinkBridge.name = fmt.Sprintf("%s-uplink", brName)
+	uplinkBridge.vdsID = vdsID
 	uplinkBridge.datapathManager = datapathManager
 	uplinkBridge.ovsBrName = brName
 	return uplinkBridge
