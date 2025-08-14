@@ -575,10 +575,12 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 		item := dp.FlowIDToRules[id]
 		if item != nil {
 			policyInfo := &PolicyInfo{
-				Dir:    item.Direction,
-				Action: item.EveroutePolicyRule.Action,
-				Mode:   item.Mode,
-				FlowID: id,
+				Dir:      item.Direction,
+				Action:   item.EveroutePolicyRule.Action,
+				Mode:     item.Mode,
+				FlowID:   id,
+				Tier:     item.Tier,
+				Priority: item.EveroutePolicyRule.Priority,
 			}
 			for p := range item.PolicyRuleReference {
 				res := strings.Split(p.Rule, "/")
