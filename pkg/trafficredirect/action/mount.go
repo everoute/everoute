@@ -11,7 +11,7 @@ import (
 	"github.com/everoute/everoute/pkg/types"
 )
 
-func excuteCommand(commandStr string) (string, error) {
+func executeCommand(commandStr string) (string, error) {
 	out, err := exec.Command("/bin/sh", "-c", commandStr).CombinedOutput()
 	if err != nil {
 		klog.Errorf("Failed to excute cmd: %s, out: %s, error: %v", commandStr, string(out), err)
@@ -24,7 +24,7 @@ func excuteCommand(commandStr string) (string, error) {
 
 func getIfaceID(nic string) (string, error) {
 	cmd := fmt.Sprintf("ovs-vsctl --if-exists get interface %s external_ids:iface-id", nic)
-	res, err := excuteCommand(cmd)
+	res, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get interface %s external_ids: %s", nic, err)
 		return "", err
@@ -87,7 +87,7 @@ func (p *Port) toNicCfg(portUUID ...string) *TRNicCfg {
 
 func getPortInfo(idOrName string) (*Port, error) {
 	cmd := fmt.Sprintf("ovs-vsctl --if-exists get port %s _uuid name interfaces", idOrName)
-	res, err := excuteCommand(cmd)
+	res, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get ovs port %s: %s", idOrName, err)
 		return nil, err
@@ -125,7 +125,7 @@ func getPortInfo(idOrName string) (*Port, error) {
 	}
 
 	cmd = fmt.Sprintf("ovs-vsctl port-to-br %s", p.name)
-	res, err = excuteCommand(cmd)
+	res, err = executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get port %s mount bridge: %s", p.name, err)
 		return nil, err
@@ -140,7 +140,7 @@ func getPortInfo(idOrName string) (*Port, error) {
 
 func getInterfaceExternalIDs(id string) (string, error) {
 	cmd := fmt.Sprintf("ovs-vsctl get interface %s external_ids", id)
-	res, err := excuteCommand(cmd)
+	res, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get interface %s external_ids: %s", id, err)
 		return "", err
@@ -183,7 +183,7 @@ func UnmountTRNic(ovsbrName string, d types.NicDirect) error {
 
 	cmd := fmt.Sprintf("ovs-vsctl del-port %s %s -- add-port %s %s -- set interface %s external_ids='%s' -- br-set-external-id %s %s",
 		policyBrName, p.name, tr.SvcChainBridgeName, p.name, p.name, p.intfExternalIDs, tr.SvcChainBridgeName, getExternalIDKey(ovsbrName, d))
-	if _, err := excuteCommand(cmd); err != nil {
+	if _, err := executeCommand(cmd); err != nil {
 		klog.Errorf("Failed to unmount trafficredirect nic %v from ovs bridge %s", *p, ovsbrName)
 		return err
 	}
@@ -289,7 +289,7 @@ func mountTRNicWithPort(ovsbrName string, d types.NicDirect, p *Port) error {
 	cmd := fmt.Sprintf("ovs-vsctl del-port %s %s -- add-port %s %s -- set interface %s external_ids='%s' -- br-set-external-id %s %s %s",
 		tr.SvcChainBridgeName, p.name, policyBrName, p.name, p.name, p.intfExternalIDs, tr.SvcChainBridgeName,
 		getExternalIDKey(ovsbrName, d), external)
-	if _, err := excuteCommand(cmd); err != nil {
+	if _, err := executeCommand(cmd); err != nil {
 		klog.Errorf("Failed to mount trafficredirect nic %v to ovs bridge %s", *p, ovsbrName)
 		return err
 	}
@@ -316,7 +316,7 @@ func mountTRNicWithPort(ovsbrName string, d types.NicDirect, p *Port) error {
 
 func findTrafficRedirectNic(ovsbrName, ifaceID string, d types.NicDirect) (string, error) {
 	cmd := fmt.Sprintf("ovs-vsctl --columns=name find Interface external_ids:iface-id=%s", ifaceID)
-	resS, err := excuteCommand(cmd)
+	resS, err := executeCommand(cmd)
 	if err != nil {
 		return "", err
 	}

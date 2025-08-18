@@ -136,7 +136,7 @@ var _ = Describe("test config", func() {
 
 		Context("getNicConfig with mock", func() {
 			It("should return valid TRNicCfg when executeCommand returns valid data", func() {
-				patches := gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches := gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					// 直接返回 Base64编码+YAML的mock数据
 					yamlData := "ifaceID: eth0\nportName: port1\n"
 					return base64.StdEncoding.EncodeToString([]byte(yamlData)), nil
@@ -151,7 +151,7 @@ var _ = Describe("test config", func() {
 			})
 
 			It("should return nil when executeCommand returns empty output", func() {
-				patches := gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches := gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "", nil
 				})
 				defer patches.Reset()
@@ -162,7 +162,7 @@ var _ = Describe("test config", func() {
 			})
 
 			It("should return error when executeCommand fails", func() {
-				patches := gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches := gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "", errors.New("mock error")
 				})
 				defer patches.Reset()
@@ -182,9 +182,9 @@ var _ = Describe("test config", func() {
 				}
 			})
 
-			It("should fail if excuteCommand fails", func() {
-				// 模拟 excuteCommand 函数返回错误
-				patches = gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+			It("should fail if executeCommand fails", func() {
+				// 模拟 executeCommand 函数返回错误
+				patches = gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "", errors.New("command failed")
 				})
 
@@ -195,8 +195,8 @@ var _ = Describe("test config", func() {
 			})
 
 			It("should succeed to delete external id", func() {
-				// 模拟 excuteCommand 成功
-				patches = gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				// 模拟 executeCommand 成功
+				patches = gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "ok", nil
 				})
 
@@ -234,12 +234,12 @@ var _ = Describe("test config", func() {
 				g.Expect(err.Error()).To(ContainSubstring("encode failed"))
 			})
 
-			It("should fail if excuteCommand fails", func() {
+			It("should fail if executeCommand fails", func() {
 				patches = gomonkey.NewPatches()
 				patches = gomonkey.ApplyPrivateMethod(new(TRNicCfg), "toBase64", func() (string, error) {
 					return "mocked-external-data", nil
 				})
-				patches.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "", errors.New("ovs command failed")
 				})
 
@@ -255,7 +255,7 @@ var _ = Describe("test config", func() {
 				patches = gomonkey.ApplyPrivateMethod(new(TRNicCfg), "toBase64", func() (string, error) {
 					return "mocked-external-data", nil
 				})
-				patches.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "ok", nil
 				})
 
@@ -278,12 +278,12 @@ var _ = Describe("test config", func() {
 				-- br-set-external-id test-svcchain tr-out-test-br1 \
 				aWZhY2VJRDogYWFkZDQ4OTEtYzY5OC00YTA3LThmYzgtMWJiYmNmZWEwNWQ1CnBvcnRVVUlEOiAxZWY0ZWIyNC0xNDE4LTQzNTUtOWFiNC0zOTlkODZiZTA5YmEKcG9ydE5hbWU6IHRlc3QtdGFwMAo=
 				`
-				_, err := excuteCommand(cmd)
+				_, err := executeCommand(cmd)
 				g.Expect(err).ShouldNot(HaveOccurred())
 			})
 			AfterEach(func() {
 				cmd := `ovs-vsctl del-br test-svcchain`
-				_, err := excuteCommand(cmd)
+				_, err := executeCommand(cmd)
 				g.Expect(err).ShouldNot(HaveOccurred())
 			})
 			Context("get nicConfig", func() {
@@ -355,9 +355,9 @@ var _ = Describe("test config", func() {
 			}
 		})
 
-		Context("when excuteCommand returns error", func() {
+		Context("when executeCommand returns error", func() {
 			It("should return error", func() {
-				patches = gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches = gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return "", fmt.Errorf("mock error")
 				})
 
@@ -369,7 +369,7 @@ var _ = Describe("test config", func() {
 			})
 		})
 
-		Context("when excuteCommand returns valid external ids", func() {
+		Context("when executeCommand returns valid external ids", func() {
 			It("should return a set of bridge names", func() {
 				mockOutput := `
 
@@ -380,7 +380,7 @@ invalidline
 foo=bar
 tr-in-=emptykey
 	`
-				patches = gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches = gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return mockOutput, nil
 				})
 
@@ -392,12 +392,12 @@ tr-in-=emptykey
 			})
 		})
 
-		Context("when excuteCommand returns empty output", func() {
+		Context("when executeCommand returns empty output", func() {
 			It("should return an empty set", func() {
 				out := `
 				
 				`
-				patches = gomonkey.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+				patches = gomonkey.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 					return out, nil
 				})
 
