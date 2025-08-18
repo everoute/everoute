@@ -323,9 +323,6 @@ func (p *PolicyBridge) BridgeInit() {
 	if err := p.initPolicyTable(); err != nil {
 		klog.Fatalf("Failed to init policy table, error: %v", err)
 	}
-	if err := p.InitDuplicateDropFlow(); err != nil {
-		klog.Fatalf("Failed to init drop duplicate packets flow: %s", err)
-	}
 
 	// finally execute for upgrade from er 3.3
 	if err := p.initPolicyForwardingTable(); err != nil {
@@ -402,6 +399,42 @@ func (p *PolicyBridge) initInputTable(_ *ofctrl.OFSwitch) error {
 	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeRedirect))
 	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
 		return fmt.Errorf("failed to install icmpv6 ndp redirect passthrough flow, error: %v", err)
+	}
+
+	// table 0, igmp passthrough
+	igmp, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		IpProto:   protocol.Type_IGMP,
+	})
+	if err := igmp.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install igmp passthrough flow, error: %v", err)
+	}
+
+	// table 0, mld passthrough
+	passICMP6MatchWithType := func(icmpType ipv6.ICMPType) ofctrl.FlowMatch {
+		return ofctrl.FlowMatch{
+			Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Ethertype: protocol.IPv6_MSG,
+			IpProto:   protocol.Type_IPv6ICMP,
+			Icmp6Type: lo.ToPtr(uint8(icmpType)),
+		}
+	}
+	mldQuery, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerQuery))
+	if err := mldQuery.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld query passthrough flow, error: %v", err)
+	}
+	mldReport, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerReport))
+	if err := mldReport.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld report passthrough flow, error: %v", err)
+	}
+	mldDone, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerDone))
+	if err := mldDone.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld done passthrough flow, error: %v", err)
+	}
+	mldv2Report, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeVersion2MulticastListenerReport))
+	if err := mldv2Report.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mldv2 report passthrough flow, error: %v", err)
 	}
 
 	var ctStateTableID uint8 = CT_STATE_TABLE
@@ -1094,7 +1127,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 
 func (p *PolicyBridge) initToLocalFlow() error {
 	// table 141
-	// set pkt mark for to local packets
+	// set pkt mark to local packets
 	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
 	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
 	if err != nil {
@@ -1224,53 +1257,6 @@ func (p *PolicyBridge) initDuplicateDropFlow() error {
 	})
 	if err := duplicateDropFlow.Next(p.OfSwitch.DropAction()); err != nil {
 		return fmt.Errorf("failed to install duplicate packets: %s", err)
-	}
-	return nil
-}
-
-func (p *PolicyBridge) InitDuplicateDropFlow() error {
-	// duplicate packets from Local bridge will drop
-	var pktMask uint32 = 1 << constants.DuplicatePktMarkBit
-	duplicateDropFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		InputPort:   p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
-		PktMark:     1 << constants.DuplicatePktMarkBit,
-		PktMarkMask: &pktMask,
-		Priority:    HIGH_MATCH_FLOW_PRIORITY + 3 + 100,
-	})
-	if err := duplicateDropFlow.Next(p.OfSwitch.DropAction()); err != nil {
-		return fmt.Errorf("failed to install duplicate packets")
-	}
-
-	// set pkt mark to local for multicase packets
-	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
-	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
-	if err != nil {
-		return err
-	}
-	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix])
-	ipv4Flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
-		Ethertype: protocol.IPv4_MSG,
-		IpDa:      &constants.MulticastIPv4,
-		IpDaMask:  &constants.MulticastIPv4Mask,
-		Priority:  HIGH_MATCH_FLOW_PRIORITY,
-	})
-	if err := ipv4Flow.AddAction(pktMarkSetAct, outputAct); err != nil {
-		return err
-	}
-	if err := ipv4Flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return err
-	}
-	ipv6Flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
-		Ethertype:  protocol.IPv6_MSG,
-		Ipv6Da:     &constants.MulticastIPv6,
-		Ipv6DaMask: &constants.MulticastIPv6Mask,
-		Priority:   HIGH_MATCH_FLOW_PRIORITY,
-	})
-	if err := ipv6Flow.AddAction(pktMarkSetAct, outputAct); err != nil {
-		return err
-	}
-	if err := ipv6Flow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return err
 	}
 	return nil
 }
