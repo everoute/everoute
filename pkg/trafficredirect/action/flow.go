@@ -11,7 +11,7 @@ import (
 func DelTRNicFlows(ovsbr string) error {
 	policyBr := getPolicyBridgeName(ovsbr)
 	cmd := fmt.Sprintf("ovs-ofctl del-flows %s cookie=%#x/%#x", policyBr, tr.FlowIDForTRNicMatch, tr.FlowIDForTRNicMask)
-	_, err := excuteCommand(cmd)
+	_, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to del policy bridge %s tr nic flows: %s", policyBr, err)
 		return err
@@ -23,7 +23,7 @@ func DelTRNicFlows(ovsbr string) error {
 func DelTRHealthyFlows(ovsbr string) error {
 	policyBr := getPolicyBridgeName(ovsbr)
 	cmd := fmt.Sprintf("ovs-ofctl del-flows %s cookie=%#x/%#x", policyBr, tr.FlowIDForHealthyMatch, tr.FlowIDForHealthyMask)
-	_, err := excuteCommand(cmd)
+	_, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to del policy bridge %s tr healthy flows: %s", policyBr, err)
 		return err

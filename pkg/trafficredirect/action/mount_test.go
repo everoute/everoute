@@ -22,7 +22,7 @@ var _ = Describe("mount unit test", func() {
 			// 默认 mock 成功返回 3 行结果
 			fakeCmdOutput = "uuid1\nport1\n[intf1]"
 
-			patches.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+			patches.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 				if strings.Contains(cmd, "port-to-br") {
 					return "br-test", nil
 				}
@@ -40,8 +40,8 @@ var _ = Describe("mount unit test", func() {
 			patches.Reset()
 		})
 
-		It("returns nil if excuteCommand fails", func() {
-			patches.ApplyFunc(excuteCommand, func(string) (string, error) {
+		It("returns nil if executeCommand fails", func() {
+			patches.ApplyFunc(executeCommand, func(string) (string, error) {
 				return "", fmt.Errorf("failed command")
 			})
 			port, err := getPortInfo("eth0")
@@ -49,7 +49,7 @@ var _ = Describe("mount unit test", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("returns nil if excuteCommand returns empty", func() {
+		It("returns nil if executeCommand returns empty", func() {
 			fakeCmdOutput = ""
 			port, err := getPortInfo("eth0")
 			Expect(port).To(BeNil())
@@ -88,8 +88,8 @@ var _ = Describe("mount unit test", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("returns error if second excuteCommand fails", func() {
-			patches.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+		It("returns error if second executeCommand fails", func() {
+			patches.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 				if strings.Contains(cmd, "port-to-br") {
 					return "", fmt.Errorf("fail")
 				}
@@ -119,7 +119,7 @@ var _ = Describe("mount unit test", func() {
 		})
 
 		It("returns error if port mounts to empty bridge", func() {
-			patches.ApplyFunc(excuteCommand, func(cmd string) (string, error) {
+			patches.ApplyFunc(executeCommand, func(cmd string) (string, error) {
 				if strings.Contains(cmd, "port-to-br") {
 					return "", nil // 模拟桥名为空
 				}
@@ -202,15 +202,15 @@ var _ = Describe("mount unit test", func() {
 	Describe("getIfaceID", func() {
 		BeforeEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl add-br %s -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, testBr1, tap1, tap1, externalIDs1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, tap2, tap2, externalIDs2)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 		AfterEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl del-br %s", testBr1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -236,15 +236,15 @@ var _ = Describe("mount unit test", func() {
 	Describe("getInterfaceExternalIDs", func() {
 		BeforeEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl add-br %s -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, testBr1, tap1, tap1, externalIDs1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl -- add-port %s %s", testBr1, tap2)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 		AfterEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl del-br %s", testBr1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -270,18 +270,18 @@ var _ = Describe("mount unit test", func() {
 	Describe("findTrafficRedirectNic", func() {
 		BeforeEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl add-br %s -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, testBr1, tap1, tap1, externalIDs1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, tap2, tap2, externalIDs0)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl -- add-port %s %s -- set interface %s external_ids='%s'", testBr1, tap0, tap0, externalIDs0)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 		AfterEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl del-br %s", testBr1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -304,7 +304,7 @@ var _ = Describe("mount unit test", func() {
 		})
 
 		It("should return error when output format is invalid", func() {
-			p := gomonkey.ApplyFuncReturn(excuteCommand, "iface-id:test:9", nil)
+			p := gomonkey.ApplyFuncReturn(executeCommand, "iface-id:test:9", nil)
 			defer p.Reset()
 
 			_, err := findTrafficRedirectNic(testBr1, ifaceID1, types.NicOut)
@@ -316,18 +316,18 @@ var _ = Describe("mount unit test", func() {
 	Describe("MountTRNic", func() {
 		BeforeEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl add-br %s -- add-port %s %s -- set interface %s external_ids='%s'", svcChainBr, svcChainBr, tap0, tap0, externalIDs0)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl add-br %s-policy", testBr1)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 		AfterEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl del-br %s-policy", testBr1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl del-br %s", svcChainBr)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -384,17 +384,17 @@ var _ = Describe("mount unit test", func() {
 	Describe("UnmountTRNic", func() {
 		AfterEach(func() {
 			cmd := fmt.Sprintf("ovs-vsctl --if-exists del-br %s-policy", testBr1)
-			_, err := excuteCommand(cmd)
+			_, err := executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			cmd = fmt.Sprintf("ovs-vsctl del-br %s", svcChainBr)
-			_, err = excuteCommand(cmd)
+			_, err = executeCommand(cmd)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		When("iface doesn't exists", func() {
 			BeforeEach(func() {
 				cmd := fmt.Sprintf("ovs-vsctl add-br %s", svcChainBr)
-				_, err := excuteCommand(cmd)
+				_, err := executeCommand(cmd)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				c := TRNicCfg{
 					IfaceID:  ifaceID0,
@@ -416,10 +416,10 @@ var _ = Describe("mount unit test", func() {
 		When("unmount nic", func() {
 			BeforeEach(func() {
 				cmd := fmt.Sprintf("ovs-vsctl add-br %s -- add-port %s %s -- set interface %s external_ids='%s'", svcChainBr, svcChainBr, tap0, tap0, externalIDs0)
-				_, err := excuteCommand(cmd)
+				_, err := executeCommand(cmd)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				cmd = fmt.Sprintf("ovs-vsctl add-br %s-policy", testBr1)
-				_, err = excuteCommand(cmd)
+				_, err = executeCommand(cmd)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				err = MountTRNic(testBr1, tap0, ifaceID0, types.NicOut)
 				g.Expect(err).ShouldNot(HaveOccurred())

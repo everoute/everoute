@@ -66,7 +66,7 @@ func parseExternalIDKey(s string) (bool, string) {
 func getNicConfig(ovsBrName string, d types.NicDirect) (*TRNicCfg, error) {
 	key := getExternalIDKey(ovsBrName, d)
 	cmd := fmt.Sprintf("ovs-vsctl br-get-external-id %s %s", tr.SvcChainBridgeName, key)
-	res, err := excuteCommand(cmd)
+	res, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get %s externalid for key %s", tr.SvcChainBridgeName, key)
 		return nil, err
@@ -84,7 +84,7 @@ func getNicConfig(ovsBrName string, d types.NicDirect) (*TRNicCfg, error) {
 func delNicConfig(ovsBrName string, d types.NicDirect) error {
 	key := getExternalIDKey(ovsBrName, d)
 	cmd := fmt.Sprintf("ovs-vsctl br-set-external-id %s %s", tr.SvcChainBridgeName, key)
-	_, err := excuteCommand(cmd)
+	_, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to delete svcchain bridge externalid for key %s: %s", key, err)
 		return err
@@ -102,7 +102,7 @@ func updateNicConfig(ovsbrName string, d types.NicDirect, c *TRNicCfg) error {
 		return err
 	}
 	cmd := fmt.Sprintf("ovs-vsctl br-set-external-id %s %s %s", tr.SvcChainBridgeName, getExternalIDKey(ovsbrName, d), external)
-	if _, err := excuteCommand(cmd); err != nil {
+	if _, err := executeCommand(cmd); err != nil {
 		klog.Errorf("failed to update trafficredirect nic config %v for ovs bridge %s direct %s to external_ids: %s", *c, ovsbrName, d, err)
 		return err
 	}
@@ -113,7 +113,7 @@ func updateNicConfig(ovsbrName string, d types.NicDirect, c *TRNicCfg) error {
 
 func getAllBridge() (sets.Set[string], error) {
 	cmd := fmt.Sprintf("ovs-vsctl br-get-external-id %s", tr.SvcChainBridgeName)
-	res, err := excuteCommand(cmd)
+	res, err := executeCommand(cmd)
 	if err != nil {
 		klog.Errorf("Failed to get svcchain bridge externalids: %s", err)
 		return nil, err

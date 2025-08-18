@@ -39,7 +39,7 @@ var _ = BeforeSuite(func() {
 	ip tuntap add dev test-tap1 mode tap
 	ip tuntap add dev test-tap2 mode tap
 	`
-	_, err := excuteCommand(tapCmd)
+	_, err := executeCommand(tapCmd)
 	Expect(err).ShouldNot(HaveOccurred())
 })
 
@@ -51,7 +51,7 @@ var _ = AfterSuite(func() {
 	ip link del test-tap1
 	ip link del test-tap2
 	`
-	_, err := excuteCommand(tapCmd)
+	_, err := executeCommand(tapCmd)
 	Expect(err).ShouldNot(HaveOccurred())
 })
 
