@@ -706,6 +706,20 @@ var _ = Describe("shareIP-unit-test", func() {
 				_, ok := r.shareIPCache[key]
 				Expect(ok).Should(BeFalse())
 			})
+			It("interfaceIDs include ALL", func() {
+				obj := &securityv1alpha1.ShareIP{
+					ObjectMeta: v1.ObjectMeta{
+						Name: key,
+					},
+					Spec: securityv1alpha1.ShareIPSpec{
+						IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"},
+						InterfaceIDs: []string{"ALL"},
+					},
+				}
+				r.updateShareIPCache(ctx, obj)
+				_, ok := r.shareIPCache[key]
+				Expect(ok).Should(BeTrue())
+			})
 		})
 		When("update shareIP cache", func() {
 			var r *Reconciler
@@ -723,14 +737,14 @@ var _ = Describe("shareIP-unit-test", func() {
 					},
 					Spec: securityv1alpha1.ShareIPSpec{
 						IPs:          []string{"1.1.1.0/24", "0.0.0.0/0", "fe80::5054:ff:feea:e3fc/128"},
-						InterfaceIDs: []string{"id1", "id2", "id3"},
+						InterfaceIDs: []string{"id1", "id2", "id3", "ALL"},
 					},
 				}
 				r.updateShareIPCache(ctx, obj)
 				res, ok := r.shareIPCache[key]
 				Expect(ok).Should(BeTrue())
 				Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128", "0.0.0.0/0"))
-				Expect(res.interfaceIDs.UnsortedList()).Should(ConsistOf("id1", "id2", "id3"))
+				Expect(res.interfaceIDs.UnsortedList()).Should(ConsistOf("id1", "id2", "id3", "ALL"))
 				Expect(res.ipNets).Should(ConsistOf(
 					net.IPNet{IP: []byte{1, 1, 1, 0}, Mask: []byte{255, 255, 255, 0}},
 					net.IPNet{IP: []byte{0, 0, 0, 0}, Mask: []byte{0, 0, 0, 0}},
@@ -812,7 +826,13 @@ var _ = Describe("shareIP-unit-test", func() {
 						ips:          sets.New("fe80::5054:ff:feea:e3fc/128", "ffff::0/64"),
 						ipNets:       []net.IPNet{*ipNet1, *ipNet2},
 						interfaceIDs: sets.New("if1", "if2"),
-					}},
+					},
+					"shareIP5": {
+						ips:          sets.New("169.254.169.254/32"),
+						ipNets:       []net.IPNet{{IP: []byte{169, 254, 169, 254}, Mask: []byte{255, 255, 255, 255}}},
+						interfaceIDs: sets.New("ALL"),
+					},
+				},
 			}
 		})
 
@@ -838,6 +858,10 @@ var _ = Describe("shareIP-unit-test", func() {
 		})
 		It("ipDelete is match 0.0.0.0/0", func() {
 			res := r.filterIPNeedDelete(sets.New("12.10.10.129", "14.14.14.2"), "if6", "if7")
+			Expect(res.Len()).Should(Equal(0))
+		})
+		It("ipDelete is match a shareIP with interfaceID ALL", func() {
+			res := r.filterIPNeedDelete(sets.New("169.254.169.254", "14.14.14.2"), "if6", "if7")
 			Expect(res.Len()).Should(Equal(0))
 		})
 		It("vm nic migrate shouldn't be deleted", func() {

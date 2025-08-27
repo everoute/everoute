@@ -43,6 +43,7 @@ import (
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/constants/ms"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
@@ -79,7 +80,7 @@ func (s *shareIP) containsIP(ip string) bool {
 }
 
 func (s *shareIP) containsInterface(interfaceID string) bool {
-	return s.interfaceIDs.Has(interfaceID)
+	return s.interfaceIDs.Has(interfaceID) || s.interfaceIDs.Has(ms.ALLInterfaceIDs)
 }
 
 func (s *shareIP) complete() error {
@@ -185,9 +186,9 @@ func (r *Reconciler) updateShareIPCache(ctx context.Context, sip *securityv1alph
 	r.shareIPCacheLock.Lock()
 	defer r.shareIPCacheLock.Unlock()
 	sipC := shareIP{ips: sets.New(sip.Spec.IPs...), interfaceIDs: sets.New(sip.Spec.InterfaceIDs...)}
-	if sipC.interfaceIDs.Len() <= 1 {
+	if sipC.interfaceIDs.Len() <= 1 && !sipC.interfaceIDs.Has(ms.ALLInterfaceIDs) {
 		delete(r.shareIPCache, sip.GetName())
-		log.Error(fmt.Errorf("shareIP interfaceIDs is invalid"), "ShareIP only set one interfaceID in spec.interfaceIDs, delete it from cache",
+		log.Error(fmt.Errorf("shareIP interfaceIDs is invalid"), "ShareIP must set multi(more than 1) interfaceIDs or only set 'ALL', delete it from cache",
 			"interfaceIDs", sip.Spec.InterfaceIDs)
 		return
 	}
