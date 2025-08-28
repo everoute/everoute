@@ -34,6 +34,9 @@ const (
 	DefaultTowerTokenFile = "/tmp/towertoken"
 
 	ComputeClustersConfigMapName = "associate-compute-clusters"
+
+	// used in shareIP
+	ALLInterfaceIDs = "ALL"
 )
 
 const (
