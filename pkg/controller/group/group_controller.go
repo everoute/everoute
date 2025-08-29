@@ -111,6 +111,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	err = c.Watch(source.Kind(mgr.GetCache(), &groupv1alpha1.GroupMembers{}), &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
 	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Namespace{}), &handler.Funcs{
 		CreateFunc: r.addNamespace,
 		UpdateFunc: r.updateNamespace,

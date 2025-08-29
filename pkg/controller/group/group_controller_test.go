@@ -201,6 +201,16 @@ var _ = Describe("GroupController", func() {
 					}, timeout, interval).Should(BeTrue())
 				})
 			})
+
+			When("update groupmembers", func() {
+				It("groupmembers add ip", func() {
+					gm := groupv1alpha1.GroupMembers{}
+					Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: epGroup.Name}, &gm)).Should(Succeed())
+					Expect(gm.GroupMembers).Should(HaveLen(1))
+					gm.GroupMembers[0].IPs = append(gm.GroupMembers[0].IPs, types.IPAddress("19.19.19.19"))
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+			})
 		})
 	})
 
