@@ -1588,7 +1588,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		}
 	}
 	if pRule.EveroutePolicyRule.DstVNicRef != "" {
-		dp.VNicToRules[pRule.EveroutePolicyRule.DstVNicRef].Insert(pRule)
+		dp.VNicToRules[pRule.EveroutePolicyRule.DstVNicRef].Delete(pRule)
 		if dp.VNicToRules[pRule.EveroutePolicyRule.DstVNicRef].Len() == 0 {
 			delete(dp.VNicToRules, pRule.EveroutePolicyRule.DstVNicRef)
 		}

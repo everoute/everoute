@@ -1171,6 +1171,12 @@ func (p *PolicyBridge) updateIsolationDropRule(endpoint *Endpoint, flowID uint64
 		return nil
 	}
 
+	// skip invalid endpoint, e.g. vnic not present in current node
+	// new or migrate vnic will triggle from ovs db event
+	if endpoint.PortNo == 0 {
+		return nil
+	}
+
 	switch direction {
 	case POLICY_DIRECTION_OUT:
 		flow, err := p.isolationEgressTable.NewFlowWithFlowID(ofctrl.FlowMatch{
@@ -1224,7 +1230,7 @@ func (p *PolicyBridge) addIsolationDropRule(flowID uint64, rule *EveroutePolicyR
 
 	ep, err := p.getEndpoint(rule, direction)
 	if err != nil {
-		return entry, err
+		log.Error(err)
 	}
 
 	return entry, p.updateIsolationDropRule(ep, flowID, rule, direction)
