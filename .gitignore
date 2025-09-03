@@ -26,3 +26,6 @@ coverage.out
 
 # hugo auto geneate files
 docs/resources/
+
+# unit test tmp files
+ut_tmp/

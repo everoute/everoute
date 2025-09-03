@@ -36,7 +36,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	nameutil "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
@@ -1249,7 +1248,7 @@ func (c *Controller) generateIntragroupPolicy(
 	appliedPeer *schema.SecurityPolicyApply,
 	loggingOptions *v1alpha1.Logging,
 ) (*v1alpha1.SecurityPolicy, error) {
-	peerHash := nameutil.HashName(10, appliedPeer)
+	peerHash := utils.HashName(10, appliedPeer)
 
 	appliedPeers, _, err := c.parseSecurityPolicyApplys([]schema.SecurityPolicyApply{*appliedPeer})
 	if err != nil {

@@ -18,6 +18,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/everoute/everoute/pkg/constants"
+	trconst "github.com/everoute/everoute/pkg/constants/tr"
+	"github.com/everoute/everoute/pkg/metrics"
+	"github.com/everoute/everoute/pkg/trafficredirect/action"
 )
 
 const (
@@ -26,7 +29,6 @@ const (
 	CookieAutoAllocBitWidthForPolicyBr uint64 = 27
 	// 0x8000000->0x83fffff (mask is 0x3fffff) is used by rule flows
 	CookieRuleUsedBitWidth uint64 = 22
-	CookieRuleSeqIDMask    uint64 = 0x0000_0000_003f_ffff
 	CookieRuleFix          uint64 = 0x0000_0000_0800_0000
 )
 
@@ -54,6 +56,16 @@ const (
 	SFC_POLICY_TABLE            = 80
 	POLICY_FORWARDING_TABLE     = 90
 	TO_LOCAL_TABLE              = 141
+	L7_EGRESS_POLICY            = 100
+	L7_INGRESS_POLICY           = 110
+	EGRESS_FORWARD              = 105
+	EGRESS_FORWARD_FOR_NIC      = 106
+	INGRESS_FORWARD             = 115
+	INGRESS_FORWARD_FOR_NIC     = 116
+	TO_CLS                      = 140
+	FROM_L7_INGRESS             = 130
+	FROM_L7_EGRESS              = 120
+	SET_PORT_MARK               = 125
 
 	// XX_REG0 has same layout as CT_LABEL
 	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
@@ -155,15 +167,90 @@ type PolicyBridge struct {
 	sfcPolicyTable                 *ofctrl.Table
 	policyForwardingTable          *ofctrl.Table
 	toLocalTable                   *ofctrl.Table
+	l7EgressPolicyTable            *ofctrl.Table
+	l7IngressPolicyTable           *ofctrl.Table
+	egressForwardTable             *ofctrl.Table
+	egressForwardForNicTable       *ofctrl.Table
+	ingressForwardTable            *ofctrl.Table
+	ingressForwardForNicTable      *ofctrl.Table
+	toClsTable                     *ofctrl.Table
+	fromL7IngressTable             *ofctrl.Table
+	fromL7EgressTable              *ofctrl.Table
+	setPortMarkTable               *ofctrl.Table
 
-	ctZoneVDSVal uint64
+	ctZoneVDSVal    uint64
+	localBrName     string
+	TrafficRedirect TrafficRedirect
+
+	updateTRNicMountMetricFunc func(string, metrics.TRNicInfo, bool)
+	updateTRHealthyMetricFunc  func(string, bool, bool)
+}
+
+type TRCfg struct {
+	// iface-id
+	NicInIfaceID  string
+	NicOutIfaceID string
+}
+
+type TRInterface struct {
+	PortNo uint32
+	State  LinkState
+}
+
+type TRInfo struct {
+	NicIn      TRInterface
+	NicOut     TRInterface
+	DPIHealthy bool
+	OldHealthy bool
+}
+
+type TrafficRedirect struct {
+	// vds 是否启用导流
+	Enabled bool
+	Cfg     TRCfg
+	Info    TRInfo
+}
+
+func (t *TrafficRedirect) Healthy() bool {
+	if !t.Info.DPIHealthy {
+		return false
+	}
+
+	if t.Info.NicIn.State != LinkUp {
+		return false
+	}
+
+	if t.Info.NicOut.State != LinkUp {
+		return false
+	}
+
+	return true
+}
+
+func (t *TrafficRedirect) TRNicPrepared() bool {
+	return t.Info.NicIn.PortNo != 0 && t.Info.NicOut.PortNo != 0
 }
 
 func NewPolicyBridge(brName, vdsID string, datapathManager *DpManager) *PolicyBridge {
 	policyBridge := new(PolicyBridge)
 	policyBridge.name = fmt.Sprintf("%s-policy", brName)
 	policyBridge.vdsID = vdsID
+	policyBridge.localBrName = brName
 	policyBridge.datapathManager = datapathManager
+	for k, v := range datapathManager.Config.TRConfig {
+		curBr := datapathManager.Config.ManagedVDSMap[k]
+		if curBr == brName {
+			policyBridge.TrafficRedirect = TrafficRedirect{
+				Enabled: true,
+				Cfg: TRCfg{
+					NicInIfaceID:  v.NicIn,
+					NicOutIfaceID: v.NicOut,
+				},
+			}
+		}
+	}
+	policyBridge.updateTRHealthyMetricFunc = datapathManager.AgentMetric.SetTRHealthy
+	policyBridge.updateTRNicMountMetricFunc = datapathManager.AgentMetric.SetTRNicInfo
 	return policyBridge
 }
 
@@ -203,10 +290,23 @@ func (p *PolicyBridge) BridgeInit() {
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
 	p.policyForwardingTable, _ = sw.NewTable(POLICY_FORWARDING_TABLE)
 	p.toLocalTable, _ = sw.NewTable(TO_LOCAL_TABLE)
+	p.l7EgressPolicyTable, _ = sw.NewTable(L7_EGRESS_POLICY)
+	p.l7IngressPolicyTable, _ = sw.NewTable(L7_INGRESS_POLICY)
+	p.egressForwardTable, _ = sw.NewTable(EGRESS_FORWARD)
+	p.ingressForwardTable, _ = sw.NewTable(INGRESS_FORWARD)
+	p.egressForwardForNicTable, _ = sw.NewTable(EGRESS_FORWARD_FOR_NIC)
+	p.ingressForwardForNicTable, _ = sw.NewTable(INGRESS_FORWARD_FOR_NIC)
+	p.toClsTable, _ = sw.NewTable(TO_CLS)
+	p.fromL7EgressTable, _ = sw.NewTable(FROM_L7_EGRESS)
+	p.fromL7IngressTable, _ = sw.NewTable(FROM_L7_INGRESS)
+	p.setPortMarkTable, _ = sw.NewTable(SET_PORT_MARK)
 
 	// Initialize in reverse order of the flow table order for everoute upgrade
 	if err := p.initToLocalFlow(); err != nil {
-		klog.Fatalf("Failed to init to local table, error: %s", err)
+		klog.Fatalf("Failed to init to local flows, error: %s", err)
+	}
+	if err := p.initToClsFlow(); err != nil {
+		klog.Fatalf("Failed to init to cls flows, error: %s", err)
 	}
 	if err := p.initInputTable(sw); err != nil {
 		klog.Fatalf("Failed to init inputTable, error: %v", err)
@@ -232,23 +332,43 @@ func (p *PolicyBridge) BridgeInit() {
 	if err := p.initPolicyTable(); err != nil {
 		klog.Fatalf("Failed to init policy table, error: %v", err)
 	}
-	if err := p.initPolicyForwardingTable(sw); err != nil {
+
+	// finally execute for upgrade from er 3.3
+	if err := p.initPolicyForwardingTable(); err != nil {
 		klog.Fatalf("Failed to init policy forwarding table, error: %v", err)
 	}
+
+	p.initTRFlows()
+}
+
+func (p *PolicyBridge) initTRFlows() {
+	if !p.TrafficRedirect.Enabled {
+		return
+	}
+
+	if p.TrafficRedirect.TRNicPrepared() {
+		p.mustAddTRNicFlows()
+	} else {
+		p.mustDelTRNicFlows()
+	}
+
+	if p.TrafficRedirect.Info.OldHealthy {
+		p.mustAddTRHealthyFlows()
+	}
+	p.mustDelTRHealthyFlows()
 }
 
 func (p *PolicyBridge) initDirectionSelectionTable() error {
-	localBrName := strings.TrimSuffix(p.name, "-policy")
 	fromLocalToEgressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
 	})
 	if err := fromLocalToEgressFlow.Next(p.egressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
 	fromUpstreamToIngressFlow, _ := p.directionSelectionTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
 	})
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
@@ -288,6 +408,42 @@ func (p *PolicyBridge) initInputTable(_ *ofctrl.OFSwitch) error {
 	ndpPassthroughFlow.Match.Icmp6Type = lo.ToPtr(uint8(ipv6.ICMPTypeRedirect))
 	if err := ndpPassthroughFlow.ForceAddInstall(); err != nil {
 		return fmt.Errorf("failed to install icmpv6 ndp redirect passthrough flow, error: %v", err)
+	}
+
+	// table 0, igmp passthrough
+	igmp, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
+		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		Ethertype: PROTOCOL_IP,
+		IpProto:   protocol.Type_IGMP,
+	})
+	if err := igmp.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install igmp passthrough flow, error: %v", err)
+	}
+
+	// table 0, mld passthrough
+	passICMP6MatchWithType := func(icmpType ipv6.ICMPType) ofctrl.FlowMatch {
+		return ofctrl.FlowMatch{
+			Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+			Ethertype: protocol.IPv6_MSG,
+			IpProto:   protocol.Type_IPv6ICMP,
+			Icmp6Type: lo.ToPtr(uint8(icmpType)),
+		}
+	}
+	mldQuery, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerQuery))
+	if err := mldQuery.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld query passthrough flow, error: %v", err)
+	}
+	mldReport, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerReport))
+	if err := mldReport.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld report passthrough flow, error: %v", err)
+	}
+	mldDone, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeMulticastListenerDone))
+	if err := mldDone.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mld done passthrough flow, error: %v", err)
+	}
+	mldv2Report, _ := p.inputTable.NewFlow(passICMP6MatchWithType(ipv6.ICMPTypeVersion2MulticastListenerReport))
+	if err := mldv2Report.Next(p.passthroughTable); err != nil {
+		return fmt.Errorf("failed to install icmpv6 mldv2 report passthrough flow, error: %v", err)
 	}
 
 	var ctStateTableID uint8 = CT_STATE_TABLE
@@ -336,12 +492,11 @@ func (p *PolicyBridge) initIsolateEgressTable(_ *ofctrl.OFSwitch) error {
 
 func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 	// Table 5, from local bridge flow
-	localBrName := strings.TrimSuffix(p.name, "-policy")
 	inputFromLocalFlow, _ := p.passthroughTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
 	})
-	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
+	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix])
 	if err := inputFromLocalFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install input from local flow, error: %v", err)
 	}
@@ -349,7 +504,7 @@ func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 	// Table 5, from cls bridge flow
 	inputFromUpstreamFlow, _ := p.passthroughTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
 	})
 	if err := inputFromUpstreamFlow.Next(p.toLocalTable); err != nil {
 		return fmt.Errorf("failed to install input from upstream flow, error: %v", err)
@@ -758,37 +913,24 @@ func (p *PolicyBridge) initPolicyTable() error {
 	return nil
 }
 
-func (p *PolicyBridge) initPolicyForwardingTable(sw *ofctrl.OFSwitch) error {
-	localBrName := strings.TrimSuffix(p.name, "-policy")
+func (p *PolicyBridge) initPolicyForwardingTable() error {
 	// policy forwarding table
 	fromLocalOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg6,
-				Data:  0,
-				Range: openflow13.NewNXRange(0, 15),
-			},
-		},
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
 	})
-	outputPort, _ := sw.OutputPort(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix])
-	if err := fromLocalOutputFlow.Next(outputPort); err != nil {
-		return fmt.Errorf("failed to install from local output flow, error: %v", err)
+	if err := fromLocalOutputFlow.Resubmit(nil, &p.l7EgressPolicyTable.TableId); err != nil {
+		return fmt.Errorf("failed to add resubmit action for from local output flow, error: %s", err)
+	}
+	if err := fromLocalOutputFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return fmt.Errorf("failed to install from local output flow, error: %s", err)
 	}
 
 	fromUpstreamOutputFlow, _ := p.policyForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg6,
-				Data:  0,
-				Range: openflow13.NewNXRange(0, 15),
-			},
-		},
+		InputPort: p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
 	})
-	if err := fromUpstreamOutputFlow.Next(p.toLocalTable); err != nil {
+	if err := fromUpstreamOutputFlow.Next(p.l7IngressPolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream output flow, error: %v", err)
 	}
 
@@ -1004,30 +1146,131 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) initToLocalFlow() error {
-	// set pkt mark for to local packets
+	// table 141
+	// set pkt mark to local packets
 	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
 	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
 	if err != nil {
 		return err
 	}
-	localBrName := strings.TrimSuffix(p.name, "-policy")
-	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix])
+	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix])
 	flow, _ := p.toLocalTable.NewFlow(ofctrl.FlowMatch{
 		Priority: HIGH_MATCH_FLOW_PRIORITY,
 	})
 	if err := flow.AddAction(pktMarkSetAct, outputAct); err != nil {
 		return err
 	}
-	err = flow.Next(ofctrl.NewEmptyElem())
-	return err
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table 116
+	flow, _ = p.ingressForwardForNicTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := flow.Next(p.toLocalTable); err != nil {
+		return err
+	}
+
+	// table 115
+	flow, _ = p.ingressForwardTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := flow.Next(p.toLocalTable); err != nil {
+		return err
+	}
+
+	// table=110
+	flow, _ = p.l7IngressPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := flow.AddAction(ofctrl.NewResubmitAction(nil, &p.toLocalTable.TableId)); err != nil {
+		return err
+	}
+	if err := flow.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=130
+	f, _ := p.fromL7IngressTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toLocalTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *PolicyBridge) initToClsFlow() error {
+	// table=140
+	f, _ := p.toClsTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	outputAct := ofctrl.NewOutputAction(p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix])
+	if err := f.AddAction(outputAct); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table 106
+	f, _ = p.egressForwardForNicTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table 105
+	f, _ = p.egressForwardTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=100
+	f, _ = p.l7EgressPolicyTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	if err := f.AddAction(ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	// table=120
+	f, _ = p.fromL7EgressTable.NewFlow(ofctrl.FlowMatch{
+		Priority: DEFAULT_FLOW_MISS_PRIORITY,
+	})
+	toSetPortMark := ofctrl.NewResubmitAction(nil, &p.setPortMarkTable.TableId)
+	toCls := ofctrl.NewResubmitAction(nil, &p.toClsTable.TableId)
+	if err := f.AddAction(toSetPortMark, toCls); err != nil {
+		return err
+	}
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *PolicyBridge) initDuplicateDropFlow() error {
-	localBrName := strings.TrimSuffix(p.name, "-policy")
 	// duplicate packets from Local bridge will drop
 	var pktMask uint32 = 1 << constants.DuplicatePktMarkBit
 	duplicateDropFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{
-		InputPort:   p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
+		InputPort:   p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
 		PktMark:     1 << constants.DuplicatePktMarkBit,
 		PktMarkMask: &pktMask,
 		Priority:    HIGH_MATCH_FLOW_PRIORITY + LARGE_FLOW_MATCH_OFFSET + FLOW_MATCH_OFFSET,
@@ -1036,6 +1279,153 @@ func (p *PolicyBridge) initDuplicateDropFlow() error {
 		return fmt.Errorf("failed to install duplicate packets: %s", err)
 	}
 	return nil
+}
+
+func (p *PolicyBridge) addTRHealthyFlows() error {
+	flowID := p.datapathManager.GetTRHealthyFlowID(p.roundNum)
+
+	// table 105
+	f, _ := p.egressForwardTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	_ = f.AddAction(ofctrl.NewResubmitAction(nil, &p.egressForwardForNicTable.TableId))
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		klog.Errorf("Failed to install flow: %s", err)
+		return err
+	}
+
+	// table 115
+	f, _ = p.ingressForwardTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	_ = f.AddAction(ofctrl.NewResubmitAction(nil, &p.ingressForwardForNicTable.TableId))
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		klog.Errorf("Failed to install flow: %s", err)
+		return err
+	}
+
+	klog.Infof("Success to add tr healthy flows for policy bridge %s", p.name)
+	return nil
+}
+
+func (p *PolicyBridge) mustAddTRHealthyFlows() {
+	for i := 0; i < trconst.DpActionMaxRetryTimes; i++ {
+		if err := p.addTRHealthyFlows(); err != nil {
+			continue
+		}
+		return
+	}
+	klog.Fatalf("Failed to add tr healthy flows for bridge %s after try %d times", p.name, trconst.DpActionMaxRetryTimes)
+}
+
+func (p *PolicyBridge) mustDelTRHealthyFlows() {
+	for i := 0; i < trconst.DpActionMaxRetryTimes; i++ {
+		if err := action.DelTRHealthyFlows(p.localBrName); err != nil {
+			continue
+		}
+		return
+	}
+	klog.Fatalf("Failed to del tr healthy flows for bridge %s after try %d times", p.name, trconst.DpActionMaxRetryTimes)
+}
+
+func (p *PolicyBridge) addTRNicFlows() error {
+	flowID := p.datapathManager.GetTRNicFlowID(p.roundNum)
+
+	// table0
+	// process ingress traffic from svm
+	f, err := p.inputTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		InputPort: p.TrafficRedirect.Info.NicOut.PortNo,
+		Priority:  HIGHER_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	if err != nil {
+		klog.Errorf("Failed to new flow: %s", err)
+		return err
+	}
+	if err := f.Next(p.fromL7IngressTable); err != nil {
+		klog.Errorf("Failed to install flow: %s", err)
+		return err
+	}
+
+	// process egress traffic from svm
+	f, err = p.inputTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		InputPort: p.TrafficRedirect.Info.NicIn.PortNo,
+		Priority:  HIGHER_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	if err != nil {
+		klog.Errorf("Failed to new flow: %s", err)
+		return err
+	}
+	if err := f.Next(p.fromL7EgressTable); err != nil {
+		klog.Errorf("Failed to install flow: %s", err)
+		return err
+	}
+
+	// table 106
+	f, err = p.egressForwardForNicTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	if err != nil {
+		klog.Errorf("Failed to new flow: %s", err)
+		return err
+	}
+	learnAct := ofctrl.NewLearnAction(p.setPortMarkTable.TableId, NORMAL_MATCH_FLOW_PRIORITY,
+		constants.LearnActIdleTimeout, constants.LearnActHardTimeout, 0, 0, 0)
+	learnSrcMacMatch := &ofctrl.LearnField{
+		Name:  "nxm_of_eth_src",
+		Start: 0,
+	}
+	if err := learnAct.AddLearnedMatch(learnSrcMacMatch, 48, learnSrcMacMatch, nil); err != nil {
+		klog.Errorf("Failed to add learn flow match: %s", err)
+		return err
+	}
+	learnPktMark := &ofctrl.LearnField{
+		Name:  "nxm_nx_pkt_mark",
+		Start: 0,
+	}
+	if err := learnAct.AddLearnedLoadAction(learnPktMark, 15, learnPktMark, nil); err != nil {
+		klog.Errorf("Failed to add load action to learn action: %s", err)
+		return err
+	}
+	_ = f.AddAction(learnAct)
+	_ = f.AddAction(ofctrl.NewOutputAction(p.TrafficRedirect.Info.NicOut.PortNo))
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		klog.Errorf("failed to install flow: %s", err)
+		return err
+	}
+
+	// table 116
+	f, _ = p.ingressForwardForNicTable.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+	}, flowID)
+	_ = f.AddAction(ofctrl.NewOutputAction(p.TrafficRedirect.Info.NicIn.PortNo))
+	if err := f.Next(ofctrl.NewEmptyElem()); err != nil {
+		klog.Errorf("failed to install flow: %s", err)
+		return err
+	}
+
+	klog.Infof("Success to add tr nic flows for policy bridge %s", p.name)
+	return nil
+}
+
+func (p *PolicyBridge) mustAddTRNicFlows() {
+	for i := 0; i < trconst.DpActionMaxRetryTimes; i++ {
+		if err := p.addTRNicFlows(); err != nil {
+			continue
+		}
+		return
+	}
+	klog.Fatalf("Failed to add tr nic flows from bridge %s after try %d times", p.name, trconst.DpActionMaxRetryTimes)
+}
+
+func (p *PolicyBridge) mustDelTRNicFlows() {
+	for i := 0; i < trconst.DpActionMaxRetryTimes; i++ {
+		if err := action.DelTRNicFlows(p.localBrName); err != nil {
+			continue
+		}
+		return
+	}
+
+	klog.Fatalf("Failed to del tr nic flows from bridge %s after try %d times", p.name, trconst.DpActionMaxRetryTimes)
 }
 
 func (p *PolicyBridge) BridgeReset() {
@@ -1059,6 +1449,171 @@ func (p *PolicyBridge) RemoveLocalEndpoint(endpoint *Endpoint) error {
 		}
 	}
 	return err
+}
+
+func (p *PolicyBridge) UpdateTREndpoint(ep *Endpoint) error {
+	if !p.TrafficRedirect.Enabled {
+		klog.Infof("Policy bridge %s doesn't enable trafficredirect", p.name)
+		return nil
+	}
+
+	if ep.IfaceID != p.TrafficRedirect.Cfg.NicInIfaceID && ep.IfaceID != p.TrafficRedirect.Cfg.NicOutIfaceID {
+		klog.Infof("Endpoint %v is not policy bridge tr nic, skip process it for update", ep)
+		return nil
+	}
+
+	defer p.updateTRNicMountMetric()
+	if ep.IfaceID == p.TrafficRedirect.Cfg.NicInIfaceID {
+		portIn := p.TrafficRedirect.Info.NicIn.PortNo
+		if ep.PortNo != portIn {
+			if portIn != 0 {
+				p.mustDelTRNicFlows()
+				klog.Infof("Success to delete policy bridge %s tr in nic(portno: %d)", p.name, portIn)
+			}
+			p.TrafficRedirect.Info.NicIn.PortNo = ep.PortNo
+			if p.TrafficRedirect.TRNicPrepared() {
+				p.mustAddTRNicFlows()
+			}
+			klog.Infof("Success update policy bridge %s tr in nic to port %v", p.name, ep)
+		}
+		oldState := p.TrafficRedirect.Info.NicIn.State
+		if ep.State != oldState {
+			p.TrafficRedirect.Info.NicIn.State = ep.State
+			klog.Infof("Update policy bridge %s tr in nic state from %s to %s", p.name, oldState, ep.State)
+		}
+	}
+
+	if ep.IfaceID == p.TrafficRedirect.Cfg.NicOutIfaceID {
+		portOut := p.TrafficRedirect.Info.NicOut.PortNo
+		if ep.PortNo != portOut {
+			if portOut != 0 {
+				p.mustDelTRNicFlows()
+				klog.Infof("Success to delete policy bridge %s tr out nic(portno: %d)", p.name, portOut)
+			}
+			p.TrafficRedirect.Info.NicOut.PortNo = ep.PortNo
+			if p.TrafficRedirect.TRNicPrepared() {
+				p.mustAddTRNicFlows()
+			}
+			klog.Infof("Success update policy bridge %s tr out nic to port %v", p.name, ep)
+		}
+		oldState := p.TrafficRedirect.Info.NicOut.State
+		if ep.State != oldState {
+			p.TrafficRedirect.Info.NicOut.State = ep.State
+			klog.Infof("Update policy bridge %s tr out nic state from %s to %s", p.name, oldState, ep.State)
+		}
+	}
+
+	// do healthy flows
+	if p.TrafficRedirect.Healthy() {
+		if !p.TrafficRedirect.Info.OldHealthy {
+			p.mustAddTRHealthyFlows()
+			p.TrafficRedirect.Info.OldHealthy = true
+		}
+		return nil
+	}
+	if p.TrafficRedirect.Info.OldHealthy {
+		p.mustDelTRHealthyFlows()
+		p.TrafficRedirect.Info.OldHealthy = false
+	}
+	return nil
+}
+
+func (p *PolicyBridge) DeleteTREndpoint(ep *Endpoint) error {
+	if !p.TrafficRedirect.Enabled {
+		klog.Infof("Policy bridge %s doesn't enable trafficredirect", p.name)
+		return nil
+	}
+
+	if ep.PortNo != p.TrafficRedirect.Info.NicIn.PortNo && ep.PortNo != p.TrafficRedirect.Info.NicOut.PortNo {
+		klog.Infof("Endpoint %v is not policy bridge tr nic, skip process it for delete", ep)
+		return nil
+	}
+
+	defer p.updateTRNicMountMetric()
+
+	if ep.PortNo == p.TrafficRedirect.Info.NicIn.PortNo {
+		p.mustDelTRNicFlows()
+		p.TrafficRedirect.Info.NicIn.PortNo = 0
+		p.TrafficRedirect.Info.NicIn.State = LinkUnknown
+		klog.Infof("Success delete policy bridge %s tr in nic(portno: %d)", p.name, ep.PortNo)
+	}
+
+	if ep.PortNo == p.TrafficRedirect.Info.NicOut.PortNo {
+		p.mustDelTRNicFlows()
+		p.TrafficRedirect.Info.NicOut.PortNo = 0
+		p.TrafficRedirect.Info.NicOut.State = LinkUnknown
+		klog.Infof("Success delete policy bridge %s tr out nic(portno: %d)", p.name, ep.PortNo)
+	}
+
+	if p.TrafficRedirect.Info.OldHealthy {
+		if !p.TrafficRedirect.Healthy() {
+			p.mustDelTRHealthyFlows()
+			p.TrafficRedirect.Info.OldHealthy = false
+		}
+	}
+
+	return nil
+}
+
+func (p *PolicyBridge) UpdateDPIHealthy(curHealthy bool) {
+	if !p.TrafficRedirect.Enabled {
+		klog.Infof("Policy bridge %s doesn't enable tr, skip process dpi healthy", p.name)
+		return
+	}
+	old := p.TrafficRedirect.Info.DPIHealthy
+	if old == curHealthy {
+		klog.Infof("Policy bridge %s dpi healthy kept %v, skip process it", p.name, curHealthy)
+		return
+	}
+
+	defer p.updateTRHealthyMetric()
+
+	p.TrafficRedirect.Info.DPIHealthy = curHealthy
+	defer klog.Infof("Success update policy bridge %s dpi healthy from %v to %v", p.name, old, curHealthy)
+	// do healthy flows
+	if p.TrafficRedirect.Healthy() {
+		if !p.TrafficRedirect.Info.OldHealthy {
+			p.mustAddTRHealthyFlows()
+			p.TrafficRedirect.Info.OldHealthy = true
+		}
+		return
+	}
+	if p.TrafficRedirect.Info.OldHealthy {
+		p.mustDelTRHealthyFlows()
+		p.TrafficRedirect.Info.OldHealthy = false
+	}
+}
+
+func (p *PolicyBridge) updateTRNicMountMetric() {
+	if p.updateTRNicMountMetricFunc == nil {
+		return
+	}
+
+	nicOut := 0
+	nicIn := 0
+	if p.TrafficRedirect.Info.NicIn.PortNo != 0 {
+		nicIn = 1
+	}
+
+	if p.TrafficRedirect.Info.NicOut.PortNo != 0 {
+		nicOut = 1
+	}
+	trNicInfo := metrics.TRNicInfo{
+		NicInMount:   nicIn,
+		NicOutMount:  nicOut,
+		NicMount:     nicIn + nicOut,
+		NicInStatus:  uint8(p.TrafficRedirect.Info.NicIn.State),
+		NicOutStatus: uint8(p.TrafficRedirect.Info.NicOut.State),
+	}
+	p.updateTRNicMountMetricFunc(p.name, trNicInfo, p.TrafficRedirect.Info.OldHealthy)
+}
+
+func (p *PolicyBridge) updateTRHealthyMetric() {
+	if p.updateTRHealthyMetricFunc == nil {
+		return
+	}
+
+	p.updateTRHealthyMetricFunc(p.name, p.TrafficRedirect.Info.DPIHealthy, p.TrafficRedirect.Info.OldHealthy)
 }
 
 func (p *PolicyBridge) GetTierTable(direction uint8, tier uint8, mode string) (*ofctrl.Table, *ofctrl.Table, error) {
@@ -1247,10 +1802,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 		p.WaitForSwitchConnection()
 	}
 
-	flowID, err := AssemblyRuleFlowID(p.roundNum, seqID)
-	if err != nil {
-		return nil, err
-	}
+	flowID := p.datapathManager.FlowIDAlloctorForRule.AssemblyFlowID(p.roundNum, seqID)
 
 	if p.isIsolationDropRule(tier, rule) {
 		return p.addIsolationDropRule(flowID, rule, direction)
@@ -1422,4 +1974,69 @@ func (p *PolicyBridge) RemoveSFCRule() error {
 
 func (p *PolicyBridge) BridgeInitCNI() {
 
+}
+
+func (p *PolicyBridge) AddTRRule(ctx context.Context, r *DPTRRuleSpec, seqID uint32) (uint64, error) {
+	log := ctrl.LoggerFrom(ctx, "bridge", p.name)
+	t := p.l7IngressPolicyTable
+	nextT := p.ingressForwardTable
+	if r.Direct == DirEgress {
+		t = p.l7EgressPolicyTable
+		nextT = p.egressForwardTable
+	}
+	fid := p.datapathManager.FlowIDAlloctorForTR.AssemblyFlowID(p.roundNum, seqID)
+
+	var smac, smask, dmac, dmask *net.HardwareAddr
+	var err error
+	smac, smask, err = p.getMacAndMask(r.SrcMac)
+	if err != nil {
+		log.Error(err, "Failed to parse src mac")
+		return 0, err
+	}
+	dmac, dmask, err = p.getMacAndMask(r.DstMac)
+	if err != nil {
+		log.Error(err, "Failed to parse dst mac")
+		return 0, err
+	}
+
+	f, _ := t.NewFlowWithFlowID(ofctrl.FlowMatch{
+		Ethertype: PROTOCOL_IP,
+		MacSa:     smac,
+		MacSaMask: smask,
+		MacDa:     dmac,
+		MacDaMask: dmask,
+		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
+	}, fid)
+	if err := f.Next(nextT); err != nil {
+		log.Error(err, "Failed to install flow")
+		return 0, err
+	}
+	log.Info("Success to add flow")
+	return fid, nil
+}
+
+func (p *PolicyBridge) DeleteTRRuleFlow(ctx context.Context, r *DPTRRuleSpec, fid uint64) error {
+	log := ctrl.LoggerFrom(ctx, "bridge", p.name, "flowID", fid)
+	t := p.l7IngressPolicyTable
+	if r.Direct == DirEgress {
+		t = p.l7EgressPolicyTable
+	}
+	if err := ofctrl.DeleteFlow(t, NORMAL_MATCH_FLOW_PRIORITY, fid); err != nil {
+		log.Error(err, "Failed to delete flow")
+		return err
+	}
+	log.Info("Success to delete flow")
+	return nil
+}
+
+func (p *PolicyBridge) getMacAndMask(macStr string) (*net.HardwareAddr, *net.HardwareAddr, error) {
+	if macStr == "" {
+		return nil, nil, nil
+	}
+	m, err := net.ParseMAC(macStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	mask := net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	return &m, &mask, nil
 }

@@ -58,7 +58,9 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
+	rm -rf ut_tmp
 
 debug-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
@@ -73,8 +75,10 @@ docker-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
 cover-test: agent-uuid
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
+	rm -rf ut_tmp
 
 docker-cover-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
@@ -85,7 +89,9 @@ docker-cover-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
 
 race-test: agent-uuid
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
+	rm -rf ut_tmp
 
 docker-race-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/everoute/everoute/pkg/constants"
 )
+
+const allowRunes = "abcdefghijklmnopqrstuvwxyz1234567890"
 
 var ErrInternal = fmt.Errorf("everoute internal error")
 
@@ -200,4 +203,16 @@ func GetValidLabelString(label string) string {
 		return Base64AndSha256(label)[:32]
 	}
 	return label
+}
+
+// HashName return a Name with keys hash, length should <= 20.
+func HashName(length int, keys ...interface{}) string {
+	jsonKey, _ := json.Marshal(keys)
+	var name string
+
+	for _, char := range sha256.Sum256(jsonKey) {
+		name += string(allowRunes[int(char)%len(allowRunes)])
+	}
+
+	return name[:length]
 }
