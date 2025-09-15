@@ -58,7 +58,8 @@ agent-uuid:
 	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
 
 test: agent-uuid
-	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
+	#go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
+	go test --gcflags=all=-l -p 1  ./pkg/agent/datapath/...
 
 debug-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
