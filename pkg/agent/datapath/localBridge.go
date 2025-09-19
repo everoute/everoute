@@ -83,6 +83,8 @@ type LocalBridge struct {
 	learnedIPAddressMap      map[string]IPAddressReference
 
 	localPortMac *net.HardwareAddr
+
+	enableIPLearning bool
 }
 
 type IPAddressReference struct {
@@ -106,6 +108,7 @@ func newLocalBridge(brName, vdsID string, datapathManager *DpManager) *LocalBrid
 	localBridge.fromLocalVlanFilterFlow = make(map[uint32][]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.learnedIPAddressMap = make(map[string]IPAddressReference)
+	localBridge.enableIPLearning = datapathManager.IsEnableIPLearningByVds(vdsID)
 
 	return localBridge
 }
@@ -128,6 +131,9 @@ func (l *LocalBridge) getInPort(pkt *ofctrl.PacketIn) uint32 {
 }
 
 func (l *LocalBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+	if !l.enableIPLearning {
+		return
+	}
 	if pkt.Data.Ethertype != PROTOCOL_ARP &&
 		pkt.Data.Ethertype != protocol.IPv6_MSG {
 		return
@@ -338,7 +344,7 @@ func (l *LocalBridge) BridgeInit() {
 		log.Fatalf("Failed to init local bridge from local pass table, error: %v", err)
 	}
 
-	if l.datapathManager.Config.EnableIPLearning {
+	if l.enableIPLearning {
 		l.fromLocalToCtrlTable, _ = sw.NewTable(FROM_LOCAL_TO_CONTROLLER_TABLE)
 		if err := l.initFromLocalToCtrlTable(sw); err != nil {
 			log.Fatalf("Failed to init local bridge from local redirect table, error: %v", err)
@@ -890,7 +896,7 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	if err := fromLocalArpFlow.Resubmit(nil, &l.fromLocalPassTable.TableId); err != nil {
 		return err
 	}
-	if l.datapathManager.Config.EnableIPLearning {
+	if l.enableIPLearning {
 		var fromLocalToCtrlTableID uint8 = FROM_LOCAL_TO_CONTROLLER_TABLE
 		if err := fromLocalArpFlow.Resubmit(nil, &fromLocalToCtrlTableID); err != nil {
 			return err
@@ -909,7 +915,7 @@ func (l *LocalBridge) initFromLocalRedirectTable(sw *ofctrl.OFSwitch) error {
 	if err := fromLocalNdpFlow.Resubmit(nil, &l.fromLocalPassTable.TableId); err != nil {
 		return err
 	}
-	if l.datapathManager.Config.EnableIPLearning {
+	if l.enableIPLearning {
 		var fromLocalToCtrlTableID uint8 = FROM_LOCAL_TO_CONTROLLER_TABLE
 		if err := fromLocalNdpFlow.Resubmit(nil, &fromLocalToCtrlTableID); err != nil {
 			return err

@@ -9,7 +9,8 @@ import (
 	klog "k8s.io/klog/v2"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
-	call "github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/config"
+	agentconst "github.com/everoute/everoute/pkg/constants"
 	constants "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 )
@@ -91,13 +92,13 @@ func NewAgentMetric() *AgentMetric {
 		), []string{constants.MetricRuleEntryPolicyNameLabel}),
 		policyNameMap: map[string]string{},
 		flowIDUsedCount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
-			call.MetricFlowIDUsedCount,
+			agentconst.MetricFlowIDUsedCount,
 			"the count flow seq id has allocated",
-		), []string{call.MetricFlowIDLabel}),
+		), []string{agentconst.MetricFlowIDLabel}),
 		flowIDExhaust: *prometheus.NewGaugeVec(newAgentGaugeOpt(
-			call.MetricFlowIDExhaust,
+			agentconst.MetricFlowIDExhaust,
 			"flow seq ids has exhaust or not",
-		), []string{call.MetricFlowIDLabel}),
+		), []string{agentconst.MetricFlowIDLabel}),
 		trNicMount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
 			MetricTRNicMount,
 			"trafficredirect nic mount status",
@@ -110,9 +111,6 @@ func NewAgentMetric() *AgentMetric {
 			MetrucTRNicStatus,
 			"trafficredirect nic link status",
 		), []string{BridgeLabel, TypeLabel}),
-	}
-	if err := m.reg.Register(m.arpCount); err != nil {
-		klog.Fatalf("Failed to init arp count metric %s", err)
 	}
 
 	return m
@@ -185,8 +183,16 @@ func (m *AgentMetric) SetRuleEntryTotalNum(num int) {
 }
 
 func (m *AgentMetric) GetCollectors() []prometheus.Collector {
-	return []prometheus.Collector{m.arpCount, m.arpRejectCount,
-		m.ruleEntryTotalNum, m.ruleEntryNum, m.flowIDUsedCount, m.flowIDExhaust, m.trHealthy, m.trNicMount, m.trNicStatus}
+	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust}
+	if config.EnableMs {
+		klog.Infof("Register ms metrics for enabled ms")
+		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum)
+	}
+	if config.EnableTR {
+		klog.Infof("Register tr metrics for enabled tr")
+		res = append(res, m.trHealthy, m.trNicMount, m.trNicStatus)
+	}
+	return res
 }
 
 func (m *AgentMetric) SetSeqIDInfo(module string, exhaust bool, used int) {
