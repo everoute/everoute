@@ -37,6 +37,7 @@ import (
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/fake"
 	clientset "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/typed/agent/v1alpha1"
+	"github.com/everoute/everoute/pkg/config"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -90,7 +91,8 @@ func TestMain(m *testing.M) {
 		klog.Fatalf("fail to connect ovs client: %s", err)
 	}
 
-	ovsdbMonitor, err = NewOVSDBMonitor(false)
+	config.EnableMs = true
+	ovsdbMonitor, err = NewOVSDBMonitor()
 	if err != nil {
 		klog.Fatalf("fail to create ovsdb monitor: %s", err)
 	}

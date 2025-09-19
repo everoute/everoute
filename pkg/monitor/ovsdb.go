@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/config"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -89,12 +90,10 @@ type OVSDBMonitor struct {
 
 	// syncQueue used to notify ovsdb update
 	syncQueue workqueue.RateLimitingInterface
-
-	enableTR bool
 }
 
 // NewOVSDBMonitor create a new instance of OVSDBMonitor
-func NewOVSDBMonitor(enableTR bool) (*OVSDBMonitor, error) {
+func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 	ovsClient, err := ovsdb.ConnectUnix(ovsdb.DEFAULT_SOCK)
 	if err != nil {
 		return nil, err
@@ -105,10 +104,12 @@ func NewOVSDBMonitor(enableTR bool) (*OVSDBMonitor, error) {
 		cacheLock:        sync.RWMutex{},
 		endpointMap:      make(map[string]*datapath.Endpoint),
 		ovsdbCache:       make(map[string]map[string]ovsdb.Row),
-		syncQueue:        workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		syncQueue:        nil,
 		bridgeMap:        make(map[string]sets.Set[string]),
 		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
-		enableTR:         enableTR,
+	}
+	if config.EnableMs {
+		monitor.syncQueue = workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 	}
 
 	return monitor, nil
@@ -161,7 +162,7 @@ func (monitor *OVSDBMonitor) startOvsdbMonitor() error {
 		Modify:  true,
 	}
 	intfFields := []string{"name", "mac_in_use", "ofport", "type", "external_ids", "error", "status"}
-	if monitor.enableTR {
+	if config.EnableTR {
 		intfFields = append(intfFields, "link_state")
 	}
 	requests := map[string]ovsdb.MonitorRequest{
@@ -636,7 +637,9 @@ func (monitor *OVSDBMonitor) handleOvsUpdates(updates ovsdb.TableUpdates) {
 	}
 	monitor.cacheLock.Unlock()
 
-	monitor.syncQueue.Add("ovsdb-event")
+	if monitor.syncQueue != nil {
+		monitor.syncQueue.Add("ovsdb-event")
+	}
 	monitor.ovsdbUpdatesChan <- updates
 }
 
