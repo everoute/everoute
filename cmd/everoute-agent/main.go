@@ -210,7 +210,7 @@ func initK8sCtrlManager(stopCtx context.Context, config *rest.Config) manager.Ma
 }
 
 func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofportIPMonitorChan chan *types.EndpointIP, stopChan <-chan struct{}) {
-	ovsdbMonitor, err := monitor.NewOVSDBMonitor(datapathManager.IsEnableTR())
+	ovsdbMonitor, err := monitor.NewOVSDBMonitor()
 	if err != nil {
 		klog.Fatalf("unable to create ovsdb monitor: %s", err.Error())
 	}
@@ -234,17 +234,18 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 			}
 		},
 	})
-
-	agentmonitor := monitor.NewAgentMonitor(&monitor.NewAgentMonitorOptions{
-		DisableProbeTimeoutIP:  opts.disableProbeTimeoutIP,
-		ProbeTimeoutIPCallback: datapathManager.HandleEndpointIPTimeout,
-		Clientset:              clientset.NewForConfigOrDie(config),
-		OVSDBMonitor:           ovsdbMonitor,
-		OFPortIPMonitorChan:    ofportIPMonitorChan,
-	})
-
 	go ovsdbMonitor.Run(stopChan)
-	go agentmonitor.Run(stopChan)
+
+	if opts.IsEnableMS() {
+		agentmonitor := monitor.NewAgentMonitor(&monitor.NewAgentMonitorOptions{
+			DisableProbeTimeoutIP:  opts.disableProbeTimeoutIP,
+			ProbeTimeoutIPCallback: datapathManager.HandleEndpointIPTimeout,
+			Clientset:              clientset.NewForConfigOrDie(config),
+			OVSDBMonitor:           ovsdbMonitor,
+			OFPortIPMonitorChan:    ofportIPMonitorChan,
+		})
+		go agentmonitor.Run(stopChan)
+	}
 }
 
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,

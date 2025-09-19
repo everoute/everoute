@@ -1962,6 +1962,14 @@ func (dp *DpManager) UseEverouteIPAM() bool {
 	return dp.Config.CNIConfig.IPAMType == cniconst.EverouteIPAM
 }
 
+func (dp *DpManager) IsEnableIPLearningByVds(vdsID string) bool {
+	if !dp.Config.EnableIPLearning {
+		return false
+	}
+
+	return dp.Config.MSVdsSet.Has(vdsID)
+}
+
 func (dp *DpManager) HandleEndpointIPTimeout(_ context.Context, endpointIP *types.EndpointIP) error {
 	ofSwitch := dp.getOfSwitchByBridge(endpointIP.BridgeName, LOCAL_BRIDGE_KEYWORD)
 	if ofSwitch == nil {

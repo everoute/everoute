@@ -123,6 +123,8 @@ func (o *Options) complete() error {
 		return o.cniConfigCheck()
 	}
 
+	config.EnableMs = o.IsEnableMS()
+	config.EnableTR = o.IsEnableTR()
 	return nil
 }
 
@@ -196,6 +198,10 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 		}
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
+	if !o.IsEnableMS() {
+		// tr disable ip learning
+		dpConfig.EnableIPLearning = false
+	}
 
 	if dpConfig.EnableCNI {
 		// cni disable ip learning
