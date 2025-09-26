@@ -183,7 +183,7 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	} else {
 		for managedvds, ovsbr := range agentConfig.VdsConfigs {
 			managedVDSMap[managedvds] = ovsbr.BrideName
-			if ovsbr.EnableMS {
+			if !ovsbr.DisableMS {
 				dpConfig.MSVdsSet.Insert(managedvds)
 			}
 			if len(ovsbr.TrafficRedirects) > 0 {

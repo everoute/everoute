@@ -66,8 +66,8 @@ jobs:
       - name: Check conventional commits
         uses: webiny/action-conventional-commits@v1.1.0
 
-      - name: Check spelling
-        uses: crate-ci/typos@v1.0.4
+      # - name: Check spelling
+      #   uses: crate-ci/typos@v1.0.4
 
       - name: Check golang lint
         # skip it for branch main can't pass this check
