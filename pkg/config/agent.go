@@ -21,7 +21,7 @@ type CNIConf struct {
 
 type VdsConfig struct {
 	BrideName string `yaml:"bridgeName"`
-	EnableMS  bool   `yaml:"enableMS"`
+	DisableMS bool   `yaml:"disableMS"`
 	// if len=0, disable trafficRedirect
 	TrafficRedirects []TRConfig `yaml:"trafficRedirects,omitempty"`
 }
@@ -56,7 +56,7 @@ func (a *AgentConfig) IsEnableMS() bool {
 	}
 
 	for k := range a.VdsConfigs {
-		if a.VdsConfigs[k].EnableMS {
+		if !a.VdsConfigs[k].DisableMS {
 			return true
 		}
 	}
