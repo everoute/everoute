@@ -123,6 +123,8 @@ func (o *Options) complete() error {
 		return o.cniConfigCheck()
 	}
 
+	config.EnableMs = o.IsEnableMS()
+	config.EnableTR = o.IsEnableTR()
 	return nil
 }
 
@@ -183,7 +185,7 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	} else {
 		for managedvds, ovsbr := range agentConfig.VdsConfigs {
 			managedVDSMap[managedvds] = ovsbr.BrideName
-			if ovsbr.EnableMS {
+			if !ovsbr.DisableMS {
 				dpConfig.MSVdsSet.Insert(managedvds)
 			}
 			if len(ovsbr.TrafficRedirects) > 0 {
@@ -196,6 +198,9 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 		}
 	}
 	dpConfig.ManagedVDSMap = managedVDSMap
+	if !o.IsEnableMS() {
+		dpConfig.EnableIPLearning = false
+	}
 
 	if dpConfig.EnableCNI {
 		// cni disable ip learning

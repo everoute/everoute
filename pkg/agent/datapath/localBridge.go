@@ -128,6 +128,9 @@ func (l *LocalBridge) getInPort(pkt *ofctrl.PacketIn) uint32 {
 }
 
 func (l *LocalBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
+	if !l.datapathManager.Config.EnableIPLearning {
+		return
+	}
 	if pkt.Data.Ethertype != PROTOCOL_ARP &&
 		pkt.Data.Ethertype != protocol.IPv6_MSG {
 		return

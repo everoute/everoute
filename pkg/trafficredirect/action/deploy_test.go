@@ -16,6 +16,7 @@ var _ = Describe("Reset", func() {
 			VdsConfigs: map[string]config.VdsConfig{
 				"vds1": {
 					BrideName: testBr1,
+					DisableMS: true,
 					TrafficRedirects: []config.TRConfig{
 						{
 							NicIn:  ifaceID0,
