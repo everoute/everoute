@@ -7,6 +7,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	EnableMs bool
+	EnableTR bool
+)
+
 const agentConfigFilePath = "/var/lib/everoute/agentconfig.yaml"
 
 type CNIConf struct {

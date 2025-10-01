@@ -91,6 +91,9 @@ type NewAgentMonitorOptions struct {
 
 // NewAgentMonitor return a new agentMonitor with kubernetes client and ipMonitor.
 func NewAgentMonitor(opts *NewAgentMonitorOptions) *AgentMonitor {
+	if opts.OVSDBMonitor.GetSyncQueue() == nil {
+		klog.Fatal("OVSDBMonitor syncQueue is nil, AgentMonitor needs it to notify ovsdb update")
+	}
 	return &AgentMonitor{
 		k8sClient:              opts.Clientset.AgentV1alpha1().AgentInfos(),
 		agentInformer:          informer.NewAgentInfoInformer(opts.Clientset, 0, cache.Indexers{}),
