@@ -174,6 +174,23 @@ func NewPolicySeqIDExhaustCheck(f func() (string, bool)) healthz.HealthChecker {
 	}
 }
 
+type CheckFunc struct {
+	f func() error
+}
+
+func NewCheckFunc(f func() error) *CheckFunc {
+	return &CheckFunc{
+		f: f,
+	}
+}
+
+func (c *CheckFunc) Check(_ *http.Request) error {
+	if c.f != nil {
+		return c.f()
+	}
+	return nil
+}
+
 // WithEnable returns checker when enable is nill or true, else returns nopHealthz.
 func WithEnable(enable *bool, checker healthz.HealthChecker) healthz.HealthChecker {
 	if enable == nil || *enable {

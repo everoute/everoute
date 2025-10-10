@@ -249,8 +249,14 @@ func NewPolicyBridge(brName, vdsID string, datapathManager *DpManager) *PolicyBr
 			}
 		}
 	}
-	policyBridge.updateTRHealthyMetricFunc = datapathManager.AgentMetric.SetTRHealthy
-	policyBridge.updateTRNicMountMetricFunc = datapathManager.AgentMetric.SetTRNicInfo
+	if policyBridge.TrafficRedirect.Enabled {
+		policyBridge.updateTRHealthyMetricFunc = datapathManager.AgentMetric.SetTRHealthy
+		policyBridge.updateTRNicMountMetricFunc = datapathManager.AgentMetric.SetTRNicInfo
+		// init metrics for alert
+		policyBridge.updateTRHealthyMetricFunc(policyBridge.name, false, false)
+		policyBridge.updateTRNicMountMetricFunc(policyBridge.name, metrics.TRNicInfo{}, false)
+	}
+
 	return policyBridge
 }
 
