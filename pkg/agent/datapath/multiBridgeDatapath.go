@@ -785,6 +785,26 @@ func (dp *DpManager) InitializeCNI() {
 	wg.Wait()
 }
 
+func (dp *DpManager) TRHealthyCheck() error {
+	dp.lockflowReplayWithTimeout()
+	defer dp.flowReplayMutex.Unlock()
+	for vdsID := range dp.BridgeChainMap {
+		br := dp.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD]
+		if br == nil {
+			klog.Errorf("vds %s policy bridge not exist", vdsID)
+			continue
+		}
+		pBr := br.(*PolicyBridge)
+		if !pBr.TrafficRedirect.Enabled {
+			continue
+		}
+		if !pBr.TrafficRedirect.Info.OldHealthy {
+			return fmt.Errorf("vds %s traffic redirect unhealthy", vdsID)
+		}
+	}
+	return nil
+}
+
 func NewVDSForConfig(datapathManager *DpManager, vdsID, ovsbrname string) {
 	NewVDSForConfigBase(datapathManager, vdsID, ovsbrname)
 	if datapathManager.IsEnableProxy() {

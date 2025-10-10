@@ -219,12 +219,13 @@ jobs:
         run: ./k8se2e/bin/ginkgo -nodes=5 --skip="SCTP|IPv6" --focus="KubeProxy|HostPort|hostPort" ./k8se2e/bin/e2e.test -- --disable-log-dump --provider="skeleton" --kubeconfig=/home/runner/.kube/config
 
       - name: run securitypolicy cases
+        id: runtest
         timeout-minutes: 30
         run: Kubeconfig=/home/runner/.kube/config Provider=pod go test ./tests/e2e/...
 
       - name: delete test k8s cluster
         id: delenv
-        if: ${{ always() }}
+        if: steps.runtest.conclusion == 'success'
         run: kubectl --kubeconfig /home/runner/sksconfig/sksconfig delete -f hack/${{ env.Tmpl }}
 
       - name: recycle vip
