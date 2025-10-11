@@ -1,6 +1,7 @@
 [files]
 extend-exclude = [
-    "deploy/crds",
-    "deploy/everoute.yaml",
+    "deploy/*",
+    "hack/*",
+    "tests/*",
     "go.sum",
     "go.mod"]
