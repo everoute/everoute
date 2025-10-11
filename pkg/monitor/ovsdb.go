@@ -109,6 +109,7 @@ func NewOVSDBMonitor() (*OVSDBMonitor, error) {
 		ovsdbUpdatesChan: make(chan ovsdb.TableUpdates, OvsdbUpdatesChanSize),
 	}
 	if config.EnableMs {
+		klog.Infof("Init syncQueue for enabled ms")
 		monitor.syncQueue = workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 	}
 
