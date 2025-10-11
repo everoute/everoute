@@ -120,7 +120,9 @@ func (o *Options) complete() error {
 			return fmt.Errorf("can't get agent namespace from env to create gw-ep endpoint in overlay mode")
 		}
 		o.namespace = ns
-		return o.cniConfigCheck()
+		if err := o.cniConfigCheck(); err != nil {
+			return err
+		}
 	}
 
 	config.EnableMs = o.IsEnableMS()
