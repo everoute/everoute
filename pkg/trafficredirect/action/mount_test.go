@@ -1,6 +1,7 @@
 package action
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -294,7 +295,7 @@ var _ = Describe("mount unit test", func() {
 		It("should return error when ifaceID not found", func() {
 			_, err := findTrafficRedirectNic(testBr1, "not-exist-id", types.NicIn)
 			g.Expect(err).Should(HaveOccurred())
-			g.Expect(err.Error()).To(ContainSubstring("can't find trafficredirect nic"))
+			g.Expect(errors.Is(err, NicNotfound)).To(BeTrue())
 		})
 
 		It("should return error when multiple interfaces found", func() {

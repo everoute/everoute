@@ -1,12 +1,17 @@
 package action
 
 import (
+	"errors"
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/config"
 	"github.com/everoute/everoute/pkg/types"
 )
+
+var NicNotfound = fmt.Errorf("trafficredirect nic not found")
 
 func Reset(cfg *config.AgentConfig) error {
 	bridges, err := getAllBridge()
@@ -32,6 +37,11 @@ func Reset(cfg *config.AgentConfig) error {
 
 	for _, br := range bridges.UnsortedList() {
 		if err := processVds(br, newCfg[br]); err != nil {
+			if errors.Is(err, NicNotfound) {
+				// skip for svm shutdown
+				klog.Warningf("Skip to process ovs bridge %s trafficredirect nic, because nic not found, config is %v", br, newCfg[br])
+				continue
+			}
 			klog.Errorf("Failed to process ovs bridge %s trafficredirect nic, config is %v", br, newCfg[br])
 			return err
 		}
