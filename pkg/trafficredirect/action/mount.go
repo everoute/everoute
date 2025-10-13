@@ -323,12 +323,12 @@ func findTrafficRedirectNic(ovsbrName, ifaceID string, d types.NicDirect) (strin
 	resStr := strings.TrimSuffix(resS, "\n")
 	if resStr == "" {
 		klog.Errorf("can't find interface with ifaceID %s for ovs bridge %s direct %s", ifaceID, ovsbrName, d)
-		return "", fmt.Errorf("can't find trafficredirect nic")
+		return "", ErrNicNotFound
 	}
 	res := strings.Split(resStr, "\n")
 	if len(res) == 0 {
 		klog.Errorf("can't find interface with ifaceID %s for ovs bridge %s direct %s", ifaceID, ovsbrName, d)
-		return "", fmt.Errorf("can't find trafficredirect nic")
+		return "", ErrNicNotFound
 	}
 	if len(res) > 1 {
 		klog.Errorf("find multi interface with ifaceID %s for ovs bridge %s direct %s, res: %s", ifaceID, ovsbrName, d, resS)
