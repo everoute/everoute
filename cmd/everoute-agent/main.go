@@ -180,7 +180,7 @@ func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySync
 		klog.Fatalf("Failed to new a client, err: %v", err)
 	}
 	setAgentConf(datapathManager, c)
-	setLinkAddr(datapathManager.Info)
+	setLinkInfo(datapathManager)
 	initIPSet()
 	datapathManager.InitializeCNI()
 }
@@ -480,24 +480,33 @@ func updateGwEndpoint(k8sClient client.Client, datapathManager *datapath.DpManag
 	return nil
 }
 
-func setLinkAddr(agentInfo *datapath.DpManagerInfo) {
+func setLinkInfo(dpManager *datapath.DpManager) {
 	// set gateway ip address
-	if err := utils.SetLinkAddr(agentInfo.GatewayName,
+	if err := utils.SetLinkAddr(dpManager.Info.GatewayName,
 		&net.IPNet{
-			IP:   agentInfo.GatewayIP,
-			Mask: agentInfo.GatewayMask}); err != nil {
+			IP:   dpManager.Info.GatewayIP,
+			Mask: dpManager.Info.GatewayMask}); err != nil {
 		klog.Fatalf("Set gateway ip address error, err:%s", err)
+	}
+
+	// set link mtu
+	if err := utils.SetLinkMTU(dpManager.Info.GatewayName, dpManager.Config.CNIConfig.MTU); err != nil {
+		klog.Fatalf("Set gateway link mtu error, err:%s", err)
 	}
 
 	if opts.IsEnableProxy() {
 		return
 	}
 	// set local gateway ip address
-	if err := utils.SetLinkAddr(agentInfo.LocalGwName, &net.IPNet{
-		IP:   agentInfo.LocalGwIP,
+	if err := utils.SetLinkAddr(dpManager.Info.LocalGwName, &net.IPNet{
+		IP:   dpManager.Info.LocalGwIP,
 		Mask: net.CIDRMask(32, 32),
 	}); err != nil {
 		klog.Fatalf("Set local gateway ip address error, err: %s", err)
+	}
+	// set local gateway link mtu
+	if err := utils.SetLinkMTU(dpManager.Info.LocalGwName, dpManager.Config.CNIConfig.MTU); err != nil {
+		klog.Fatalf("Set local gateway link mtu error, err: %s", err)
 	}
 }
 

@@ -141,6 +141,19 @@ func SetLinkAddr(ifname string, inet *net.IPNet) error {
 	return nil
 }
 
+func SetLinkMTU(ifname string, mtu int) error {
+	link, err := netlink.LinkByName(ifname)
+	if err != nil {
+		klog.Errorf("failed to lookup %q: %v", ifname, err)
+		return err
+	}
+	if err = netlink.LinkSetMTU(link, mtu); err != nil {
+		klog.Errorf("failed to set %q MTU: %v", ifname, err)
+		return err
+	}
+	return nil
+}
+
 func IsRuleExist(rule *netlink.Rule, filterMask uint64) (bool, error) {
 	rules, err := netlink.RuleListFiltered(unix.AF_INET, rule, filterMask)
 	if err != nil {
