@@ -169,12 +169,12 @@ func validDpFlow(g Gomega, srcMac, dstMac string, d datapath.DPDirect, flowID ui
 	if exists {
 		g.Expect(outF).Should(ContainElement(ContainSubstring(fmt.Sprintf("cookie=%#x", flowID))))
 		g.Expect(outF).Should(ContainElement(ContainSubstring("priority=100")))
-		g.Expect(outF).Should(ContainElement(ContainSubstring(fmt.Sprintf("ip%s actions=resubmit(,%d)", exp, nextT))))
+		g.Expect(outF).Should(ContainElement(ContainSubstring(fmt.Sprintf("%s actions=resubmit(,%d)", exp, nextT))))
 	} else {
 		if flowID != 0 {
 			g.Expect(outF).ShouldNot(ContainElement(ContainSubstring(fmt.Sprintf("cookie=%#x", flowID))))
 		}
-		g.Expect(outF).ShouldNot(ContainElement(ContainSubstring(fmt.Sprintf("ip%s actions=resubmit(,%d)", exp, nextT))))
+		g.Expect(outF).ShouldNot(ContainElement(ContainSubstring(fmt.Sprintf("priority=100,%s actions=resubmit(,%d)", exp, nextT))))
 	}
 }
 

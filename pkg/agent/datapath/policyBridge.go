@@ -2006,7 +2006,6 @@ func (p *PolicyBridge) AddTRRule(ctx context.Context, r *DPTRRuleSpec, seqID uin
 	}
 
 	f, _ := t.NewFlowWithFlowID(ofctrl.FlowMatch{
-		Ethertype: PROTOCOL_IP,
 		MacSa:     smac,
 		MacSaMask: smask,
 		MacDa:     dmac,
