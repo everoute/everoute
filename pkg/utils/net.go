@@ -249,3 +249,22 @@ func GetIPFamily(ip string) uint8 {
 	}
 	return 0
 }
+
+func FormatZeroIP(ipStr string) string {
+	if ipStr == "" {
+		return ""
+	}
+
+	if !strings.Contains(ipStr, "/") {
+		return ipStr
+	}
+
+	_, ipNet, err := net.ParseCIDR(ipStr)
+	if err == nil {
+		if ones, _ := ipNet.Mask.Size(); ones == 0 {
+			return ""
+		}
+	}
+
+	return ipStr
+}
