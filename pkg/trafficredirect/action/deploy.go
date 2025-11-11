@@ -42,7 +42,7 @@ func Reset(cfg *config.AgentConfig) error {
 				klog.Errorf("Skip to process ovs bridge %s trafficredirect nic, because nic not found, config is %v", br, newCfg[br])
 				continue
 			}
-			klog.Errorf("Failed to process ovs bridge %s trafficredirect nic, config is %v", br, newCfg[br])
+			klog.Errorf("Failed to process ovs bridge %s trafficredirect nic, config is %v, err: %s", br, newCfg[br], err)
 			return err
 		}
 		klog.Infof("Success to process ovs bridge %s trafficredirect nic, config is %v", br, newCfg[br])

@@ -71,16 +71,13 @@ func (p *Port) checkTRNicHasMount(ifaceID, ovsbrName string) bool {
 	return true
 }
 
-func (p *Port) toNicCfg(portUUID ...string) *TRNicCfg {
+func (p *Port) toNicCfg() *TRNicCfg {
 	n := &TRNicCfg{
 		IfaceID:  p.intfIfaceID,
 		PortName: p.name,
 	}
 	if p.uuid != "" {
 		n.PortUUID = p.uuid
-	}
-	if len(portUUID) > 0 {
-		n.PortUUID = portUUID[0]
 	}
 	return n
 }
@@ -280,6 +277,9 @@ func mountTRNicWithPort(ovsbrName string, d types.NicDirect, p *Port) error {
 		return nil
 	}
 
+	oldPortUUID := p.uuid
+	// clear port uuid before mount to policy bridge
+	p.uuid = ""
 	newCfg := p.toNicCfg()
 	external, err := newCfg.toBase64()
 	if err != nil {
@@ -290,7 +290,7 @@ func mountTRNicWithPort(ovsbrName string, d types.NicDirect, p *Port) error {
 		tr.SvcChainBridgeName, p.name, policyBrName, p.name, p.name, p.intfExternalIDs, tr.SvcChainBridgeName,
 		getExternalIDKey(ovsbrName, d), external)
 	if _, err := executeCommand(cmd); err != nil {
-		klog.Errorf("Failed to mount trafficredirect nic %v to ovs bridge %s", *p, ovsbrName)
+		klog.Errorf("Failed to mount trafficredirect nic %v with port uuid %s to ovs bridge %s", *p, oldPortUUID, ovsbrName)
 		return err
 	}
 	klog.Infof("Success to mount trafficredirect nic %v to ovs bridge %s", *p, ovsbrName)
