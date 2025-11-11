@@ -244,6 +244,8 @@ type Bridge interface {
 
 	AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, error)
 	DeleteTRRuleFlow(ctx context.Context, r *DPTRRuleSpec, fid uint64) error
+
+	MatchDefaultSeqID(flowID uint64) (bool, error)
 }
 
 type DpManager struct {
@@ -696,6 +698,22 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 				})
 			}
 			policyInfoList = append(policyInfoList, policyInfo)
+		} else {
+			// er-1497 flowid match default seq id
+			for vdsID, bridgeChain := range dp.BridgeChainMap {
+				match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultSeqID(id)
+				if err != nil {
+					klog.Errorf("FlowID %s failed to match default seq id for vds %s, bridge %s, error: %v", id, vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
+					continue
+				}
+				if match {
+					PolicyInfo := &PolicyInfo{
+						FlowID: id,
+					}
+					policyInfoList = append(policyInfoList, PolicyInfo)
+					break
+				}
+			}
 		}
 	}
 
@@ -705,11 +723,31 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 func (dp *DpManager) GetBridgeIndexesWithFlowID(flowID uint64) []uint32 {
 	dp.lockRflowReplayWithTimeout()
 	defer dp.flowReplayMutex.RUnlock()
+	bridgeIndexes := make([]uint32, 0)
 	rule, ok := dp.FlowIDToRules[flowID]
 	if !ok {
-		return nil
+		// er-1497 vds doesn't enable ms, flowID can't match ruleflowmap, find bridge by default seq id
+		for vdsID, bridgeChain := range dp.BridgeChainMap {
+			match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultSeqID(flowID)
+			if err != nil {
+				klog.Errorf("FlowID %s failed to match default seq id for vds %s, bridge %s, error: %v", flowID, vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
+				continue
+			}
+			if match {
+				index, err := bridgeChain[LOCAL_BRIDGE_KEYWORD].GetIndex()
+				if err != nil {
+					klog.Errorf("failed to get index of bridge %s, error: %v", dp.Config.ManagedVDSMap[vdsID], err)
+					continue
+				}
+				bridgeIndexes = append(bridgeIndexes, index)
+			}
+		}
+		if len(bridgeIndexes) == 0 {
+			klog.Infof("flowID %d can't find matched bridge index", flowID)
+		}
+		return bridgeIndexes
 	}
-	bridgeIndexes := make([]uint32, 0, len(rule.RuleFlowMap))
+
 	for vdsID, flow := range rule.RuleFlowMap {
 		if flow.FlowID == flowID {
 			ovsbrname := dp.Config.ManagedVDSMap[vdsID]
