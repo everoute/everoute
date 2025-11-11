@@ -208,6 +208,8 @@ type PolicyBridge struct {
 
 	updateTRNicMountMetricFunc func(string, metrics.TRNicInfo, bool)
 	updateTRHealthyMetricFunc  func(string, bool, bool)
+
+	defaultRuleSeqID uint32
 }
 
 type TRCfg struct {
@@ -280,7 +282,11 @@ func NewPolicyBridge(brName, vdsID string, datapathManager *DpManager) *PolicyBr
 		policyBridge.updateTRHealthyMetricFunc(policyBridge.name, false, false)
 		policyBridge.updateTRNicMountMetricFunc(policyBridge.name, metrics.TRNicInfo{}, false)
 	}
-
+	defaultRuleSeqID, err := datapathManager.FlowIDAlloctorForRule.Allocate()
+	if err != nil {
+		klog.Fatalf("failed to allocate default rule seqID for policy bridge %s, error: %v", policyBridge.name, err)
+	}
+	policyBridge.defaultRuleSeqID = defaultRuleSeqID
 	return policyBridge
 }
 
@@ -1050,6 +1056,10 @@ func (p *PolicyBridge) initPolicyTable() error {
 	egressTier3DefaultFlow, _ := p.egressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
+	if err := egressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow13.NewNXRange(60, 87)); err != nil {
+		log.Error(err, "Failed to load field for default rule seq ID")
+		return err
+	}
 	if err := egressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
 		return fmt.Errorf("failed to install egress tier3 default flow, error: %v", err)
 	}
@@ -1145,6 +1155,10 @@ func (p *PolicyBridge) initPolicyTable() error {
 	ingressTier3DefaultFlow, _ := p.ingressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
+	if err := ingressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow13.NewNXRange(60, 87)); err != nil {
+		log.Error(err, "Failed to load field for default rule seq ID")
+		return err
+	}
 	if err := ingressTier3DefaultFlow.Next(p.ctCommitTable); err != nil {
 		return fmt.Errorf("failed to install ingress tier3 default flow, error: %v", err)
 	}
@@ -1549,7 +1563,7 @@ func (p *PolicyBridge) initDuplicateDropFlow() error {
 }
 
 func (p *PolicyBridge) addTRHealthyFlows() error {
-	flowID := p.datapathManager.GetTRHealthyFlowID(p.roundNum)
+	flowID := p.datapathManager.GetTRHealthyFlowID(p.GetRoundNumber())
 
 	// table 105
 	f, _ := p.egressForwardTable.NewFlowWithFlowID(ofctrl.FlowMatch{
@@ -1596,7 +1610,7 @@ func (p *PolicyBridge) mustDelTRHealthyFlows() {
 }
 
 func (p *PolicyBridge) addTRNicFlows() error {
-	flowID := p.datapathManager.GetTRNicFlowID(p.roundNum)
+	flowID := p.datapathManager.GetTRNicFlowID(p.GetRoundNumber())
 
 	// table0
 	// process ingress traffic from svm
@@ -2069,7 +2083,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 		p.WaitForSwitchConnection()
 	}
 
-	flowID := p.datapathManager.FlowIDAlloctorForRule.AssemblyFlowID(p.roundNum, seqID)
+	flowID := p.datapathManager.FlowIDAlloctorForRule.AssemblyFlowID(p.GetRoundNumber(), seqID)
 
 	if p.isIsolationDropRule(tier, rule) {
 		return p.addIsolationDropRule(flowID, rule, direction)
@@ -2258,7 +2272,7 @@ func (p *PolicyBridge) AddTRRule(ctx context.Context, r *DPTRRuleSpec, seqID uin
 		t = p.l7EgressPolicyTable
 		nextT = p.egressForwardTable
 	}
-	fid := p.datapathManager.FlowIDAlloctorForTR.AssemblyFlowID(p.roundNum, seqID)
+	fid := p.datapathManager.FlowIDAlloctorForTR.AssemblyFlowID(p.GetRoundNumber(), seqID)
 
 	var smac, smask, dmac, dmask *net.HardwareAddr
 	var err error
@@ -2312,4 +2326,12 @@ func (p *PolicyBridge) getMacAndMask(macStr string) (*net.HardwareAddr, *net.Har
 	}
 	mask := net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	return &m, &mask, nil
+}
+
+func (p *PolicyBridge) MatchDefaultSeqID(flowID uint64) (bool, error) {
+	seqID, err := p.datapathManager.FlowIDAlloctorForRule.GetSeqIDByFlowID(flowID)
+	if err != nil {
+		return false, err
+	}
+	return seqID == p.defaultRuleSeqID, nil
 }

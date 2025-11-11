@@ -2,6 +2,7 @@ package datapath
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,7 +60,11 @@ func (b *BaseBridge) GetIndex() (uint32, error) {
 }
 
 func (b *BaseBridge) SetRoundNumber(n uint64) {
-	b.roundNum = n
+	atomic.StoreUint64(&b.roundNum, n)
+}
+
+func (b *BaseBridge) GetRoundNumber() uint64 {
+	return atomic.LoadUint64(&b.roundNum)
 }
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
@@ -186,4 +191,8 @@ func (b *BaseBridge) AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, 
 
 func (b *BaseBridge) DeleteTRRuleFlow(context.Context, *DPTRRuleSpec, uint64) error {
 	return nil
+}
+
+func (b *BaseBridge) MatchDefaultSeqID(uint64) (bool, error) {
+	return false, fmt.Errorf("not implemented")
 }
