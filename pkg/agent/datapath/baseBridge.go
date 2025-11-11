@@ -59,7 +59,11 @@ func (b *BaseBridge) GetIndex() (uint32, error) {
 }
 
 func (b *BaseBridge) SetRoundNumber(n uint64) {
-	b.roundNum = n
+	atomic.StoreUint64(&b.roundNum, n)
+}
+
+func (b *BaseBridge) GetRoundNumber() uint64 {
+	return atomic.LoadUint64(&b.roundNum)
 }
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {

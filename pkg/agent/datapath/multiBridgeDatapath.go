@@ -237,6 +237,7 @@ type Bridge interface {
 	getOfSwitch() *ofctrl.OFSwitch
 
 	SetRoundNumber(uint64)
+	GetRoundNumber() uint64
 
 	UpdateTREndpoint(*Endpoint) error
 	DeleteTREndpoint(*Endpoint) error
@@ -696,6 +697,12 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 				})
 			}
 			policyInfoList = append(policyInfoList, policyInfo)
+		} else {
+			// er-1497 flowid can't match policy rule when disable ms
+			PolicyInfo := &PolicyInfo{
+				FlowID: id,
+			}
+			policyInfoList = append(policyInfoList, PolicyInfo)
 		}
 	}
 
@@ -722,6 +729,30 @@ func (dp *DpManager) GetBridgeIndexesWithFlowID(flowID uint64) []uint32 {
 				}
 				bridgeIndexes = append(bridgeIndexes, index)
 			}
+		}
+	}
+	if len(bridgeIndexes) > 0 {
+		return bridgeIndexes
+	}
+
+	klog.Infof("zjjj find flowID %s bridge index", flowID)
+	// er-1497 vds doesn't enable ms, flowID can't match ruleflowmap, find bridge by vds round number
+	roundNumber := (flowID & FLOW_ROUND_NUM_MASK) >> FLOW_SEQ_NUM_LENGTH
+	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		if dp.Config.MSVdsSet.Has(vdsID) {
+			continue
+		}
+		klog.Infof("zjjj2 find flowID %s bridge index, vds %s", flowID, vdsID)
+		bridge := bridgeChain[LOCAL_BRIDGE_KEYWORD]
+		if bridge.GetRoundNumber() == roundNumber {
+			klog.Infof("zjjj3 find flowID %s bridge index, vds %s, roundNumber %d", flowID, vdsID, roundNumber)
+			index, err := bridge.GetIndex()
+			if err != nil {
+				klog.Errorf("failed to get index of bridge %s, error: %v", dp.Config.ManagedVDSMap[vdsID], err)
+				continue
+			}
+			klog.Infof("zjjj4 find flowID %s bridge index, vds %s, roundNumber %d, inex %d", flowID, vdsID, roundNumber, index)
+			bridgeIndexes = append(bridgeIndexes, index)
 		}
 	}
 	return bridgeIndexes
