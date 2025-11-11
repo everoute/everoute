@@ -98,6 +98,7 @@ const (
 	OVSReg2 = 2
 	OVSReg3 = 3
 	OVSReg4 = 4
+	OVSReg5 = 5
 	OVSReg6 = 6
 )
 

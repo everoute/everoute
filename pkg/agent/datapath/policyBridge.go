@@ -49,6 +49,7 @@ const (
 	INGRESS_TIER_ECP_TABLE      = 58
 	INGRESS_TIER3_MONITOR_TABLE = 59
 	INGRESS_TIER3_TABLE         = 60
+	FINAL_ACTION_UPDATE_TABLE   = 69 // fix ER-1499
 	CT_COMMIT_TABLE             = 70
 	CT_DROP_TABLE               = 71
 	SFC_POLICY_TABLE            = 80
@@ -59,8 +60,6 @@ const (
 	RoundNumXXREG0BitStart              = 0 // codepoint0 bit start
 	RoundNumXXREG0BitEnd                = 3 // codepoint0 bit end
 	RoundNumXXREG0BitSize               = RoundNumXXREG0BitEnd - RoundNumXXREG0BitStart + 1
-	MonitorTier2FlowSpaceXXREG0BitStart = 4  // codepoint1 bit start
-	MonitorTier2FlowSpaceXXREG0BitEnd   = 31 // codepoint1 bit end
 	MonitorTier3FlowSpaceXXREG0BitStart = 32 // codepoint2 bit start
 	MonitorTier3FlowSpaceXXREG0BitEnd   = 59 // codepoint2 bit end
 	MonitorTier3FlowSpaceXXREG0BitSize  = MonitorTier3FlowSpaceXXREG0BitEnd - MonitorTier3FlowSpaceXXREG0BitStart + 1
@@ -71,10 +70,17 @@ const (
 	AllFlowSpaceXXREG0BitEnd            = 87
 	AllFlowSpaceXXREG0BitSize           = AllFlowSpaceXXREG0BitEnd - AllFlowSpaceXXREG0BitStart + 1
 	WorkPolicyActionXXREG0Bit           = 127
+	WorkPolicyActionXXREG0BitSize       = 1
 	MonitorTier3PolicyActionXXREG0Bit   = 126
-	AllPolicyActionXXREG0BitStart       = 126
-	AllPolicyActionXXREG0BitEnd         = 127
-	AllPolicyActionXXREG0BitSize        = AllPolicyActionXXREG0BitEnd - AllPolicyActionXXREG0BitStart + 1
+	SourceWorkPolicyActionXXREG0Bit     = 5
+	TargetWorkPolicyActionXXREG0Bit     = 4
+	FinalPolicyActionXXREG0BitStart     = MonitorTier3PolicyActionXXREG0Bit
+	FinalPolicyActionXXREG0BitEnd       = WorkPolicyActionXXREG0Bit
+	FinalPolicyActionXXREG0BitSize      = FinalPolicyActionXXREG0BitEnd - FinalPolicyActionXXREG0BitStart + 1
+	MarkPolicyActionXXREG0BitStart      = TargetWorkPolicyActionXXREG0Bit
+	MarkPolicyActionXXREG0BitEnd        = SourceWorkPolicyActionXXREG0Bit
+	MarkPolicyActionXXREG0BitSize       = MarkPolicyActionXXREG0BitEnd - MarkPolicyActionXXREG0BitStart + 1
+
 	// packet source
 	OriginPacketSourceXXREG0BitStart = 88
 	OriginPacketSourceXXREG0BitEnd   = 89
@@ -103,6 +109,8 @@ const (
 
 	PacketSourceUplinkBridge = 0b11
 	PacketSourceLocalBridge  = 0b10
+
+	OriginShouldCommitCTREG5Bit = 8
 )
 
 var (
@@ -111,14 +119,29 @@ var (
 	MonitorTier3PolicyActionDenyMatchCTLabel     = [16]byte{0x40} // 1 << MonitorTier3PolicyActionXXREG0Bit
 	MonitorTier3PolicyActionDenyMatchCTLabelMask = [16]byte{0x40} // 1 << MonitorTier3PolicyActionXXREG0Bit
 
+	// WorkPolicyFlowMatchCTLabelMask = 1 << WorkTier3FlowSpaceXXREG0BitStart .. 1 << WorkTier3FlowSpaceXXREG0BitEnd
+	WorkPolicyFlowMatchCTLabelMask = [16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0}
+
 	NoReplyMatchCTLabel     = [16]byte{0x00}             // 0
 	NoReplyMatchCTLabelMask = [16]byte{0x0F, 0xFF, 0xF0} // reply inport 108..123
 
+	EncodingSchemeMatchCTLabel     = [16]byte{0x30} // EncodingSchemeMicroSegmentationMask << EncodingSchemeXXREG0BitStart
+	EncodingSchemeMatchCTLabelMask = [16]byte{0x30} // 1 << EncodingSchemeXXREG0BitStart .. 1 << EncodingSchemeXXREG0BitEnd
+
+	SourceWorkModeActionMatchCTLabel     = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x20} // 1 << SourceWorkPolicyActionXXREG0Bit
+	SourceWorkModeActionMatchCTLabelMask = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x20} // 1 << SourceWorkPolicyActionXXREG0Bit
+	TargetWorkModeActionMatchCTLabel     = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10} // 1 << TargetWorkPolicyActionXXREG0Bit
+	TargetWorkModeActionMatchCTLabelMask = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10} // 1 << TargetWorkPolicyActionXXREG0Bit
+	FinalWorkModeActionMatchCTLabel      = WorkPolicyActionDenyMatchCTLabel
+	FinalWorkModeActionMatchCTLabelMask  = WorkPolicyActionDenyMatchCTLabelMask
+
 	RoundNumNXRange                 = openflow13.NewNXRange(RoundNumXXREG0BitStart, RoundNumXXREG0BitEnd)
-	MonitorTier2FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier2FlowSpaceXXREG0BitStart, MonitorTier2FlowSpaceXXREG0BitEnd)
 	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
 	WorkPolicyActionNXRange         = openflow13.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
 	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
+	SourceWorkPolicyActionNXRange   = openflow13.NewNXRange(SourceWorkPolicyActionXXREG0Bit, SourceWorkPolicyActionXXREG0Bit)
+	TargetWorkPolicyActionNXRange   = openflow13.NewNXRange(TargetWorkPolicyActionXXREG0Bit, TargetWorkPolicyActionXXREG0Bit)
+	OriginShouldCommitCTReg5NXRange = openflow13.NewNXRange(OriginShouldCommitCTREG5Bit, OriginShouldCommitCTREG5Bit)
 
 	NXM_NX_XXREG0, _   = openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)   //nolint:revive,stylecheck
 	NXM_NX_CT_LABEL, _ = openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false) //nolint:revive,stylecheck
@@ -150,6 +173,7 @@ type PolicyBridge struct {
 	ingressTierECPPolicyTable      *ofctrl.Table
 	ingressTier3PolicyMonitorTable *ofctrl.Table
 	ingressTier3PolicyTable        *ofctrl.Table
+	finalActionUpdateTable         *ofctrl.Table
 	ctCommitTable                  *ofctrl.Table
 	ctDropTable                    *ofctrl.Table
 	sfcPolicyTable                 *ofctrl.Table
@@ -198,6 +222,7 @@ func (p *PolicyBridge) BridgeInit() {
 	p.egressTierECPPolicyTable, _ = sw.NewTable(EGRESS_TIER_ECP_TABLE)
 	p.egressTier3PolicyMonitorTable, _ = sw.NewTable(EGRESS_TIER3_MONITOR_TABLE)
 	p.egressTier3PolicyTable, _ = sw.NewTable(EGRESS_TIER3_TABLE)
+	p.finalActionUpdateTable, _ = sw.NewTable(FINAL_ACTION_UPDATE_TABLE)
 	p.ctCommitTable, _ = sw.NewTable(CT_COMMIT_TABLE)
 	p.ctDropTable, _ = sw.NewTable(CT_DROP_TABLE)
 	p.sfcPolicyTable, _ = sw.NewTable(SFC_POLICY_TABLE)
@@ -219,6 +244,9 @@ func (p *PolicyBridge) BridgeInit() {
 	}
 	if err := p.initPassthroughTable(sw); err != nil {
 		klog.Fatalf("Failed to init passthroughTable, error: %v", err)
+	}
+	if err := p.initFinalActionUpdateTable(sw); err != nil {
+		klog.Fatalf("Failed to init final action update table, error: %v", err)
 	}
 	if err := p.initCTFlow(sw); err != nil {
 		klog.Fatalf("Failed to init ct table, error: %v", err)
@@ -243,6 +271,9 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix],
 	})
+	if err := fromLocalToEgressFlow.LoadField("nxm_nx_reg5", 0x1, OriginShouldCommitCTReg5NXRange); err != nil {
+		return fmt.Errorf("unable to load field: %w", err)
+	}
 	if err := fromLocalToEgressFlow.Next(p.egressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from local to egress flow, error: %v", err)
 	}
@@ -250,6 +281,9 @@ func (p *PolicyBridge) initDirectionSelectionTable() error {
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		InputPort: p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix],
 	})
+	if err := fromUpstreamToIngressFlow.LoadField("nxm_nx_reg5", 0x1, OriginShouldCommitCTReg5NXRange); err != nil {
+		return fmt.Errorf("unable to load field: %w", err)
+	}
 	if err := fromUpstreamToIngressFlow.Next(p.ingressTier1PolicyTable); err != nil {
 		return fmt.Errorf("failed to install from upstream to ingress flow, error: %v", err)
 	}
@@ -358,8 +392,199 @@ func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 	return nil
 }
 
+// fix: ER-1499
+// see more: https://docs.google.com/document/d/1SMdUlC-NJJ85Sw_0Cy9TfujykuboqVOQ__uCO7Cm3MM
+// //nolint:funlen
+func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
+	originCTState := openflow13.NewCTStates()
+	originCTState.SetTrk()
+	originCTState.UnsetRpl()
+	replyCTState := openflow13.NewCTStates()
+	replyCTState.SetTrk()
+	replyCTState.SetRpl()
+	newCTState := openflow13.NewCTStates()
+	newCTState.SetNew()
+	newCTState.SetTrk()
+	localBrName := strings.TrimSuffix(p.name, "-policy")
+	policyToClsPort := p.datapathManager.BridgeChainPortMap[localBrName][PolicyToClsSuffix]
+	policyToLocalPort := p.datapathManager.BridgeChainPortMap[localBrName][PolicyToLocalSuffix]
+
+	// Table 69. match source work mode action
+	sourceMatch := []ofctrl.FlowMatch{
+		{
+			Priority:    MID_MATCH_FLOW_PRIORITY,
+			InputPort:   policyToClsPort,
+			CtStates:    originCTState,
+			CTLabel:     &EncodingSchemeMatchCTLabel,
+			CTLabelMask: &EncodingSchemeMatchCTLabelMask,
+		},
+		{
+			Priority:    MID_MATCH_FLOW_PRIORITY,
+			InputPort:   policyToLocalPort,
+			CtStates:    replyCTState,
+			CTLabel:     &EncodingSchemeMatchCTLabel,
+			CTLabelMask: &EncodingSchemeMatchCTLabelMask,
+		},
+	}
+
+	sourceFinalActionUnMatch := [][]ofctrl.FlowMatch{
+		{ // source work mode action = 1 && final work mode action = 0
+			{
+				CTLabel:     &SourceWorkModeActionMatchCTLabel,
+				CTLabelMask: &SourceWorkModeActionMatchCTLabelMask,
+			},
+			{
+				CTLabel:     &[16]byte{},
+				CTLabelMask: &FinalWorkModeActionMatchCTLabelMask,
+			},
+		},
+		{ // source work mode action = 0 && final work mode action = 1
+			{
+				CTLabel:     &[16]byte{},
+				CTLabelMask: &SourceWorkModeActionMatchCTLabelMask,
+			},
+			{
+				CTLabel:     &FinalWorkModeActionMatchCTLabel,
+				CTLabelMask: &FinalWorkModeActionMatchCTLabelMask,
+			},
+		},
+	}
+
+	err := p.setupFinalActionUpdateFlows(sourceMatch, sourceFinalActionUnMatch, SourceWorkPolicyActionXXREG0Bit)
+	if err != nil {
+		return fmt.Errorf("unable to setup source matches flows: %w", err)
+	}
+
+	// Table 69. match target work mode action
+	targetMatch := []ofctrl.FlowMatch{
+		{
+			Priority:    MID_MATCH_FLOW_PRIORITY,
+			InputPort:   policyToLocalPort,
+			CtStates:    originCTState,
+			CTLabel:     &EncodingSchemeMatchCTLabel,
+			CTLabelMask: &EncodingSchemeMatchCTLabelMask,
+		},
+		{
+			Priority:    MID_MATCH_FLOW_PRIORITY,
+			InputPort:   policyToClsPort,
+			CtStates:    replyCTState,
+			CTLabel:     &EncodingSchemeMatchCTLabel,
+			CTLabelMask: &EncodingSchemeMatchCTLabelMask,
+		},
+	}
+
+	targetFinalActionUnMatch := [][]ofctrl.FlowMatch{
+		{ // target work mode action = 1 && final work mode action = 0
+			{
+				CTLabel:     &TargetWorkModeActionMatchCTLabel,
+				CTLabelMask: &TargetWorkModeActionMatchCTLabelMask,
+			},
+			{
+				CTLabel:     &[16]byte{},
+				CTLabelMask: &FinalWorkModeActionMatchCTLabelMask,
+			},
+		},
+		{ // target work mode action = 0 && final work mode action = 1
+			{
+				CTLabel:     &[16]byte{},
+				CTLabelMask: &TargetWorkModeActionMatchCTLabelMask,
+			},
+			{
+				CTLabel:     &FinalWorkModeActionMatchCTLabel,
+				CTLabelMask: &FinalWorkModeActionMatchCTLabelMask,
+			},
+		},
+	}
+
+	err = p.setupFinalActionUpdateFlows(targetMatch, targetFinalActionUnMatch, TargetWorkPolicyActionXXREG0Bit)
+	if err != nil {
+		return fmt.Errorf("unable to setup target matches flows: %w", err)
+	}
+
+	// Table 69. commit ct check flow
+	// commit ct on new ct state, even if the packet skip match policies
+	// one scenario is the alg protocol
+	shouldCommitCTFlow, _ := p.finalActionUpdateTable.NewFlow(ofctrl.FlowMatch{
+		Priority: NORMAL_MATCH_FLOW_PRIORITY,
+		CtStates: newCTState,
+	})
+	if err := shouldCommitCTFlow.LoadField("nxm_nx_reg5", 0x1, OriginShouldCommitCTReg5NXRange); err != nil {
+		return fmt.Errorf("unable to install flow: %w", err)
+	}
+	if err := shouldCommitCTFlow.Next(p.ctCommitTable); err != nil {
+		return fmt.Errorf("unable to install flow: %w", err)
+	}
+
+	// Table 69. default flow
+	defaultFlow, _ := p.finalActionUpdateTable.NewFlow(ofctrl.FlowMatch{Priority: DEFAULT_FLOW_MISS_PRIORITY})
+	if err := defaultFlow.Next(p.ctCommitTable); err != nil {
+		return fmt.Errorf("unable to install flow: %w", err)
+	}
+	return nil
+}
+
+func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, actionMatches [][]ofctrl.FlowMatch, originActionBit uint16) error {
+	resetWorkPolicyAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(WorkTier3FlowSpaceXXREG0BitStart, WorkTier3FlowSpaceXXREG0BitEnd).ToOfsBits(),
+		NXM_NX_CT_LABEL,
+		0x00,
+	)
+	ethertypes := []uint16{protocol.IPv4_MSG, protocol.IPv6_MSG}
+
+	for _, m := range matches {
+		for _, um := range actionMatches {
+			for _, et := range ethertypes {
+				match := m
+				match.CTLabel = bytesArray16BitOR(match.CTLabel, lo.Map(um, func(m ofctrl.FlowMatch, _ int) *[16]byte { return m.CTLabel })...)
+				match.CTLabelMask = bytesArray16BitOR(match.CTLabelMask, lo.Map(um, func(m ofctrl.FlowMatch, _ int) *[16]byte { return m.CTLabelMask })...)
+				match.Ethertype = et
+
+				moveWorkFinalActionAct := openflow13.NewNXActionRegMove(
+					WorkPolicyActionXXREG0BitSize,
+					originActionBit,
+					WorkPolicyActionXXREG0Bit,
+					NXM_NX_CT_LABEL,
+					NXM_NX_CT_LABEL,
+				)
+				updateAction, _ := ofctrl.NewConntrackActionWithZoneField(
+					true,
+					false,
+					&p.ctCommitTable.TableId,
+					policyCTZoneReg,
+					policyCTZoneRange,
+					moveWorkFinalActionAct,
+					resetWorkPolicyAct,
+				)
+				updateFlow, _ := p.finalActionUpdateTable.NewFlow(match)
+				if err := updateFlow.SetConntrack(updateAction); err != nil {
+					return fmt.Errorf("unable to install flow: %w", err)
+				}
+				if err := updateFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+					return fmt.Errorf("unable to install flow: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 //nolint:funlen
 func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
+	// Table 1, match work policy when none match
+	ctOriginEstState := openflow13.NewCTStates()
+	ctOriginEstState.SetEst()
+	ctOriginEstState.UnsetRpl()
+	ctOriginEstState.UnsetRel()
+	noneMatchWorkPolicyFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		CtStates:    ctOriginEstState,
+		CTLabel:     &[16]byte{},
+		CTLabelMask: &WorkPolicyFlowMatchCTLabelMask,
+	})
+	if err := noneMatchWorkPolicyFlow.Next(p.directionSelectionTable); err != nil {
+		return fmt.Errorf("failed to install none match work policy flow: %w", err)
+	}
+
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -369,7 +594,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY,
 		CtStates: ctEstState,
 	})
-	if err := ctStateFlow.Next(p.ctCommitTable); err != nil {
+	if err := ctStateFlow.Next(p.finalActionUpdateTable); err != nil {
 		return fmt.Errorf("failed to install ct est state flow, error: %v", err)
 	}
 
@@ -446,14 +671,29 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  MID_MATCH_FLOW_PRIORITY,
 		Ethertype: protocol.IPv4_MSG,
-		CtStates:  ctTrkState,
+		// fix: ER-1499
+		// should commit ct when commit ct flag has been set
+		Regs: []*ofctrl.NXRegister{
+			{
+				RegID: constants.OVSReg5,
+				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
+				Range: OriginShouldCommitCTReg5NXRange,
+			},
+		},
 	})
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionAct := openflow13.NewNXActionRegMove(
-		AllPolicyActionXXREG0BitSize,
-		AllPolicyActionXXREG0BitStart,
-		AllPolicyActionXXREG0BitStart,
+	moveFinalActionAct := openflow13.NewNXActionRegMove(
+		FinalPolicyActionXXREG0BitSize,
+		FinalPolicyActionXXREG0BitStart,
+		FinalPolicyActionXXREG0BitStart,
+		NXM_NX_XXREG0,
+		NXM_NX_CT_LABEL,
+	)
+	moveMarkActionAct := openflow13.NewNXActionRegMove(
+		MarkPolicyActionXXREG0BitSize,
+		MarkPolicyActionXXREG0BitStart,
+		MarkPolicyActionXXREG0BitStart,
 		NXM_NX_XXREG0,
 		NXM_NX_CT_LABEL,
 	)
@@ -509,7 +749,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	)
 
 	ctCommitAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
+		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
 		markResetOriginSourceAct, markResetInportAct, // reset origin source and inport
 		markMSAct, // micro segmentation
@@ -804,23 +1044,27 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		Priority: MID_MATCH_FLOW_PRIORITY,
 		CtStates: ctRelState,
 	})
-	if err := ctRelFlow.Next(p.ctCommitTable); err != nil {
+	if err := ctRelFlow.Next(p.finalActionUpdateTable); err != nil {
 		return fmt.Errorf("failed to install ct rel state flow, err: %v", err)
 	}
 
-	ctTrkState := openflow13.NewCTStates()
-	ctTrkState.SetNew()
-	ctTrkState.SetTrk()
 	ctRplState := openflow13.NewCTStates()
 	ctRplState.SetRpl()
 	ctRplState.SetTrk()
 
 	var ctDropTable uint8 = CT_DROP_TABLE
 
-	moveActionAct := openflow13.NewNXActionRegMove(
-		AllPolicyActionXXREG0BitSize,
-		AllPolicyActionXXREG0BitStart,
-		AllPolicyActionXXREG0BitStart,
+	moveFinalActionAct := openflow13.NewNXActionRegMove(
+		FinalPolicyActionXXREG0BitSize,
+		FinalPolicyActionXXREG0BitStart,
+		FinalPolicyActionXXREG0BitStart,
+		NXM_NX_XXREG0,
+		NXM_NX_CT_LABEL,
+	)
+	moveMarkActionAct := openflow13.NewNXActionRegMove(
+		MarkPolicyActionXXREG0BitSize,
+		MarkPolicyActionXXREG0BitStart,
+		MarkPolicyActionXXREG0BitStart,
 		NXM_NX_XXREG0,
 		NXM_NX_CT_LABEL,
 	)
@@ -881,10 +1125,18 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		IpProto:        PROTOCOL_TCP,
 		TcpDstPort:     FTPPort,
 		TcpDstPortMask: PortMaskMatchFullBit,
-		CtStates:       ctTrkState,
+		// fix: ER-1499
+		// should commit ct when commit ct flag has been set
+		Regs: []*ofctrl.NXRegister{
+			{
+				RegID: constants.OVSReg5,
+				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
+				Range: OriginShouldCommitCTReg5NXRange,
+			},
+		},
 	})
 	ftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
+		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
 		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
 		markMSAct, // micro segmentation
@@ -952,10 +1204,18 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		IpProto:        PROTOCOL_UDP,
 		UdpDstPort:     TFTPPort,
 		UdpDstPortMask: PortMaskMatchFullBit,
-		CtStates:       ctTrkState,
+		// fix: ER-1499
+		// should commit ct when commit ct flag has been set
+		Regs: []*ofctrl.NXRegister{
+			{
+				RegID: constants.OVSReg5,
+				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
+				Range: OriginShouldCommitCTReg5NXRange,
+			},
+		},
 	})
 	tftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
+		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
 		markOriginSourceAct, markInportAct, // inport and origin source bridge
 		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
 		markMSAct, // micro segmentation
@@ -1322,13 +1582,8 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 			return nil, err
 		}
 
-		switch tier {
-		case POLICY_TIER2:
-			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier2FlowSpaceNXRange); err != nil {
-				log.Error(err, "Failed to load field")
-				return nil, err
-			}
-		case POLICY_TIER3:
+		// todo: support monitor policy on other tiers
+		if tier == POLICY_TIER3 {
 			if rule.Action == "deny" {
 				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, MonitorTier3PolicyActionNXRange); err != nil {
 					log.Error(err, "Failed to load field")
@@ -1361,6 +1616,18 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, WorkPolicyActionNXRange); err != nil {
 				log.Error(err, "Failed to load field")
 				return nil, err
+			}
+			switch direction {
+			case POLICY_DIRECTION_OUT:
+				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, SourceWorkPolicyActionNXRange); err != nil {
+					log.Error(err, "Failed to load field")
+					return nil, err
+				}
+			case POLICY_DIRECTION_IN:
+				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, TargetWorkPolicyActionNXRange); err != nil {
+					log.Error(err, "Failed to load field")
+					return nil, err
+				}
 			}
 		default:
 			err := fmt.Errorf("unknown action")
