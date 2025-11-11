@@ -179,21 +179,21 @@ var _ = Describe("mount unit test", func() {
 		})
 
 		Describe("toNicCfg", func() {
-			It("creates TRNicCfg with internal uuid if portUUID not given", func() {
+			It("creates TRNicCfg with empty port uuid", func() {
+				p = &Port{
+					name:            "eth0",
+					brName:          svcChainBr,
+					intfIfaceID:     "iface-id-1",
+					intfExternalIDs: "some-external-id",
+				}
 				cfg := p.toNicCfg()
-				Expect(cfg.PortUUID).To(Equal("uuid-123"))
+				Expect(cfg.PortUUID).To(Equal(""))
 				Expect(cfg.IfaceID).To(Equal("iface-id-1"))
 				Expect(cfg.PortName).To(Equal("eth0"))
 			})
-
-			It("overrides uuid if portUUID is passed", func() {
-				cfg := p.toNicCfg("override-uuid")
-				Expect(cfg.PortUUID).To(Equal("override-uuid"))
-			})
-			It("sets empty PortUUID if both internal and argument are empty", func() {
-				p.uuid = "" // clear internal uuid
+			It("creates TRNicCfg with internal uuid if portUUID not given", func() {
 				cfg := p.toNicCfg()
-				Expect(cfg.PortUUID).To(BeEmpty())
+				Expect(cfg.PortUUID).To(Equal("uuid-123"))
 				Expect(cfg.IfaceID).To(Equal("iface-id-1"))
 				Expect(cfg.PortName).To(Equal("eth0"))
 			})
