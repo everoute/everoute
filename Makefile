@@ -1,12 +1,13 @@
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
+COMMIT_ID=$(shell git rev-parse --short HEAD)
 
 bin: controller agent cni erctl
 
 images: image image-generate
 
 image-debug:
-	docker buildx build -f build/images/release/Dockerfile -t registry.smtx.io/everoute/debug . --push
+	docker buildx build -f build/images/release/Dockerfile -t registry.smtx.io/everoute/debug:$(COMMIT_ID) . --push
 
 image:
 	docker buildx build -f build/images/release/Dockerfile -t everoute/release . --load
