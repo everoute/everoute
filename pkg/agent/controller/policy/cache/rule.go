@@ -349,6 +349,9 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 		}
 	}
 
+	policyRule.DstIPAddr = utils.FormatZeroIP(policyRule.DstIPAddr)
+	policyRule.SrcIPAddr = utils.FormatZeroIP(policyRule.SrcIPAddr)
+
 	// todo: it is not appropriate to calculate the flowkey here
 	// we should get flowkey when add flow to datapath
 	flowKey := GenerateFlowKey(policyRule)

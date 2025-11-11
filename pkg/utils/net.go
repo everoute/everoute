@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -208,4 +209,23 @@ func RuleDel(rule *netlink.Rule, filterMask uint64) error {
 		return fmt.Errorf("rule %s still exist", rule)
 	}
 	return nil
+}
+
+func FormatZeroIP(ipStr string) string {
+	if ipStr == "" {
+		return ""
+	}
+
+	if !strings.Contains(ipStr, "/") {
+		return ipStr
+	}
+
+	_, ipNet, err := net.ParseCIDR(ipStr)
+	if err == nil {
+		if ones, _ := ipNet.Mask.Size(); ones == 0 {
+			return ""
+		}
+	}
+
+	return ipStr
 }

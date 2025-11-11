@@ -95,3 +95,24 @@ func mustParseCIDR(cidr string) *net.IPNet {
 	}
 	return ipNet
 }
+
+func TestFormatZeroIP(t *testing.T) {
+	RegisterTestingT(t)
+
+	t.Run("FormatZeroIP", func(t *testing.T) {
+		Expect(FormatZeroIP("")).Should(Equal(""))
+		Expect(FormatZeroIP("0.0.0.0")).Should(Equal("0.0.0.0"))
+		Expect(FormatZeroIP("0.0.0.0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0.0.0.0/16")).Should(Equal("0.0.0.0/16"))
+		Expect(FormatZeroIP("0::0")).Should(Equal("0::0"))
+		Expect(FormatZeroIP("0::0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0:0:0::0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0::0/64")).Should(Equal("0::0/64"))
+		Expect(FormatZeroIP("1.1.1.1")).Should(Equal("1.1.1.1"))
+		Expect(FormatZeroIP("fe80::dc13:10ff:fe24:8c7f")).Should(Equal("fe80::dc13:10ff:fe24:8c7f"))
+		Expect(FormatZeroIP("1.1.0.0/16")).Should(Equal("1.1.0.0/16"))
+		Expect(FormatZeroIP("1.1.0.0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("fe00::a1:b1/64")).Should(Equal("fe00::a1:b1/64"))
+		Expect(FormatZeroIP("fe00::a1:b1/0")).Should(Equal(""))
+	})
+}
