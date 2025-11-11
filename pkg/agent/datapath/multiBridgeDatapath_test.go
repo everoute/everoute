@@ -29,6 +29,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/rand"
 
@@ -133,6 +134,7 @@ var (
 
 	rule1Flow = `table=60, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
+	rule2WorkModeFlow              = `table=20, priority=0,udp,nw_src=10.100.100.0/24 actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_XXREG0[5],load:0x->NXM_NX_XXREG0[127],load:0x20->NXM_NX_REG4[0..15],goto_table:70`
 	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
@@ -151,6 +153,42 @@ var (
 	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
 	ingressTier3MonitorDropFlow    = "table=59, priority=300,ct_label=0x40000000000000000000000000000000/0x40000000000000000000000000000000,ip actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
 	ingressTier3MonitorDefaultFlow = "table=59, priority=10 actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
+
+	policyCTCommitTableFlows = []string{
+		"table=70, priority=300,ct_state=+new+trk,tcp,reg4=0x20/0xffff,tcp_flags=-syn actions=goto_table:71",
+		"table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71",
+		"table=70, priority=203,tcp,reg5=0x100/0x100,tp_dst=21 actions=ct(commit,table=71,zone=65520,exec(move:NXM_NX_XXREG0[]->NXM_NX_CT_LABEL[]),alg=ftp)",
+		"table=70, priority=203,udp,reg5=0x100/0x100,tp_dst=69 actions=ct(commit,table=71,zone=65520,exec(move:NXM_NX_XXREG0[]->NXM_NX_CT_LABEL[]),alg=tftp)",
+		"table=70, priority=200,ip,reg5=0x100/0x100 actions=ct(commit,table=71,zone=65520,exec(move:NXM_NX_XXREG0[]->NXM_NX_CT_LABEL[]))",
+		"table=70, priority=10 actions=goto_table:71",
+	}
+
+	policyCTStateTableFlows = []string{
+		"table=1, priority=300,ct_state=+est-rel-rpl,ct_label=0/0xfffffff000000000000000 actions=goto_table:10",
+		"table=1, priority=200,ct_state=-new+est actions=goto_table:69",
+		"table=1, priority=200,ct_state=+rel+trk actions=goto_table:69",
+		"table=1, priority=10,ip actions=goto_table:10",
+	}
+
+	policyDirectionSelectionTableFlows = []string{
+		"table=10, priority=200,in_port=1 actions=load:0x1->NXM_NX_REG5[8],goto_table:20",
+		"table=10, priority=200,in_port=2 actions=load:0x1->NXM_NX_REG5[8],goto_table:50",
+	}
+
+	policyActionUpdateTableFlows = lo.Map([]string{
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=100,ct_state=+new+trk actions=load:0x1->NXM_NX_REG5[8],goto_table:70",
+		"table=69, priority=10 actions=goto_table:70",
+	}, func(flow string, _ int) string {
+		return strings.ReplaceAll(flow, "ct_label=0x000000000000000000000000000000", "ct_label=0x")
+	})
 )
 
 func TestMain(m *testing.M) {
@@ -315,6 +353,9 @@ func testERPolicyRule(t *testing.T) {
 		if err := datapathManager.AddEveroutePolicyRule(rule2, "rule2", POLICY_DIRECTION_OUT, POLICY_TIER1, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule2, err)
 		}
+		Eventually(func() error {
+			return flowValidator([]string{rule2WorkModeFlow})
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		if err := datapathManager.AddEveroutePolicyRule(rule3, "rule3", POLICY_DIRECTION_IN, POLICY_TIER_ECP, DEFAULT_POLICY_ENFORCEMENT_MODE); err != nil {
 			t.Errorf("Failed to add ER policy rule: %v, error: %v", rule3, err)
@@ -363,7 +404,7 @@ func testERPolicyRule(t *testing.T) {
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() error {
 				return flowValidator([]string{
-					fmt.Sprintf("table=54, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[4..31],load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
+					fmt.Sprintf("table=54, priority=%d,ip,nw_src=%s,nw_dst=%s,nw_proto=%d actions=load:0x->NXM_NX_XXREG0[0..3],goto_table:55", rule.Priority, rule.SrcIPAddr, rule.DstIPAddr, rule.IPProtocol),
 				})
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			err = datapathManager.RemoveEveroutePolicyRule(rule.RuleID, rule.RuleID)
@@ -819,4 +860,50 @@ func copyEp(src *Endpoint) *Endpoint {
 
 func randomIP() string {
 	return fmt.Sprintf("%d.%d.%d.%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
+}
+
+func TestPolicyBridgeFlows(t *testing.T) {
+	t.Run("test policy bridge ct commit flows", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		currentFlows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(currentFlows).ShouldNot(BeEmpty())
+
+		currentTable1Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=70,") })
+		Expect(currentTable1Flows).Should(ConsistOf(policyCTCommitTableFlows))
+	})
+
+	t.Run("test policy bridge ct state flows", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		currentFlows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(currentFlows).ShouldNot(BeEmpty())
+
+		currentTable1Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=1,") })
+		Expect(currentTable1Flows).Should(ConsistOf(policyCTStateTableFlows))
+	})
+
+	t.Run("test policy bridge direction selection flows", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		currentFlows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(currentFlows).ShouldNot(BeEmpty())
+
+		currentTable10Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=10,") })
+		Expect(currentTable10Flows).Should(ConsistOf(policyDirectionSelectionTableFlows))
+	})
+
+	t.Run("test policy bridge action update flows", func(t *testing.T) {
+		RegisterTestingT(t)
+
+		currentFlows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(currentFlows).ShouldNot(BeEmpty())
+
+		currentTable69Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=69,") })
+		Expect(currentTable69Flows).Should(ConsistOf(policyActionUpdateTableFlows))
+	})
 }
