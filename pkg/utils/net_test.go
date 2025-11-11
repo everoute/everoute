@@ -135,3 +135,24 @@ func TestIPv6(t *testing.T) {
 		Expect(IsIPv6Pair("fe80::42:87ff:fecd:9198/64", "fe80::dc13:10ff:fe24:8c7f")).Should(BeTrue())
 	})
 }
+
+func TestFormatZeroIP(t *testing.T) {
+	RegisterTestingT(t)
+
+	t.Run("FormatZeroIP", func(t *testing.T) {
+		Expect(FormatZeroIP("")).Should(Equal(""))
+		Expect(FormatZeroIP("0.0.0.0")).Should(Equal("0.0.0.0"))
+		Expect(FormatZeroIP("0.0.0.0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0.0.0.0/16")).Should(Equal("0.0.0.0/16"))
+		Expect(FormatZeroIP("0::0")).Should(Equal("0::0"))
+		Expect(FormatZeroIP("0::0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0:0:0::0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("0::0/64")).Should(Equal("0::0/64"))
+		Expect(FormatZeroIP("1.1.1.1")).Should(Equal("1.1.1.1"))
+		Expect(FormatZeroIP("fe80::dc13:10ff:fe24:8c7f")).Should(Equal("fe80::dc13:10ff:fe24:8c7f"))
+		Expect(FormatZeroIP("1.1.0.0/16")).Should(Equal("1.1.0.0/16"))
+		Expect(FormatZeroIP("1.1.0.0/0")).Should(Equal(""))
+		Expect(FormatZeroIP("fe00::a1:b1/64")).Should(Equal("fe00::a1:b1/64"))
+		Expect(FormatZeroIP("fe00::a1:b1/0")).Should(Equal(""))
+	})
+}

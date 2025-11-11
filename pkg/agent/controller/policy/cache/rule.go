@@ -415,12 +415,16 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 	var ruleList []PolicyRule
 	if utils.IsIPv4Pair(policyRule.SrcIPAddr, policyRule.DstIPAddr) {
 		policyRule.IPFamily = unix.AF_INET
+		policyRule.DstIPAddr = utils.FormatZeroIP(policyRule.DstIPAddr)
+		policyRule.SrcIPAddr = utils.FormatZeroIP(policyRule.SrcIPAddr)
 		policyRule.Name = fmt.Sprintf("%s-%s", rule.RuleID, GenerateFlowKey(policyRule))
 		ruleList = append(ruleList, policyRule)
 	}
 	if ruleType != RuleTypeIsolationDropRule && utils.IsIPv6Pair(policyRule.SrcIPAddr, policyRule.DstIPAddr) {
 		policyRuleV6 := *policyRule.DeepCopy()
 		policyRuleV6.IPFamily = unix.AF_INET6
+		policyRuleV6.DstIPAddr = utils.FormatZeroIP(policyRuleV6.DstIPAddr)
+		policyRuleV6.SrcIPAddr = utils.FormatZeroIP(policyRuleV6.SrcIPAddr)
 		policyRuleV6.Name = fmt.Sprintf("%s-%s", rule.RuleID, GenerateFlowKey(policyRuleV6))
 		ruleList = append(ruleList, policyRuleV6)
 	}
