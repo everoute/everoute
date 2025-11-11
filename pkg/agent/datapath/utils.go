@@ -647,3 +647,16 @@ func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
 
 	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.ListRuleEntry()))
 }
+
+func bytesArray16BitOR(source *[16]byte, targets ...*[16]byte) *[16]byte {
+	var copied [16]byte
+	if source != nil {
+		copied = *source
+	}
+	for _, target := range targets {
+		for index := range target {
+			copied[index] |= target[index]
+		}
+	}
+	return &copied
+}
