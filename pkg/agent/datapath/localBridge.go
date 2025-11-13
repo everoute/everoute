@@ -108,7 +108,7 @@ func newLocalBridge(brName, vdsID string, datapathManager *DpManager) *LocalBrid
 	localBridge.fromLocalVlanFilterFlow = make(map[uint32][]*ofctrl.Flow)
 	localBridge.localToLocalBUMFlow = make(map[uint32]*ofctrl.Flow)
 	localBridge.learnedIPAddressMap = make(map[string]IPAddressReference)
-	localBridge.enableIPLearning = datapathManager.IsEnableIPLearningByVds(vdsID)
+	localBridge.enableIPLearning = datapathManager.IsEnableIPLearningByVDS(vdsID)
 
 	return localBridge
 }
