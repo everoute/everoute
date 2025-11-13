@@ -1620,7 +1620,7 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	ruleFlowMap := make(map[string]*FlowEntry)
 	// Install policy rule flow to datapath
 	for vdsID, bridgeChain := range dp.BridgeChainMap {
-		if !dp.Config.MSVdsSet.Has(vdsID) {
+		if !dp.IsEnableDFWByVDS(vdsID) {
 			continue
 		}
 		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
@@ -1706,7 +1706,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		dp.FlowIDAlloctorForRule.Release(ctx, delFlowIDs, resFlowIDs)
 	}()
 	for vdsID, bridgeChain := range dp.BridgeChainMap {
-		if !dp.Config.MSVdsSet.Has(vdsID) {
+		if !dp.IsEnableDFWByVDS(vdsID) {
 			continue
 		}
 		err := bridgeChain[POLICY_BRIDGE_KEYWORD].RemoveMicroSegmentRule(
@@ -1982,11 +1982,11 @@ func (dp *DpManager) UseEverouteIPAM() bool {
 	return dp.Config.CNIConfig.IPAMType == cniconst.EverouteIPAM
 }
 
-func (dp *DpManager) IsEnableIPLearningByVds(vdsID string) bool {
-	if !dp.Config.EnableIPLearning {
-		return false
-	}
+func (dp *DpManager) IsEnableIPLearningByVDS(vdsID string) bool {
+	return dp.Config.EnableIPLearning && dp.IsEnableDFWByVDS(vdsID)
+}
 
+func (dp *DpManager) IsEnableDFWByVDS(vdsID string) bool {
 	return dp.Config.MSVdsSet.Has(vdsID)
 }
 
