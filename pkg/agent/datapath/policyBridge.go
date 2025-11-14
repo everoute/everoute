@@ -730,19 +730,21 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 
 //nolint:funlen
 func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
-	// Table 1, match work policy when none match
-	ctOriginEstState := openflow13.NewCTStates()
-	ctOriginEstState.SetEst()
-	ctOriginEstState.UnsetRpl()
-	ctOriginEstState.UnsetRel()
-	noneMatchWorkPolicyFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-		Priority:    HIGH_MATCH_FLOW_PRIORITY,
-		CtStates:    ctOriginEstState,
-		CTLabel:     &[16]byte{},
-		CTLabelMask: &WorkPolicyFlowMatchCTLabelMask,
-	})
-	if err := noneMatchWorkPolicyFlow.Next(p.directionSelectionTable); err != nil {
-		return fmt.Errorf("failed to install none match work policy flow: %w", err)
+	if p.datapathManager.IsEnableDFWByVDS(p.vdsID) {
+		// Table 1, match work policy when none match
+		ctOriginEstState := openflow13.NewCTStates()
+		ctOriginEstState.SetEst()
+		ctOriginEstState.UnsetRpl()
+		ctOriginEstState.UnsetRel()
+		noneMatchWorkPolicyFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
+			Priority:    HIGH_MATCH_FLOW_PRIORITY,
+			CtStates:    ctOriginEstState,
+			CTLabel:     &[16]byte{},
+			CTLabelMask: &WorkPolicyFlowMatchCTLabelMask,
+		})
+		if err := noneMatchWorkPolicyFlow.Next(p.directionSelectionTable); err != nil {
+			return fmt.Errorf("failed to install none match work policy flow: %w", err)
+		}
 	}
 
 	// Table 1, ctState table, est state flow
