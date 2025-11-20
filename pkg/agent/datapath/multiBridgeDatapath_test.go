@@ -176,14 +176,14 @@ var (
 	}
 
 	policyActionUpdateTableFlows = lo.Map([]string{
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000020/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x00000000000000000000000000000010/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=65520,exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
 		"table=69, priority=100,ct_state=+new+trk actions=load:0x1->NXM_NX_REG5[8],goto_table:70",
 		"table=69, priority=10 actions=goto_table:70",
 	}, func(flow string, _ int) string {

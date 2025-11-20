@@ -262,12 +262,12 @@ func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
 	sourceMatch := []ofctrl.FlowMatch{
 		{
 			Priority:  MID_MATCH_FLOW_PRIORITY,
-			InputPort: policyToClsPort,
+			InputPort: policyToLocalPort,
 			CtStates:  originCTState,
 		},
 		{
 			Priority:  MID_MATCH_FLOW_PRIORITY,
-			InputPort: policyToLocalPort,
+			InputPort: policyToClsPort,
 			CtStates:  replyCTState,
 		},
 	}
@@ -304,12 +304,12 @@ func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
 	targetMatch := []ofctrl.FlowMatch{
 		{
 			Priority:  MID_MATCH_FLOW_PRIORITY,
-			InputPort: policyToLocalPort,
+			InputPort: policyToClsPort,
 			CtStates:  originCTState,
 		},
 		{
 			Priority:  MID_MATCH_FLOW_PRIORITY,
-			InputPort: policyToClsPort,
+			InputPort: policyToLocalPort,
 			CtStates:  replyCTState,
 		},
 	}
