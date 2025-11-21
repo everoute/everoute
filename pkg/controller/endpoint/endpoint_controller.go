@@ -459,9 +459,6 @@ func (r *Reconciler) filterIPNeedDelete(ipNeedDelete sets.Set[string], interface
 	if interfaceID1 == interfaceID2 {
 		return sets.Set[string]{}
 	}
-	if interfaceID1 == "" || interfaceID2 == "" {
-		return ipNeedDelete
-	}
 	r.shareIPCacheLock.RLock()
 	defer r.shareIPCacheLock.RUnlock()
 
