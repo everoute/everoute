@@ -135,3 +135,14 @@ func getAllBridge() (sets.Set[string], error) {
 
 	return bridges, nil
 }
+
+func resetNicConfig(ovsbrName string) error {
+	cmd := fmt.Sprintf("ovs-vsctl br-set-external-id %s %s -- br-set-external-id %s %s", tr.SvcChainBridgeName, getExternalIDKey(ovsbrName, types.NicIn),
+		tr.SvcChainBridgeName, getExternalIDKey(ovsbrName, types.NicOut))
+	_, err := executeCommand(cmd)
+	if err != nil {
+		klog.Errorf("Failed to reset trafficredirect nic config for ovs bridge %s: %s", ovsbrName, err)
+		return err
+	}
+	return nil
+}

@@ -341,3 +341,16 @@ func findTrafficRedirectNic(ovsbrName, ifaceID string, d types.NicDirect) (strin
 	}
 	return strings.TrimSpace(outs[1]), nil
 }
+
+func isBridgeExist(bridgeName string) (bool, error) {
+	cmd := fmt.Sprintf("ovs-vsctl br-exists %s", bridgeName)
+	out, err := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
+	if err == nil {
+		return true, nil
+	}
+	if err.Error() == "exit status 2" {
+		return false, nil
+	}
+	klog.Errorf("Failed to check ovs bridge %s exist, err: %s, out: %s", bridgeName, err, out)
+	return false, err
+}

@@ -1,4 +1,4 @@
-FROM golang:1.20 as builder
+FROM registry.smtx.io/sdn-base/golang:1.20 as builder
 
 # Download deps
 RUN mkdir -p $GOPATH/src/everoute
@@ -24,7 +24,7 @@ RUN cp $GOPATH/src/everoute/bin/* /opt/everoute/bin/
 RUN chmod 755 /opt/everoute/bin/*
 
 #FROM ubuntu
-FROM ubuntu:22.04
+FROM registry.smtx.io/sdn-base/ubuntu:22.04
 ARG TARGETOS
 ARG TARGETARCH
 RUN echo "platform $TARGETOS $TARGETARCH"

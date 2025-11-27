@@ -1,7 +1,7 @@
 # This dockerfile is used to build the unit-test image.
 # It is used to run the unit-test container.
 
-FROM golang:1.20 as downloader
+FROM registry.smtx.io/sdn-base/golang:1.20 as downloader
 
 ENV ETCD_RELEASE_URL=https://github.com/etcd-io/etcd/releases/download
 ENV ETCD_VERSION=v3.5.6
@@ -13,7 +13,7 @@ ENV KUBERNETES_VERSION=v1.24.17
 RUN curl -L ${KUBERNETES_RELEASE_URL}/${KUBERNETES_VERSION}/bin/linux/amd64/kube-apiserver -o /usr/local/bin/kube-apiserver && \
     chmod +x /usr/local/bin/kube-apiserver
 
-FROM ubuntu:22.04
+FROM registry.smtx.io/sdn-base/ubuntu:22.04
 
 # install openvswitch and dependencies
 RUN apt update && \
