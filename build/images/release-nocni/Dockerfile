@@ -1,4 +1,5 @@
-FROM golang:1.20 as builder
+#FROM golang:1.20 as builder
+FROM registry.smtx.io/sdn-base/golang:1.20 as builder
 
 WORKDIR $GOPATH/src/github.com/everoute/everoute/
 ADD go.* $GOPATH/src/github.com/everoute/everoute/
@@ -25,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/g
       go build -o bin/everoute-agent -ldflags "${GO_LDFLAGS}" \
       $GOPATH/src/github.com/everoute/everoute/cmd/everoute-agent/.
 
-FROM alpine:3.13.6
+FROM registry.smtx.io/sdn-base/alpine:3.13.6
 
 RUN apk update && apk add --no-cache openvswitch
 

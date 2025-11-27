@@ -8,12 +8,21 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/pkg/config"
+	"github.com/everoute/everoute/pkg/constants/tr"
 	"github.com/everoute/everoute/pkg/types"
 )
 
 var ErrNicNotFound = fmt.Errorf("trafficredirect nic not found")
 
 func Reset(cfg *config.AgentConfig) error {
+	exists, err := isBridgeExist(tr.SvcChainBridgeName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		klog.Infof("Skip to reset trafficredirect, svc chain bridge %s doesn't exists", tr.SvcChainBridgeName)
+		return nil
+	}
 	bridges, err := getAllBridge()
 	if err != nil {
 		return err
@@ -95,6 +104,20 @@ func processVds(ovsbrName string, cfg *config.TRConfig) error {
 }
 
 func ovsbrUnmountTrafficRedirect(ovsbrName string, directs ...types.NicDirect) error {
+	policyBr := getPolicyBridgeName(ovsbrName)
+	exists, err := isBridgeExist(policyBr)
+	if err != nil {
+		klog.Errorf("Failed to check policy bridge %s existence: %s", policyBr, err)
+		return err
+	}
+	if !exists {
+		klog.Infof("Skip to unmount trafficredirect nic and clean tr nic flows for ovs bridge %s, policy bridge %s doesn't exists", ovsbrName, policyBr)
+		klog.Infof("Try to reset trafficredirect nic config for ovs bridge %s", ovsbrName)
+		if err := resetNicConfig(ovsbrName); err != nil {
+			return nil
+		}
+		return nil
+	}
 	if err := DelTRNicFlows(ovsbrName); err != nil {
 		return err
 	}
