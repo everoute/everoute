@@ -110,8 +110,15 @@ func (in *IPInfo) UnmarshalJSON(data []byte) error {
 	if err == nil {
 		return nil
 	}
-	type ipInfoAlias *IPInfo
-	return json.Unmarshal(data, ipInfoAlias(in))
+	// same as IPInfo
+	type ipInfoAlias IPInfo
+	alias := ipInfoAlias(*in)
+	err = json.Unmarshal(data, &alias)
+	if err != nil {
+		return err
+	}
+	*in = IPInfo(alias)
+	return nil
 }
 
 type AgentConditionType string
