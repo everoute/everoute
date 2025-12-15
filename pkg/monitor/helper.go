@@ -130,7 +130,7 @@ func getMacStrFromInterface(row ovsdb.Row) (string, error) {
 	if isErEp {
 		macStr = mac
 	} else {
-		macStr = row.Fields["mac_in_use"].(string)
+		macStr, _ = row.Fields["mac_in_use"].(string)
 	}
 
 	if _, err := net.ParseMAC(macStr); err != nil {
@@ -144,7 +144,8 @@ func isErEndpointIntface(row ovsdb.Row, driver string) (bool, string) {
 	if driver == VMNicDriverTun || driver == PodNicDriver || driver == VMNicDriverVhostuser {
 		if externalIDs, ok := row.Fields["external_ids"].(ovsdb.OvsMap); ok {
 			if mac, ok := externalIDs.GoMap[LocalEndpointIdentity]; ok {
-				return true, mac.(string)
+				res, _ := mac.(string)
+				return true, res
 			}
 		}
 	}
