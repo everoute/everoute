@@ -46,7 +46,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smartxworks/cloudtower-go-sdk/v2 v2.21.1-rc.1
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
@@ -133,7 +133,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/ti-mo/netfilter v0.3.1 // indirect
-	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
@@ -163,6 +163,6 @@ replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
-	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
+	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20260209030830-363696f1a555
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0
 )
