@@ -21,6 +21,7 @@ import (
 	trconst "github.com/everoute/everoute/pkg/constants/tr"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/trafficredirect/action"
+	"github.com/everoute/everoute/pkg/utils/cmp"
 )
 
 const (
@@ -86,6 +87,10 @@ const (
 	MonitorTier3PolicyActionXXREG0Bit   = 126
 	SourceWorkPolicyActionXXREG0Bit     = 5
 	TargetWorkPolicyActionXXREG0Bit     = 4
+	EgressTreatedXXREG0Bit              = 6
+	EgressTreatedXXREG0BitSize          = 1
+	IngressTreatedXXREG0Bit             = 7
+	IngressTreatedXXREG0BitSize         = 1
 	FinalPolicyActionXXREG0BitStart     = MonitorTier3PolicyActionXXREG0Bit
 	FinalPolicyActionXXREG0BitEnd       = WorkPolicyActionXXREG0Bit
 	FinalPolicyActionXXREG0BitSize      = FinalPolicyActionXXREG0BitEnd - FinalPolicyActionXXREG0BitStart + 1
@@ -146,6 +151,10 @@ var (
 	TargetWorkModeActionMatchCTLabelMask = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10} // 1 << TargetWorkPolicyActionXXREG0Bit
 	FinalWorkModeActionMatchCTLabel      = WorkPolicyActionDenyMatchCTLabel
 	FinalWorkModeActionMatchCTLabelMask  = WorkPolicyActionDenyMatchCTLabelMask
+	EgressTreatedMatchCTLabel            = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x40} // 1 << EgressTreatedXXREG0Bit
+	EgressTreatedMatchCTLabelMask        = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x40} // 1 << EgressTreatedXXREG0Bit
+	IngressTreatedMatchCTLabel           = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x80} // 1 << IngressTreatedXXREG0Bit
+	IngressTreatedMatchCTLabelMask       = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x80} // 1 << IngressTreatedXXREG0Bit
 
 	RoundNumNXRange                 = openflow13.NewNXRange(RoundNumXXREG0BitStart, RoundNumXXREG0BitEnd)
 	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
@@ -153,6 +162,8 @@ var (
 	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
 	SourceWorkPolicyActionNXRange   = openflow13.NewNXRange(SourceWorkPolicyActionXXREG0Bit, SourceWorkPolicyActionXXREG0Bit)
 	TargetWorkPolicyActionNXRange   = openflow13.NewNXRange(TargetWorkPolicyActionXXREG0Bit, TargetWorkPolicyActionXXREG0Bit)
+	EgressTreatedNXRange            = openflow13.NewNXRange(EgressTreatedXXREG0Bit, EgressTreatedXXREG0Bit)
+	IngressTreatedNXRange           = openflow13.NewNXRange(IngressTreatedXXREG0Bit, IngressTreatedXXREG0Bit)
 	OriginShouldCommitCTReg5NXRange = openflow13.NewNXRange(OriginShouldCommitCTREG5Bit, OriginShouldCommitCTREG5Bit)
 
 	NXM_NX_XXREG0, _   = openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)   //nolint:revive,stylecheck
@@ -231,7 +242,7 @@ type TRInfo struct {
 }
 
 type TrafficRedirect struct {
-	// vds 是否启用导流
+	// Enabled indicates whether VDS traffic redirection (flow diversion) is enabled
 	Enabled bool
 	Cfg     TRCfg
 	Info    TRInfo
@@ -690,8 +701,11 @@ func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, actionMatches [][]ofctrl.FlowMatch, originActionBit uint16) error {
-	resetWorkPolicyAct := openflow13.NewNXActionRegLoad(
-		openflow13.NewNXRange(WorkTier3FlowSpaceXXREG0BitStart, WorkTier3FlowSpaceXXREG0BitEnd).ToOfsBits(),
+	resetTreatedAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(
+			cmp.MinTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
+			cmp.MaxTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
+		).ToOfsBits(),
 		NXM_NX_CT_LABEL,
 		0x00,
 	)
@@ -719,7 +733,7 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 					policyCTZoneReg,
 					policyCTZoneRange,
 					moveWorkFinalActionAct,
-					resetWorkPolicyAct,
+					resetTreatedAct,
 				)
 				updateFlow, _ := p.finalActionUpdateTable.NewFlow(match)
 				if err := updateFlow.SetConntrack(updateAction); err != nil {
@@ -734,25 +748,41 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 	return nil
 }
 
-//nolint:funlen
-func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
-	if p.datapathManager.IsEnableDFWByVDS(p.vdsID) {
-		// Table 1, match work policy when none match
-		ctOriginEstState := openflow13.NewCTStates()
-		ctOriginEstState.SetEst()
-		ctOriginEstState.UnsetRpl()
-		ctOriginEstState.UnsetRel()
-		noneMatchWorkPolicyFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
-			Priority:    HIGH_MATCH_FLOW_PRIORITY,
-			CtStates:    ctOriginEstState,
-			CTLabel:     &[16]byte{},
-			CTLabelMask: &WorkPolicyFlowMatchCTLabelMask,
-		})
-		if err := noneMatchWorkPolicyFlow.Next(p.directionSelectionTable); err != nil {
-			return fmt.Errorf("failed to install none match work policy flow: %w", err)
-		}
+func (p *PolicyBridge) initCtStateTableRematchPolicyFlow() error {
+	// For established connections, re-match policy based on direction when needed
+	ctEstNorelNorplState := openflow13.NewCTStates()
+	ctEstNorelNorplState.SetEst()
+	ctEstNorelNorplState.UnsetRel()
+	ctEstNorelNorplState.UnsetRpl()
+
+	// From local port: egress treated flag is 0, need to re-match egress policy
+	fromLocalEgressFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		InputPort:   p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
+		CtStates:    ctEstNorelNorplState,
+		CTLabel:     &[16]byte{},
+		CTLabelMask: &EgressTreatedMatchCTLabelMask,
+	})
+	if err := fromLocalEgressFlow.Next(p.directionSelectionTable); err != nil {
+		return fmt.Errorf("failed to install from local egress flow: %w", err)
 	}
 
+	// From cls port: ingress treated flag is 0, need to re-match ingress policy
+	fromClsIngressFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
+		Priority:    HIGH_MATCH_FLOW_PRIORITY,
+		InputPort:   p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
+		CtStates:    ctEstNorelNorplState,
+		CTLabel:     &[16]byte{},
+		CTLabelMask: &IngressTreatedMatchCTLabelMask,
+	})
+	if err := fromClsIngressFlow.Next(p.directionSelectionTable); err != nil {
+		return fmt.Errorf("failed to install from cls ingress flow: %w", err)
+	}
+
+	return nil
+}
+
+func (p *PolicyBridge) initCtStateTableEstStateFlow() error {
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
 	ctEstState := openflow13.NewCTStates()
@@ -765,7 +795,10 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	if err := ctStateFlow.Next(p.finalActionUpdateTable); err != nil {
 		return fmt.Errorf("failed to install ct est state flow, error: %v", err)
 	}
+	return nil
+}
 
+func (p *PolicyBridge) initCtStateTableDefaultFlow() error {
 	// Table 1. default flow
 	ctStateDefaultFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  DEFAULT_FLOW_MISS_PRIORITY,
@@ -780,23 +813,56 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		klog.Fatalf("failed to install ct state default ipv6 flow, error: %v", err)
 	}
 
-	// Table 70 conntrack commit table
-	// DONOT commit new tcp without syn flag, otherwise an +new+est CT flow
-	// will generate by conntrack module automatically. If happen to receive
-	// a reverse pkt, valid CT flow will be created, and drop rule does not work.
-	ctTrkState := openflow13.NewCTStates()
-	ctTrkState.SetNew()
-	ctTrkState.SetTrk()
-	ctRplState := openflow13.NewCTStates()
-	ctRplState.SetRpl()
-	ctRplState.SetTrk()
+	return nil
+}
+
+func (p *PolicyBridge) initCtStateTableFlows() error {
+	if p.datapathManager.IsEnableDFWByVDS(p.vdsID) {
+		if err := p.initCtStateTableRematchPolicyFlow(); err != nil {
+			return fmt.Errorf("failed to init rematch policy flow: %w", err)
+		}
+	}
+	if err := p.initCtStateTableEstStateFlow(); err != nil {
+		return fmt.Errorf("failed to init est state flow: %w", err)
+	}
+	if err := p.initCtStateTableDefaultFlow(); err != nil {
+		return fmt.Errorf("failed to init default flow: %w", err)
+	}
+	return nil
+}
+
+func ctNewTrkState() *openflow13.CTStates {
+	state := openflow13.NewCTStates()
+	state.SetNew()
+	state.SetTrk()
+	return state
+}
+func ctRplTrkState() *openflow13.CTStates {
+	state := openflow13.NewCTStates()
+	state.SetRpl()
+	state.SetTrk()
+	return state
+}
+func ctRelTrkState() *openflow13.CTStates {
+	state := openflow13.NewCTStates()
+	state.SetRel()
+	state.SetTrk()
+	return state
+}
+
+// Table 70 conntrack commit table
+// DONOT commit new tcp without syn flag, otherwise an +new+est CT flow
+// will generate by conntrack module automatically. If happen to receive
+// a reverse pkt, valid CT flow will be created, and drop rule does not work.
+func (p *PolicyBridge) initNewAndACKDropFlow() error {
 	zeroFlag := uint16(0)
 	tcpSynMask := uint16(0x2)
+
 	ctCommitFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: protocol.IPv4_MSG,
 		IpProto:   ofctrl.IP_PROTO_TCP,
-		CtStates:  ctTrkState,
+		CtStates:  ctNewTrkState(),
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg4,
@@ -816,39 +882,57 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install ct tcp est state ipv6 flow, error: %v", err)
 	}
 
+	return nil
+}
+
+func (p *PolicyBridge) initCtCommitTableDropFlow() error {
 	// drop pkt with CT_LABEL[127]=1, even if EST state
-	ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:    HIGH_MATCH_FLOW_PRIORITY,
-		Ethertype:   protocol.IPv4_MSG,
-		CTLabel:     &WorkPolicyActionDenyMatchCTLabel,
-		CTLabelMask: &WorkPolicyActionDenyMatchCTLabelMask,
-	})
-	if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
-		return err
-	}
-	if err := ctDropFilterFlow.Next(p.ctDropTable); err != nil {
-		return fmt.Errorf("failed to install ct drop resubmit flow, error: %v", err)
-	}
-
-	ctDropFilterFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := ctDropFilterFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install ct drop resubmit ipv6 flow, error: %v", err)
-	}
-
-	// commit normal ip packet into ct
-	ctCommitFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: protocol.IPv4_MSG,
-		// fix: ER-1499
-		// should commit ct when commit ct flag has been set
+	flowMatch := ofctrl.FlowMatch{
+		Priority: HIGH_MATCH_FLOW_PRIORITY,
+		// reg5[8]=0 and ct_label[WorkPolicyActionXXREG0BitStart] = 1, drop the packet
 		Regs: []*ofctrl.NXRegister{
 			{
 				RegID: constants.OVSReg5,
-				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
+				Data:  0,
 				Range: OriginShouldCommitCTReg5NXRange,
 			},
 		},
-	})
+		CTLabel:     &WorkPolicyActionDenyMatchCTLabel,
+		CTLabelMask: &WorkPolicyActionDenyMatchCTLabelMask,
+	}
+
+	var ethertypes = [...]uint16{protocol.IPv4_MSG, protocol.IPv6_MSG}
+	for _, ethertype := range ethertypes {
+		flowMatch.Ethertype = ethertype
+		ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(flowMatch)
+		if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+			return err
+		}
+
+		if err := ctDropFilterFlow.Next(p.ctDropTable); err != nil {
+			return fmt.Errorf("failed to install ct drop resubmit flow, error: %v", err)
+		}
+	}
+	return nil
+}
+
+//nolint:funlen
+func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
+	// table 1 ct state table
+	if err := p.initCtStateTableFlows(); err != nil {
+		return fmt.Errorf("failed to init ct state table flows: %w", err)
+	}
+
+	// table 70 ct commit table
+	if err := p.initNewAndACKDropFlow(); err != nil {
+		return fmt.Errorf("failed to init new and ack drop flow: %w", err)
+	}
+
+	if err := p.initCtCommitTableDropFlow(); err != nil {
+		return fmt.Errorf("failed to init ct commit table drop flow: %w", err)
+	}
+
+	// commit normal ip packet into ct
 	var ctDropTable uint8 = CT_DROP_TABLE
 
 	moveFinalActionAct := openflow13.NewNXActionRegMove(
@@ -879,7 +963,6 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		NXM_NX_XXREG0,
 		NXM_NX_CT_LABEL,
 	)
-
 	// http://jira.smartx.com/browse/ER-1128
 	// save nxm_nx_pkt_mark[17:18](origin packet source) to ct label
 	markOriginSourceAct := openflow13.NewNXActionRegMove(
@@ -916,22 +999,67 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 		EncodingSchemeMicroSegmentationMask,
 	)
 
-	ctCommitAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
-		markOriginSourceAct, markInportAct, // inport and origin source bridge
-		markResetOriginSourceAct, markResetInportAct, // reset origin source and inport
-		markMSAct, // micro segmentation
+	// mask ct_label[EgressTreatedXXREG0Bit] = 1
+	maskEgressTreatedAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(EgressTreatedXXREG0Bit, EgressTreatedXXREG0Bit).ToOfsBits(),
+		NXM_NX_CT_LABEL,
+		EgressTreatedXXREG0BitSize,
 	)
-	if err := ctCommitFlow.SetConntrack(ctCommitAction); err != nil {
-		return fmt.Errorf("failed to set ct normal commit action, error: %v", err)
-	}
-	if err := ctCommitFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+	// mask ct_label[IngressTreatedXXREG0Bit] = 1
+	maskIngressTreatedAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(IngressTreatedXXREG0Bit, IngressTreatedXXREG0Bit).ToOfsBits(),
+		NXM_NX_CT_LABEL,
+		IngressTreatedXXREG0BitSize,
+	)
+
+	flowMatch := ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY,
+		// set ether type later
+		// fix: ER-1499
+		// should commit ct when commit ct flag has been set
+		Regs: []*ofctrl.NXRegister{
+			{
+				RegID: constants.OVSReg5,
+				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
+				Range: OriginShouldCommitCTReg5NXRange,
+			},
+		},
 	}
 
-	ctCommitFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := ctCommitFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+	var (
+		ethertypes = [...]uint16{protocol.IPv4_MSG, protocol.IPv6_MSG}
+		directions = [...]lo.Tuple2[uint32, *openflow13.NXActionRegLoad]{
+			lo.T2(
+				p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
+				maskEgressTreatedAct,
+			),
+			lo.T2(
+				p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
+				maskIngressTreatedAct,
+			),
+		}
+	)
+
+	for _, ethertype := range ethertypes {
+		flowMatch.Ethertype = ethertype
+		for _, direction := range directions {
+			flowMatch.InputPort = direction.A
+			treatedAct := direction.B
+			ctCommitFlow, _ := p.ctCommitTable.NewFlow(flowMatch)
+			ctCommitAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
+				moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
+				markOriginSourceAct, markInportAct, // inport and origin source bridge
+				markResetOriginSourceAct, markResetInportAct, // reset origin source and inport
+				markMSAct,  // micro segmentation
+				treatedAct, // ER-1177 mask the flow processed with policies in egress.
+			)
+			if err := ctCommitFlow.SetConntrack(ctCommitAction); err != nil {
+				return fmt.Errorf("failed to set ct normal commit action, error: %v", err)
+			}
+			if err := ctCommitFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+				return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+			}
+		}
 	}
 
 	markReplySourceAct := openflow13.NewNXActionRegMove(
@@ -957,7 +1085,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	ctCommitReplyFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
 		Priority:    MID_MATCH_FLOW_PRIORITY,
 		Ethertype:   protocol.IPv4_MSG,
-		CtStates:    ctRplState,
+		CtStates:    ctRplTrkState(),
 		CTLabel:     &NoReplyMatchCTLabel,
 		CTLabelMask: &NoReplyMatchCTLabelMask,
 	})
@@ -1200,23 +1328,19 @@ func (p *PolicyBridge) initPolicyForwardingTable() error {
 
 func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 	// Table 1, ctState table, rel state flow
-	ctRelState := openflow13.NewCTStates()
-	ctRelState.SetRel()
-	ctRelState.SetTrk()
 	ctRelFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
 		Priority: MID_MATCH_FLOW_PRIORITY,
-		CtStates: ctRelState,
+		CtStates: ctRelTrkState(),
 	})
 	if err := ctRelFlow.Next(p.finalActionUpdateTable); err != nil {
 		return fmt.Errorf("failed to install ct rel state flow, err: %v", err)
 	}
 
-	ctRplState := openflow13.NewCTStates()
-	ctRplState.SetRpl()
-	ctRplState.SetTrk()
+	// Table 70, ct commit table
 
 	var ctDropTable uint8 = CT_DROP_TABLE
 
+	// Actions
 	moveFinalActionAct := openflow13.NewNXActionRegMove(
 		FinalPolicyActionXXREG0BitSize,
 		FinalPolicyActionXXREG0BitStart,
@@ -1280,42 +1404,20 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		NXM_NX_CT_LABEL,
 		EncodingSchemeMicroSegmentationMask,
 	)
-
-	// Table 70 commit ct with alg=ftp
-	ftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Ethertype:      protocol.IPv4_MSG,
-		IpProto:        PROTOCOL_TCP,
-		TcpDstPort:     FTPPort,
-		TcpDstPortMask: PortMaskMatchFullBit,
-		// fix: ER-1499
-		// should commit ct when commit ct flag has been set
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg5,
-				Data:  OriginShouldCommitCTReg5NXRange.ToUint32Mask(),
-				Range: OriginShouldCommitCTReg5NXRange,
-			},
-		},
-	})
-	ftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
-		markOriginSourceAct, markInportAct, // inport and origin source bridge
-		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
-		markMSAct, // micro segmentation
+	// mask ct_label[EgressTreatedXXREG0Bit] = 1
+	maskEgressTreatedAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(EgressTreatedXXREG0Bit, EgressTreatedXXREG0Bit).ToOfsBits(),
+		NXM_NX_CT_LABEL,
+		EgressTreatedXXREG0BitSize,
+	)
+	// mask ct_label[IngressTreatedXXREG0Bit] = 1
+	maskIngressTreatedAct := openflow13.NewNXActionRegLoad(
+		openflow13.NewNXRange(IngressTreatedXXREG0Bit, IngressTreatedXXREG0Bit).ToOfsBits(),
+		NXM_NX_CT_LABEL,
+		IngressTreatedXXREG0BitSize,
 	)
 
-	ftpAction.SetAlg(FTPPort)
-	_ = ftpFlow.SetConntrack(ftpAction)
-	if err := ftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install ftp flow, err: %v", err)
-	}
-
-	ftpFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := ftpFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install ftp ipv6 flow, err: %v", err)
-	}
-
+	// Reply flow actions
 	markReplySourceAct := openflow13.NewNXActionRegMove(
 		PacketSourcePKTMARKBitSize,
 		PacketSourcePKTMARKBitStart,
@@ -1330,43 +1432,28 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		NXM_NX_PKT_MARK,
 		NXM_NX_CT_LABEL,
 	)
-	ftpRplAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		markReplySourceAct, markReplyInportAct, // inport and reply source bridge
-		markMSAct, // micro segmentation
+
+	var (
+		algProtocols = [...]lo.Tuple2[uint16, uint8]{
+			lo.T2(FTPPort, uint8(PROTOCOL_TCP)),
+			lo.T2(TFTPPort, uint8(PROTOCOL_UDP)),
+		}
+		ethertypes = [...]uint16{protocol.IPv4_MSG, protocol.IPv6_MSG}
+		directions = [...]lo.Tuple2[uint32, *openflow13.NXActionRegLoad]{
+			lo.T2(
+				p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix],
+				maskEgressTreatedAct,
+			),
+			lo.T2(
+				p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix],
+				maskIngressTreatedAct,
+			),
+		}
 	)
-	ftpRplAction.SetAlg(FTPPort)
 
-	ftpReplyFlow, err := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Ethertype:      protocol.IPv4_MSG,
-		IpProto:        PROTOCOL_TCP,
-		TcpDstPort:     FTPPort,
-		TcpDstPortMask: PortMaskMatchFullBit,
-		CtStates:       ctRplState,
-		CTLabel:        &NoReplyMatchCTLabel,
-		CTLabelMask:    &NoReplyMatchCTLabelMask,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
-	}
-	if err := ftpReplyFlow.SetConntrack(ftpRplAction); err != nil {
-		return fmt.Errorf("failed to set ct normal commit action, error: %v", err)
-	}
-	if err := ftpReplyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
-	}
-	ftpReplyFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := ftpReplyFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
-	}
-
-	// Table 70 commit ct with alg=tftp
-	tftpFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Ethertype:      PROTOCOL_IP,
-		IpProto:        PROTOCOL_UDP,
-		UdpDstPort:     TFTPPort,
-		UdpDstPortMask: PortMaskMatchFullBit,
+	// match
+	originFlowMatch := ofctrl.FlowMatch{
+		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		// fix: ER-1499
 		// should commit ct when commit ct flag has been set
 		Regs: []*ofctrl.NXRegister{
@@ -1376,53 +1463,70 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 				Range: OriginShouldCommitCTReg5NXRange,
 			},
 		},
-	})
-	tftpAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
-		markOriginSourceAct, markInportAct, // inport and origin source bridge
-		resetReplySourceAct, resetReplyInportAct, // reset reply source and inport
-		markMSAct, // micro segmentation
-	)
-	tftpAction.SetAlg(TFTPPort)
-	_ = tftpFlow.SetConntrack(tftpAction)
-	if err := tftpFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install tftp flow, err: %v", err)
+	}
+	replyFlowMatch := ofctrl.FlowMatch{
+		Priority:    MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		CtStates:    ctRplTrkState(),
+		CTLabel:     &NoReplyMatchCTLabel,
+		CTLabelMask: &NoReplyMatchCTLabelMask,
 	}
 
-	tftpFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := tftpFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install tftp ipv6 flow, err: %v", err)
+	var setDstPort = func(match *ofctrl.FlowMatch, dstPort uint16, ipProto uint8) {
+		switch ipProto {
+		case PROTOCOL_TCP:
+			match.IpProto = ipProto
+			match.TcpDstPort = dstPort
+			match.TcpDstPortMask = PortMaskMatchFullBit
+			match.UdpDstPort = 0
+			match.UdpDstPortMask = 0
+		case PROTOCOL_UDP:
+			match.IpProto = ipProto
+			match.UdpDstPort = dstPort
+			match.UdpDstPortMask = PortMaskMatchFullBit
+			match.TcpDstPort = 0
+			match.TcpDstPortMask = 0
+		}
 	}
 
-	tftpReplyFlow, err := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:       MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Ethertype:      protocol.IPv4_MSG,
-		IpProto:        PROTOCOL_UDP,
-		UdpDstPort:     TFTPPort,
-		UdpDstPortMask: PortMaskMatchFullBit,
-		CtStates:       ctRplState,
-		CTLabel:        &NoReplyMatchCTLabel,
-		CTLabelMask:    &NoReplyMatchCTLabelMask,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
+	for _, algProtocol := range algProtocols {
+		dstPort := algProtocol.A
+		ipProto := algProtocol.B
+		setDstPort(&originFlowMatch, dstPort, ipProto)
+		for _, ethertype := range ethertypes {
+			originFlowMatch.Ethertype = ethertype
+			for _, direction := range directions {
+				originFlowMatch.InputPort = direction.A
+				treatedAct := direction.B
+				originFlow, _ := p.ctCommitTable.NewFlow(originFlowMatch)
+				originAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
+					moveFinalActionAct, moveMarkActionAct, movePolicyAct, moveRoundNumAct, // policy numbers
+					markOriginSourceAct, markInportAct, // inport and origin source bridge
+					resetReplySourceAct, resetReplyInportAct, // reset origin source and inport
+					markMSAct,  // micro segmentation
+					treatedAct, // ER-1177 mask the flow processed with policies in egress.
+				)
+				originAction.SetAlg(dstPort)
+				_ = originFlow.SetConntrack(originAction)
+				if err := originFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+					return fmt.Errorf("failed to install ct normal commit flow, err: %v", err)
+				}
+			}
+		}
+		setDstPort(&replyFlowMatch, dstPort, ipProto)
+		algRplAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
+			markReplySourceAct, markReplyInportAct, // inport and reply source bridge
+			markMSAct, // micro segmentation
+		)
+		algRplAction.SetAlg(dstPort)
+		for _, ethertype := range ethertypes {
+			replyFlowMatch.Ethertype = ethertype
+			replyFlow, _ := p.ctCommitTable.NewFlow(replyFlowMatch)
+			_ = replyFlow.SetConntrack(algRplAction)
+			if err := replyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
+				return fmt.Errorf("failed to install alg reply flow, err: %v", err)
+			}
+		}
 	}
-	tftpRplAction, _ := ofctrl.NewConntrackActionWithZoneField(true, false, &ctDropTable, policyCTZoneReg, policyCTZoneRange,
-		markReplySourceAct, markReplyInportAct, // inport and reply source bridge
-		markMSAct, // micro segmentation
-	)
-	tftpRplAction.SetAlg(TFTPPort)
-	if err := tftpReplyFlow.SetConntrack(tftpRplAction); err != nil {
-		return fmt.Errorf("failed to set ct normal commit action, error: %v", err)
-	}
-	if err := tftpReplyFlow.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
-	}
-	tftpReplyFlow.Match.Ethertype = protocol.IPv6_MSG
-	if err := tftpReplyFlow.ForceAddInstall(); err != nil {
-		return fmt.Errorf("failed to install ct normal commit flow, error: %v", err)
-	}
-
 	return nil
 }
 
