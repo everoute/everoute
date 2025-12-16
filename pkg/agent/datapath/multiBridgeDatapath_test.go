@@ -183,18 +183,9 @@ var (
 	ep3VlanFilterFlow1             = "table=1, priority=200,in_port=33,dl_vlan=1 actions=resubmit(,10),resubmit(,15)"
 	ep3VlanFilterFlow2             = "table=1, priority=200,in_port=33,vlan_tci=0x1002/0x1ffe actions=resubmit(,10),resubmit(,15)"
 	ctInputFlow                    = "table=0, priority=300,ip actions=move:NXM_OF_VLAN_TCI[0..11]->NXM_NX_REG4[16..27],load:0x8->NXM_NX_REG4[28..31],ct(table=1,zone=NXM_NX_REG4[16..31])"
-	ctCommitFlow                   = "table=70, priority=200,ip,reg5=0x100/0x100 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[4..5]->NXM_NX_CT_LABEL[4..5],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))"
-	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
+	ctDropMatchFlow                = "table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip,reg5=0/0x100 actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71"
 	ingressTier3MonitorDropFlow    = "table=59, priority=603,ct_label=0x40000000000000000000000000000000/0x40000000000000000000000000000000,ip actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
 	ingressTier3MonitorDefaultFlow = "table=59, priority=10 actions=move:NXM_NX_CT_LABEL[0..3]->NXM_NX_XXREG0[0..3],move:NXM_NX_CT_LABEL[32..59]->NXM_NX_XXREG0[32..59],move:NXM_NX_CT_LABEL[126]->NXM_NX_XXREG0[126],goto_table:60"
-
-	policyCTStateTableFlows = []string{
-		"table=1, priority=300,ct_state=+est-rel-rpl,ct_label=0/0xfffffff000000000000000 actions=goto_table:10",
-		"table=1, priority=200,ct_state=-new+est actions=goto_table:69",
-		"table=1, priority=200,ct_state=+rel+trk actions=goto_table:69",
-		"table=1, priority=10,ip actions=goto_table:10",
-		"table=1, priority=10,ipv6 actions=goto_table:10",
-	}
 
 	policyDirectionSelectionTableFlows = []string{
 		"table=10, priority=200,in_port=1 actions=load:0x1->NXM_NX_REG5[8],goto_table:20",
@@ -202,22 +193,22 @@ var (
 	}
 
 	policyActionUpdateTableFlows = []string{
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
-		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[60..87]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000020,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ip,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ipv6,in_port=2 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0x30000000000000000000000000000010/0xb0000000000000000000000000000010,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
+		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
 		"table=69, priority=100,ct_state=+new+trk actions=load:0x1->NXM_NX_REG5[8],goto_table:70",
 		"table=69, priority=10 actions=goto_table:70",
 	}
@@ -727,12 +718,48 @@ func testERPolicyRule(t *testing.T) {
 func testPolicyTableInit(t *testing.T) {
 	t.Run("check policy table init flow", func(t *testing.T) {
 		Eventually(func() error {
-			return flowValidator([]string{
+			if err := flowValidator([]string{
 				ctInputFlow,
-				ctCommitFlow,
 				ctDropMatchFlow,
 				ingressTier3MonitorDropFlow,
-				ingressTier3MonitorDefaultFlow})
+				ingressTier3MonitorDefaultFlow,
+			}); err != nil {
+				return err
+			}
+
+			flows, err := dumpAllFlows("ovsbr0-policy")
+			if err != nil {
+				return err
+			}
+
+			var (
+				hasIPv4Commit bool
+				hasIPv6Commit bool
+			)
+
+			for _, f := range flows {
+				if !strings.HasPrefix(f, "table=70,") {
+					continue
+				}
+				if !strings.Contains(f, "ct(commit") {
+					continue
+				}
+				if !strings.Contains(f, "reg5=0x100/0x100") {
+					continue
+				}
+				if strings.Contains(f, "ip,") && strings.Contains(f, "in_port=1") && strings.Contains(f, "load:0x1->NXM_NX_CT_LABEL[6]") {
+					hasIPv4Commit = true
+				}
+				if strings.Contains(f, "ipv6") && strings.Contains(f, "in_port=1") && strings.Contains(f, "load:0x1->NXM_NX_CT_LABEL[6]") {
+					hasIPv6Commit = true
+				}
+			}
+
+			if !hasIPv4Commit || !hasIPv6Commit {
+				return fmt.Errorf("ct commit flows not found, ipv4=%v ipv6=%v", hasIPv4Commit, hasIPv6Commit)
+			}
+
+			return nil
 		}, timeout, interval).Should(Succeed())
 	})
 }
@@ -1241,9 +1268,9 @@ func containsAll(flow string, strs ...string) bool {
 	return true
 }
 
-func isNewFlow(flow string) bool {
-	checkNew := strings.Contains(flow, "reg5=0x100/0x100")
-	checkActions := containsAll(flow,
+func isOriginFlow(flow string) bool {
+	checkCommit := strings.Contains(flow, "reg5=0x100/0x100")
+	checkOriginActions := containsAll(flow,
 		"move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127]", // final policy actions
 		"move:NXM_NX_XXREG0[4..5]->NXM_NX_CT_LABEL[4..5]",         // mark policy actions
 		"move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3]",         // round number
@@ -1254,7 +1281,7 @@ func isNewFlow(flow string) bool {
 		"move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107]",   // origin inport
 		"load:0->NXM_NX_CT_LABEL[108..123]",                       // reset reply inport
 	)
-	return checkNew && checkActions
+	return checkCommit && checkOriginActions
 }
 
 func isRplFlow(flow string) bool {
@@ -1309,25 +1336,25 @@ func TestPolicyBridgeFlows(t *testing.T) {
 			}
 		}
 		var (
-			ipNewFlow   = false
-			ipv6NewFlow = false
-			ipRplFlow   = false
-			ipv6RplFlow = false
+			ipOriginFlow   = false
+			ipv6OriginFlow = false
+			ipRplFlow      = false
+			ipv6RplFlow    = false
 		)
 		for _, flow := range table70Flows {
 			switch {
-			case isIp(flow) && isNewFlow(flow):
-				ipNewFlow = true
-			case isIp6(flow) && isNewFlow(flow):
-				ipv6NewFlow = true
+			case isIp(flow) && isOriginFlow(flow):
+				ipOriginFlow = true
+			case isIp6(flow) && isOriginFlow(flow):
+				ipv6OriginFlow = true
 			case isIp(flow) && isRplFlow(flow):
 				ipRplFlow = true
 			case isIp6(flow) && isRplFlow(flow):
 				ipv6RplFlow = true
 			}
 		}
-		Expect(ipNewFlow).Should(BeTrue())
-		Expect(ipv6NewFlow).Should(BeTrue())
+		Expect(ipOriginFlow).Should(BeTrue())
+		Expect(ipv6OriginFlow).Should(BeTrue())
 		Expect(ipRplFlow).Should(BeTrue())
 		Expect(ipv6RplFlow).Should(BeTrue())
 	})
@@ -1344,25 +1371,25 @@ func TestPolicyBridgeFlows(t *testing.T) {
 			}
 		}
 		var (
-			ftpNewFlow   = false // tcp 21
-			ftp6NewFlow  = false // tcp6 21
-			tftpNewFlow  = false // udp 69
-			tftp6NewFlow = false // udp6 69
-			ftpRplFlow   = false // tcp 21
-			ftp6RplFlow  = false // tcp6 21
-			tftpRplFlow  = false // udp 69
-			tftp6RplFlow = false // udp6 69
+			ftpOriginFlow   = false // tcp 21
+			ftp6OriginFlow  = false // tcp6 21
+			tftpOriginFlow  = false // udp 69
+			tftp6OriginFlow = false // udp6 69
+			ftpRplFlow      = false // tcp 21
+			ftp6RplFlow     = false // tcp6 21
+			tftpRplFlow     = false // udp 69
+			tftp6RplFlow    = false // udp6 69
 		)
 		for _, flow := range table70Flows {
 			switch {
-			case isTcp(flow) && hasTpDst(flow, 21) && isNewFlow(flow):
-				ftpNewFlow = true
-			case isTcp6(flow) && hasTpDst(flow, 21) && isNewFlow(flow):
-				ftp6NewFlow = true
-			case isUdp(flow) && hasTpDst(flow, 69) && isNewFlow(flow):
-				tftpNewFlow = true
-			case isUdp6(flow) && hasTpDst(flow, 69) && isNewFlow(flow):
-				tftp6NewFlow = true
+			case isTcp(flow) && hasTpDst(flow, 21) && isOriginFlow(flow):
+				ftpOriginFlow = true
+			case isTcp6(flow) && hasTpDst(flow, 21) && isOriginFlow(flow):
+				ftp6OriginFlow = true
+			case isUdp(flow) && hasTpDst(flow, 69) && isOriginFlow(flow):
+				tftpOriginFlow = true
+			case isUdp6(flow) && hasTpDst(flow, 69) && isOriginFlow(flow):
+				tftp6OriginFlow = true
 			case isTcp(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
 				ftpRplFlow = true
 			case isTcp6(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
@@ -1373,10 +1400,10 @@ func TestPolicyBridgeFlows(t *testing.T) {
 				tftp6RplFlow = true
 			}
 		}
-		Expect(ftpNewFlow).Should(BeTrue())
-		Expect(ftp6NewFlow).Should(BeTrue())
-		Expect(tftpNewFlow).Should(BeTrue())
-		Expect(tftp6NewFlow).Should(BeTrue())
+		Expect(ftpOriginFlow).Should(BeTrue())
+		Expect(ftp6OriginFlow).Should(BeTrue())
+		Expect(tftpOriginFlow).Should(BeTrue())
+		Expect(tftp6OriginFlow).Should(BeTrue())
 		Expect(ftpRplFlow).Should(BeTrue())
 		Expect(ftp6RplFlow).Should(BeTrue())
 		Expect(tftpRplFlow).Should(BeTrue())
@@ -1391,7 +1418,39 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		Expect(currentFlows).ShouldNot(BeEmpty())
 
 		currentTable1Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=1,") })
-		Expect(currentTable1Flows).Should(ConsistOf(policyCTStateTableFlows))
+
+		var (
+			hasRematchFromLocal bool
+			hasRematchFromCls   bool
+			hasEstState         bool
+			hasRelState         bool
+			hasIPv4Default      bool
+			hasIPv6Default      bool
+		)
+
+		for _, f := range currentTable1Flows {
+			switch {
+			case containsAll(f, "table=1", "priority=300", "ct_state=+est-rel-rpl", "in_port=1", "ct_label=0/"):
+				hasRematchFromLocal = true
+			case containsAll(f, "table=1", "priority=300", "ct_state=+est-rel-rpl", "in_port=2", "ct_label=0/"):
+				hasRematchFromCls = true
+			case containsAll(f, "table=1", "priority=200", "ct_state=-new+est", "actions=goto_table:69"):
+				hasEstState = true
+			case containsAll(f, "table=1", "priority=200", "ct_state=+rel+trk", "actions=goto_table:69"):
+				hasRelState = true
+			case containsAll(f, "table=1", "priority=10", "ip actions=goto_table:10"):
+				hasIPv4Default = true
+			case containsAll(f, "table=1", "priority=10", "ipv6 actions=goto_table:10"):
+				hasIPv6Default = true
+			}
+		}
+
+		Expect(hasRematchFromLocal).Should(BeTrue())
+		Expect(hasRematchFromCls).Should(BeTrue())
+		Expect(hasEstState).Should(BeTrue())
+		Expect(hasRelState).Should(BeTrue())
+		Expect(hasIPv4Default).Should(BeTrue())
+		Expect(hasIPv6Default).Should(BeTrue())
 	})
 
 	t.Run("test policy bridge direction selection flows", func(t *testing.T) {
