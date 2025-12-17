@@ -293,8 +293,8 @@ github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74 h1:d4ZkDRNW
 github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74/go.mod h1:Glli90eKTMhkETRmgjf2DgHTf+PDCQUv6nZvubrLuuA=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155 h1:JwthEk9kaDQF2W1R5PVR19Unwj3e55FUVG3YM6409Dw=
 github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155/go.mod h1:qV7bn/XogGqNiuk52aU4x8WqOb2JEU1CYDpf8D1jkRg=
-github.com/everoute/netlink v0.0.0-20251215070739-53fd2b4bd135 h1:zmh3a0BfzuB6MDJjov6upw0Nl9t1p3zblE7gpHGGs0k=
-github.com/everoute/netlink v0.0.0-20251215070739-53fd2b4bd135/go.mod h1:9deDtke0fUqZiXuBOW4KIxYuj8sBLheEPOOQg6XJ06I=
+github.com/everoute/netlink v0.0.0-20251217063905-5b9e04929459 h1:l0z+AZBaC5ZTFjX9vx1oaUi4bMRm9ipCkiwQTwixfRQ=
+github.com/everoute/netlink v0.0.0-20251217063905-5b9e04929459/go.mod h1:9deDtke0fUqZiXuBOW4KIxYuj8sBLheEPOOQg6XJ06I=
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b h1:mRZd6J5gjd92VEcyeRQmJJ3DlYqIbVtbWOn4mFp0DLk=
 github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b/go.mod h1:3zZoS9Hn0uw2Q3ypIuyYIIrRfB7/KODEzXl/irx1P7c=
 github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e h1:JsBpdJZNt79M2WZOOI3g6Ml5f1QBj0i2GSiVkNrSrl8=

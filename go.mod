@@ -161,6 +161,6 @@ replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
-	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20251215070739-53fd2b4bd135
+	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20251217063905-5b9e04929459
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0
 )
