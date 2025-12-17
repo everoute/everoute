@@ -146,6 +146,11 @@ func main() {
 	if err != nil {
 		klog.Fatalf("failed to add health check handler: %s", err)
 	}
+	erAgentStartup := evehealthz.NewMultiChecks(loadModuleHealthz, policySeqIDExhaustHealthz)
+	err = mgr.AddMetricsExtraHandler(constants.StartupCheckPath, healthz.CheckHandler{Checker: erAgentStartup.Check})
+	if err != nil {
+		klog.Fatalf("failed to add startup check handler: %s", err)
+	}
 
 	proxyCache, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {

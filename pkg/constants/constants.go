@@ -69,7 +69,8 @@ const (
 
 	AllEpWithNamedPort = "all-endpoints-with-named-port"
 
-	HealthCheckPath = "/healthz"
+	HealthCheckPath  = "/healthz"
+	StartupCheckPath = "/startup"
 
 	SkipWebhookLabelKey = "everoute-skip-webhook"
 
