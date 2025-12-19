@@ -132,7 +132,7 @@ func (r EveroutePolicyRuleForCT) MatchConntrackFlow(flow *netlink.ConntrackFlow)
 	return r.matchIPTuple(flow.Forward) || r.matchIPTuple(flow.Reverse)
 }
 
-func (r EveroutePolicyRuleForCT) matchIPTuple(tuple netlink.IpTuple) bool {
+func (r EveroutePolicyRuleForCT) matchIPTuple(tuple netlink.IPTuple) bool {
 	if r.IPProtocol != 0 && r.IPProtocol != tuple.Protocol {
 		return false
 	}
