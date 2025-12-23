@@ -15,7 +15,9 @@ require (
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
+	github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
+	github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4
 	github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.2.1
@@ -49,9 +51,9 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
-	golang.org/x/crypto v0.29.0
-	golang.org/x/net v0.31.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/crypto v0.31.0
+	golang.org/x/net v0.33.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.56.3
 	google.golang.org/protobuf v1.33.0
@@ -138,9 +140,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8 // indirect
 	golang.org/x/oauth2 v0.14.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
-	golang.org/x/term v0.26.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
