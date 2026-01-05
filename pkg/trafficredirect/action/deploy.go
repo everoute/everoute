@@ -56,6 +56,7 @@ func Reset(cfg *config.AgentConfig) error {
 		}
 		klog.Infof("Success to process ovs bridge %s trafficredirect nic, config is %v", br, newCfg[br])
 	}
+	klog.Info("Success to reset trafficredirect nics for all ovs bridges")
 	return nil
 }
 

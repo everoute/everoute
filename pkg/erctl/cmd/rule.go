@@ -7,12 +7,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/erctl"
 )
 
 var (
 	srcIP, dstIP, dstPort, protocol string
 	showCTflows                     bool
+	batchSize                       uint32
 )
 
 var ruleCmd = &cobra.Command{
@@ -28,55 +30,76 @@ var ruleCmd = &cobra.Command{
 			return err
 		}
 
-		var rules interface{}
+		var recv erctl.RuleRecv
 		switch {
 		case len(ruleIDs) != 0:
-			rules, err = erctl.GetRulesByName(ruleIDs)
+			recv, err = erctl.GetRulesByName(ruleIDs)
 		case len(flowIDs) != 0:
-			rules, err = erctl.GetRulesByFlow(flowIDs)
+			recv, err = erctl.GetRulesByFlow(flowIDs)
 		default:
-			rules, err = erctl.GetAllRules()
+			recv, err = erctl.GetAllRules(batchSize)
 		}
 		if err != nil {
 			return err
+		}
+		if recv == nil {
+			return fmt.Errorf("no rules received")
 		}
 
 		appendToSort()
-		var out io.Writer
-		if len(sortIntersection) != 0 {
-			nextInput = bytes.NewBuffer([]byte{})
-			defer func() {
-				err = sortCmd.RunE(sortCmd, []string{})
-				if err != nil {
-					return
-				}
-				result := nextInput.String()
+		for {
+			rules, isLast, err := erctl.GetBatchRules(recv)
+			if err != nil {
+				return err
+			}
+			if len(rules) != 0 {
+				var out io.Writer
 				nextInput = nil
+				if len(sortIntersection) != 0 {
+					nextInput = bytes.NewBuffer([]byte{})
+				}
 				out, err = setOutput()
 				if err != nil {
-					return
+					return err
 				}
-				fmt.Fprintln(out, result)
-			}()
-		}
+				err = printz(out, rules)
+				if err != nil {
+					return err
+				}
+				if nextInput != nil {
+					err = sortCmd.RunE(sortCmd, []string{})
+					if err != nil {
+						return err
+					}
+					result := nextInput.String()
+					nextInput = nil
+					out, err = setOutput()
+					if err != nil {
+						return err
+					}
+					if result != "[]\n" {
+						fmt.Fprintln(out, result)
+					}
 
-		out, err = setOutput()
-		if err != nil {
-			return err
+				}
+			}
+			if isLast {
+				return nil
+			}
 		}
-		err = printz(out, rules)
-		return err
 	},
 }
 
 func init() {
 	getCmd.AddCommand(ruleCmd)
 	ruleCmd.Flags().Int64SliceVarP(&flowIDs, "flow", "f", []int64{}, "specify flowIDs")
+	ruleCmd.Flags().StringSliceVarP(&ruleIDs, "rule", "r", []string{}, "specify ruleIDs")
 	ruleCmd.Flags().StringVar(&srcIP, "srcip", "", "specify source ip")
 	ruleCmd.Flags().StringVar(&dstIP, "dstip", "", "specify destination ip")
 	ruleCmd.Flags().StringVar(&dstPort, "dstport", "", "specify destination port")
 	ruleCmd.Flags().StringVar(&protocol, "protocol", "", "specify protocol")
 	ruleCmd.Flags().BoolVar(&showCTflows, "ctflows", false, "use to show ctflows")
+	ruleCmd.Flags().Uint32Var(&batchSize, "batchsize", constants.DefaultRPCBatchSize, "specify rpc batch size, only effective when get all rules")
 }
 
 func appendToSort() {

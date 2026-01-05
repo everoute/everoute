@@ -25,6 +25,7 @@ import (
 	"net/netip"
 	"os/exec"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -799,14 +800,44 @@ func (dp *DpManager) GetRulesByRuleIDs(ruleIDs ...string) []*v1alpha1.RuleEntry 
 	return ans
 }
 
-func (dp *DpManager) GetAllRules() []*v1alpha1.RuleEntry {
+func (dp *DpManager) GetAllRules(sendF func(*v1alpha1.RuleEntries) error, batchSize int) error {
 	dp.lockRflowReplayWithTimeout()
 	defer dp.flowReplayMutex.RUnlock()
-	ans := []*v1alpha1.RuleEntry{}
+	klog.Infof("start to send all rules to rpc, total rules: %d", len(dp.Rules))
+	defer klog.Infof("finished sending all rules to rpc")
+	defer runtime.GC()
+	// The experimental test results suggest that a suitable value should be selected to
+	// balance the memory usage and the GC time.
+	var gcsize = 10000
+	if batchSize <= 0 {
+		batchSize = constants.DefaultRPCBatchSize
+	}
+	ans := make([]*v1alpha1.RuleEntry, 0, batchSize)
+	i := 0
 	for _, entry := range dp.Rules {
 		ans = append(ans, datapathRule2RpcRule(entry))
+		if len(ans) >= batchSize {
+			err := sendF(&v1alpha1.RuleEntries{RuleEntries: ans})
+			if err != nil {
+				klog.Errorf("failed to send rules batch, err: %s", err)
+				return err
+			}
+			i += len(ans)
+			ans = ans[:0]
+			if i >= gcsize {
+				runtime.GC()
+				i = 0
+			}
+		}
 	}
-	return ans
+	if len(ans) > 0 {
+		err := sendF(&v1alpha1.RuleEntries{RuleEntries: ans})
+		if err != nil {
+			klog.Errorf("failed to send rules batch, err: %s", err)
+			return err
+		}
+	}
+	return nil
 }
 
 func (dp *DpManager) InitializeCNI() {
