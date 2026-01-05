@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,6 +28,7 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "erctl execute error: %v\n", err)
 		os.Exit(1)
 	}
 }
