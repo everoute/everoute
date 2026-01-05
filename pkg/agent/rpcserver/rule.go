@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -14,14 +12,36 @@ import (
 
 var _ v1alpha1.GetterServer = &Getter{}
 
+const (
+	MaxRuleBatchSize = 500
+)
+
 type Getter struct {
 	dpManager  *datapath.DpManager
 	proxyCache *ctrlProxy.Cache
 }
 
-func (g *Getter) GetAllRules(context.Context, *emptypb.Empty) (*v1alpha1.RuleEntries, error) {
+func (g *Getter) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.Getter_GetAllRulesServer) error {
 	rules := g.dpManager.GetAllRules()
-	return &v1alpha1.RuleEntries{RuleEntries: rules}, nil
+	maxCount := int(req.MaxCount)
+	if maxCount <= 0 {
+		maxCount = len(rules)
+	}
+	batchSize := req.BatchSize
+	if batchSize <= 0 {
+		batchSize = MaxRuleBatchSize
+	}
+	for i := 0; i < maxCount; i += int(batchSize) {
+		end := i + int(batchSize)
+		if end > maxCount {
+			end = maxCount
+		}
+		err := sendFunc.Send(&v1alpha1.RuleEntries{RuleEntries: rules[i:end]})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *Getter) GetRulesByName(ctx context.Context, ruleIDs *v1alpha1.RuleIDs) (*v1alpha1.RuleEntries, error) {

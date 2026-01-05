@@ -3,6 +3,7 @@ package erctl
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
@@ -63,11 +64,23 @@ func ConnectRule(show bool) error {
 }
 
 func GetAllRules() ([]*Rule, error) {
-	ruleEntries, err := ruleconn.GetAllRules(context.Background(), &emptypb.Empty{})
+	ruleRecv, err := ruleconn.GetAllRules(context.Background(), &v1alpha1.StreamRulesRequest{})
 	if err != nil {
 		return nil, err
 	}
-	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
+
+	var rules []*Rule
+	for {
+		ruleEntries, err := ruleRecv.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		rules = append(rules, rpcRuleAddCount(ruleEntries.RuleEntries)...)
+	}
+
 	return rules, nil
 }
 
