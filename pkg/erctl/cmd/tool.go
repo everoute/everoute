@@ -8,8 +8,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/everoute/everoute/pkg/erctl"
+)
+
+var (
+	fileWriter *os.File
+	fileOnce   sync.Once
 )
 
 func getRuleMapsFromSomewhere() (lower, original []map[string]interface{}, err error) {
@@ -57,10 +63,13 @@ func setOutput() (io.Writer, error) {
 	if nextInput != nil {
 		out = nextInput
 	} else if outfile != "" {
-		out, err = os.Create(outfile)
+		fileOnce.Do(func() {
+			fileWriter, err = os.Create(outfile)
+		})
 		if err != nil {
 			return nil, err
 		}
+		out = fileWriter
 	}
 	return out, nil
 }

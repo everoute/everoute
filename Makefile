@@ -6,6 +6,10 @@ bin: controller agent cni erctl
 
 images: image image-generate
 
+image-nocni:
+	docker buildx build -f build/images/release-nocni/Dockerfile -t registry.smtx.io/everoute/release-nocni:$(COMMIT_ID) . --load
+	docker push registry.smtx.io/everoute/release-nocni:$(COMMIT_ID)
+
 image-debug:
 	docker buildx build -f build/images/release/Dockerfile -t registry.smtx.io/everoute/debug:$(COMMIT_ID) . --push
 
@@ -76,6 +80,7 @@ docker-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
 cover-test: agent-uuid
+	export GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
@@ -90,6 +95,7 @@ docker-cover-test-ci: image-test-pull
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
 
 race-test: agent-uuid
+	export GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
 	rm -rf ut_tmp

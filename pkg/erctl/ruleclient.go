@@ -3,13 +3,13 @@ package erctl
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
 	"github.com/ti-mo/conntrack"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -21,6 +21,21 @@ var (
 	cnt         map[uint64][]tuple
 	showCTflows bool
 )
+
+var _ RuleRecv = &OnceRecv{}
+var _ RuleRecv = v1alpha1.Getter_GetAllRulesClient(nil)
+
+type RuleRecv interface {
+	Recv() (*v1alpha1.RuleEntries, error)
+}
+
+type OnceRecv struct {
+	Rules *v1alpha1.RuleEntries
+}
+
+func (o *OnceRecv) Recv() (*v1alpha1.RuleEntries, error) {
+	return o.Rules, io.EOF
+}
 
 type Rule struct {
 	*v1alpha1.RuleEntry
@@ -62,25 +77,38 @@ func ConnectRule(show bool) error {
 	return err
 }
 
-func GetAllRules() ([]*Rule, error) {
-	ruleEntries, err := ruleconn.GetAllRules(context.Background(), &emptypb.Empty{})
+func GetAllRules(batchSize uint32) (RuleRecv, error) {
+	ruleRecv, err := ruleconn.GetAllRules(context.Background(), &v1alpha1.StreamRulesRequest{BatchSize: batchSize})
 	if err != nil {
 		return nil, err
 	}
-	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
-	return rules, nil
+	return ruleRecv, nil
 }
 
-func GetRulesByName(ruleIDs []string) ([]*Rule, error) {
+func GetBatchRules(ruleRecv RuleRecv) ([]*Rule, bool, error) {
+	ruleEntries, err := ruleRecv.Recv()
+	isLast := false
+	if err == io.EOF {
+		isLast = true
+	} else if err != nil {
+		return nil, false, err
+	}
+	if ruleEntries == nil || len(ruleEntries.RuleEntries) == 0 {
+		return nil, isLast, nil
+	}
+	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
+	return rules, isLast, nil
+}
+
+func GetRulesByName(ruleIDs []string) (RuleRecv, error) {
 	ruleEntries, err := ruleconn.GetRulesByName(context.Background(), &v1alpha1.RuleIDs{RuleIDs: ruleIDs})
 	if err != nil {
 		return nil, err
 	}
-	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
-	return rules, nil
+	return &OnceRecv{Rules: ruleEntries}, nil
 }
 
-func GetRulesByFlow(flowIDs []int64) ([]*Rule, error) {
+func GetRulesByFlow(flowIDs []int64) (RuleRecv, error) {
 	fids := make([]uint64, len(flowIDs))
 	for i := 0; i < len(flowIDs); i++ {
 		fids[i] = uint64(flowIDs[i])
@@ -89,8 +117,7 @@ func GetRulesByFlow(flowIDs []int64) ([]*Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-	rules := rpcRuleAddCount(ruleEntries.RuleEntries)
-	return rules, nil
+	return &OnceRecv{Rules: ruleEntries}, nil
 }
 
 func GetSvcInfoBySvcID(svcID string) (*v1alpha1.SvcInfo, error) {
