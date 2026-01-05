@@ -13,7 +13,7 @@ var _ = Describe("Rule", func() {
 	gomonkey.ApplyFunc(erctl.ConnectRule, func(bool) error {
 		return nil
 	})
-	gomonkey.ApplyFunc(erctl.GetAllRules, func() ([]*erctl.Rule, error) {
+	gomonkey.ApplyFunc(erctl.GetAllRules, func(uint32) (erctl.RuleRecv, error) {
 		r1 := &v1alpha1.RuleEntry{
 			EveroutePolicyRule: &v1alpha1.PolicyRule{
 				DstIPAddr: "10.0.0.3",
@@ -32,9 +32,11 @@ var _ = Describe("Rule", func() {
 				DstPort:   433,
 			},
 		}
-		rules := []*erctl.Rule{{RuleEntry: r1, Count: 1},
-			{RuleEntry: r2, Count: 2}, {RuleEntry: r3, Count: 3}}
-		return rules, nil
+		return &erctl.OnceRecv{
+			Rules: &v1alpha1.RuleEntries{
+				RuleEntries: []*v1alpha1.RuleEntry{r1, r2, r3},
+			},
+		}, nil
 	})
 	It("rule --dstport 434", func() {
 		dstPort = "434"

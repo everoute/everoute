@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -17,9 +15,8 @@ type Getter struct {
 	proxyCache *ctrlProxy.Cache
 }
 
-func (g *Getter) GetAllRules(context.Context, *emptypb.Empty) (*v1alpha1.RuleEntries, error) {
-	rules := g.dpManager.GetAllRules()
-	return &v1alpha1.RuleEntries{RuleEntries: rules}, nil
+func (g *Getter) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.Getter_GetAllRulesServer) error {
+	return g.dpManager.GetAllRules(sendFunc.Send, int(req.BatchSize))
 }
 
 func (g *Getter) GetRulesByName(ctx context.Context, ruleIDs *v1alpha1.RuleIDs) (*v1alpha1.RuleEntries, error) {

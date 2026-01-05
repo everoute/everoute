@@ -91,6 +91,8 @@ const (
 	IcmpTypeInformationReq uint8 = 15
 
 	DuplicatePktMarkBit = 31
+
+	DefaultRPCBatchSize = 500
 )
 
 const (
