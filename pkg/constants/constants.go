@@ -104,6 +104,8 @@ const (
 	FlowIDModuleBits   = 3  // 63-61
 	FlowIDReservedBits = 29 // 60-32
 	RoundNumberBits    = 4  // 31-28
+
+	DefaultRPCBatchSize = 500
 )
 
 const (
