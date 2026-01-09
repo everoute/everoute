@@ -65,6 +65,7 @@ const (
 	InternalAllowlistPriority int32 = 90
 	BlocklistPriority         int32 = 50
 	AllowlistPriority         int32 = 30
+	GlobalWhitelistPriority   int32 = 35
 
 	vmIndex              = "vmIndex"
 	labelIndex           = "labelIndex"
@@ -958,7 +959,7 @@ func (c *Controller) parseGlobalWhitelistPolicy(cluster *schema.EverouteCluster)
 			Namespace: c.namespace,
 		},
 		Spec: v1alpha1.SecurityPolicySpec{
-			Priority:                      AllowlistPriority,
+			Priority:                      GlobalWhitelistPriority,
 			SecurityPolicyEnforcementMode: getGlobalWhitelistPolicyEnforceMode(cluster.GlobalWhitelist.Enable),
 			Tier:                          constants.Tier2,
 			DefaultRule:                   v1alpha1.DefaultRuleNone,
