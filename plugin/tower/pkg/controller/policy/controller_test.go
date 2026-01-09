@@ -2399,7 +2399,9 @@ var _ = Describe("PolicyController", func() {
 					sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp.global-user.whitelist", metav1.GetOptions{})
 					g.Expect(err).ShouldNot(HaveOccurred())
 					g.Expect(sp).ShouldNot(BeNil())
-					matchSpBase(g, &v1alpha1.SecurityPolicySpec{DefaultRule: v1alpha1.DefaultRuleNone, SecurityPolicyEnforcementMode: v1alpha1.WorkMode}, &sp.Spec)
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{
+						DefaultRule: v1alpha1.DefaultRuleNone, SecurityPolicyEnforcementMode: v1alpha1.WorkMode, Priority: policy.GlobalWhitelistPriority},
+						&sp.Spec)
 					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(0))
 					// ingress
 					g.Expect(len(sp.Spec.IngressRules)).Should(Equal(1))
