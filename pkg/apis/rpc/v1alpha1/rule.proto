@@ -117,8 +117,13 @@ message SvcInfo {
   repeated SvcGroup SvcGroup = 3;
 }
 
+message StreamRulesRequest {
+  uint32 MaxCount = 1;
+  uint32 BatchSize = 2;
+}
+
 service Getter {
-  rpc GetAllRules(google.protobuf.Empty) returns (RuleEntries){}
+  rpc GetAllRules(StreamRulesRequest) returns (stream RuleEntries){}
   rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
   rpc GetRulesByFlow(FlowIDs) returns (RuleEntries){}
   rpc GetSvcInfoBySvcID(SvcID) returns (SvcInfo) {}

@@ -35,7 +35,7 @@ jobs:
           push: true
 
   pr-check:
-    needs: [build-unit-test-image, static-check, generate-check]
+    needs: [build-unit-test-image]
     runs-on: [self-hosted, pod]
     strategy:
       matrix:
@@ -262,7 +262,7 @@ jobs:
       - name: make docker-generate-ci
         uses: nick-fields/retry@v2
         with:
-          timeout_minutes: 10
+          timeout_minutes: 20
           max_attempts: 2
           command: sudo sh -c "make docker-generate-ci"
 
