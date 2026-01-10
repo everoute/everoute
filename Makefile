@@ -18,9 +18,6 @@ image-generate:
 image-test:
 	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
 
-image-test-pull:
-	docker pull registry.smtx.io/everoute/unit-test:latest
-
 image-net-utils:
 	docker buildx build -f build/images/net-utils/Dockerfile --platform linux/amd64,linux/arm64 -t registry.smtx.io/everoute/net-utils . --push
 
@@ -36,7 +33,7 @@ docker-generate: image-generate
 
 docker-generate-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) registry.smtx.io/everoute/generate make generate
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct registry.smtx.io/everoute/generate:$(COMMIT_ID) make generate
 
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/*.go
@@ -71,7 +68,7 @@ docker-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make test
 
-docker-test-ci: image-test-pull
+docker-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
@@ -85,9 +82,9 @@ docker-cover-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make cover-test
 
-docker-cover-test-ci: image-test-pull
+docker-cover-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make cover-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make cover-test
 
 race-test: agent-uuid
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
@@ -98,9 +95,9 @@ docker-race-test: image-test
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged everoute/unit-test make race-test
 
-docker-race-test-ci: image-test-pull
+docker-race-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make race-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make race-test
 
 e2e-test:
 	go test ./tests/e2e/...
