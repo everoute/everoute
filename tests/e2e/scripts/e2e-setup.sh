@@ -30,6 +30,7 @@ UPLINK_IFACE=${3:-ens11}
 PLATFORM=${4:-amd64}
 LOCAL_PATH=$(dirname "$(readlink -f ${0})")
 
+go env -w GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct
 echo "setup everoute controlplane on localhost"
 make controller
 cp bin/everoute-controller /usr/local/bin/everoute-controller
