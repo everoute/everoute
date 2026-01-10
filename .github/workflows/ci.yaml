@@ -35,8 +35,8 @@ jobs:
           push: true
 
   pr-check:
-    needs: [build-unit-test-image, static-check, generate-check]
-    runs-on: [self-hosted, pod]
+    needs: [build-unit-test-image]
+    runs-on: [self-hosted, vm]
     strategy:
       matrix:
         act: [docker-race-test-ci, docker-cover-test-ci]
@@ -254,7 +254,7 @@ jobs:
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
-    runs-on: [self-hosted, pod]
+    runs-on: [self-hosted, vm]
     needs: [build-unit-test-image]
     steps:
       - uses: actions/checkout@v2
@@ -265,6 +265,9 @@ jobs:
           timeout_minutes: 10
           max_attempts: 2
           command: sudo sh -c "make docker-generate-ci"
+
+      - run: sleep 10800
+        if: ${{ failure() }}
 
       - name: check if code changes
         run: sudo sh -c "git add -A && git diff HEAD --exit-code"
