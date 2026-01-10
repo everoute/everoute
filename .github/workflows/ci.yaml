@@ -16,13 +16,19 @@ jobs:
   build-unit-test-image:
     runs-on: [self-hosted, build]
     steps:
+      - name: Get short SHA
+        id: sha
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v2
 
       - name: build unit-test image
         uses: docker/build-push-action@v4
         with:
           file: build/images/unit-test/Dockerfile
-          tags: registry.smtx.io/everoute/unit-test
+          tags: registry.smtx.io/everoute/unit-test:${{ steps.sha.outputs.short_sha }}
           context: ./build/images/unit-test/
           push: true
 
@@ -30,13 +36,13 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           file: build/images/generate/Dockerfile
-          tags: registry.smtx.io/everoute/generate
+          tags: registry.smtx.io/everoute/generate:${{ steps.sha.outputs.short_sha }}
           context: ./build/images/generate/
           push: true
 
   pr-check:
     needs: [build-unit-test-image, static-check, generate-check]
-    runs-on: [self-hosted, pod]
+    runs-on: [self-hosted, vm]
     strategy:
       matrix:
         act: [docker-race-test-ci, docker-cover-test-ci]
@@ -81,7 +87,7 @@ jobs:
           GOPROXY: https://goproxy.cn|https://proxy.golang.org|direct
 
   run-e2e:
-    runs-on: [self-hosted, pod]
+    runs-on: [self-hosted, vm]
     needs: [static-check, generate-check, pr-check]
     steps:
       - uses: actions/checkout@v2
@@ -220,6 +226,8 @@ jobs:
 
       - name: run securitypolicy cases
         timeout-minutes: 30
+        env:
+          GOPROXY: http://goproxy.smartx.com,https://goproxy.cn,direct
         run: Kubeconfig=/home/runner/.kube/config Provider=pod go test ./tests/e2e/...
 
       - name: delete test k8s cluster
@@ -254,7 +262,7 @@ jobs:
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
-    runs-on: [self-hosted, pod]
+    runs-on: [self-hosted, vm]
     needs: [build-unit-test-image]
     steps:
       - uses: actions/checkout@v2
