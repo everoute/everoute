@@ -523,6 +523,10 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			if ruleV6.IPProtocol == 58 {
+				// ipv6 with proto number 58 is icmp6, the proto in flow would be icmp6 and can't match ipv6 with nw_proto=58
+				ruleV6.IPProtocol = 59
+			}
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -609,6 +613,10 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			if ruleV6.IPProtocol == 58 {
+				// ipv6 with proto number 58 is icmp6, the proto in flow would be icmp6 and can't match ipv6 with nw_proto=58
+				ruleV6.IPProtocol = 59
+			}
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -649,6 +657,10 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			if ruleV6.IPProtocol == 58 {
+				// ipv6 with proto number 58 is icmp6, the proto in flow would be icmp6 and can't match ipv6 with nw_proto=58
+				ruleV6.IPProtocol = 59
+			}
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -689,6 +701,10 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			if ruleV6.IPProtocol == 58 {
+				// ipv6 with proto number 58 is icmp6, the proto in flow would be icmp6 and can't match ipv6 with nw_proto=58
+				ruleV6.IPProtocol = 59
+			}
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
