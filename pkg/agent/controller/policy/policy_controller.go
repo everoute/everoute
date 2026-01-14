@@ -88,8 +88,8 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.Info("Reconcile start")
-	defer log.Info("Reconcile end")
+	log.V(4).Info("Reconcile start")
+	defer log.V(4).Info("Reconcile end")
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
@@ -118,8 +118,8 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 	defer r.reconcilerLock.Unlock()
 
 	log := ctrl.LoggerFrom(ctx)
-	log.Info("Reconcile start")
-	defer log.Info("Reconcile end")
+	log.V(4).Info("Reconcile start")
+	defer log.V(4).Info("Reconcile end")
 
 	gm := groupv1alpha1.GroupMembers{}
 	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
