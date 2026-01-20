@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "init before deply everoute agent",
+	Short: "init before deploy everoute agent",
 	Long:  `you should use [init tr]`,
 }
 
@@ -37,7 +37,7 @@ var cleanTrCmd = &cobra.Command{
 
 var initTrCmd = &cobra.Command{
 	Use:   "tr",
-	Short: "init before deply everoute agent",
+	Short: "init before deploy everoute agent",
 	RunE: func(_ *cobra.Command, _ []string) (err error) {
 		cfg, err := config.GetAgentConfig()
 		if err != nil {
