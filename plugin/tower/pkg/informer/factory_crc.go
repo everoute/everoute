@@ -261,7 +261,7 @@ func (f *CrcFactory) Start(stopCh <-chan struct{}) {
 			select {
 			case err := <-f.crcw.ErrorChannel():
 				if err.CompactRevision != nil {
-					klog.Fatalf("crc event missed, compacted error : %s\n", *err.CompactRevision)
+					klog.Fatalf("crc event missed, compacted error : %v, compacted revision: %v\n", err, *err.CompactRevision)
 				} else if err.Err != nil {
 					klog.Errorf("crc error event: %s\n", err.Err.Error())
 					if err.Type == watchor.ErrorEventTypeUnsupported {
