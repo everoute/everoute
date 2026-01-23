@@ -41,8 +41,8 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/smartxworks/cloudtower-go-sdk/v2 v2.20.0-rc.4
-	github.com/spf13/cobra v1.6.0
+	github.com/smartxworks/cloudtower-go-sdk/v2 v2.21.1-rc.1
+	github.com/spf13/cobra v1.7.0
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
@@ -100,7 +100,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
-	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jlaffaye/ftp v0.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
