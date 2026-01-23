@@ -44,7 +44,7 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/smartxworks/cloudtower-go-sdk/v2 v2.20.0
+	github.com/smartxworks/cloudtower-go-sdk/v2 v2.21.1-rc.1
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.9.0
 	github.com/ti-mo/conntrack v0.4.0
