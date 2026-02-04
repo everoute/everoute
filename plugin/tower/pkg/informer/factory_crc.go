@@ -264,16 +264,18 @@ func (f *CrcFactory) Start(stopCh <-chan struct{}) {
 					klog.Fatalf("crc event missed, compacted error : %v, compacted revision: %v\n", err, *err.CompactRevision)
 				} else if err.Err != nil {
 					klog.Errorf("crc error event: %s\n", err.Err.Error())
-					if err.Type == watchor.ErrorEventTypeUnsupported {
-						// after unsupported error, crc will stop event loop
-						return
-					}
+					// crc watch will stop, should exit crc loop to restart crc watch client
+					return
 				}
 			case warning := <-f.crcw.WarningChannel():
 				if warning.Err != nil {
 					klog.Warningf("crc warning event %s\n", warning.Err.Error())
 				}
 			case event := <-f.crcw.Channel():
+				if event == nil {
+					klog.Errorf("crc event channel get nil event, skip")
+					continue
+				}
 				f.eventHandler(event)
 			case <-stopCh:
 				return
