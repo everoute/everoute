@@ -1718,9 +1718,11 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 	ruleEntry.EveroutePolicyRule = rule
 	ruleEntry.RuleFlowMap = ruleFlowMap
 	dp.Rules[rule.RuleID] = ruleEntry
+	flowIDs := make([]string, 0, len(ruleFlowMap))
 	// save flowID reference
 	for _, v := range ruleEntry.RuleFlowMap {
 		dp.FlowIDToRules[v.FlowID] = ruleEntry
+		flowIDs = append(flowIDs, fmt.Sprintf("0x%x", v.FlowID))
 	}
 
 	if rule.SrcVNicRef != "" {
@@ -1736,7 +1738,7 @@ func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePo
 		dp.VNicToRules[rule.DstVNicRef].Insert(ruleEntry)
 	}
 
-	log.Info("Success to add or update rule")
+	log.Info("Success to add or update rule", "flowIDs", flowIDs)
 	return nil
 }
 
@@ -1771,6 +1773,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 
 	var errs []error
 	var delFlowIDs, resFlowIDs []uint64
+	var delFlowIDStrs []string
 	defer func() {
 		dp.FlowIDAlloctorForRule.Release(ctx, delFlowIDs, resFlowIDs)
 	}()
@@ -1781,13 +1784,14 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 		err := bridgeChain[POLICY_BRIDGE_KEYWORD].RemoveMicroSegmentRule(
 			pRule, pRule.RuleFlowMap[vdsID].Table, pRule.RuleFlowMap[vdsID].Priority, pRule.RuleFlowMap[vdsID].FlowID)
 		if err != nil {
-			log.Error(err, "Failed to delete flow for rule", "vdsID", vdsID)
+			log.Error(err, "Failed to delete flow for rule", "vdsID", vdsID, "flowID", fmt.Sprintf("0x%x", pRule.RuleFlowMap[vdsID].FlowID))
 			resFlowIDs = append(resFlowIDs, pRule.RuleFlowMap[vdsID].FlowID)
 			errs = append(errs, err)
 			continue
 		}
 
 		delFlowIDs = append(delFlowIDs, pRule.RuleFlowMap[vdsID].FlowID)
+		delFlowIDStrs = append(delFlowIDStrs, fmt.Sprintf("0x%x", pRule.RuleFlowMap[vdsID].FlowID))
 		log.V(2).Info("Success to delete flow for rule", "vdsID", vdsID)
 		// remove flowID reference
 		delete(dp.FlowIDToRules, pRule.RuleFlowMap[vdsID].FlowID)
@@ -1815,7 +1819,7 @@ func (dp *DpManager) RemoveEveroutePolicyRule(ctx context.Context, ruleID string
 
 	delete(dp.Rules, ruleID)
 	dp.decPolicyRuleNum(policyRef.Policy)
-	log.Info("Success delete rule")
+	log.Info("Success delete rule", "flowIDs", delFlowIDStrs)
 	return nil
 }
 
