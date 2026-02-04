@@ -1511,6 +1511,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 	if err != nil {
 		return nil, err
 	}
+	log = log.WithValues("flowID", fmt.Sprintf("0x%x", flowID))
 
 	if p.isIsolationDropRule(tier, rule) {
 		return p.addIsolationDropRule(flowID, rule, direction)
