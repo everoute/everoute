@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -1962,16 +1963,91 @@ func (dp *DpManager) cleanConntrackWorker(family uint8, cleanChan chan EverouteP
 		if ruleList == nil {
 			return
 		}
+		dp.cleanConntrackWorkerImpl(family, ruleList)
+	}
+}
+
+func (dp *DpManager) cleanConntrackWorkerImpl(family uint8, ruleList EveroutePolicyRuleList) {
+	// use for logging
+	matchCount := 0
+	successCount := 0
+	failureCount := 0
+	defer func() {
 		ruleIDs := []string{}
 		for i := range ruleList {
 			ruleIDs = append(ruleIDs, ruleList[i].RuleID)
 		}
-		matches, err := netlink.ConntrackDeleteFilter(netlink.ConntrackTable, netlink.InetFamily(family), ruleList)
-		if err != nil {
-			klog.Errorf("clear conntrack error, rules: %s, err: %s", ruleIDs, err)
-			continue
+		familyStr := ""
+		switch family {
+		case unix.AF_INET:
+			familyStr = "IPv4"
+		case unix.AF_INET6:
+			familyStr = "IPv6"
+		default:
+			familyStr = strconv.Itoa(int(family))
 		}
-		klog.Infof("clear conntrack for rules %s, matches: %d", ruleIDs, matches)
+		if r := recover(); r != nil {
+			// handle panic
+			klog.Errorf("clean conntrack worker panic, family: %s, rule list: %v, err: %v",
+				familyStr, ruleIDs, r,
+			)
+		}
+		// log result
+		klog.Infof("cleaned conntrack flows for rules [%v], family: %s, match: %d, success: %d, failure: %d",
+			ruleIDs, familyStr, matchCount, successCount, failureCount,
+		)
+	}()
+
+	// use for updating conntrack labels
+	zeroLabels := make([]byte, 16)
+	ctLabelsMask := make([]byte, 16)
+	ctLabelsMask[0] = 1<<EgressTreatedXXREG0Bit | 1<<IngressTreatedXXREG0Bit
+
+	// dump conntrack flows and update conntrack labels
+	/*
+		update goroutine: wait for receive conntrack flows or end signal and update conntrack labels
+		dump goroutine: dump conntrack flows and send end signal to update goroutine
+		main goroutine: received an end signal and close conntrackFlowChan
+	*/
+	conntrackFlowChan := make(chan *netlink.ConntrackFlow, 10000)
+	defer close(conntrackFlowChan)
+	go func() { // dump goroutine
+		defer func() { conntrackFlowChan <- nil }() // send a end signal to end the loop in update goroutine
+		err := netlink.ConntrackTableListStream(netlink.ConntrackTable, netlink.InetFamily(family), conntrackFlowChan)
+		if err != nil {
+			klog.Errorf("get conntrack flows error, err: %s", err)
+			return
+		}
+	}()
+	handle, err := netlink.NewHandle(unix.NETLINK_NETFILTER)
+	if err != nil {
+		klog.Errorf("create netlink handle error, err: %s", err)
+		return
+	}
+	defer handle.Close()
+	for flow := range conntrackFlowChan {
+		if flow == nil {
+			break
+		}
+		if ruleList.MatchConntrackFlow(flow) {
+			matchCount++
+			oldLabels := flow.Labels
+			oldLabelsMask := flow.LabelsMask
+			flow.Labels = zeroLabels
+			flow.LabelsMask = ctLabelsMask
+			err := handle.ConntrackUpdate(netlink.ConntrackTable, netlink.InetFamily(family), flow)
+			if err != nil {
+				if err != syscall.ENOENT {
+					klog.Errorf("update conntrack flow %s error, old labels %x/%x, error: %s",
+						flow.String(), oldLabels, oldLabelsMask, err,
+					)
+					failureCount++
+					continue
+				}
+			} else {
+				successCount++
+			}
+		}
 	}
 }
 
@@ -2159,6 +2235,8 @@ func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRuleForCT) EveroutePo
 	}
 	ruleList = append(ruleList, rule)
 	ruleSet := sets.NewString(rule.RuleID)
+
+	time.Sleep(500 * time.Millisecond)
 
 	// read and return all rules in chan
 	for {

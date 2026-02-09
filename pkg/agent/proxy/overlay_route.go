@@ -180,7 +180,8 @@ func (o *overlayRoute) addRouteForSvc() error {
 
 	svcRule := netlink.NewRule()
 	svcRule.Mark = 1 << constants.ExternalSvcPktMarkBit
-	svcRule.Mask = 1 << constants.ExternalSvcPktMarkBit
+	mask := uint32(1 << constants.ExternalSvcPktMarkBit)
+	svcRule.Mask = &mask
 	svcRule.Table = constants.SvcToGWRouteTable
 	svcRule.Priority = constants.SvcRulePriority
 	if err := utils.RuleAdd(svcRule, netlink.RT_FILTER_MARK|netlink.RT_FILTER_MASK|netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
