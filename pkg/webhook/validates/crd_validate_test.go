@@ -35,6 +35,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/labels"
+	"github.com/everoute/everoute/pkg/types"
 )
 
 func init() {
@@ -670,6 +671,139 @@ var _ = Describe("CRD Validate", func() {
 		It("delete is allowed", func() {
 			old := c.DeepCopy()
 			Expect(validate.Validate(fakeAdmissionReview(nil, old, "")).Allowed).Should(BeTrue())
+		})
+	})
+
+	Context("Validate On GroupMembers", func() {
+		It("Create GroupMembers with invalid IP should not allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm1",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{"256.0.0.1"},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeFalse())
+		})
+
+		It("Create GroupMembers with valid IP should allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm2",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{"192.168.0.1"},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeTrue())
+		})
+		It("Create GroupMembers with valid IPv6 should allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm3",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{"fe80::dc13:10ff:fe24:8c7f"},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeTrue())
+		})
+
+		It("Create GroupMembers with IPv6 ending with :: should allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm4",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{"fe80::"},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeTrue())
+		})
+
+		It("Create GroupMembers with invalid IPv6 should not allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm5",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{"fe80:::1"},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeFalse())
+		})
+
+		It("Create GroupMembers with empty string IP should not allowed", func() {
+			gms := &groupv1alpha1.GroupMembers{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "GroupMembers",
+					APIVersion: "group.everoute.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gm6",
+				},
+				GroupMembers: []groupv1alpha1.GroupMember{
+					{
+						EndpointReference: groupv1alpha1.EndpointReference{
+							ExternalIDName:  "id",
+							ExternalIDValue: "val",
+						},
+						IPs: []types.IPAddress{""},
+					},
+				},
+			}
+			Expect(validate.Validate(fakeAdmissionReview(gms, nil, "")).Allowed).Should(BeFalse())
 		})
 	})
 })

@@ -94,6 +94,12 @@ func NewCRDValidate(client client.Client, scheme *runtime.Scheme) *CRDValidate {
 		Version: "v1alpha1",
 		Kind:    "K8sCluster",
 	}, &k8sclusterValidator{v.client})
+
+	v.register(metav1.GroupVersionKind{
+		Group:   "group.everoute.io",
+		Version: "v1alpha1",
+		Kind:    "GroupMembers",
+	}, &groupMembersValidator{v.client})
 	return v
 }
 
@@ -243,8 +249,20 @@ func (v *endpointValidator) validateEndpoint(endpoint *securityv1alpha1.Endpoint
 	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDValue, ctrltypes.Separator) {
 		return fmt.Errorf("externalIDValue contains rune / not allow")
 	}
-	_, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels)
-	return err
+	if _, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels); err != nil {
+		return err
+	}
+	for _, ip := range endpoint.Spec.ExpectIPs {
+		if !ip.Valid() {
+			return fmt.Errorf("expectIPs contains invalid ip address %s", ip.String())
+		}
+	}
+	for _, ip := range endpoint.Status.IPs {
+		if !ip.Valid() {
+			return fmt.Errorf("status IPs contains invalid ip address %s", ip.String())
+		}
+	}
+	return nil
 }
 
 type endpointGroupValidator resourceValidator
@@ -661,6 +679,43 @@ func (k *k8sclusterValidator) validForManagerdBySKS(obj *podv1alpha1.K8sCluster)
 
 	if obj.Spec.SksOption == nil {
 		return fmt.Errorf("must set spec.sksOption for k8scluster managed by sks")
+	}
+	return nil
+}
+
+type groupMembersValidator resourceValidator
+
+func (g groupMembersValidator) createValidate(curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
+	gms := curObj.(*groupv1alpha1.GroupMembers)
+
+	err := g.validateGroupMembers(gms)
+	if err != nil {
+		return err.Error(), false
+	}
+	return "", true
+}
+
+func (g groupMembersValidator) updateValidate(_, curObj runtime.Object, _ authv1.UserInfo) (string, bool) {
+	gms := curObj.(*groupv1alpha1.GroupMembers)
+
+	err := g.validateGroupMembers(gms)
+	if err != nil {
+		return err.Error(), false
+	}
+	return "", true
+}
+
+func (g groupMembersValidator) deleteValidate(runtime.Object, authv1.UserInfo) (string, bool) {
+	return "", true
+}
+
+func (g *groupMembersValidator) validateGroupMembers(gms *groupv1alpha1.GroupMembers) error {
+	for _, gm := range gms.GroupMembers {
+		for _, ip := range gm.IPs {
+			if !ip.Valid() {
+				return fmt.Errorf("IPs contains invalid ip address %s", ip.String())
+			}
+		}
 	}
 	return nil
 }
