@@ -36,6 +36,7 @@ webhooks:
         resources:
           - securitypolicies
           - endpoints
+          - endpoints/status
           - globalpolicies
       - apiGroups:
           - group.everoute.io
@@ -57,6 +58,15 @@ webhooks:
           - DELETE
         resources:
           - k8sclusters
+      - apiGroups:
+          - group.everoute.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - groupmembers
 
 {{ if eq .Values.webhook.type "Service" }}
 ---
