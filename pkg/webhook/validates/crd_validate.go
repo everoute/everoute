@@ -243,8 +243,15 @@ func (v *endpointValidator) validateEndpoint(endpoint *securityv1alpha1.Endpoint
 	if strings.ContainsRune(endpoint.Spec.Reference.ExternalIDValue, ctrltypes.Separator) {
 		return fmt.Errorf("externalIDValue contains rune / not allow")
 	}
-	_, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels)
-	return err
+	if _, err := labels.AsSet(endpoint.Labels, endpoint.Spec.ExtendLabels); err != nil {
+		return err
+	}
+	for _, ip := range endpoint.Spec.ExpectIPs {
+		if !ip.Valid() {
+			return fmt.Errorf("expectIPs contains invalid ip address %s", ip.String())
+		}
+	}
+	return nil
 }
 
 type endpointGroupValidator resourceValidator
