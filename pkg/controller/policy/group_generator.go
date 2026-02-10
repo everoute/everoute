@@ -72,7 +72,7 @@ func (r *Reconciler) GroupGenerateReconcile(ctx context.Context, req ctrl.Reques
 				klog.Errorf("unable delete EndpointGroup %s: %s", req.Name, err)
 				return ctrl.Result{}, err
 			}
-			klog.Errorf("successful delete EndpointGroup %s", req.Name)
+			klog.Infof("successful delete EndpointGroup %s", req.Name)
 			return ctrl.Result{}, nil
 		}
 	default:
