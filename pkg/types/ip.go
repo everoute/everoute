@@ -21,12 +21,15 @@ import (
 	"time"
 )
 
-// +kubebuilder:validation:Pattern="^(((([1]?\\d)?\\d|2[0-4]\\d|25[0-5])\\.){3}(([1]?\\d)?\\d|2[0-4]\\d|25[0-5]))|([\\da-fA-F]{1,4}(\\:[\\da-fA-F]{1,4}){7})|(([\\da-fA-F]{1,4}:){0,5}::([\\da-fA-F]{1,4}:){0,5}[\\da-fA-F]{1,4})$"
 // IPAddress is net ip address, can be ipv4 or ipv6. Format like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
 type IPAddress string
 
 func (ip IPAddress) String() string {
 	return string(ip)
+}
+
+func (ip IPAddress) Valid() bool {
+	return net.ParseIP(string(ip)) != nil
 }
 
 type EndpointIP struct {

@@ -60,7 +60,6 @@ spec:
                 items:
                   description: IPAddress is net ip address, can be ipv4 or ipv6. Format
                     like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                   type: string
                 type: array
               extendLabels:
@@ -147,7 +146,6 @@ spec:
                 items:
                   description: IPAddress is net ip address, can be ipv4 or ipv6. Format
                     like 192.168.10.12 or fe80::488e:b1ff:fe37:5414
-                  pattern: ^(((([1]?\d)?\d|2[0-4]\d|25[0-5])\.){3}(([1]?\d)?\d|2[0-4]\d|25[0-5]))|([\da-fA-F]{1,4}(\:[\da-fA-F]{1,4}){7})|(([\da-fA-F]{1,4}:){0,5}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4})$
                   type: string
                 type: array
               macAddress:
