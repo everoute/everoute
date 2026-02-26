@@ -29,3 +29,6 @@ docs/resources/
 
 # unit test tmp files
 ut_tmp/
+
+# benchmark output files
+out/

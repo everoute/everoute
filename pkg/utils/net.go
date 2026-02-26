@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/vishvananda/netlink"
@@ -267,4 +268,43 @@ func FormatZeroIP(ipStr string) string {
 	}
 
 	return ipStr
+}
+
+// Bigger than we need, not too big to worry about overflow
+const big = 0xFFFFFF
+
+// Decimal to integer.
+// Returns number, characters consumed, success.
+func dtoi(s string) (n int, i int, ok bool) {
+	n = 0
+	for i = 0; i < len(s) && '0' <= s[i] && s[i] <= '9'; i++ {
+		n = n*10 + int(s[i]-'0')
+		if n >= big {
+			return big, i, false
+		}
+	}
+	if i == 0 {
+		return 0, 0, false
+	}
+	return n, i, true
+}
+
+func ParseIPStringToIPAndSubnetPrefixLen(ipStr string) (ip netip.Addr, subnetPrefixLen int, ok bool) {
+	addrStr, maskStr, isSubnet := strings.Cut(ipStr, "/")
+	if !isSubnet {
+		addrStr = ipStr
+	}
+	addr, err := netip.ParseAddr(addrStr)
+	if err != nil {
+		return netip.Addr{}, 0, false
+	}
+	if isSubnet {
+		subnetPrefixLen, _, ok = dtoi(maskStr)
+		if !ok || subnetPrefixLen < 0 || subnetPrefixLen > addr.BitLen() {
+			return netip.Addr{}, 0, false
+		}
+	} else {
+		subnetPrefixLen = addr.BitLen()
+	}
+	return addr, subnetPrefixLen, true
 }

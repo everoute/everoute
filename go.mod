@@ -46,7 +46,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smartxworks/cloudtower-go-sdk/v2 v2.21.1-rc.1
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.11.1
 	github.com/ti-mo/conntrack v0.4.0
 	github.com/vektah/gqlparser/v2 v2.5.0
 	github.com/viney-shih/go-lock v1.1.2
@@ -64,6 +64,7 @@ require (
 	k8s.io/apiserver v0.28.5
 	k8s.io/cli-runtime v0.27.3
 	k8s.io/client-go v0.28.5
+	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 	sigs.k8s.io/controller-runtime v0.15.3
@@ -125,15 +126,16 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/safchain/ethtool v0.0.0-20210803160452-9aa261dae9b1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/ti-mo/netfilter v0.3.1 // indirect
-	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
@@ -151,7 +153,6 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/component-base v0.28.5 // indirect
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
@@ -163,6 +164,6 @@ replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
 	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
-	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20230901045851-81de37d489fe
+	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20260304034716-05cb4bdc0fc1
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0
 )
