@@ -44,14 +44,13 @@ import (
 	"github.com/samber/lo"
 	lock "github.com/viney-shih/go-lock"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
+	"github.com/everoute/everoute/pkg/agent/datapath/conntrack"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
@@ -255,10 +254,7 @@ type DpManager struct {
 	flowReplayMutex           *lock.CASMutex
 	SeqIDAlloctorForRule      *NumAllocator
 
-	flushMutex           *lock.ChanMutex
-	needFlush            bool                         // need to flush
-	cleanConntrackChan   chan EveroutePolicyRuleForCT // clean conntrack entries for rule in chan
-	cleanConntrackChanV6 chan EveroutePolicyRuleForCT // clean conntrack entries for rule in chan
+	conntrackManager *conntrack.Manager
 
 	ArpChan    chan ArpInfo
 	ArpLimiter *rate.Limiter
@@ -373,9 +369,8 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.Info = new(DpManagerInfo)
 	datapathManager.flowReplayMutex = lock.NewCASMutex()
-	datapathManager.flushMutex = lock.NewChanMutex()
-	datapathManager.cleanConntrackChan = make(chan EveroutePolicyRuleForCT, MaxCleanConntrackChanSize)
-	datapathManager.cleanConntrackChanV6 = make(chan EveroutePolicyRuleForCT, MaxCleanConntrackChanSize)
+	conntrackManager := conntrack.NewManager(conntrack.DefaultFlushTimeout, conntrack.DefaultV4BufferSize, conntrack.DefaultV6BufferSize)
+	datapathManager.conntrackManager = conntrackManager
 	datapathManager.ArpChan = make(chan ArpInfo, MaxArpChanCache)
 	datapathManager.ArpLimiter = rate.NewLimiter(rate.Every(time.Second/ArpLimiterRate), ArpLimiterRate)
 	datapathManager.proxyReplayFunc = func() {}
@@ -408,12 +403,6 @@ func (dp *DpManager) lockflowReplayWithTimeout() {
 func (dp *DpManager) lockRflowReplayWithTimeout() {
 	if !dp.flowReplayMutex.RTryLockWithTimeout(lockTimeout) {
 		klog.Fatalf("fail to acquire datapath flowReplayMutex read lock for %s", lockTimeout)
-	}
-}
-
-func (dp *DpManager) lockflushWithTimeout() {
-	if !dp.flushMutex.TryLockWithTimeout(lockTimeout) {
-		klog.Fatalf("fail to acquire datapath flushMutex lock for %s", lockTimeout)
 	}
 }
 
@@ -551,8 +540,7 @@ func (dp *DpManager) InitializeDatapath(ctx context.Context) {
 		go dp.syncIntenalIPs(ctx.Done())
 	}
 
-	go wait.Until(func() { dp.cleanConntrackWorker(unix.AF_INET, dp.cleanConntrackChan) }, time.Second, ctx.Done())
-	go wait.Until(func() { dp.cleanConntrackWorker(unix.AF_INET6, dp.cleanConntrackChanV6) }, time.Second, ctx.Done())
+	dp.conntrackManager.StartUpdateConntrackFlows(ctx, UnsetTreatedRegs, conntrack.DefaultUpdateDelay)
 
 	for vdsID, bridgeName := range dp.Config.ManagedVDSMap {
 		for bridgeKeyword := range dp.ControllerMap[vdsID] {
@@ -1771,48 +1759,23 @@ func (dp *DpManager) removeIntenalIP(ip string, index int) {
 	}
 }
 
-func (dp *DpManager) getFlush() bool {
-	dp.lockflushWithTimeout()
-	defer dp.flushMutex.Unlock()
-	return dp.needFlush
-}
-
-func (dp *DpManager) setFlush(needFlush bool) {
-	dp.lockflushWithTimeout()
-	defer dp.flushMutex.Unlock()
-	dp.needFlush = needFlush
-}
-
-func (dp *DpManager) cleanConntrackWorker(family uint8, cleanChan chan EveroutePolicyRuleForCT) {
-	for {
-		// only one worker (ipv4) process flush
-		if family == unix.AF_INET && dp.getFlush() {
-			dp.lockflushWithTimeout()
-			err := netlink.ConntrackTableFlush(netlink.ConntrackTable)
-			if err != nil {
-				klog.Errorf("Flush ct failed: %v", err)
-			} else {
-				dp.needFlush = false
-				klog.Info("Success flush ct")
-			}
-			dp.flushMutex.Unlock()
-		}
-
-		ruleList := receiveRuleListFromChan(cleanChan)
-		if ruleList == nil {
-			return
-		}
-		ruleIDs := []string{}
-		for i := range ruleList {
-			ruleIDs = append(ruleIDs, ruleList[i].RuleID)
-		}
-		matches, err := netlink.ConntrackDeleteFilter(netlink.ConntrackTable, netlink.InetFamily(family), ruleList)
-		if err != nil {
-			klog.Errorf("clear conntrack error, rules: %s, err: %s", ruleIDs, err)
-			continue
-		}
-		klog.Infof("clear conntrack for rules %s, matches: %d", ruleIDs, matches)
+func UnsetTreatedRegs(flow *netlink.ConntrackFlow) (updated bool) {
+	// skip if not treated
+	if !flow.HasLabels {
+		return false
 	}
+	// update labels
+	flow.Labels = [16]byte{}
+	flow.HasLabels = true
+	flow.LabelsMask = [16]byte{}
+	flow.LabelsMask[0] = 1<<EgressTreatedXXREG0Bit | 1<<IngressTreatedXXREG0Bit
+	flow.HasLabelsMask = true
+	// avoid updating other fields
+	flow.HasMark = false
+	flow.HasStatus = false
+	flow.HasTimeout = false
+	flow.ProtoInfo = nil
+	return true
 }
 
 func (dp *DpManager) cleanConntrackFlow(ctx context.Context, rule *EveroutePolicyRule) {
@@ -1822,32 +1785,21 @@ func (dp *DpManager) cleanConntrackFlow(ctx context.Context, rule *EveroutePolic
 		return
 	}
 
-	if dp.getFlush() {
+	matcher, err := rule.ToMatcher()
+	if err != nil {
+		log.Error(err, "Failed to convert rule to Matcher")
 		return
 	}
 
-	var cleanChan chan EveroutePolicyRuleForCT
-	switch rule.IPFamily {
-	case unix.AF_INET:
-		cleanChan = dp.cleanConntrackChan
-	case unix.AF_INET6:
-		cleanChan = dp.cleanConntrackChanV6
-	}
-
-	if len(cleanChan) < cap(cleanChan) {
-		cleanChan <- rule.toEveroutePolicyRuleForCT()
-		return
-	}
-
-	log.Info("The clean Conntrack Chan has blocked, clean channel")
-	for {
-		select {
-		case <-cleanChan:
-		default:
-			dp.setFlush(true)
-			return
-		}
-	}
+	dp.conntrackManager.AsyncUpdateConntrackFlows(
+		rule.IPFamily,
+		matcher,
+		func() {
+			dp.conntrackManager.ClearBuffer()
+			dp.conntrackManager.AsyncFlushConntrackFlows()
+		},
+		true,
+	)
 }
 
 func (dp *DpManager) IsEnableCNI() bool {
@@ -1979,32 +1931,6 @@ func sendProbeRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, s
 	}
 
 	_ = ofSwitch.Send(ofPacketOut)
-}
-
-func receiveRuleListFromChan(ruleChan <-chan EveroutePolicyRuleForCT) EveroutePolicyRuleList {
-	var ruleList EveroutePolicyRuleList
-
-	// block until chan have one or more rules
-	rule, ok := <-ruleChan
-	if !ok {
-		return nil
-	}
-	ruleList = append(ruleList, rule)
-	ruleSet := sets.NewString(rule.RuleID)
-
-	// read and return all rules in chan
-	for {
-		select {
-		case rule := <-ruleChan:
-			if ruleSet.Has(rule.RuleID) {
-				continue
-			}
-			ruleList = append(ruleList, rule)
-			ruleSet.Insert(rule.RuleID)
-		default:
-			return ruleList
-		}
-	}
 }
 
 func RuleIsSame(r1, r2 *EveroutePolicyRule) bool {
