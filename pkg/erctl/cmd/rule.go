@@ -36,6 +36,10 @@ var ruleCmd = &cobra.Command{
 			recv, err = erctl.GetRulesByName(ruleIDs)
 		case len(flowIDs) != 0:
 			recv, err = erctl.GetRulesByFlow(flowIDs)
+		case memLimit != 0:
+			limit, err1 := erctl.GetGOMemLimit(memLimit)
+			fmt.Printf("current Go memory limit: %d, err: %s\n", limit, err1)
+			return err1
 		default:
 			recv, err = erctl.GetAllRules(batchSize)
 		}
@@ -98,6 +102,7 @@ func init() {
 	ruleCmd.Flags().StringVar(&dstIP, "dstip", "", "specify destination ip")
 	ruleCmd.Flags().StringVar(&dstPort, "dstport", "", "specify destination port")
 	ruleCmd.Flags().StringVar(&protocol, "protocol", "", "specify protocol")
+	ruleCmd.Flags().Int64Var(&memLimit, "gomemlimit", 0, "set Go memory limit and return previous limit")
 	ruleCmd.Flags().BoolVar(&showCTflows, "ctflows", false, "use to show ctflows")
 	ruleCmd.Flags().Uint32Var(&batchSize, "batchsize", constants.DefaultRPCBatchSize, "specify rpc batch size, only effective when get all rules")
 }

@@ -15,6 +15,7 @@ var (
 	sortDifference, sortIntersection []string
 	showDifference, showIntersection []string
 	nextInput                        *bytes.Buffer
+	memLimit                         int64
 )
 
 // rootCmd represents the base command when called without any subcommands

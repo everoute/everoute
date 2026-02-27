@@ -122,6 +122,10 @@ message StreamRulesRequest {
   uint32 BatchSize = 2;
 }
 
+message MemLimit {
+  int64 Limit = 1;
+}
+
 service Getter {
   rpc GetAllRules(StreamRulesRequest) returns (stream RuleEntries){}
   rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
@@ -129,6 +133,7 @@ service Getter {
   rpc GetSvcInfoBySvcID(SvcID) returns (SvcInfo) {}
   rpc GetTRRulesByFlowIDs(FlowIDs) returns (TRRules) {}
   rpc GetTRRulesByRuleKeys(TRRuleKeys) returns (TRRules) {}
+  rpc GetGOMemLimit(MemLimit) returns (MemLimit) {}
 }
 
 message TRRule{

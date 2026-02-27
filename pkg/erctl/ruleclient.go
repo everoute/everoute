@@ -108,6 +108,14 @@ func GetRulesByName(ruleIDs []string) (RuleRecv, error) {
 	return &OnceRecv{Rules: ruleEntries}, nil
 }
 
+func GetGOMemLimit(limit int64) (int64, error) {
+	res, err := ruleconn.GetGOMemLimit(context.Background(), &v1alpha1.MemLimit{Limit: limit})
+	if err != nil {
+		return 0, err
+	}
+	return res.Limit, nil
+}
+
 func GetRulesByFlow(flowIDs []int64) (RuleRecv, error) {
 	fids := make([]uint64, len(flowIDs))
 	for i := 0; i < len(flowIDs); i++ {

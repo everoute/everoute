@@ -3,6 +3,7 @@ package rpcserver
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
@@ -123,6 +124,11 @@ func (g *Getter) GetTRRulesByRuleKeys(_ context.Context, in *v1alpha1.TRRuleKeys
 	ks := in.TRRuleKeys
 	dpRules := g.dpManager.GetTRRulesByRuleKeys(ks...)
 	return &v1alpha1.TRRules{TRRules: trRulesDpToRPC(dpRules)}, nil
+}
+
+func (g *Getter) GetGOMemLimit(ctx context.Context, in *v1alpha1.MemLimit) (*v1alpha1.MemLimit, error) {
+	prev := debug.SetMemoryLimit(in.Limit)
+	return &v1alpha1.MemLimit{Limit: prev}, nil
 }
 
 func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
