@@ -10,6 +10,7 @@ import (
 	"github.com/ti-mo/conntrack"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
@@ -17,13 +18,13 @@ import (
 )
 
 var (
-	ruleconn    v1alpha1.GetterClient
+	ruleconn    v1alpha1.CLIClient
 	cnt         map[uint64][]tuple
 	showCTflows bool
 )
 
 var _ RuleRecv = &OnceRecv{}
-var _ RuleRecv = v1alpha1.Getter_GetAllRulesClient(nil)
+var _ RuleRecv = v1alpha1.CLI_GetAllRulesClient(nil)
 
 type RuleRecv interface {
 	Recv() (*v1alpha1.RuleEntries, error)
@@ -54,7 +55,7 @@ func ConnectClient() error {
 	if err != nil {
 		return err
 	}
-	ruleconn = v1alpha1.NewGetterClient(rpc)
+	ruleconn = v1alpha1.NewCLIClient(rpc)
 	return nil
 }
 
@@ -216,4 +217,22 @@ func GetIPNet(ip string) *net.IPNet {
 
 	_, ipnet, _ := net.ParseCIDR(ip)
 	return ipnet
+}
+
+// SetGOMemLimit sets the Go runtime memory limit via RPC and returns previous and current limits.
+func SetGOMemLimit(limit int64) (int64, int64, error) {
+	res, err := ruleconn.SetGOMemLimit(context.Background(), &v1alpha1.SetGOMemLimitRequest{Limit: limit})
+	if err != nil {
+		return 0, 0, err
+	}
+	return res.GetPrevLimit(), res.GetCurrentLimit(), nil
+}
+
+// GetGOMemLimit retrieves the current Go runtime memory limit via RPC.
+func GetGOMemLimit() (int64, error) {
+	res, err := ruleconn.GetGOMemLimit(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return 0, err
+	}
+	return res.GetLimit(), nil
 }

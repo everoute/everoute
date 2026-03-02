@@ -142,7 +142,7 @@ gqlgen:
 protopb:
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/cni.proto
 	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/collector.proto
-	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/rule.proto
+	protoc -I=. --go_out=plugins=grpc:.  pkg/apis/rpc/v1alpha1/cli_tool.proto
 
 apidocs-gen:
 	$(eval PATH := $$(PATH):$(shell go env GOPATH)/bin)

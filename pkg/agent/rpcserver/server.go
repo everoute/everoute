@@ -89,8 +89,8 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	klog.Infoln("Enable collector rpc server")
 
 	// register cli server
-	getterServer := NewGetterServer(s.dpManager, s.proxyCache)
-	v1alpha1.RegisterGetterServer(rpcServer, getterServer)
+	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache)
+	v1alpha1.RegisterCLIServer(rpcServer, cliTool)
 	klog.Infoln("Enable cli tools rpc server")
 
 	// register cni server
