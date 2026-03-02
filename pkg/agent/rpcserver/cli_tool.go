@@ -3,35 +3,39 @@ package rpcserver
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strconv"
+
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"k8s.io/klog/v2"
 
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 )
 
-var _ v1alpha1.GetterServer = &Getter{}
+var _ v1alpha1.CLIServer = &CLITool{}
 
-type Getter struct {
+type CLITool struct {
 	dpManager  *datapath.DpManager
 	proxyCache *ctrlProxy.Cache
 }
 
-func (g *Getter) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.Getter_GetAllRulesServer) error {
+func (g *CLITool) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.CLI_GetAllRulesServer) error {
 	return g.dpManager.GetAllRules(sendFunc.Send, int(req.BatchSize))
 }
 
-func (g *Getter) GetRulesByName(ctx context.Context, ruleIDs *v1alpha1.RuleIDs) (*v1alpha1.RuleEntries, error) {
+func (g *CLITool) GetRulesByName(_ context.Context, ruleIDs *v1alpha1.RuleIDs) (*v1alpha1.RuleEntries, error) {
 	rules := g.dpManager.GetRulesByRuleIDs(ruleIDs.RuleIDs...)
 	return &v1alpha1.RuleEntries{RuleEntries: rules}, nil
 }
 
-func (g *Getter) GetRulesByFlow(ctx context.Context, flowIDs *v1alpha1.FlowIDs) (*v1alpha1.RuleEntries, error) {
+func (g *CLITool) GetRulesByFlow(_ context.Context, flowIDs *v1alpha1.FlowIDs) (*v1alpha1.RuleEntries, error) {
 	rules := g.dpManager.GetRulesByFlowIDs(flowIDs.FlowIDs...)
 	return &v1alpha1.RuleEntries{RuleEntries: rules}, nil
 }
 
-func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (*v1alpha1.SvcInfo, error) {
+func (g *CLITool) GetSvcInfoBySvcID(_ context.Context, svcID *v1alpha1.SvcID) (*v1alpha1.SvcInfo, error) {
 	if g.proxyCache == nil {
 		return nil, fmt.Errorf("agent doesn't enable proxy feature")
 	}
@@ -113,16 +117,36 @@ func (g *Getter) GetSvcInfoBySvcID(ctx context.Context, svcID *v1alpha1.SvcID) (
 	return svcInfo, nil
 }
 
-func (g *Getter) GetTRRulesByFlowIDs(_ context.Context, in *v1alpha1.FlowIDs) (*v1alpha1.TRRules, error) {
+func (g *CLITool) GetTRRulesByFlowIDs(_ context.Context, in *v1alpha1.FlowIDs) (*v1alpha1.TRRules, error) {
 	fids := in.FlowIDs
 	dpRules := g.dpManager.GetTRRulesByFlowIDs(fids...)
 	return &v1alpha1.TRRules{TRRules: trRulesDpToRPC(dpRules)}, nil
 }
 
-func (g *Getter) GetTRRulesByRuleKeys(_ context.Context, in *v1alpha1.TRRuleKeys) (*v1alpha1.TRRules, error) {
+func (g *CLITool) GetTRRulesByRuleKeys(_ context.Context, in *v1alpha1.TRRuleKeys) (*v1alpha1.TRRules, error) {
 	ks := in.TRRuleKeys
 	dpRules := g.dpManager.GetTRRulesByRuleKeys(ks...)
 	return &v1alpha1.TRRules{TRRules: trRulesDpToRPC(dpRules)}, nil
+}
+
+func (g *CLITool) GetGOMemLimit(context.Context, *emptypb.Empty) (*v1alpha1.GetGOMemLimitResponse, error) {
+	return &v1alpha1.GetGOMemLimitResponse{
+		Limit: debug.SetMemoryLimit(-1),
+	}, nil
+}
+
+func (g *CLITool) SetGOMemLimit(_ context.Context, in *v1alpha1.SetGOMemLimitRequest) (*v1alpha1.SetGOMemLimitResponse, error) {
+	newL := in.GetLimit()
+	if newL <= 0 {
+		return nil, fmt.Errorf("invalid memory limit: %d", newL)
+	}
+	prevL := debug.SetMemoryLimit(newL)
+	curL := debug.SetMemoryLimit(-1)
+	klog.Infof("Set Go memory limit, prev: %d, new: %d, current: %d", prevL, newL, curL)
+	return &v1alpha1.SetGOMemLimitResponse{
+		PrevLimit:    prevL,
+		CurrentLimit: curL,
+	}, nil
 }
 
 func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
@@ -142,8 +166,8 @@ func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
 	return res
 }
 
-func NewGetterServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache) *Getter {
-	s := &Getter{
+func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache) *CLITool {
+	s := &CLITool{
 		dpManager:  datapathManager,
 		proxyCache: proxyCache,
 	}

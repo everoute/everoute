@@ -122,13 +122,16 @@ message StreamRulesRequest {
   uint32 BatchSize = 2;
 }
 
-service Getter {
+service CLI {
   rpc GetAllRules(StreamRulesRequest) returns (stream RuleEntries){}
   rpc GetRulesByName(RuleIDs) returns (RuleEntries){}
   rpc GetRulesByFlow(FlowIDs) returns (RuleEntries){}
   rpc GetSvcInfoBySvcID(SvcID) returns (SvcInfo) {}
   rpc GetTRRulesByFlowIDs(FlowIDs) returns (TRRules) {}
   rpc GetTRRulesByRuleKeys(TRRuleKeys) returns (TRRules) {}
+
+	rpc SetGOMemLimit(SetGOMemLimitRequest) returns (SetGOMemLimitResponse) {}
+	rpc GetGOMemLimit(google.protobuf.Empty) returns (GetGOMemLimitResponse) {}
 }
 
 message TRRule{
@@ -145,4 +148,20 @@ message TRRules{
 
 message TRRuleKeys {
   repeated string TRRuleKeys = 1;
+}
+
+// SetGOMemLimitRequest is used to request setting the Go runtime memory limit.
+message SetGOMemLimitRequest {
+	int64 Limit = 1;
+}
+
+// SetGOMemLimitResponse returns the previous and the new/current memory limits.
+message SetGOMemLimitResponse {
+	int64 PrevLimit = 1;
+	int64 CurrentLimit = 2;
+}
+
+// GetGOMemLimitResponse returns the current Go runtime memory limit.
+message GetGOMemLimitResponse {
+	int64 Limit = 1;
 }
