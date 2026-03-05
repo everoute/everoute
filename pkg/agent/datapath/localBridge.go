@@ -482,6 +482,26 @@ func (l *LocalBridge) initToLocalGwFlow(sw *ofctrl.OFSwitch) error {
 		return fmt.Errorf("failed to install outToLocalGwBypassLocal flow, error: %v", err)
 	}
 
+	// For traffic from policy bridge destined to local pods, bypass gw-local
+	// and forward directly via L2 table. Without this, dst MAC gets overwritten
+	// to gw-local MAC, causing table 5 miss → flood → anti-loop DROP.
+	for i := range l.datapathManager.Info.PodCIDR {
+		podCIDR := l.datapathManager.Info.PodCIDR[i]
+		outToLocalBypassGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
+			Priority:  HIGH_MATCH_FLOW_PRIORITY + 1,
+			Ethertype: PROTOCOL_IP,
+			InputPort: l.datapathManager.BridgeChainPortMap[l.name][LocalToPolicySuffix],
+			IpDa:      &podCIDR.IP,
+			IpDaMask:  (*net.IP)(&podCIDR.Mask),
+		})
+		if err := outToLocalBypassGw.Resubmit(nil, &l.localEndpointL2ForwardingTable.TableId); err != nil {
+			return fmt.Errorf("failed to install outToLocalBypassGw flow for %s, error: %v", podCIDR.IP.String(), err)
+		}
+		if err := outToLocalBypassGw.Next(ofctrl.NewEmptyElem()); err != nil {
+			return fmt.Errorf("failed to install outToLocalBypassGw flow for %s, error: %v", podCIDR.IP.String(), err)
+		}
+	}
+
 	outToLocalGw, _ := l.vlanInputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  HIGH_MATCH_FLOW_PRIORITY,
 		Ethertype: PROTOCOL_IP,

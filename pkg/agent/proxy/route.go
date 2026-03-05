@@ -264,6 +264,34 @@ func (r *NodeReconciler) UpdateRoute(nodeList corev1.NodeList, thisNode corev1.N
 			klog.Infof("add route item %s", &targetRoute[i])
 		}
 	}
+
+	// Sync routes to gw-local routing table (table 100) so that DNAT'd service
+	// traffic from gw-local goes directly to target node via physical NIC,
+	// avoiding conntrack conflict when bouncing back through gw-local.
+	if !r.DatapathManager.IsEnableProxy() {
+		for i := range targetRoute {
+			gwLocalRoute := netlink.Route{
+				Dst:   targetRoute[i].Dst,
+				Gw:    targetRoute[i].Gw,
+				Table: cniconst.FromGwLocalRouteTable,
+			}
+			if err = netlink.RouteReplace(&gwLocalRoute); err != nil {
+				klog.Errorf("add route to table %d failed, route: %s, err: %s",
+					cniconst.FromGwLocalRouteTable, &gwLocalRoute, err)
+			}
+		}
+		for i := range delRoute {
+			gwLocalDel := netlink.Route{
+				Dst:   delRoute[i].Dst,
+				Gw:    delRoute[i].Gw,
+				Table: cniconst.FromGwLocalRouteTable,
+			}
+			if err = netlink.RouteDel(&gwLocalDel); err != nil {
+				klog.V(4).Infof("delete route from table %d: %s, err: %s",
+					cniconst.FromGwLocalRouteTable, &gwLocalDel, err)
+			}
+		}
+	}
 }
 
 func (r *NodeReconciler) UpdateNetwork() {
