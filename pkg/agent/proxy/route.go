@@ -129,8 +129,8 @@ func ChangeLocalRulePriority() error {
 
 	oldLocalRule := netlink.NewRule()
 	oldLocalRule.Table = unix.RT_TABLE_LOCAL
-	// netlink lib default priority is -1, priority 0 won't reassign to rule.Priority when list rule
-	oldLocalRule.Priority = -1
+	// Kernel default LOCAL rule has priority 0 (see netlink 578e95c: deserializeRule sets rule.Priority=0)
+	oldLocalRule.Priority = 0
 	if err := utils.RuleDel(oldLocalRule, netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE); err != nil {
 		klog.Errorf("Failed to find rule %s, err: %s", oldLocalRule, err)
 		return err
