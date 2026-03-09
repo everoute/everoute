@@ -4,7 +4,7 @@ ENV APISERVER_BOOT_RELEASE_URL=https://github.com/kubernetes-sigs/apiserver-buil
 RUN wget -qO- $APISERVER_BOOT_RELEASE_URL | tar -C /go -zxf -
 RUN rm /go/bin/deepcopy-gen
 
-ENV GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+ENV GOPROXY=https://goproxy.cn|https://proxy.golang.org|direct
 ENV K8S_VERSION=1.27.7
 RUN go install github.com/99designs/gqlgen@v0.17.16 && \
     go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.2 && \
