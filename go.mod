@@ -19,6 +19,7 @@ require (
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-openapi/runtime v0.28.0
+	github.com/go-openapi/strfmt v0.23.0
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
@@ -87,7 +88,6 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
-	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
