@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
 	"github.com/samber/lo"
 	apiclient "github.com/smartxworks/cloudtower-go-sdk/v2/client"
 	resource_change_client "github.com/smartxworks/cloudtower-go-sdk/v2/client/resource_change"
@@ -42,6 +43,15 @@ type CrcFactory struct {
 	crcw        *watchor.ResourceChangeWatchClient
 
 	eventOutputMap map[reflect.Type]chan *CrcEvent
+}
+
+type ExtraHeaderStruct struct {
+	Key   string
+	Value string
+}
+
+func (e *ExtraHeaderStruct) WriteToRequest(req runtime.ClientRequest, _ strfmt.Registry) error {
+	return req.SetHeaderParam(e.Key, e.Value)
 }
 
 func MustNewCrcFactory(c *client.Client) *CrcFactory {
@@ -69,6 +79,10 @@ func MustNewCrcFactory(c *client.Client) *CrcFactory {
 
 	var options resource_change_client.ClientOption = func(op *runtime.ClientOperation) {
 		op.AuthInfo = httptransport.BasicAuth(c.APIUsername, c.APIPassword)
+		op.Params = &ExtraHeaderStruct{
+			Key:   "x-bypass-whitelist",
+			Value: "true",
+		}
 	}
 
 	factory.crcw, err = watchor.NewResourceChangeWatchClient(&watchor.NewResourceChangeWatchClientParams{
