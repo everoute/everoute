@@ -15,7 +15,7 @@ require (
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
-	github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7
+	github.com/everoute/ctlabels-go v0.0.0-20260310050929-b9a8eb66b348
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
 	github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4
 	github.com/fatih/color v1.7.0
