@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os/exec"
 	"strings"
 
 	"github.com/vishvananda/netlink"
@@ -120,6 +121,30 @@ func GetIfaceMTUByIP(ip string) (int, error) {
 		return 0, err
 	}
 	return link.Attrs().MTU, nil
+}
+
+// SetOVSInternalPortMTU sets MTU for an OVS internal port (e.g. cnibr0-gw, cnibr0-gw-local).
+// It sets OVSDB mtu_request first, then kernel MTU, so ovs-vswitchd does not overwrite it.
+func SetOVSInternalPortMTU(ifname string, mtu int) error {
+	// set mtu_request in OVSDB first, so ovs-vswitchd won't reset kernel MTU after we set it
+	//nolint:gosec // ifname is derived from internal config/ovs bridge name, not user input
+	cmd := exec.Command("ovs-vsctl", "--if-exists", "set", "Interface", ifname, fmt.Sprintf("mtu_request=%d", mtu))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		klog.Errorf("failed to set ovs mtu_request %d for %q: %v, output: %s", mtu, ifname, err, string(out))
+		return err
+	}
+
+	link, err := netlink.LinkByName(ifname)
+	if err != nil {
+		klog.Errorf("failed to lookup %q: %v", ifname, err)
+		return err
+	}
+	if err = netlink.LinkSetMTU(link, mtu); err != nil {
+		klog.Errorf("failed to set mtu %d for %q: %v", mtu, ifname, err)
+		return err
+	}
+
+	return nil
 }
 
 func SetLinkAddr(ifname string, inet *net.IPNet) error {

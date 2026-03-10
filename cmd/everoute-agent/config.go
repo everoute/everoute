@@ -261,6 +261,7 @@ func setAgentConf(datapathManager *datapath.DpManager, k8sClient client.Client) 
 	// get cluster CIDR and cluster pod cidr
 	setClusterCIDR(agentInfo, k8sClient)
 	setOfPort(datapathManager)
+	setGwMTU(datapathManager)
 	setLocalGwInfo(agentInfo)
 	setGwInfo(agentInfo, k8sClient)
 }
@@ -345,6 +346,34 @@ func setLocalGwInfo(agentInfo *datapath.DpManagerInfo) {
 	}
 	agentInfo.LocalGwIP = localGwIP
 	agentInfo.LocalGwMac = localGwMac
+}
+
+func setGwMTU(datapathManager *datapath.DpManager) {
+	if datapathManager.Config == nil || datapathManager.Config.CNIConfig == nil {
+		return
+	}
+	mtu := datapathManager.Config.CNIConfig.MTU
+	if mtu <= 0 {
+		return
+	}
+
+	agentInfo := datapathManager.Info
+
+	if agentInfo.GatewayName != "" {
+		if err := utils.SetOVSInternalPortMTU(agentInfo.GatewayName, mtu); err != nil {
+			klog.Errorf("Failed to set mtu %d for gateway %s: %v", mtu, agentInfo.GatewayName, err)
+		} else {
+			klog.Infof("Set mtu %d for gateway %s successfully", mtu, agentInfo.GatewayName)
+		}
+	}
+
+	if !opts.IsEnableProxy() && agentInfo.LocalGwName != "" {
+		if err := utils.SetOVSInternalPortMTU(agentInfo.LocalGwName, mtu); err != nil {
+			klog.Errorf("Failed to set mtu %d for local gateway %s: %v", mtu, agentInfo.LocalGwName, err)
+		} else {
+			klog.Infof("Set mtu %d for local gateway %s successfully", mtu, agentInfo.LocalGwName)
+		}
+	}
 }
 
 func setGwInfo(agentInfo *datapath.DpManagerInfo, k8sClient client.Client) {
