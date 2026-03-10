@@ -287,8 +287,8 @@ github.com/evanphx/json-patch/v5 v5.7.0 h1:nJqP7uwL84RJInrohHfW0Fx3awjbm8qZeFv0n
 github.com/evanphx/json-patch/v5 v5.7.0/go.mod h1:VNkHZ/282BpEyt/tObQO8s5CMPmYYq14uClGH4abBuQ=
 github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991 h1:pgZ5WgLyTOCFNV/l3wYQ+HqjOyctFtnAMncWgnkRe0o=
 github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991/go.mod h1:YdIf7ANCOIBGgxnyN7SZkQjUBHmOw0UZSV9O43A6PXs=
-github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7 h1:S8FLk9mbPIHy206graV0zd74PiYjADrnwZ8in/sVkaY=
-github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7/go.mod h1:8TeecKjSx4VRpaZh51eG298z1HzmAkLbLEcb9qBSqoY=
+github.com/everoute/ctlabels-go v0.0.0-20260310050929-b9a8eb66b348 h1:wGTWmJVjhLOmGeLx+1rurwYOQLMdRZd/VzJuIyev2zI=
+github.com/everoute/ctlabels-go v0.0.0-20260310050929-b9a8eb66b348/go.mod h1:8TeecKjSx4VRpaZh51eG298z1HzmAkLbLEcb9qBSqoY=
 github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99 h1:ACUaMP14gg2INkSMUrcyK91qb1s+v9aa7Jp74/cF2bM=
 github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99/go.mod h1:tVA1ktFobpf679E6GU3b3VoXpkyWtNbU5ZkaGinxgzI=
 github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74 h1:d4ZkDRNWQTZGsQF7ioTzkmgMFVaJuh73v5XRlKo0ze4=
