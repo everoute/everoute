@@ -22,13 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-openapi/runtime"
-	httptransport "github.com/go-openapi/runtime/client"
+	graphcclient "github.com/everoute/graphc/pkg/client"
+	"github.com/everoute/graphc/pkg/crcwatch"
 	"github.com/samber/lo"
 	apiclient "github.com/smartxworks/cloudtower-go-sdk/v2/client"
-	resource_change_client "github.com/smartxworks/cloudtower-go-sdk/v2/client/resource_change"
 	"github.com/smartxworks/cloudtower-go-sdk/v2/models"
-	watchor "github.com/smartxworks/cloudtower-go-sdk/v2/watchor"
 	"k8s.io/klog/v2"
 
 	"github.com/everoute/everoute/plugin/tower/pkg/client"
@@ -39,63 +37,43 @@ const crcEventChanMax = 100
 
 type CrcFactory struct {
 	towerclient *apiclient.Cloudtower
-	crcw        *watchor.ResourceChangeWatchClient
+	w           *crcwatch.Watch
 
 	eventOutputMap map[reflect.Type]chan *CrcEvent
 }
 
 func MustNewCrcFactory(c *client.Client) *CrcFactory {
-	var err error
 	factory := &CrcFactory{
 		eventOutputMap: map[reflect.Type]chan *CrcEvent{},
 	}
-
+	userInfo := &graphcclient.UserInfo{
+		Username: c.UserInfo.Username,
+		Password: c.UserInfo.Password,
+		Source:   c.UserInfo.Source,
+	}
+	resTypes := []string{
+		"Vm",
+		"Label",
+		"_LabelToVm",
+		"EverouteCluster",
+		"Cluster",
+		"Vds",
+		"SecurityPolicy",
+		"IsolationPolicy",
+		"SecurityGroup",
+		"NetworkPolicyRuleService",
+	}
 	host := strings.TrimPrefix(c.URL, "https://")
 	host = strings.TrimSuffix(host, "/api")
-
-	factory.towerclient, err = apiclient.NewWithUserConfig(apiclient.ClientConfig{
-		Host:     host,
-		BasePath: "v2/api",
-		Schemes:  []string{"http"},
-	}, apiclient.UserConfig{
-		Name:     c.UserInfo.Username,
-		Password: c.UserInfo.Password,
-		Source:   models.UserSource(c.UserInfo.Source),
-	})
-
+	var err error
+	factory.w, err = crcwatch.NewWatch(resTypes, crcwatch.SetUserInfo(userInfo),
+		crcwatch.SetAPIAuth(c.APIUsername, c.APIPassword),
+		crcwatch.SetHost(host),
+		crcwatch.SetPollingInterval(10*time.Second))
 	if err != nil {
-		klog.Fatalln("fail to init api client", err)
+		klog.Fatalln("fail to init crc watch client", err)
 	}
-
-	var options resource_change_client.ClientOption = func(op *runtime.ClientOperation) {
-		op.AuthInfo = httptransport.BasicAuth(c.APIUsername, c.APIPassword)
-	}
-
-	factory.crcw, err = watchor.NewResourceChangeWatchClient(&watchor.NewResourceChangeWatchClientParams{
-		Client:          factory.towerclient,
-		ResourceID:      nil,
-		PollingInterval: 10 * time.Second,
-		ClientOptions:   options,
-		ResourceTypes: []string{
-			"Vm",
-			// "VmNic",
-			// "Vlan",
-			"Label",
-			"_LabelToVm",
-			"EverouteCluster",
-			"Cluster",
-			"Vds",
-			"SecurityPolicy",
-			"IsolationPolicy",
-			"SecurityGroup",
-			// "_SecurityGroupToVm",
-			"NetworkPolicyRuleService",
-		},
-	})
-
-	if err != nil {
-		klog.Fatalln("fail to init crc client", err)
-	}
+	factory.w.RegistryHandler(factory.eventHandler)
 
 	return factory
 }
@@ -246,51 +224,7 @@ func (f *CrcFactory) eventOutput(obj schema.Object, eventType CrcEventType, oldO
 }
 
 func (f *CrcFactory) Start(stopCh <-chan struct{}) {
-	crcwLoop := func() {
-		err := f.crcw.Start(&watchor.ResourceChangeWatchStartParams{
-			StartRevision: nil,
-		})
-
-		if err != nil {
-			klog.Fatalln(err)
-		}
-
-		klog.Infoln("crc factory start")
-
-		for {
-			select {
-			case err := <-f.crcw.ErrorChannel():
-				if err.CompactRevision != nil {
-					klog.Fatalf("crc event missed, compacted error : %v, compacted revision: %v\n", err, *err.CompactRevision)
-				} else if err.Err != nil {
-					klog.Errorf("crc error event: %s\n", err.Err.Error())
-					// crc watch will stop, should exit crc loop to restart crc watch client
-					return
-				}
-			case warning := <-f.crcw.WarningChannel():
-				if warning.Err != nil {
-					klog.Warningf("crc warning event %s\n", warning.Err.Error())
-				}
-			case event := <-f.crcw.Channel():
-				if event == nil {
-					klog.Errorf("crc event channel get nil event, skip")
-					continue
-				}
-				f.eventHandler(event)
-			case <-stopCh:
-				return
-			}
-		}
-	}
-
-	go func() {
-		for {
-			crcwLoop()
-			// crcwLoop will return when crc not supported
-			// restart after 10 minutes for tower upgrade
-			time.Sleep(10 * time.Minute)
-		}
-	}()
+	f.w.Start(stopCh)
 }
 
 type CrcEventType string
