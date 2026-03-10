@@ -15,13 +15,13 @@ require (
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
-	github.com/everoute/ctlabels-go v0.0.0-20260310050929-b9a8eb66b348
+	github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7
+	github.com/everoute/graphc v0.0.0-20260311060513-4046a92a8786
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
 	github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4
 	github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e
 	github.com/fatih/color v1.7.0
 	github.com/gertd/go-pluralize v0.2.1
-	github.com/go-openapi/runtime v0.28.0
 	github.com/go-ping/ping v0.0.0-20210506233800-ff8be3320020
 	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
@@ -44,11 +44,11 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/smartxworks/cloudtower-go-sdk/v2 v2.21.1-rc.1
+	github.com/smartxworks/cloudtower-go-sdk/v2 v2.22.1-rc.1
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.11.1
 	github.com/ti-mo/conntrack v0.4.0
-	github.com/vektah/gqlparser/v2 v2.5.0
+	github.com/vektah/gqlparser/v2 v2.5.2-0.20230422221642-25e09f9d292d
 	github.com/viney-shih/go-lock v1.1.2
 	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/crypto v0.31.0
@@ -90,6 +90,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
+	github.com/go-openapi/runtime v0.28.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
