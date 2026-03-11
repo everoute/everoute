@@ -239,27 +239,84 @@ jobs:
         if: ${{ always() && steps.delenv.conclusion == 'success' }}
         run: curl -X DELETE "https://ip.dev.smtx.io/v1/ips?name="${{ env.PoolName }}"&ip="${{ env.VIP }}
   
-  # run-tower-e2e:
-  #   runs-on: [self-hosted, tower]
-  #   needs: [static-check, generate-check]
-  #   steps:
-  #     - uses: actions/checkout@v3
-      
-  #     # TODO: Not implemented
+  build-tower-e2e-package:
+    runs-on: [self-hosted, pod]
+    needs: [static-check, generate-check]
+    env:
+      COUSU: ssh -o StrictHostKeyChecking=no -p 2222 ${{ secrets.COUSU_SERVER }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: generate package version
+        id: version
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          RAND=$(printf '%04d' $((RANDOM % 10000)))
+          VERSION="0.0.0-$(date +%Y%m%d)-${SHORT_SHA}-${RAND}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
 
-  #     # - name: reset environment
+      - name: build everoute package
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 5
+          command: |
+            BRANCH="${{ github.head_ref || github.ref_name }}"
+            $COUSU build -m "ms=${BRANCH}" -p "${{ steps.version.outputs.version }}" -f
 
-  #     # - name: build everoute
+      - name: wait for build completion
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 20
+          max_attempts: 5
+          retry_wait_seconds: 60
+          command: |
+            $COUSU bwait -p "${{ steps.version.outputs.version }}"
 
-  #     # - name: install everoute
+      - name: upload package to tower
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 5
+          command: |
+            $COUSU upload -p "${{ steps.version.outputs.version }}" -t "${{ secrets.TOWER_ENDPOINT }}"
 
-  #     # - name: setup environment
+  run-tower-e2e:
+    runs-on: [self-hosted, pod]
+    needs: [build-tower-e2e-package]
+    concurrency:
+      group: tower-e2e-fixed-env
+    env:
+      COUSU: ssh -o StrictHostKeyChecking=no -p 2222 ${{ secrets.COUSU_SERVER }}
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - name: skip-known-bugs
-  #       run: git am -s < hack/0001-Skip-known-bugs-in-everoute-1.1.0.patch
-        
-  #     - name: run test cases
-  #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
+      - name: write kubeconfig
+        run: echo "${{ secrets.TOWER_E2E_KUBECONFIG }}" > kubeconfig
+
+      - name: upgrade everoute on cluster
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 30
+          max_attempts: 5
+          retry_wait_seconds: 300
+          command: |
+            $COUSU update -p "${{ needs.build-tower-e2e-package.outputs.version }}" \
+              -t "${{ secrets.TOWER_ENDPOINT }}" \
+              -n "${{ secrets.TOWER_INSTANCE }}"
+
+      - name: prune unused packages
+        run: |
+          $COUSU prune -t "${{ secrets.TOWER_ENDPOINT }}"
+
+      - name: run tower e2e tests
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: make docker-tower-e2e-test-ci
+
 
   generate-check:
     runs-on: [self-hosted, vm]
@@ -283,7 +340,7 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
+    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,run-tower-e2e,generate-check ]
     runs-on: [self-hosted, pod]
     env:
       SLACK_COLOR: 2EA44F
