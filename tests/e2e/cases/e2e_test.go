@@ -55,7 +55,11 @@ var _ = BeforeSuite(func() {
 	startTime = time.Now()
 	ctx = context.Background()
 
-	e2eEnv, err = framework.NewFromKube(filepath.Join(os.Getenv("HOME"), ".kube", "config"))
+	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	if _, statErr := os.Stat(kubeconfig); statErr != nil {
+		kubeconfig = os.Getenv("KUBECONFIG")
+	}
+	e2eEnv, err = framework.NewFromKube(kubeconfig)
 	Expect(err).ToNot(HaveOccurred())
 	// reset resource before start e2e
 	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())

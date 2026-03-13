@@ -87,6 +87,8 @@ type EndpointConfig struct {
 	VMTemplateID *string `yaml:"vm-template-id,omitempty"`
 	// create vm in the specify vds, only valid when provider is tower
 	VdsID *string `yaml:"vds-id,omitempty"`
+	// prefix for vm name, only valid when provider is tower, default "everoute-e2e-ci-"
+	VMNamePrefix *string `yaml:"vm-name-prefix,omitempty"`
 }
 
 type GlobalPolicyConfig struct {

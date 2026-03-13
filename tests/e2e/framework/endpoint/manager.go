@@ -65,7 +65,11 @@ func NewManager(pool ipam.Pool, namespace string, kubeClient client.Client, node
 		provider = netns.NewProvider(pool, namespace, nodeManager, crdClient)
 
 	case *config.Provider == "tower":
-		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID)
+		vmNamePrefix := "everoute-e2e-ci-"
+		if config.VMNamePrefix != nil {
+			vmNamePrefix = *config.VMNamePrefix
+		}
+		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID, vmNamePrefix)
 
 	case *config.Provider == "pod":
 		provider = pod.NewProvider(config.KubeConfig, kubeClient, nodeManager, namespace)
