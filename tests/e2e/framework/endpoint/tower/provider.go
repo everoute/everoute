@@ -58,11 +58,14 @@ type provider struct {
 	vdsID           string
 	mutationVdsLock sync.Mutex
 
+	// prefix for vm name
+	vmNamePrefix string
+
 	// concurrent mutation labels cause mistakes
 	mutationLabelLock sync.Mutex
 }
 
-func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID, vdsID string) model.EndpointProvider {
+func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.Client, vmTemplateID, vdsID, vmNamePrefix string) model.EndpointProvider {
 	retryClient := rthttp.NewClient()
 	retryClient.RetryMax = 10
 	retryClient.Logger = nil
@@ -79,6 +82,7 @@ func NewProvider(pool ipam.Pool, nodeManager *node.Manager, towerClient *client.
 		towerClient:  towerClient,
 		vmTemplateID: vmTemplateID,
 		vdsID:        vdsID,
+		vmNamePrefix: vmNamePrefix,
 	}
 }
 
@@ -92,7 +96,8 @@ func (m *provider) Get(ctx context.Context, name string) (*model.Endpoint, error
 		return nil, fmt.Errorf("read cluster id: %s", err)
 	}
 
-	vms, err := queryVMs(m.towerClient, &VMWhereInput{Cluster: &ClusterWhereInput{ID: &clusterID}, Name: &name})
+	vmName := m.vmNamePrefix + name
+	vms, err := queryVMs(m.towerClient, &VMWhereInput{Cluster: &ClusterWhereInput{ID: &clusterID}, Name: &vmName})
 	if err != nil {
 		return nil, fmt.Errorf("query vms: %s", err)
 	}
@@ -255,8 +260,8 @@ func (m *provider) RunScript(ctx context.Context, name string, script []byte, ar
 		return 0, nil, fmt.Errorf("failed to get client: %s", err)
 	}
 
-	// $ bash -s [arg ...] <<< 'script'
-	return execContext(ctx, client, domain, "bash", script, append([]string{"-s"}, arg...)...)
+	// $ sh -s [arg ...] <<< 'script'
+	return execContext(ctx, client, domain, "sh", script, append([]string{"-s"}, arg...)...)
 }
 
 func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg ...string) (int, []byte, error) {
@@ -284,6 +289,7 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 		return nil, err
 	}
 
+	vmName := m.vmNamePrefix + name
 	vmCreateInput := VMCreateInput{
 		ClockOffset:          m.vmTemplateCached.ClockOffset,
 		Cluster:              &ConnectInput{Connect: &UniqueInput{ID: &m.vmTemplateCached.Cluster.ID}},
@@ -298,7 +304,7 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 		Ips:                  "",
 		LocalID:              "",
 		Memory:               m.vmTemplateCached.Memory,
-		Name:                 name,
+		Name:                 vmName,
 		NestedVirtualization: false,
 		NodeIP:               "",
 		Protected:            false,
@@ -322,7 +328,7 @@ func (m *provider) newFromTemplate(name string, agent string, vlanID int, descri
 			Index: &index,
 			VMVolume: &VMVolumeCreateOneWithoutVMDisksInput{&VMVolumeCreateWithoutVMDisksInput{
 				Cluster:          &ConnectInput{&UniqueInput{ID: &m.vmTemplateCached.Cluster.ID}},
-				ElfStoragePolicy: VMVolumeElfStoragePolicyTypeReplica2ThinProvision,
+				ElfStoragePolicy: VMVolumeElfStoragePolicyTypeReplica3ThinProvision,
 				LocalCreatedAt:   "",
 				LocalID:          "",
 				Mounting:         true,
@@ -490,10 +496,8 @@ func (m *provider) completeRandomStatus(endpoint *model.Endpoint) error {
 // setup VM ip address and tcp/udp ports
 func (m *provider) setupIPAddrPorts(ctx context.Context, endpoint *model.Endpoint) error {
 	updateIPPort := `
-		set -o errexit
-		set -o pipefail
-		set -o nounset
-		set -o xtrace
+		set -e
+		set -x
 
 		ipAddr=${1}
 		udpPort=${2}
@@ -504,23 +508,23 @@ func (m *provider) setupIPAddrPorts(ctx context.Context, endpoint *model.Endpoin
 		ip link set ${vethName} up
 
 		realIP=$(ip addr show ${vethName} | grep -Eo '([0-9]*\.){3}[0-9]*/[0-9]*' || true)
-		if [[ "${realIP}" != "${ipAddr}" ]]; then
+		if [ "${realIP}" != "${ipAddr}" ]; then
 			ip addr flush ${vethName}
 			ip addr add dev ${vethName} ${ipAddr}
 		fi
 
-		realCommand=$(ps -o cmd= -p "$(pidof net-utils)" || true)
+		realCommand=$(ps -o cmd= -p "$(pidof net-utils)" 2>/dev/null || true)
 
 		expectCommand="net-utils server -d -s"
-		if [[ ${tcpPort} != 0 ]]; then
+		if [ "${tcpPort}" != "0" ]; then
 			expectCommand="${expectCommand} --tcp-ports ${tcpPort}"
 		fi
-		if [[ ${udpPort} != 0 ]]; then
+		if [ "${udpPort}" != "0" ]; then
 			expectCommand="${expectCommand} --udp-ports ${udpPort}"
 		fi
 
-		if [[ "${realCommand}" != "${expectCommand}" ]]; then
-		  kill -9 "$(pidof net-utils)" || true
+		if [ "${realCommand}" != "${expectCommand}" ]; then
+		  kill -9 "$(pidof net-utils)" 2>/dev/null || true
 		  eval ${expectCommand}
 		fi
 	`
