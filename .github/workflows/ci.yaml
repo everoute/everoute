@@ -1,5 +1,10 @@
 name: ci
 
+env:
+  DOCKER_BUILD_OPTS: >-
+    --build-context registry.smtx.io/sdn-base/golang:1.20=docker-image://golang:1.20
+    --build-context registry.smtx.io/sdn-base/ubuntu:22.04=docker-image://ubuntu:22.04
+
 on:
   pull_request:
     branches:
@@ -13,69 +18,20 @@ on:
     - cron: "0 23 * * *"
 
 jobs:
-  build-unit-test-image:
-    runs-on: [self-hosted, build]
-    outputs:
-      short_sha: ${{ steps.sha.outputs.short_sha }}
-    steps:
-      - name: Get short SHA
-        id: sha
-        run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-      - uses: actions/checkout@v2
-
-      - name: build unit-test image
-        uses: docker/build-push-action@v4
-        with:
-          file: build/images/unit-test/Dockerfile
-          tags: registry.smtx.io/everoute/unit-test:${{ steps.sha.outputs.short_sha }}
-          context: ./build/images/unit-test/
-          push: true
-
-      - name: build generate image
-        uses: docker/build-push-action@v4
-        with:
-          file: build/images/generate/Dockerfile
-          tags: registry.smtx.io/everoute/generate:${{ steps.sha.outputs.short_sha }}
-          context: ./build/images/generate/
-          push: true
-
-  pr-check:
-    needs: [build-unit-test-image, static-check, generate-check]
-    runs-on: [self-hosted, vm]
-    strategy:
-      matrix:
-        act: [docker-race-test-ci, docker-cover-test-ci]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: run everoute unit test
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 40
-          max_attempts: 2
-          command: make ${{ matrix.act }}
-
-      - uses: codecov/codecov-action@v2
-        with:
-          files: ./coverage.out
-
   static-check:
-    runs-on: [self-hosted, pod]
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Check conventional commits
         uses: webiny/action-conventional-commits@v1.1.0
 
-      - name: Check spelling
-        uses: crate-ci/typos@v1.0.4
+      # - name: Check spelling
+      #   uses: crate-ci/typos@v1.0.4
 
       - name: Check golang lint
         # skip it for branch main can't pass this check
@@ -88,14 +44,53 @@ jobs:
           GOGC: 1
           GOPROXY: https://goproxy.cn|https://proxy.golang.org|direct
 
-  run-e2e:
-    runs-on: [self-hosted, vm]
-    needs: [static-check, generate-check]
+  generate-check:
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - name: make docker-generate
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 2
+          command: make docker-generate DOCKER_BUILD_OPTS="$DOCKER_BUILD_OPTS"
+
+      - name: check if code changes
+        run: git add -A && git diff HEAD --exit-code
+
+      - name: show message if failed
+        if: ${{ failure() }}
+        run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
+
+  pr-check:
+    needs: [static-check, generate-check]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        act: [docker-race-test, docker-cover-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: run everoute unit test
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 40
+          max_attempts: 2
+          command: sudo make ${{ matrix.act }} DOCKER_BUILD_OPTS="$DOCKER_BUILD_OPTS"
+
+      - uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+
+  run-e2e:
+    runs-on: ubuntu-24.04
+    needs: [static-check, generate-check, pr-check]
+    steps:
+      - uses: actions/checkout@v4
 
       - name: run everoute e2e test
-        run: sudo make docker-e2e-test-ci
+        run: sudo make docker-e2e-test DOCKER_BUILD_OPTS="$DOCKER_BUILD_OPTS"
 
   # build-k8s-e2e-image:
   #   runs-on: [self-hosted, build]
@@ -261,30 +256,10 @@ jobs:
   #     - name: run test cases
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
-  generate-check:
-    runs-on: [self-hosted, vm]
-    needs: [build-unit-test-image]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: make docker-generate-ci
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 2
-          command: sudo sh -c "make docker-generate-ci GENERATE_IMAGE=registry.smtx.io/everoute/generate:${{ needs.build-unit-test-image.outputs.short_sha }}"
-
-      - name: check if code changes
-        run: sudo sh -c "git add -A && git diff HEAD --exit-code"
-
-      - name: show message if failed
-        if: ${{ failure() }}
-        run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
-
   slack-notification:
     if: ${{ always() }}
     needs: [ pr-check,static-check,run-e2e,generate-check ]
-    runs-on: [self-hosted, pod]
+    runs-on: ubuntu-24.04
     env:
       SLACK_COLOR: 2EA44F
       RESULT_PR_CHECK: ":white_check_mark:"

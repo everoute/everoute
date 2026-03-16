@@ -4,7 +4,7 @@ on: [pull_request_target]
 
 jobs:
   labeler:
-    runs-on: [self-hosted, pod]
+    runs-on: ubuntu-24.04
     name: Label the PR size
     permissions:
       issues: write
