@@ -168,7 +168,7 @@ func qemuAgentExecute(client *ssh.Client, domain string, timeout time.Duration, 
 	}
 	defer session.Close()
 
-	command := fmt.Sprintf("virsh qemu-agent-command --domain %s %s", shellescape.Quote(domain), shellescape.Quote(string(data)))
+	command := fmt.Sprintf("sudo virsh qemu-agent-command --domain %s %s", shellescape.Quote(domain), shellescape.Quote(string(data)))
 	if timeout != 0 {
 		command += fmt.Sprintf(" --timeout %d", timeout/time.Second)
 	}
