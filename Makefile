@@ -13,10 +13,10 @@ image:
 	docker buildx build -f build/images/release/Dockerfile -t everoute/release . --load
 
 image-generate:
-	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/ --load
+	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/ --load $(DOCKER_BUILD_OPTS)
 
 image-test:
-	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
+	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load $(DOCKER_BUILD_OPTS)
 
 image-net-utils:
 	docker buildx build -f build/images/net-utils/Dockerfile --platform linux/amd64,linux/arm64 -t registry.smtx.io/everoute/net-utils . --push
