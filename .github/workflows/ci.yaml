@@ -260,20 +260,19 @@ jobs:
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
-    runs-on: [self-hosted, vm]
-    needs: [build-unit-test-image]
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: make docker-generate-ci
+      - name: make docker-generate
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 10
           max_attempts: 2
-          command: sudo sh -c "make docker-generate-ci"
+          command: make docker-generate DOCKER_BUILD_OPTS="$DOCKER_BUILD_OPTS"
 
       - name: check if code changes
-        run: sudo sh -c "git add -A && git diff HEAD --exit-code"
+        run: git add -A && git diff HEAD --exit-code
 
       - name: show message if failed
         if: ${{ failure() }}
