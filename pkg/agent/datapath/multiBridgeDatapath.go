@@ -1081,6 +1081,11 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		}
 	}
 
+	// er-1646
+	if err := resetPortMcastSnoopingFloodReports(ovsbrName); err != nil {
+		klog.Fatalf("Failed to reset patch port mcast-snooping-flood-reports config for vds %s, err: %v", vdsID, err)
+	}
+
 	// check no-forward configuration
 	go func(vdsID string) {
 		cmdStr := fmt.Sprintf("ovs-ofctl show %s | grep -B 1 NO_FWD | grep addr | awk -F '[()]' '{print $1\" \"$2}'",
@@ -2211,6 +2216,23 @@ func SetPortNoFlood(bridge string, ofport int) error {
 		return fmt.Errorf("fail to set no-flood config for port %d on bridge %s: %v, stderr: %s", ofport, bridge, err,
 			stderr.String())
 	}
+	return nil
+}
+
+func resetPortMcastSnoopingFloodReports(ovsbrName string) error {
+	patchPorts := []string{
+		fmt.Sprintf("%s-%s", ovsbrName, LocalToPolicySuffix),
+		fmt.Sprintf("%s-uplink-%s", ovsbrName, UplinkToClsSuffix),
+	}
+
+	for _, patchPort := range patchPorts {
+		if _, err := ExecteCommandWithOutput(
+			fmt.Sprintf("ovs-vsctl --if-exists set port %s other_config:mcast-snooping-flood-reports=false", patchPort)); err != nil {
+			return fmt.Errorf("fail to reset mcast-snooping-flood-reports config for patch port %s, err: %w", patchPort, err)
+		}
+		klog.Infof("Successfully reset patch port %s mcast-snooping-flood-reports=false", patchPort)
+	}
+
 	return nil
 }
 
