@@ -811,7 +811,7 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 	// non-determined.
 	// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
 	go func(vdsID string) {
-		time.Sleep(time.Second * 15)
+		time.Sleep(time.Second * 90)
 
 		for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
 			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
