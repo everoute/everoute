@@ -117,7 +117,7 @@ func listAndWatchWithTimeout(stopCh <-chan struct{},
 	rand.Seed(time.Now().UnixNano())
 	reconnect := minTimeout
 	if maxTimeout > minTimeout {
-		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec,G404
+		reconnect += time.Duration(rand.Int63n(int64(maxTimeout - minTimeout))) //nolint:gosec
 	}
 	pctx := wait.ContextForChannel(stopCh)
 

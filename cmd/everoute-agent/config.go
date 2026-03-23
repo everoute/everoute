@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
@@ -48,6 +49,7 @@ type Options struct {
 	namespace                string
 	disableProbeTimeoutIP    bool
 	readyToProcessGlobalRule bool
+	flowRoundCleanDelay      time.Duration
 
 	svcTCPSet ipset.IPSet
 	svcUDPSet ipset.IPSet
@@ -184,9 +186,10 @@ func (o *Options) getDatapathConfig() *datapath.DpManagerConfig {
 	agentConfig := o.Config
 
 	dpConfig := &datapath.DpManagerConfig{
-		InternalIPs:      agentConfig.InternalIPs,
-		EnableIPLearning: true,
-		EnableCNI:        agentConfig.EnableCNI,
+		InternalIPs:         agentConfig.InternalIPs,
+		EnableIPLearning:    true,
+		EnableCNI:           agentConfig.EnableCNI,
+		FlowRoundCleanDelay: o.flowRoundCleanDelay,
 	}
 
 	managedVDSMap := make(map[string]string)

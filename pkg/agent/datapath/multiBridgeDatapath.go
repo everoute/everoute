@@ -117,6 +117,7 @@ const (
 	ovsVswitchdUnixDomainSockPath   string = "/var/run/openvswitch"
 	ovsVswitchdUnixDomainSockSuffix string = "mgmt"
 	ovsdbDomainSock                        = "/var/run/openvswitch/db.sock"
+	defaultFlowRoundCleanDelay             = 90 * time.Second
 
 	openflowProtorolVersion10 string = "OpenFlow10"
 	openflowProtorolVersion11 string = "OpenFlow11"
@@ -279,11 +280,12 @@ type DpManagerInfo struct {
 }
 
 type DpManagerConfig struct {
-	ManagedVDSMap    map[string]string   // map vds to ovsbr-name
-	InternalIPs      []string            // internal IPs
-	EnableIPLearning bool                // enable ip learning
-	EnableCNI        bool                // enable CNI in Everoute
-	CNIConfig        *DpManagerCNIConfig // config related CNI
+	ManagedVDSMap       map[string]string   // map vds to ovsbr-name
+	InternalIPs         []string            // internal IPs
+	EnableIPLearning    bool                // enable ip learning
+	EnableCNI           bool                // enable CNI in Everoute
+	CNIConfig           *DpManagerCNIConfig // config related CNI
+	FlowRoundCleanDelay time.Duration       // delay before cleaning previous-round flows
 }
 
 type DpManagerCNIConfig struct {
@@ -410,6 +412,9 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 		FlowIDIndex:     flowIDIndexFunc,
 		PolicyRuleIndex: policyRuleIndexFunc})
 	datapathManager.Config = datapathConfig
+	if datapathManager.Config.FlowRoundCleanDelay <= 0 {
+		datapathManager.Config.FlowRoundCleanDelay = defaultFlowRoundCleanDelay
+	}
 	datapathManager.localEndpointDB = cmap.New()
 	datapathManager.Info = new(DpManagerInfo)
 	datapathManager.flowReplayMutex = lock.NewCASMutex()
@@ -804,24 +809,32 @@ func InitializeVDS(datapathManager *DpManager, vdsID string, ovsbrName string, s
 			log.Fatalf("Failed to set %s port with no flood port mode, %v", portSuffix, err)
 		}
 	}
+	go DeletePreviousRoundFlow(datapathManager, vdsID, roundInfo)
+}
 
-	// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
-	// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
-	// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
-	// non-determined.
-	// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
-	go func(vdsID string) {
-		time.Sleep(time.Second * 90)
+// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
+// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
+// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
+// non-determined.
+// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
+func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo *RoundInfo) {
+	time.Sleep(datapathManager.Config.FlowRoundCleanDelay)
 
-		for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
-			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-		}
+	klog.Infof(
+		"Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. vdsID: %s, previousRoundNum: %d, curRoundNum: %d",
+		vdsID,
+		roundInfo.previousRoundNum,
+		roundInfo.curRoundNum,
+	)
 
-		err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-		if err != nil {
-			log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
-		}
-	}(vdsID)
+	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
+		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+	}
+
+	err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+	if err != nil {
+		log.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
+	}
 }
 
 func (datapathManager *DpManager) replayVDSFlow(vdsID, bridgeName, bridgeKeyword string) error {

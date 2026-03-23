@@ -83,6 +83,8 @@ func main() {
 	flag.StringVar(&opts.metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
 	flag.BoolVar(&opts.disableProbeTimeoutIP, "disable-probe-timeout-ip", false, "Disable probe timeout ip with arp.")
 	flag.BoolVar(&opts.readyToProcessGlobalRule, "ready-to-process-global-rule", false, "Is ready to process global rule when agent start.")
+	flag.DurationVar(&opts.flowRoundCleanDelay, "flow-round-clean-delay", 90*time.Second,
+		"Delay before cleaning previous round flows and persisting current round.")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
