@@ -1,5 +1,6 @@
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
+GENERATE_IMAGE ?= registry.smtx.io/everoute/generate:latest
 
 bin: controller agent cni erctl
 
@@ -35,7 +36,7 @@ docker-generate: image-generate
 
 docker-generate-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) registry.smtx.io/everoute/generate make generate
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) $(GENERATE_IMAGE) make generate
 
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/*.go
