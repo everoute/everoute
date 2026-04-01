@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,6 +57,8 @@ type Reconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
 	IPMigrateCount *metrics.IPMigrateCount
+
+	ifaceCacheReady atomic.Bool
 
 	ifaceCacheLock sync.RWMutex
 	ifaceCache     cache.Indexer
@@ -102,10 +105,11 @@ func (s *shareIP) complete() error {
 }
 
 const (
-	externalIDIndex              = "externalIDIndex"
-	ipAddrIndex                  = "ipaddrIndex"
-	agentIndex                   = "agentIndex"
-	IfaceIPAddrCleanInterval int = 5
+	externalIDIndex                 = "externalIDIndex"
+	ipAddrIndex                     = "ipaddrIndex"
+	agentIndex                      = "agentIndex"
+	IfaceIPAddrCleanInterval    int = 5
+	ifaceCacheInitRetryInterval     = 1 * time.Second
 )
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
@@ -121,6 +125,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if endpoint.Spec.Type != securityv1alpha1.EndpointStatic {
+		if err = r.ensureIfaceCacheReady(ctx); err != nil {
+			klog.Errorf("failed to initialize iface cache: %s", err.Error())
+			return ctrl.Result{RequeueAfter: ifaceCacheInitRetryInterval}, nil
+		}
 	}
 
 	var expectStatus *securityv1alpha1.EndpointStatus
@@ -219,14 +230,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if r.ifaceCache == nil {
-		r.ifaceCache = cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
-			agentIndex:      agentIndexFunc,
-			externalIDIndex: externalIDIndexFunc,
-			ipAddrIndex:     ipAddrIndexFunc,
-		})
-	}
-
 	err = c.Watch(source.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
 		CreateFunc: r.addAgentInfo,
 		UpdateFunc: r.updateAgentInfo,
@@ -292,18 +295,94 @@ func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q work
 		klog.Errorf("AddAgentInfo received with unavailable object event: %v", e)
 		return
 	}
+	if !r.ifaceCacheReady.Load() {
+		return
+	}
 
 	var epList = securityv1alpha1.EndpointList{}
 	_ = r.List(context.Background(), &epList)
 
 	r.ifaceCacheLock.Lock()
 	defer r.ifaceCacheLock.Unlock()
+	if r.ifaceCache == nil {
+		klog.Errorf("iface cache is nil while handling addAgentInfo")
+		return
+	}
 
+	r.cacheAgentInfoLocked(agentInfo)
+
+	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
+}
+
+func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
+	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
+	if !r.ifaceCacheReady.Load() {
+		return
+	}
+
+	var epList securityv1alpha1.EndpointList
+	_ = r.List(context.Background(), &epList)
+
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+	if r.ifaceCache == nil {
+		klog.Errorf("iface cache is nil while handling updateAgentInfo")
+		return
+	}
+
+	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
+	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, oldAgentInfo.GetName())
+	for _, iface := range ifaces {
+		_ = r.ifaceCache.Delete(iface)
+	}
+	r.cacheAgentInfoLocked(newAgentInfo)
+	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
+	r.updateCachedAgentInfo(newAgentInfo, q)
+}
+
+func (r *Reconciler) ensureIfaceCacheReady(ctx context.Context) error {
+	// Fast path: avoid lock contention on every reconcile after cache is ready.
+	// The second check under lock prevents duplicate initialization in races.
+	if r.ifaceCacheReady.Load() {
+		if r.ifaceCache == nil {
+			klog.Fatalf("iface cache is nil while ifaceCacheReady is true")
+		}
+		return nil
+	}
+
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+	if r.ifaceCacheReady.Load() {
+		if r.ifaceCache == nil {
+			klog.Fatalf("iface cache is nil while ifaceCacheReady is true")
+		}
+		return nil
+	}
+
+	var agentInfoList agentv1alpha1.AgentInfoList
+	if err := r.Client.List(ctx, &agentInfoList); err != nil {
+		return err
+	}
+
+	r.ifaceCache = cache.NewIndexer(ifaceKeyFunc, cache.Indexers{
+		agentIndex:      agentIndexFunc,
+		externalIDIndex: externalIDIndexFunc,
+		ipAddrIndex:     ipAddrIndexFunc,
+	})
+	for i := range agentInfoList.Items {
+		r.cacheAgentInfoLocked(&agentInfoList.Items[i])
+	}
+	r.ifaceCacheReady.Store(true)
+
+	return nil
+}
+
+func (r *Reconciler) cacheAgentInfoLocked(agentInfo *agentv1alpha1.AgentInfo) {
+	t := getAgentLastHeartbeatTime(agentInfo)
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
-				t := metav1.Time{}
-				agentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
 				iface := &iface{
 					agentName:   agentInfo.Name,
 					name:        ovsIface.Name,
@@ -316,44 +395,15 @@ func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q work
 			}
 		}
 	}
-
-	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
-func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
-	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
-
-	var epList securityv1alpha1.EndpointList
-	_ = r.List(context.Background(), &epList)
-
-	r.ifaceCacheLock.Lock()
-	defer r.ifaceCacheLock.Unlock()
-
-	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
-	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, oldAgentInfo.GetName())
-	for _, iface := range ifaces {
-		_ = r.ifaceCache.Delete(iface)
+func getAgentLastHeartbeatTime(agentInfo *agentv1alpha1.AgentInfo) metav1.Time {
+	t := metav1.Time{}
+	if len(agentInfo.Conditions) == 0 {
+		return t
 	}
-	for _, bridge := range newAgentInfo.OVSInfo.Bridges {
-		for _, port := range bridge.Ports {
-			for _, ovsIface := range port.Interfaces {
-				t := metav1.Time{}
-				newAgentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
-				iface := &iface{
-					agentName:   newAgentInfo.Name,
-					name:        ovsIface.Name,
-					agentTime:   t,
-					externalIDs: ovsIface.ExternalIDs,
-					mac:         ovsIface.Mac,
-					ipMap:       toIPTimeMap(ovsIface.IPMap),
-				}
-				_ = r.ifaceCache.Add(iface)
-			}
-		}
-	}
-	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
-	r.updateCachedAgentInfo(newAgentInfo, q)
+	agentInfo.Conditions[0].LastHeartbeatTime.DeepCopyInto(&t)
+	return t
 }
 
 func (r *Reconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
@@ -371,12 +421,19 @@ func (r *Reconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q w
 		klog.Errorf("DeleteAgentInfo received with unavailable object event: %v", e)
 		return
 	}
+	if !r.ifaceCacheReady.Load() {
+		return
+	}
 
 	var epList securityv1alpha1.EndpointList
 	_ = r.List(context.Background(), &epList)
 
 	r.ifaceCacheLock.Lock()
 	defer r.ifaceCacheLock.Unlock()
+	if r.ifaceCache == nil {
+		klog.Errorf("iface cache is nil while handling deleteAgentInfo")
+		return
+	}
 
 	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 	ifaces, _ := r.ifaceCache.ByIndex(agentIndex, agentInfo.GetName())
@@ -519,7 +576,16 @@ func (r *Reconciler) agentInfoCleaner(ipAddrTimeout time.Duration, stopChan <-ch
 }
 
 func (r *Reconciler) cleanExpiredIPFromAgentInfo(ipAddrTimeout time.Duration) {
+	if !r.ifaceCacheReady.Load() {
+		return
+	}
+
 	r.ifaceCacheLock.RLock()
+	if r.ifaceCache == nil {
+		klog.Errorf("iface cache is nil while cleaning expired interface ip")
+		r.ifaceCacheLock.RUnlock()
+		return
+	}
 
 	expiredIPMap := make(map[string][]string)
 	ifaces := r.ifaceCache.List()

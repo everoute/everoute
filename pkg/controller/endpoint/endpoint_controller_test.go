@@ -438,10 +438,59 @@ func getFakeAgentInfo(c client.Client, name string) agentv1alpha1.AgentInfo {
 }
 
 func TestEndpointController(t *testing.T) {
+	testLazyInitIfaceCacheInReconcile(t)
+	testCleanExpiredIPWithUnreadyIfaceCache(t)
 	testProcessAgentinfo(t)
 	testInterfaceIPUpdate(t)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "endpoint controller")
+}
+
+func testLazyInitIfaceCacheInReconcile(t *testing.T) {
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA)
+	ctx := context.Background()
+
+	t.Run("lazy-init-iface-cache-in-reconcile", func(t *testing.T) {
+		r.addEndpoint(ctx, event.CreateEvent{
+			Object: fakeEndpointA,
+		}, queue)
+
+		if err := processQueue(r, queue); err != nil {
+			t.Errorf("failed to process endpoint request: %v", err)
+		}
+
+		if !r.ifaceCacheReady.Load() {
+			t.Errorf("expect iface cache should be ready after endpoint reconcile")
+		}
+
+		endpointStatus := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
+		expectedStatus := *ovsPortStatusA.DeepCopy()
+		expectedStatus.IPs = append(expectedStatus.IPs, fakeEndpointA.Spec.ExpectIPs...)
+		if !EqualEndpointStatus(expectedStatus, endpointStatus) {
+			t.Errorf("unmatch endpoint status, get %v, want %v", endpointStatus, expectedStatus)
+		}
+		ifaces := r.ifaceCache.ListKeys()
+		if len(ifaces) != 3 {
+			t.Errorf("expect cache should have three iface after lazy init")
+		}
+	})
+}
+
+func testCleanExpiredIPWithUnreadyIfaceCache(t *testing.T) {
+	r := newFakeReconciler()
+	r.ifaceCache = nil
+	r.ifaceCacheReady.Store(false)
+
+	t.Run("clean-expired-ip-with-unready-iface-cache", func(t *testing.T) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				t.Fatalf("cleanExpiredIPFromAgentInfo should not panic when iface cache is not ready: %v", rec)
+			}
+		}()
+
+		r.cleanExpiredIPFromAgentInfo(constants.IfaceIPTimeoutDuration)
+	})
 }
 
 func testProcessAgentinfo(t *testing.T) {
