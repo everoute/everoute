@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,6 +48,9 @@ var (
 	ctx, cancel        = context.WithCancel(ctrl.SetupSignalHandler())
 
 	ipsetCtrl IPSetCtrl
+
+	nodePortLock sync.Mutex
+	nextNodePort int32 = 30000
 )
 
 func TestProxyController(t *testing.T) {
@@ -220,7 +225,40 @@ func genPortNumber() int32 {
 }
 
 func genNodePortNumber() int32 {
-	return rand.Int31n(2767) + 30000
+	nodePortLock.Lock()
+	defer nodePortLock.Unlock()
+
+	usedPorts := sets.New[int32]()
+	svcList := &corev1.ServiceList{}
+	if k8sClient != nil && k8sClient.List(ctx, svcList) == nil {
+		for i := range svcList.Items {
+			for j := range svcList.Items[i].Spec.Ports {
+				nodePort := svcList.Items[i].Spec.Ports[j].NodePort
+				if nodePort != 0 {
+					usedPorts.Insert(nodePort)
+				}
+			}
+		}
+	}
+
+	const (
+		minNodePort = int32(30000)
+		maxNodePort = int32(32767)
+	)
+
+	for i := minNodePort; i <= maxNodePort; i++ {
+		cur := nextNodePort
+		nextNodePort++
+		if nextNodePort > maxNodePort {
+			nextNodePort = minNodePort
+		}
+		if !usedPorts.Has(cur) {
+			return cur
+		}
+	}
+
+	// Fallback to old behavior if the whole range is exhausted.
+	return rand.Int31n(maxNodePort-minNodePort+1) + minNodePort
 }
 
 func genPortProto() corev1.Protocol {
