@@ -272,11 +272,10 @@ func UpdateConntrackFlows(
 	// dump conntrack flows and update conntrack labels
 	/*
 		update goroutine: wait for receive conntrack flows or end signal and update conntrack labels
-		dump goroutine: dump conntrack flows and send end signal to update goroutine
-		main goroutine: received an end signal and close conntrackFlowChan
+		dump goroutine: dump conntrack flows and close conntrackFlowChan
+		main goroutine: receive from conntrackFlowChan until channel is closed
 	*/
 	conntrackFlowChan := make(chan *netlink.ConntrackFlow, 10000)
-	defer close(conntrackFlowChan)
 	go func() { // dump goroutine
 		defer close(conntrackFlowChan)
 		err := netlink.ConntrackTableListStream(netlink.ConntrackTable, netlink.InetFamily(family), conntrackFlowChan, conntrackFlowAllocator)
