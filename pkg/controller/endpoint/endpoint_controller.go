@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -59,6 +60,8 @@ type Reconciler struct {
 
 	ifaceCacheLock sync.RWMutex
 	ifaceCache     cache.Indexer
+	ifaceInitDone  atomic.Bool
+	processedNames sets.Set[string]
 
 	shareIPCacheLock sync.RWMutex
 	shareIPCache     map[string]shareIP
@@ -106,6 +109,7 @@ const (
 	ipAddrIndex                  = "ipaddrIndex"
 	agentIndex                   = "agentIndex"
 	IfaceIPAddrCleanInterval int = 5
+	ifaceInitRetryInterval       = 1 * time.Second
 )
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
@@ -113,6 +117,17 @@ const (
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var err error
 	klog.V(4).Infof("Reconciler received endpoint %s reconcile", req.NamespacedName)
+	if !r.ifaceInitDone.Load() {
+		ready, err := r.checkIfaceInitDone(ctx)
+		if err != nil {
+			klog.Errorf("unable to check iface cache init status: %s", err.Error())
+			return ctrl.Result{}, err
+		}
+		if !ready {
+			klog.V(4).Infof("endpoint %s reconcile waiting for iface cache initialization to complete", req.NamespacedName)
+			return ctrl.Result{RequeueAfter: ifaceInitRetryInterval}, nil
+		}
+	}
 
 	endpoint := securityv1alpha1.Endpoint{}
 	if err := r.Get(ctx, req.NamespacedName, &endpoint); err != nil {
@@ -316,7 +331,7 @@ func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q work
 			}
 		}
 	}
-
+	r.markAgentProcessedLocked(agentInfo.Name)
 	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
@@ -352,6 +367,7 @@ func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q w
 			}
 		}
 	}
+	r.markAgentProcessedLocked(newAgentInfo.Name)
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
 	r.updateCachedAgentInfo(newAgentInfo, q)
 }
@@ -383,6 +399,48 @@ func (r *Reconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q w
 	for _, iface := range ifaces {
 		_ = r.ifaceCache.Delete(iface)
 	}
+}
+
+func (r *Reconciler) checkIfaceInitDone(ctx context.Context) (bool, error) {
+	var agentInfoList agentv1alpha1.AgentInfoList
+	if err := r.Client.List(ctx, &agentInfoList); err != nil {
+		return false, err
+	}
+	expectedNames := sets.New[string]()
+	for i := range agentInfoList.Items {
+		expectedNames.Insert(agentInfoList.Items[i].Name)
+	}
+
+	r.ifaceCacheLock.Lock()
+	defer r.ifaceCacheLock.Unlock()
+	if r.ifaceInitDone.Load() {
+		return true, nil
+	}
+	if r.processedNames == nil {
+		r.processedNames = sets.New[string]()
+	}
+	if expectedNames.Len() == 0 || r.processedNames.IsSuperset(expectedNames) {
+		r.ifaceInitDone.Store(true)
+		klog.Infof("endpoint controller iface cache initialization completed, agent info list: %v", r.processedNames.UnsortedList())
+		r.processedNames = nil
+		return true, nil
+	}
+	return false, nil
+}
+
+func (r *Reconciler) markAgentProcessedLocked(agentName string) {
+	if r.ifaceInitDone.Load() {
+		return
+	}
+	if r.processedNames == nil {
+		r.processedNames = sets.New[string]()
+	}
+	isNew := !r.processedNames.Has(agentName)
+	r.processedNames.Insert(agentName)
+	klog.Infof(
+		"endpoint controller init processed agentinfo: current=%s, isNew=%t, allProcessed=%v",
+		agentName, isNew, r.processedNames.UnsortedList(),
+	)
 }
 
 func (r *Reconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.AgentInfo, _ workqueue.RateLimitingInterface) {
