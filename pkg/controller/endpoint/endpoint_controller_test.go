@@ -438,10 +438,93 @@ func getFakeAgentInfo(c client.Client, name string) agentv1alpha1.AgentInfo {
 }
 
 func TestEndpointController(t *testing.T) {
+	testCheckIfaceInitDone(t)
+	testReconcileWaitForIfaceInitDone(t)
+	testMarkAgentProcessedFromHandlers(t)
 	testProcessAgentinfo(t)
 	testInterfaceIPUpdate(t)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "endpoint controller")
+}
+
+func testCheckIfaceInitDone(t *testing.T) {
+	t.Run("check-iface-init-done", func(t *testing.T) {
+		r := newFakeReconciler(fakeAgentInfoA)
+		ready, err := r.checkIfaceInitDone(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ready {
+			t.Fatalf("expected not ready before processing initial agentinfo")
+		}
+		if r.ifaceInitDone.Load() {
+			t.Fatalf("ifaceInitDone should be false before initial agentinfo is processed")
+		}
+
+		r.ifaceCacheLock.Lock()
+		r.processedNames = sets.New[string](fakeAgentInfoA.Name)
+		r.ifaceCacheLock.Unlock()
+
+		ready, err = r.checkIfaceInitDone(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ready {
+			t.Fatalf("expected ready after initial agentinfo is processed")
+		}
+		if !r.ifaceInitDone.Load() {
+			t.Fatalf("ifaceInitDone should be true after init check passes")
+		}
+		r.ifaceCacheLock.RLock()
+		defer r.ifaceCacheLock.RUnlock()
+		if r.processedNames != nil {
+			t.Fatalf("processedNames should be cleared after iface init is done")
+		}
+	})
+}
+
+func testReconcileWaitForIfaceInitDone(t *testing.T) {
+	t.Run("reconcile-wait-for-iface-init", func(t *testing.T) {
+		r := newFakeReconciler(fakeAgentInfoA, fakeEndpointA)
+		result, err := r.Reconcile(context.Background(), ctrl.Request{
+			NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointA.Name},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RequeueAfter != ifaceInitRetryInterval {
+			t.Fatalf("unexpected requeue duration, got %v want %v", result.RequeueAfter, ifaceInitRetryInterval)
+		}
+		if result.Requeue {
+			t.Fatalf("unexpected immediate requeue")
+		}
+	})
+}
+
+func testMarkAgentProcessedFromHandlers(t *testing.T) {
+	t.Run("mark-agent-processed-from-add-update", func(t *testing.T) {
+		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		r := newFakeReconciler(fakeAgentInfoA)
+		ctx := context.Background()
+
+		r.addAgentInfo(ctx, event.CreateEvent{Object: fakeAgentInfoA}, queue)
+		r.ifaceCacheLock.RLock()
+		if r.processedNames == nil || !r.processedNames.Has(fakeAgentInfoA.Name) {
+			r.ifaceCacheLock.RUnlock()
+			t.Fatalf("agent should be marked processed after addAgentInfo")
+		}
+		r.ifaceCacheLock.RUnlock()
+
+		r.updateAgentInfo(ctx, event.UpdateEvent{
+			ObjectOld: fakeAgentInfoA,
+			ObjectNew: fakeAgentInfoB,
+		}, queue)
+		r.ifaceCacheLock.RLock()
+		defer r.ifaceCacheLock.RUnlock()
+		if !r.processedNames.Has(fakeAgentInfoB.Name) {
+			t.Fatalf("agent should be marked processed after updateAgentInfo")
+		}
+	})
 }
 
 func testProcessAgentinfo(t *testing.T) {
