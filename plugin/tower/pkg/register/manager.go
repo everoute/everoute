@@ -134,7 +134,6 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		return err
 	}
 	err = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		crcFactory.Start(ctx.Done())
 		opts.SharedFactory.Start(ctx.Done())
 		crdFactory.Start(ctx.Done())
 		k8sFactory.Start(ctx.Done())
@@ -144,7 +143,19 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 				klog.Fatalf("Failed to start cloudPlatform k8s apiServer manager: %s", err)
 			}
 		}()
-
+		go func() {
+			synced := opts.SharedFactory.WaitForCacheSync(ctx.Done())
+			if len(synced) == 0 {
+				klog.Fatalf("no started tower informers found before starting crc watcher")
+			}
+			for informerType, ok := range synced {
+				klog.Infof("tower informer %s cache sync result before starting crc watcher: %t", informerType, ok)
+				if !ok {
+					klog.Fatalf("tower informer %s cache sync failed before starting crc watcher", informerType)
+				}
+			}
+			crcFactory.Start(ctx.Done())
+		}()
 		go endpointController.Run(opts.WorkerNumber, ctx.Done())
 		go policyController.Run(opts.WorkerNumber, ctx.Done())
 		go globalController.Run(opts.WorkerNumber, ctx.Done())
