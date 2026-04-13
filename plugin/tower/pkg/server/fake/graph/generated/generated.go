@@ -204,16 +204,16 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		EverouteClusters          func(childComplexity int) int
-		Hosts                     func(childComplexity int) int
-		IsolationPolicies         func(childComplexity int) int
-		Labels                    func(childComplexity int) int
-		NetworkPolicyRuleServices func(childComplexity int) int
-		SecurityGroups            func(childComplexity int) int
-		SecurityPolicies          func(childComplexity int) int
+		EverouteClusters          func(childComplexity int, where *model.ObjectWhereInput) int
+		Hosts                     func(childComplexity int, where *model.ObjectWhereInput) int
+		IsolationPolicies         func(childComplexity int, where *model.ObjectWhereInput) int
+		Labels                    func(childComplexity int, where *model.ObjectWhereInput) int
+		NetworkPolicyRuleServices func(childComplexity int, where *model.ObjectWhereInput) int
+		SecurityGroups            func(childComplexity int, where *model.ObjectWhereInput) int
+		SecurityPolicies          func(childComplexity int, where *model.ObjectWhereInput) int
 		SystemEndpoints           func(childComplexity int) int
 		Tasks                     func(childComplexity int, orderBy *model.TaskOrderByInput, last *int) int
-		Vms                       func(childComplexity int) int
+		Vms                       func(childComplexity int, where *model.ObjectWhereInput) int
 	}
 
 	SecurityGroup struct {
@@ -350,16 +350,16 @@ type MutationResolver interface {
 	Login(ctx context.Context, data model.LoginInput) (*model.Login, error)
 }
 type QueryResolver interface {
-	Vms(ctx context.Context) ([]schema.VM, error)
-	Labels(ctx context.Context) ([]schema.Label, error)
-	SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error)
-	IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error)
-	EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error)
-	Hosts(ctx context.Context) ([]schema.Host, error)
+	Vms(ctx context.Context, where *model.ObjectWhereInput) ([]schema.VM, error)
+	Labels(ctx context.Context, where *model.ObjectWhereInput) ([]schema.Label, error)
+	SecurityPolicies(ctx context.Context, where *model.ObjectWhereInput) ([]schema.SecurityPolicy, error)
+	IsolationPolicies(ctx context.Context, where *model.ObjectWhereInput) ([]schema.IsolationPolicy, error)
+	EverouteClusters(ctx context.Context, where *model.ObjectWhereInput) ([]schema.EverouteCluster, error)
+	Hosts(ctx context.Context, where *model.ObjectWhereInput) ([]schema.Host, error)
 	SystemEndpoints(ctx context.Context) (*schema.SystemEndpoints, error)
 	Tasks(ctx context.Context, orderBy *model.TaskOrderByInput, last *int) ([]schema.Task, error)
-	SecurityGroups(ctx context.Context) ([]schema.SecurityGroup, error)
-	NetworkPolicyRuleServices(ctx context.Context) ([]schema.NetworkPolicyRuleService, error)
+	SecurityGroups(ctx context.Context, where *model.ObjectWhereInput) ([]schema.SecurityGroup, error)
+	NetworkPolicyRuleServices(ctx context.Context, where *model.ObjectWhereInput) ([]schema.NetworkPolicyRuleService, error)
 }
 type SubscriptionResolver interface {
 	VM(ctx context.Context) (<-chan *model.VMEvent, error)
@@ -935,49 +935,84 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.EverouteClusters(childComplexity), true
+		args, err := ec.field_Query_everouteClusters_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.EverouteClusters(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.hosts":
 		if e.complexity.Query.Hosts == nil {
 			break
 		}
 
-		return e.complexity.Query.Hosts(childComplexity), true
+		args, err := ec.field_Query_hosts_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Hosts(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.isolationPolicies":
 		if e.complexity.Query.IsolationPolicies == nil {
 			break
 		}
 
-		return e.complexity.Query.IsolationPolicies(childComplexity), true
+		args, err := ec.field_Query_isolationPolicies_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IsolationPolicies(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.labels":
 		if e.complexity.Query.Labels == nil {
 			break
 		}
 
-		return e.complexity.Query.Labels(childComplexity), true
+		args, err := ec.field_Query_labels_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Labels(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.networkPolicyRuleServices":
 		if e.complexity.Query.NetworkPolicyRuleServices == nil {
 			break
 		}
 
-		return e.complexity.Query.NetworkPolicyRuleServices(childComplexity), true
+		args, err := ec.field_Query_networkPolicyRuleServices_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.NetworkPolicyRuleServices(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.securityGroups":
 		if e.complexity.Query.SecurityGroups == nil {
 			break
 		}
 
-		return e.complexity.Query.SecurityGroups(childComplexity), true
+		args, err := ec.field_Query_securityGroups_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SecurityGroups(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.securityPolicies":
 		if e.complexity.Query.SecurityPolicies == nil {
 			break
 		}
 
-		return e.complexity.Query.SecurityPolicies(childComplexity), true
+		args, err := ec.field_Query_securityPolicies_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SecurityPolicies(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "Query.systemEndpoints":
 		if e.complexity.Query.SystemEndpoints == nil {
@@ -1003,7 +1038,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Vms(childComplexity), true
+		args, err := ec.field_Query_vms_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Vms(childComplexity, args["where"].(*model.ObjectWhereInput)), true
 
 	case "SecurityGroup.everoute_cluster":
 		if e.complexity.SecurityGroup.EverouteCluster == nil {
@@ -1560,6 +1600,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{rc, e}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputLoginInput,
+		ec.unmarshalInputObjectWhereInput,
 	)
 	first := true
 
@@ -1638,17 +1679,21 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 
 var sources = []*ast.Source{
 	{Name: "../query.graphqls", Input: `# mock tower query vms and labels
+input ObjectWhereInput {
+    id: ID
+}
+
 type Query {
-    vms: [VM!]!
-    labels: [Label!]!
-    securityPolicies: [SecurityPolicy!]!
-    isolationPolicies: [IsolationPolicy!]!
-    everouteClusters: [EverouteCluster!]!
-    hosts: [Host!]!
+    vms(where: ObjectWhereInput): [VM!]!
+    labels(where: ObjectWhereInput): [Label!]!
+    securityPolicies(where: ObjectWhereInput): [SecurityPolicy!]!
+    isolationPolicies(where: ObjectWhereInput): [IsolationPolicy!]!
+    everouteClusters(where: ObjectWhereInput): [EverouteCluster!]!
+    hosts(where: ObjectWhereInput): [Host!]!
     systemEndpoints: SystemEndpoints
     tasks(orderBy: TaskOrderByInput, last: Int): [Task!]!
-    securityGroups: [SecurityGroup!]!
-    networkPolicyRuleServices: [NetworkPolicyRuleService!]!
+    securityGroups(where: ObjectWhereInput): [SecurityGroup!]!
+    networkPolicyRuleServices(where: ObjectWhereInput): [NetworkPolicyRuleService!]!
 }
 
 # mock tower subscribe vm and label
@@ -2058,6 +2103,111 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_everouteClusters_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_hosts_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_isolationPolicies_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_labels_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_networkPolicyRuleServices_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_securityGroups_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_securityPolicies_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_tasks_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -2079,6 +2229,21 @@ func (ec *executionContext) field_Query_tasks_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["last"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_vms_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.ObjectWhereInput
+	if tmp, ok := rawArgs["where"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("where"))
+		arg0, err = ec.unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["where"] = arg0
 	return args, nil
 }
 
@@ -5646,7 +5811,7 @@ func (ec *executionContext) _Query_vms(ctx context.Context, field graphql.Collec
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Vms(rctx)
+		return ec.resolvers.Query().Vms(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5689,6 +5854,17 @@ func (ec *executionContext) fieldContext_Query_vms(ctx context.Context, field gr
 			return nil, fmt.Errorf("no field named %q was found under type VM", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_vms_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -5706,7 +5882,7 @@ func (ec *executionContext) _Query_labels(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Labels(rctx)
+		return ec.resolvers.Query().Labels(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5743,6 +5919,17 @@ func (ec *executionContext) fieldContext_Query_labels(ctx context.Context, field
 			return nil, fmt.Errorf("no field named %q was found under type Label", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_labels_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -5760,7 +5947,7 @@ func (ec *executionContext) _Query_securityPolicies(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().SecurityPolicies(rctx)
+		return ec.resolvers.Query().SecurityPolicies(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5807,6 +5994,17 @@ func (ec *executionContext) fieldContext_Query_securityPolicies(ctx context.Cont
 			return nil, fmt.Errorf("no field named %q was found under type SecurityPolicy", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_securityPolicies_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -5824,7 +6022,7 @@ func (ec *executionContext) _Query_isolationPolicies(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().IsolationPolicies(rctx)
+		return ec.resolvers.Query().IsolationPolicies(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5867,6 +6065,17 @@ func (ec *executionContext) fieldContext_Query_isolationPolicies(ctx context.Con
 			return nil, fmt.Errorf("no field named %q was found under type IsolationPolicy", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_isolationPolicies_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -5884,7 +6093,7 @@ func (ec *executionContext) _Query_everouteClusters(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().EverouteClusters(rctx)
+		return ec.resolvers.Query().EverouteClusters(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5927,6 +6136,17 @@ func (ec *executionContext) fieldContext_Query_everouteClusters(ctx context.Cont
 			return nil, fmt.Errorf("no field named %q was found under type EverouteCluster", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_everouteClusters_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -5944,7 +6164,7 @@ func (ec *executionContext) _Query_hosts(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Hosts(rctx)
+		return ec.resolvers.Query().Hosts(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5978,6 +6198,17 @@ func (ec *executionContext) fieldContext_Query_hosts(ctx context.Context, field 
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Host", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_hosts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -6116,7 +6347,7 @@ func (ec *executionContext) _Query_securityGroups(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().SecurityGroups(rctx)
+		return ec.resolvers.Query().SecurityGroups(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -6161,6 +6392,17 @@ func (ec *executionContext) fieldContext_Query_securityGroups(ctx context.Contex
 			return nil, fmt.Errorf("no field named %q was found under type SecurityGroup", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_securityGroups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
 	return fc, nil
 }
 
@@ -6178,7 +6420,7 @@ func (ec *executionContext) _Query_networkPolicyRuleServices(ctx context.Context
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().NetworkPolicyRuleServices(rctx)
+		return ec.resolvers.Query().NetworkPolicyRuleServices(rctx, fc.Args["where"].(*model.ObjectWhereInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -6210,6 +6452,17 @@ func (ec *executionContext) fieldContext_Query_networkPolicyRuleServices(ctx con
 			}
 			return nil, fmt.Errorf("no field named %q was found under type NetworkPolicyRuleService", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_networkPolicyRuleServices_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -11954,6 +12207,34 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj in
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputObjectWhereInput(ctx context.Context, obj interface{}) (model.ObjectWhereInput, error) {
+	var it model.ObjectWhereInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -15814,6 +16095,22 @@ func (ec *executionContext) marshalOGroupMemberType2ᚖgithubᚗcomᚋeveroute�
 	return res
 }
 
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalID(*v)
+	return res
+}
+
 func (ec *executionContext) marshalOIDSystemEndpoint2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐIDSystemEndpointᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.IDSystemEndpoint) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -16175,6 +16472,14 @@ func (ec *executionContext) marshalOObjectReference2ᚖgithubᚗcomᚋeveroute�
 		return graphql.Null
 	}
 	return ec._ObjectReference(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOObjectWhereInput2ᚖgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋserverᚋfakeᚋgraphᚋmodelᚐObjectWhereInput(ctx context.Context, v interface{}) (*model.ObjectWhereInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputObjectWhereInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOPodLabel2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐPodLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.PodLabel) graphql.Marshaler {

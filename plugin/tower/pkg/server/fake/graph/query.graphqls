@@ -1,15 +1,19 @@
 # mock tower query vms and labels
+input ObjectWhereInput {
+    id: ID
+}
+
 type Query {
-    vms: [VM!]!
-    labels: [Label!]!
-    securityPolicies: [SecurityPolicy!]!
-    isolationPolicies: [IsolationPolicy!]!
-    everouteClusters: [EverouteCluster!]!
-    hosts: [Host!]!
+    vms(where: ObjectWhereInput): [VM!]!
+    labels(where: ObjectWhereInput): [Label!]!
+    securityPolicies(where: ObjectWhereInput): [SecurityPolicy!]!
+    isolationPolicies(where: ObjectWhereInput): [IsolationPolicy!]!
+    everouteClusters(where: ObjectWhereInput): [EverouteCluster!]!
+    hosts(where: ObjectWhereInput): [Host!]!
     systemEndpoints: SystemEndpoints
     tasks(orderBy: TaskOrderByInput, last: Int): [Task!]!
-    securityGroups: [SecurityGroup!]!
-    networkPolicyRuleServices: [NetworkPolicyRuleService!]!
+    securityGroups(where: ObjectWhereInput): [SecurityGroup!]!
+    networkPolicyRuleServices(where: ObjectWhereInput): [NetworkPolicyRuleService!]!
 }
 
 # mock tower subscribe vm and label

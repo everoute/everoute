@@ -32,61 +32,85 @@ func (r *mutationResolver) Login(ctx context.Context, data model.LoginInput) (*m
 }
 
 // Vms is the resolver for the vms field.
-func (r *queryResolver) Vms(ctx context.Context) ([]schema.VM, error) {
+func (r *queryResolver) Vms(ctx context.Context, where *model.ObjectWhereInput) ([]schema.VM, error) {
 	vmList := r.TrackerFactory().VM().List()
 	vms := make([]schema.VM, 0, len(vmList))
 	for _, vm := range vmList {
-		vms = append(vms, *vm.(*schema.VM))
+		obj := vm.(*schema.VM)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		vms = append(vms, *obj)
 	}
 	return vms, nil
 }
 
 // Labels is the resolver for the labels field.
-func (r *queryResolver) Labels(ctx context.Context) ([]schema.Label, error) {
+func (r *queryResolver) Labels(ctx context.Context, where *model.ObjectWhereInput) ([]schema.Label, error) {
 	labelList := r.TrackerFactory().Label().List()
 	labels := make([]schema.Label, 0, len(labelList))
 	for _, label := range labelList {
-		labels = append(labels, *label.(*schema.Label))
+		obj := label.(*schema.Label)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		labels = append(labels, *obj)
 	}
 	return labels, nil
 }
 
 // SecurityPolicies is the resolver for the securityPolicies field.
-func (r *queryResolver) SecurityPolicies(ctx context.Context) ([]schema.SecurityPolicy, error) {
+func (r *queryResolver) SecurityPolicies(ctx context.Context, where *model.ObjectWhereInput) ([]schema.SecurityPolicy, error) {
 	policyList := r.TrackerFactory().SecurityPolicy().List()
 	policies := make([]schema.SecurityPolicy, 0, len(policyList))
 	for _, policy := range policyList {
-		policies = append(policies, *policy.(*schema.SecurityPolicy))
+		obj := policy.(*schema.SecurityPolicy)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		policies = append(policies, *obj)
 	}
 	return policies, nil
 }
 
 // IsolationPolicies is the resolver for the isolationPolicies field.
-func (r *queryResolver) IsolationPolicies(ctx context.Context) ([]schema.IsolationPolicy, error) {
+func (r *queryResolver) IsolationPolicies(ctx context.Context, where *model.ObjectWhereInput) ([]schema.IsolationPolicy, error) {
 	policyList := r.TrackerFactory().IsolationPolicy().List()
 	policies := make([]schema.IsolationPolicy, 0, len(policyList))
 	for _, policy := range policyList {
-		policies = append(policies, *policy.(*schema.IsolationPolicy))
+		obj := policy.(*schema.IsolationPolicy)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		policies = append(policies, *obj)
 	}
 	return policies, nil
 }
 
 // EverouteClusters is the resolver for the everouteClusters field.
-func (r *queryResolver) EverouteClusters(ctx context.Context) ([]schema.EverouteCluster, error) {
+func (r *queryResolver) EverouteClusters(ctx context.Context, where *model.ObjectWhereInput) ([]schema.EverouteCluster, error) {
 	erClusterList := r.TrackerFactory().EverouteCluster().List()
 	erClusters := make([]schema.EverouteCluster, 0, len(erClusterList))
 	for _, erCluster := range erClusterList {
-		erClusters = append(erClusters, *erCluster.(*schema.EverouteCluster))
+		obj := erCluster.(*schema.EverouteCluster)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		erClusters = append(erClusters, *obj)
 	}
 	return erClusters, nil
 }
 
 // Hosts is the resolver for the hosts field.
-func (r *queryResolver) Hosts(ctx context.Context) ([]schema.Host, error) {
+func (r *queryResolver) Hosts(ctx context.Context, where *model.ObjectWhereInput) ([]schema.Host, error) {
 	hostList := r.TrackerFactory().Host().List()
 	hosts := make([]schema.Host, 0, len(hostList))
 	for _, host := range hostList {
-		hosts = append(hosts, *host.(*schema.Host))
+		obj := host.(*schema.Host)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		hosts = append(hosts, *obj)
 	}
 	return hosts, nil
 }
@@ -114,21 +138,29 @@ func (r *queryResolver) Tasks(ctx context.Context, orderBy *model.TaskOrderByInp
 }
 
 // SecurityGroups is the resolver for the securityGroups field.
-func (r *queryResolver) SecurityGroups(ctx context.Context) ([]schema.SecurityGroup, error) {
+func (r *queryResolver) SecurityGroups(ctx context.Context, where *model.ObjectWhereInput) ([]schema.SecurityGroup, error) {
 	groupList := r.TrackerFactory().SecurityGroup().List()
 	groups := make([]schema.SecurityGroup, 0, len(groupList))
 	for _, group := range groupList {
-		groups = append(groups, *group.(*schema.SecurityGroup))
+		obj := group.(*schema.SecurityGroup)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		groups = append(groups, *obj)
 	}
 	return groups, nil
 }
 
 // NetworkPolicyRuleServices is the resolver for the networkPolicyRuleServices field.
-func (r *queryResolver) NetworkPolicyRuleServices(ctx context.Context) ([]schema.NetworkPolicyRuleService, error) {
+func (r *queryResolver) NetworkPolicyRuleServices(ctx context.Context, where *model.ObjectWhereInput) ([]schema.NetworkPolicyRuleService, error) {
 	svcList := r.TrackerFactory().Service().List()
 	svcs := make([]schema.NetworkPolicyRuleService, 0, len(svcList))
 	for _, svc := range svcList {
-		svcs = append(svcs, *svc.(*schema.NetworkPolicyRuleService))
+		obj := svc.(*schema.NetworkPolicyRuleService)
+		if !matchObjectID(obj.ID, where) {
+			continue
+		}
+		svcs = append(svcs, *obj)
 	}
 	return svcs, nil
 }
