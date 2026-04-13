@@ -44,6 +44,10 @@ type LoginInput struct {
 	Username string     `json:"username"`
 }
 
+type ObjectWhereInput struct {
+	ID *string `json:"id"`
+}
+
 type SecurityGroupEvent struct {
 	Mutation       schema.MutationType     `json:"mutation"`
 	Node           *schema.SecurityGroup   `json:"node"`

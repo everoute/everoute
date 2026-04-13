@@ -22,6 +22,11 @@ type Object interface {
 	GetID() string
 }
 
+// KeySettable allows setting key information for tombstone objects.
+type KeySettable interface {
+	SetKey(string)
+}
+
 // ObjectMeta is metadata that all tower resources must have.
 type ObjectMeta struct {
 	// ID is the unique in time and space value for this object
@@ -30,6 +35,9 @@ type ObjectMeta struct {
 
 // GetID returns the object ID.
 func (obj *ObjectMeta) GetID() string { return obj.ID }
+
+// SetKey sets object key for objects using ObjectMeta as identity.
+func (obj *ObjectMeta) SetKey(id string) { obj.ID = id }
 
 // ObjectReference is the reference to other object
 type ObjectReference ObjectMeta
