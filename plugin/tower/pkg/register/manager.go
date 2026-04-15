@@ -146,12 +146,14 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 		go func() {
 			synced := opts.SharedFactory.WaitForCacheSync(ctx.Done())
 			if len(synced) == 0 {
-				klog.Fatalf("no started tower informers found before starting crc watcher")
+				klog.Warning("no started tower informers found before starting crc watcher, skip starting crc watcher")
+				return
 			}
 			for informerType, ok := range synced {
 				klog.Infof("tower informer %s cache sync result before starting crc watcher: %t", informerType, ok)
 				if !ok {
-					klog.Fatalf("tower informer %s cache sync failed before starting crc watcher", informerType)
+					klog.Warningf("tower informer %s cache sync failed before starting crc watcher, skip starting crc watcher", informerType)
+					return
 				}
 			}
 			crcFactory.Start(ctx.Done())
