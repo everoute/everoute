@@ -42,6 +42,7 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/everoute/everoute/pkg/common/initsync"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
@@ -408,6 +409,8 @@ func newFakeReconciler(initObjs ...runtime.Object) *Reconciler {
 			externalIDIndex: externalIDIndexFunc,
 			ipAddrIndex:     ipAddrIndexFunc,
 		}),
+		ifaceInit:   initsync.NewTracker(),
+		shareIPInit: initsync.NewTracker(),
 	}
 }
 
@@ -439,7 +442,9 @@ func getFakeAgentInfo(c client.Client, name string) agentv1alpha1.AgentInfo {
 
 func TestEndpointController(t *testing.T) {
 	testCheckIfaceInitDone(t)
+	testCheckShareIPInitDone(t)
 	testReconcileWaitForIfaceInitDone(t)
+	testReconcileAgentInfoWaitForShareIPInitDone(t)
 	testMarkAgentProcessedFromHandlers(t)
 	testProcessAgentinfo(t)
 	testInterfaceIPUpdate(t)
@@ -457,13 +462,11 @@ func testCheckIfaceInitDone(t *testing.T) {
 		if ready {
 			t.Fatalf("expected not ready before processing initial agentinfo")
 		}
-		if r.ifaceInitDone.Load() {
+		if r.ifaceInitTracker().IsDone() {
 			t.Fatalf("ifaceInitDone should be false before initial agentinfo is processed")
 		}
 
-		r.ifaceCacheLock.Lock()
-		r.processedNames = sets.New[string](fakeAgentInfoA.Name)
-		r.ifaceCacheLock.Unlock()
+		r.markAgentProcessed(fakeAgentInfoA.Name)
 
 		ready, err = r.checkIfaceInitDone(context.Background())
 		if err != nil {
@@ -472,13 +475,8 @@ func testCheckIfaceInitDone(t *testing.T) {
 		if !ready {
 			t.Fatalf("expected ready after initial agentinfo is processed")
 		}
-		if !r.ifaceInitDone.Load() {
+		if !r.ifaceInitTracker().IsDone() {
 			t.Fatalf("ifaceInitDone should be true after init check passes")
-		}
-		r.ifaceCacheLock.RLock()
-		defer r.ifaceCacheLock.RUnlock()
-		if r.processedNames != nil {
-			t.Fatalf("processedNames should be cleared after iface init is done")
 		}
 	})
 }
@@ -501,28 +499,95 @@ func testReconcileWaitForIfaceInitDone(t *testing.T) {
 	})
 }
 
+func testCheckShareIPInitDone(t *testing.T) {
+	t.Run("check-shareip-init-done", func(t *testing.T) {
+		shareIP := &securityv1alpha1.ShareIP{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "shareip-a",
+			},
+			Spec: securityv1alpha1.ShareIPSpec{
+				IPs:          []string{"1.1.1.0/24"},
+				InterfaceIDs: []string{"if1", "if2"},
+			},
+		}
+		r := newFakeReconciler(shareIP)
+		ready, err := r.checkShareIPInitDone(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ready {
+			t.Fatalf("expected not ready before processing initial shareIP")
+		}
+		if r.shareIPInitTracker().IsDone() {
+			t.Fatalf("shareIPInitDone should be false before initial shareIP is processed")
+		}
+
+		r.markShareIPProcessed(shareIP.Name)
+
+		ready, err = r.checkShareIPInitDone(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ready {
+			t.Fatalf("expected ready after initial shareIP is processed")
+		}
+		if !r.shareIPInitTracker().IsDone() {
+			t.Fatalf("shareIPInitDone should be true after init check passes")
+		}
+	})
+}
+
+func testReconcileAgentInfoWaitForShareIPInitDone(t *testing.T) {
+	t.Run("reconcile-agentinfo-wait-for-shareip-init", func(t *testing.T) {
+		shareIP := &securityv1alpha1.ShareIP{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "shareip-a",
+			},
+			Spec: securityv1alpha1.ShareIPSpec{
+				IPs:          []string{"1.1.1.0/24"},
+				InterfaceIDs: []string{"if1", "if2"},
+			},
+		}
+		r := newFakeReconciler(fakeAgentInfoA, shareIP)
+		result, err := r.ReconcileAgentInfo(context.Background(), ctrl.Request{
+			NamespacedName: k8stypes.NamespacedName{Name: fakeAgentInfoA.Name},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RequeueAfter != shareIPInitRetryInterval {
+			t.Fatalf("unexpected requeue duration, got %v want %v", result.RequeueAfter, shareIPInitRetryInterval)
+		}
+		if result.Requeue {
+			t.Fatalf("unexpected immediate requeue")
+		}
+	})
+}
+
 func testMarkAgentProcessedFromHandlers(t *testing.T) {
 	t.Run("mark-agent-processed-from-add-update", func(t *testing.T) {
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 		r := newFakeReconciler(fakeAgentInfoA)
 		ctx := context.Background()
 
-		r.addAgentInfo(ctx, event.CreateEvent{Object: fakeAgentInfoA}, queue)
-		r.ifaceCacheLock.RLock()
-		if r.processedNames == nil || !r.processedNames.Has(fakeAgentInfoA.Name) {
-			r.ifaceCacheLock.RUnlock()
+		r.onAgentInfoAdd(ctx, event.CreateEvent{Object: fakeAgentInfoA}, queue)
+		ready, err := r.checkIfaceInitDone(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ready {
 			t.Fatalf("agent should be marked processed after addAgentInfo")
 		}
-		r.ifaceCacheLock.RUnlock()
+		if !r.ifaceInitTracker().IsDone() {
+			t.Fatalf("iface init should be done after addAgentInfo")
+		}
 
-		r.updateAgentInfo(ctx, event.UpdateEvent{
+		r.onAgentInfoUpdate(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoA,
 			ObjectNew: fakeAgentInfoB,
 		}, queue)
-		r.ifaceCacheLock.RLock()
-		defer r.ifaceCacheLock.RUnlock()
-		if !r.processedNames.Has(fakeAgentInfoB.Name) {
-			t.Fatalf("agent should be marked processed after updateAgentInfo")
+		if !r.ifaceInitTracker().IsDone() {
+			t.Fatalf("iface init should remain done after updateAgentInfo")
 		}
 	})
 }
@@ -534,26 +599,15 @@ func testProcessAgentinfo(t *testing.T) {
 
 	t.Run("agentinfo-added", func(t *testing.T) {
 		// Fake: endpoint added and agentinfo added event when controller start.
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointA,
-		}, queue)
-
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointB,
-		}, queue)
-
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointD,
-		}, queue)
-
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointE,
-		}, queue)
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointA.Name}})
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointB.Name}})
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointD.Name}})
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointE.Name}})
 
 		_ = r.Client.Update(context.Background(), fakeEndpointD)
 		_ = r.Client.Update(context.Background(), fakeEndpointE)
 
-		r.addAgentInfo(ctx, event.CreateEvent{
+		r.onAgentInfoAdd(ctx, event.CreateEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
@@ -605,7 +659,7 @@ func testProcessAgentinfo(t *testing.T) {
 		}
 
 		// Fake: agent will update information when ovsinfo changes.
-		r.updateAgentInfo(ctx, event.UpdateEvent{
+		r.onAgentInfoUpdate(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoA,
 
 			ObjectNew: fakeAgentInfoB,
@@ -645,7 +699,7 @@ func testProcessAgentinfo(t *testing.T) {
 
 	t.Run("agentinfo-deleted", func(t *testing.T) {
 		// Fake: agent removed from cluster delete agentinfo.
-		r.deleteAgentInfo(ctx, event.DeleteEvent{
+		r.onAgentInfoDelete(ctx, event.DeleteEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
@@ -680,17 +734,13 @@ func testInterfaceIPUpdate(t *testing.T) {
 	ctx := context.Background()
 	t.Run("interface ipset update", func(t *testing.T) {
 		// agentinfo added event when controller start.
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointA,
-		}, queue)
-		r.addAgentInfo(ctx, event.CreateEvent{
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointA.Name}})
+		r.onAgentInfoAdd(ctx, event.CreateEvent{
 			Object: fakeAgentInfoA,
 		}, queue)
 
-		r.addEndpoint(ctx, event.CreateEvent{
-			Object: fakeEndpointC,
-		}, queue)
-		r.addAgentInfo(ctx, event.CreateEvent{
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointC.Name}})
+		r.onAgentInfoAdd(ctx, event.CreateEvent{
 			Object: fakeAgentInfoC,
 		}, queue)
 		// process new agentinfo create request from queue
@@ -698,13 +748,25 @@ func testInterfaceIPUpdate(t *testing.T) {
 			t.Errorf("failed to process add agentinfo request")
 		}
 
-		r.updateAgentInfo(ctx, event.UpdateEvent{
+		r.onAgentInfoUpdate(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoC,
 			ObjectNew: updatedfakeAgentInfoC,
 		}, queue)
+		agentInfoC := getFakeAgentInfo(r.Client, fakeAgentInfoC.Name)
+		agentInfoC.OVSInfo = updatedfakeAgentInfoC.OVSInfo
+		agentInfoC.Conditions = updatedfakeAgentInfoC.Conditions
+		if err := r.Client.Update(ctx, &agentInfoC); err != nil {
+			t.Fatalf("failed to update fake agentinfo: %v", err)
+		}
 		// process new agentinfo create request from queue
 		if err := processQueue(r, queue); err != nil {
 			t.Errorf("failed to process add agentinfo request")
+		}
+
+		if _, err := r.ReconcileAgentInfo(ctx, ctrl.Request{
+			NamespacedName: k8stypes.NamespacedName{Name: updatedfakeAgentInfoC.Name},
+		}); err != nil {
+			t.Fatalf("failed to process agentinfo reconcile: %v", err)
 		}
 
 		agentInfoA := getFakeAgentInfo(r.Client, fakeAgentInfoA.Name)
@@ -877,6 +939,102 @@ var _ = Describe("shareIP-unit-test", func() {
 				_, ok := r.shareIPCache[key]
 				Expect(ok).Should(BeFalse())
 			})
+		})
+	})
+
+	Context("ReconcileShareIP", func() {
+		key := "test-shareip"
+
+		newReq := func(name string) ctrl.Request {
+			return ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: name}}
+		}
+
+		It("should reconcile normal shareIP and update cache", func() {
+			obj := &securityv1alpha1.ShareIP{
+				ObjectMeta: v1.ObjectMeta{
+					Name: key,
+				},
+				Spec: securityv1alpha1.ShareIPSpec{
+					IPs:          []string{"1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"},
+					InterfaceIDs: []string{"id1", "id2", "id3"},
+				},
+			}
+			r := newFakeReconciler(obj)
+			r.shareIPCache = make(map[string]shareIP)
+
+			_, err := r.ReconcileShareIP(context.Background(), newReq(key))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			res, ok := r.shareIPCache[key]
+			Expect(ok).Should(BeTrue())
+			Expect(res.ips.UnsortedList()).Should(ConsistOf("1.1.1.0/24", "fe80::5054:ff:feea:e3fc/128"))
+			Expect(res.interfaceIDs.UnsortedList()).Should(ConsistOf("id1", "id2", "id3"))
+
+			ready, err := r.checkShareIPInitDone(context.Background())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ready).Should(BeTrue())
+		})
+
+		It("should reconcile invalid shareIP and keep cache empty", func() {
+			obj := &securityv1alpha1.ShareIP{
+				ObjectMeta: v1.ObjectMeta{
+					Name: key,
+				},
+				Spec: securityv1alpha1.ShareIPSpec{
+					IPs:          []string{"1.1.1.0/24"},
+					InterfaceIDs: []string{"id1"},
+				},
+			}
+			r := newFakeReconciler(obj)
+			r.shareIPCache = make(map[string]shareIP)
+
+			_, err := r.ReconcileShareIP(context.Background(), newReq(key))
+			Expect(err).ShouldNot(HaveOccurred())
+			_, ok := r.shareIPCache[key]
+			Expect(ok).Should(BeFalse())
+
+			ready, err := r.checkShareIPInitDone(context.Background())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ready).Should(BeTrue())
+		})
+
+		It("should reconcile notfound shareIP and delete stale cache entry", func() {
+			r := newFakeReconciler()
+			r.shareIPCache = map[string]shareIP{
+				key: {ips: sets.New[string]("10.10.10.0/24")},
+			}
+
+			_, err := r.ReconcileShareIP(context.Background(), newReq(key))
+			Expect(err).ShouldNot(HaveOccurred())
+			_, ok := r.shareIPCache[key]
+			Expect(ok).Should(BeFalse())
+		})
+
+		It("should not block when reconciling shareIP", func() {
+			obj := &securityv1alpha1.ShareIP{
+				ObjectMeta: v1.ObjectMeta{
+					Name: key,
+				},
+				Spec: securityv1alpha1.ShareIPSpec{
+					IPs:          []string{"1.1.1.0/24"},
+					InterfaceIDs: []string{"id1", "id2"},
+				},
+			}
+			r := newFakeReconciler(obj)
+			r.shareIPCache = make(map[string]shareIP)
+
+			done := make(chan error, 1)
+			go func() {
+				_, err := r.ReconcileShareIP(context.Background(), newReq(key))
+				done <- err
+			}()
+
+			select {
+			case err := <-done:
+				Expect(err).ShouldNot(HaveOccurred())
+			case <-time.After(1 * time.Second):
+				Fail("ReconcileShareIP timed out, possible lock contention or deadlock")
+			}
 		})
 	})
 
