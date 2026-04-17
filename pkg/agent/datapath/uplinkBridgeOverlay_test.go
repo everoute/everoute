@@ -116,7 +116,7 @@ func setupUplinkBridge() error {
 	if err != nil {
 		return err
 	}
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum)
+	cookieAllocator := cookie.NewAllocator(roundInfo.currentRoundNum)
 	br.getOfSwitch().CookieAllocator = cookieAllocator
 	return nil
 }
