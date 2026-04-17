@@ -71,6 +71,11 @@ const (
 	DEFAULT_FLOW_MISS_PRIORITY          = 10
 	FLOW_MATCH_OFFSET                   = 3
 	LARGE_FLOW_MATCH_OFFSET             = 100
+
+	// BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY must between DUPLICATE_DROP_FLOW_PRIORITY and CT_LOOKUP_FLOW_PRIORITY
+	// this priority in policy table 0 must be unique to avoid flow overwrite
+	// fixme: must remove when we support restart without network interruption
+	BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY = HIGH_MATCH_FLOW_PRIORITY + 50
 )
 
 //nolint:all
@@ -242,7 +247,8 @@ type Bridge interface {
 	GetIndex() (uint32, error)
 	getOfSwitch() *ofctrl.OFSwitch
 
-	SetRoundNumber(uint64)
+	SetRoundInfo(*RoundInfo)
+	GetRoundInfo() *RoundInfo
 
 	UpdateTREndpoint(*Endpoint) error
 	DeleteTREndpoint(*Endpoint) error
@@ -1068,7 +1074,7 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		} else {
 			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 		}
-		datapathManager.BridgeChainMap[vdsID][brKeyword].SetRoundNumber(roundInfo.currentRoundNum)
+		datapathManager.BridgeChainMap[vdsID][brKeyword].SetRoundInfo(roundInfo)
 
 		// bridge init
 		datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInit()
@@ -1231,7 +1237,7 @@ func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridg
 	} else {
 		cookieAllocator = cookie.NewAllocator(roundInfo.currentRoundNum, cookie.SetDefaultFlowIDRange())
 	}
-	dp.BridgeChainMap[vdsID][bridgeKeyword].SetRoundNumber(roundInfo.currentRoundNum)
+	dp.BridgeChainMap[vdsID][bridgeKeyword].SetRoundInfo(roundInfo)
 	dp.BridgeChainMap[vdsID][bridgeKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInit()
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
