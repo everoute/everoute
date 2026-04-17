@@ -199,6 +199,8 @@ type Bridge interface {
 	BridgeInit()
 	BridgeReset()
 
+	PostDeletePreviousRoundFlow(roundInfo *RoundInfo)
+
 	BridgeInitCNI()
 
 	AddLocalEndpoint(endpoint *Endpoint) error
@@ -1048,6 +1050,7 @@ func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo
 
 	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
 		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		datapathManager.BridgeChainMap[vdsID][brKeyword].PostDeletePreviousRoundFlow(roundInfo)
 	}
 
 	err := persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
