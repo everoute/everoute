@@ -30,6 +30,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/go-retryablehttp v0.7.0
+	github.com/hashicorp/go-version v1.6.0
 	github.com/j-keck/arping v1.0.2
 	github.com/kelindar/bitmap v1.5.2
 	github.com/mdlayher/ndp v1.1.0
