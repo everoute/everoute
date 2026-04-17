@@ -879,20 +879,22 @@ func testFlowReplay(t *testing.T) {
 
 func testRoundNumFlip(t *testing.T) {
 	roundInfo := RoundInfo{
-		curRoundNum:      MaxRoundNum,
-		previousRoundNum: MaxRoundNum - 1,
+		currentRoundNum:             MaxRoundNum,
+		previousRoundNum:            MaxRoundNum - 1,
+		currentRoundDatapathVersion: "test-version",
 	}
 
 	t.Run("persistentRoundInfo into local bridge", func(t *testing.T) {
 		Eventually(func() error {
-			return persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
+			return persistentRoundInfo(roundInfo, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
 		}, timeout, interval).Should(Succeed())
 	})
 
 	t.Run("validate ER agent Round num flip", func(t *testing.T) {
 		Eventually(func() bool {
 			round, _ := getRoundInfo(datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
-			return round.curRoundNum == 1
+			return round.currentRoundNum == 1 &&
+				round.previousRoundDatapathVersion == roundInfo.currentRoundDatapathVersion
 		}, timeout, interval).Should(BeTrue())
 	})
 }
