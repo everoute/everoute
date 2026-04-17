@@ -1,3 +1,6 @@
+GIT_VERSION := $(if $(shell git tag --points-at HEAD),$(shell git tag --points-at HEAD | head -n 1),0.0.0-$(shell git rev-parse --short HEAD))
+GIT_COMMIT := $(shell git rev-parse --short HEAD)
+RELEASE_VERSION := $(if $(RELEASE_VERSION),$(RELEASE_VERSION),$(GIT_VERSION))
 CONTROLLER_GEN=$(shell which controller-gen)
 APISERVER_BOOT=$(shell which apiserver-boot)
 COMMIT_ID=$(shell git rev-parse --short HEAD)
@@ -36,20 +39,38 @@ docker-generate-ci:
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct registry.smtx.io/everoute/generate:$(COMMIT_ID) make generate
 
 controller:
-	CGO_ENABLED=0 go build -o bin/everoute-controller cmd/everoute-controller/*.go
+	CGO_ENABLED=0 go build -o bin/everoute-controller -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	cmd/everoute-controller/*.go
 
 agent:
-	CGO_ENABLED=0 go build -o bin/everoute-agent cmd/everoute-agent/*.go
+	CGO_ENABLED=0 go build -o bin/everoute-agent -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	cmd/everoute-agent/*.go
 
 cni:
-	CGO_ENABLED=0 go build -o bin/everoute-cni cmd/everoute-cni/*.go
+	CGO_ENABLED=0 go build -o bin/everoute-cni -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	cmd/everoute-cni/*.go
 
 erctl:
-	CGO_ENABLED=0 go build -o bin/erctl cmd/everoute-cli/*.go
+	CGO_ENABLED=0 go build -o bin/erctl -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	cmd/everoute-cli/*.go
 
 e2e-tools:
-	CGO_ENABLED=0 go build -o bin/e2ectl tests/e2e/tools/e2ectl/*.go
-	CGO_ENABLED=0 go build -o bin/net-utils tests/e2e/tools/net-utils/*.go
+	CGO_ENABLED=0 go build -o bin/e2ectl -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	tests/e2e/tools/e2ectl/*.go
+	CGO_ENABLED=0 go build -o bin/net-utils -ldflags \
+		"-X github.com/everoute/everoute/pkg/version.releaseVersion=$(RELEASE_VERSION) \
+		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
+	tests/e2e/tools/net-utils/*.go
 
 agent-uuid:
 	mkdir -p /var/lib/everoute/agent
