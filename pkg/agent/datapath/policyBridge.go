@@ -557,6 +557,7 @@ func (p *PolicyBridge) PostDeletePreviousRoundFlow(*RoundInfo) {
 	if err != nil {
 		klog.Fatalf("Failed to delete bypass policies once on upgrading flow: %v", err)
 	}
+	p.bypassPoliciesOnceOnUpgradingFlowID = 0
 }
 
 func (p *PolicyBridge) initBypassPoliciesOnceOnUpgradingFlow() error {
