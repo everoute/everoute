@@ -254,6 +254,10 @@ func TestEverouteDp(t *testing.T) {
 	if defaultFlowList, err = dumpAllFlows(); err != nil {
 		log.Fatalf("Failed to dump default flow while test env setup")
 	}
+	// reply should donot contains the bypass flow
+	defaultFlowList = lo.Filter(defaultFlowList, func(flow string, _ int) bool {
+		return !strings.Contains(flow, fmt.Sprintf("priority=%d", BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY))
+	})
 	RegisterTestingT(t)
 
 	t.Run("validate local endpoint learning flow", func(t *testing.T) {
