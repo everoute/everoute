@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,11 +37,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/common/initsync"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/constants/ms"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
@@ -60,11 +61,11 @@ type Reconciler struct {
 
 	ifaceCacheLock sync.RWMutex
 	ifaceCache     cache.Indexer
-	ifaceInitDone  atomic.Bool
-	processedNames sets.Set[string]
+	ifaceInit      *initsync.Tracker
 
 	shareIPCacheLock sync.RWMutex
 	shareIPCache     map[string]shareIP
+	shareIPInit      *initsync.Tracker
 }
 
 type shareIP struct {
@@ -110,6 +111,7 @@ const (
 	agentIndex                   = "agentIndex"
 	IfaceIPAddrCleanInterval int = 5
 	ifaceInitRetryInterval       = 1 * time.Second
+	shareIPInitRetryInterval     = 1 * time.Second
 )
 
 // Reconcile receive endpoint from work queue, synchronize the endpoint status
@@ -117,7 +119,7 @@ const (
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var err error
 	klog.V(4).Infof("Reconciler received endpoint %s reconcile", req.NamespacedName)
-	if !r.ifaceInitDone.Load() {
+	if !r.ifaceInitTracker().IsDone() {
 		ready, err := r.checkIfaceInitDone(ctx)
 		if err != nil {
 			klog.Errorf("unable to check iface cache init status: %s", err.Error())
@@ -183,8 +185,9 @@ func (r *Reconciler) ReconcileShareIP(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Client.Get(ctx, req.NamespacedName, sip); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.shareIPCacheLock.Lock()
-			defer r.shareIPCacheLock.Unlock()
 			delete(r.shareIPCache, req.Name)
+			r.shareIPCacheLock.Unlock()
+			r.markShareIPProcessed(req.Name)
 			log.Info("Delete shareIP from cache")
 			return ctrl.Result{}, nil
 		}
@@ -193,6 +196,29 @@ func (r *Reconciler) ReconcileShareIP(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	r.updateShareIPCache(ctx, sip)
+	r.markShareIPProcessed(sip.Name)
+	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) ReconcileAgentInfo(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if !r.shareIPInitTracker().IsDone() {
+		ready, err := r.checkShareIPInitDone(ctx)
+		if err != nil {
+			klog.Errorf("unable to check shareIP cache init status: %s", err.Error())
+			return ctrl.Result{}, err
+		}
+		if !ready {
+			klog.V(4).Infof("agentinfo reconcile waiting for shareIP cache initialization to complete, agentInfo %s", req.NamespacedName)
+			return ctrl.Result{RequeueAfter: shareIPInitRetryInterval}, nil
+		}
+	}
+
+	var agentInfo agentv1alpha1.AgentInfo
+	if err := r.Get(ctx, req.NamespacedName, &agentInfo); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	r.updateAgentInfo(&agentInfo)
 	return ctrl.Result{}, nil
 }
 
@@ -241,19 +267,42 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			ipAddrIndex:     ipAddrIndexFunc,
 		})
 	}
+	if r.ifaceInit == nil {
+		r.ifaceInit = initsync.NewTracker()
+	}
+	if r.shareIPInit == nil {
+		r.shareIPInit = initsync.NewTracker()
+	}
 
 	err = c.Watch(source.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
-		CreateFunc: r.addAgentInfo,
-		UpdateFunc: r.updateAgentInfo,
-		DeleteFunc: r.deleteAgentInfo,
+		CreateFunc: r.onAgentInfoAdd,
+		UpdateFunc: r.onAgentInfoUpdate,
+		DeleteFunc: r.onAgentInfoDelete,
 	})
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.Endpoint{}), &handler.Funcs{
-		CreateFunc: r.addEndpoint,
-		UpdateFunc: r.updateEndpoint,
+	agentInfoCacheC, err := controller.New("agentinfo-controller", mgr, controller.Options{
+		Reconciler: reconcile.Func(r.ReconcileAgentInfo),
+	})
+	if err != nil {
+		return err
+	}
+	err = agentInfoCacheC.Watch(source.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
+		UpdateFunc: r.enqueueAgentInfoCacheUpdate,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.Endpoint{}), &handler.EnqueueRequestForObject{}, predicate.Funcs{
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
 	})
 	if err != nil {
 		return err
@@ -277,31 +326,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}))
 }
 
-func (r *Reconciler) addEndpoint(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if e.Object == nil {
-		klog.Errorf("AddEndpoint received with no metadata event: %v", e)
-		return
-	}
-
-	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.Object.GetNamespace(),
-		Name:      e.Object.GetName(),
-	}})
-}
-
-func (r *Reconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) enqueueAgentInfoCacheUpdate(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	if e.ObjectNew == nil {
-		klog.Errorf("UpdateEndpoint received with no metadata event: %v", e)
+		klog.Errorf("enqueueAgentInfoCacheUpdate received with no metadata event: %v", e)
 		return
 	}
 
 	q.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{
-		Namespace: e.ObjectNew.GetNamespace(),
 		Name:      e.ObjectNew.GetName(),
+		Namespace: e.ObjectNew.GetNamespace(),
 	}})
 }
 
-func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) onAgentInfoAdd(_ context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("AddAgentInfo received with unavailable object event: %v", e)
@@ -331,11 +368,11 @@ func (r *Reconciler) addAgentInfo(_ context.Context, e event.CreateEvent, q work
 			}
 		}
 	}
-	r.markAgentProcessedLocked(agentInfo.Name)
+	r.markAgentProcessed(agentInfo.Name)
 	r.enqueueEndpointsOnAgentLocked(epList, agentInfo.Name, q)
 }
 
-func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) onAgentInfoUpdate(_ context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	newAgentInfo := e.ObjectNew.(*agentv1alpha1.AgentInfo)
 	oldAgentInfo := e.ObjectOld.(*agentv1alpha1.AgentInfo)
 
@@ -367,9 +404,8 @@ func (r *Reconciler) updateAgentInfo(_ context.Context, e event.UpdateEvent, q w
 			}
 		}
 	}
-	r.markAgentProcessedLocked(newAgentInfo.Name)
+	r.markAgentProcessed(newAgentInfo.Name)
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
-	r.updateCachedAgentInfo(newAgentInfo, q)
 }
 
 func (r *Reconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
@@ -381,7 +417,7 @@ func (r *Reconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID
 	}
 }
 
-func (r *Reconciler) deleteAgentInfo(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (r *Reconciler) onAgentInfoDelete(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	agentInfo, ok := e.Object.(*agentv1alpha1.AgentInfo)
 	if !ok {
 		klog.Errorf("DeleteAgentInfo received with unavailable object event: %v", e)
@@ -411,39 +447,64 @@ func (r *Reconciler) checkIfaceInitDone(ctx context.Context) (bool, error) {
 		expectedNames.Insert(agentInfoList.Items[i].Name)
 	}
 
-	r.ifaceCacheLock.Lock()
-	defer r.ifaceCacheLock.Unlock()
-	if r.ifaceInitDone.Load() {
-		return true, nil
+	ready, justDone, processed := r.ifaceInitTracker().CheckDone(expectedNames)
+	if justDone {
+		klog.Infof("endpoint controller iface cache initialization completed, agent info list: %v", processed)
 	}
-	if r.processedNames == nil {
-		r.processedNames = sets.New[string]()
-	}
-	if expectedNames.Len() == 0 || r.processedNames.IsSuperset(expectedNames) {
-		r.ifaceInitDone.Store(true)
-		klog.Infof("endpoint controller iface cache initialization completed, agent info list: %v", r.processedNames.UnsortedList())
-		r.processedNames = nil
-		return true, nil
-	}
-	return false, nil
+	return ready, nil
 }
 
-func (r *Reconciler) markAgentProcessedLocked(agentName string) {
-	if r.ifaceInitDone.Load() {
+func (r *Reconciler) markAgentProcessed(agentName string) {
+	isNew, processed, recorded := r.ifaceInitTracker().MarkProcessed(agentName)
+	if !recorded {
 		return
 	}
-	if r.processedNames == nil {
-		r.processedNames = sets.New[string]()
-	}
-	isNew := !r.processedNames.Has(agentName)
-	r.processedNames.Insert(agentName)
 	klog.Infof(
 		"endpoint controller init processed agentinfo: current=%s, isNew=%t, allProcessed=%v",
-		agentName, isNew, r.processedNames.UnsortedList(),
+		agentName, isNew, processed,
 	)
 }
 
-func (r *Reconciler) updateCachedAgentInfo(agentInfo *agentv1alpha1.AgentInfo, _ workqueue.RateLimitingInterface) {
+func (r *Reconciler) checkShareIPInitDone(ctx context.Context) (bool, error) {
+	var shareIPList securityv1alpha1.ShareIPList
+	if err := r.Client.List(ctx, &shareIPList); err != nil {
+		return false, err
+	}
+	expectedNames := sets.New[string]()
+	for i := range shareIPList.Items {
+		expectedNames.Insert(shareIPList.Items[i].Name)
+	}
+
+	ready, justDone, processed := r.shareIPInitTracker().CheckDone(expectedNames)
+	if justDone {
+		klog.Infof("agentinfo controller shareIP cache initialization completed, shareIP list: %v", processed)
+	}
+	return ready, nil
+}
+
+func (r *Reconciler) markShareIPProcessed(shareIPName string) {
+	isNew, _, recorded := r.shareIPInitTracker().MarkProcessed(shareIPName)
+	if !recorded {
+		return
+	}
+	klog.Infof("agentinfo controller init processed shareIP: current=%s, isNew=%t", shareIPName, isNew)
+}
+
+func (r *Reconciler) ifaceInitTracker() *initsync.Tracker {
+	if r.ifaceInit == nil {
+		r.ifaceInit = initsync.NewTracker()
+	}
+	return r.ifaceInit
+}
+
+func (r *Reconciler) shareIPInitTracker() *initsync.Tracker {
+	if r.shareIPInit == nil {
+		r.shareIPInit = initsync.NewTracker()
+	}
+	return r.shareIPInit
+}
+
+func (r *Reconciler) updateAgentInfo(agentInfo *agentv1alpha1.AgentInfo) {
 	ctx := context.Background()
 	updateAgentInfoList := r.toUpdatedAgentInfo(agentInfo)
 
