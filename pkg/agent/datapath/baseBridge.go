@@ -115,6 +115,8 @@ func (b *BaseBridge) BridgeInit() {}
 
 func (b *BaseBridge) BridgeInitCNI() {}
 
+func (b *BaseBridge) PostDeletePreviousRoundFlow(*RoundInfo) {}
+
 func (b *BaseBridge) AddVNFInstance() error {
 	return nil
 }
