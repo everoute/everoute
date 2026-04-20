@@ -280,6 +280,7 @@ func (monitor *AgentMonitor) syncAgentInfoWorker() {
 		} else {
 			klog.Errorf("sync agentinfo %s: %s", monitor.Name(), err)
 		}
+		return
 	}
 	klog.Info("Success update agentinfo")
 }
