@@ -25,7 +25,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
@@ -119,14 +121,14 @@ func TestEndpointReconcilerPerf(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fail to create agentinfo %s, %s", ai.Name, err)
 		}
-		reconciler.addAgentInfo(ctx, event.CreateEvent{Object: ai}, queue)
+		reconciler.onAgentInfoAdd(ctx, event.CreateEvent{Object: ai}, queue)
 	}
 	for _, ep := range endpoints {
 		err := reconciler.Client.Create(context.Background(), ep)
 		if err != nil {
 			t.Fatalf("fail to create endpoint %s, %s", ep.Name, err)
 		}
-		reconciler.addEndpoint(ctx, event.CreateEvent{Object: ep}, queue)
+		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: ep.Name}})
 	}
 
 	err := processQueue(reconciler, queue)
