@@ -2,10 +2,8 @@ package k8s
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	"github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -36,8 +34,6 @@ var _ = Describe("endpoints controller", Ordered, func() {
 	ip3 := "10.0.0.5"
 	portName1 := "http"
 	portName2 := "ssh"
-	var mockGet *gomonkey.Patches
-	var mockMutex sync.Mutex
 	BeforeAll(func() {
 		Eventually(func(g Gomega) {
 			creatNS := corev1.Namespace{
@@ -53,32 +49,76 @@ var _ = Describe("endpoints controller", Ordered, func() {
 			}
 		}, timeout, interval).Should(Succeed())
 
-		mockGet = gomonkey.NewPatches()
-		fn := func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-			mockMutex.Lock()
-			defer mockMutex.Unlock()
-			if v, ok := obj.(*corev1.Service); ok {
-				if key.Name == "eps" {
-					v.Spec.ClusterIP = "1.1.1.1"
-					return nil
-				}
-				if key.Name == "eps-headless" {
-					v.Spec.ClusterIP = "None"
-					return nil
-				}
-			}
-			var out error
-			mockGet.Origin(func() {
-				out = k8sClient.Get(ctx, key, obj, opts...)
-			})
-			return out
+		services := []corev1.Service{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epNamespacedName.Name,
+					Namespace: epNamespacedName.Namespace,
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Port: 80,
+						},
+					},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epNamespacedNameHeadless.Name,
+					Namespace: epNamespacedNameHeadless.Namespace,
+				},
+				Spec: corev1.ServiceSpec{
+					ClusterIP: corev1.ClusterIPNone,
+					Ports: []corev1.ServicePort{
+						{
+							Port: 80,
+						},
+					},
+				},
+			},
 		}
-		mockGet.ApplyMethodFunc(k8sClient, "Get", fn)
+		for i := range services {
+			service := services[i]
+			Eventually(func(g Gomega) {
+				req := types.NamespacedName{Name: service.Name, Namespace: service.Namespace}
+				current := corev1.Service{}
+				err := k8sClient.Get(ctx, req, &current)
+				if err != nil {
+					g.Expect(errors.IsNotFound(err)).Should(BeTrue())
+					g.Expect(k8sClient.Create(ctx, &service)).Should(Succeed())
+					return
+				}
+
+				if service.Spec.ClusterIP == corev1.ClusterIPNone {
+					g.Expect(current.Spec.ClusterIP).Should(Equal(corev1.ClusterIPNone))
+					return
+				}
+
+				g.Expect(current.Spec.ClusterIP).ShouldNot(BeEmpty())
+				g.Expect(current.Spec.ClusterIP).ShouldNot(Equal(corev1.ClusterIPNone))
+			}, timeout, interval).Should(Succeed())
+		}
 	})
 	AfterAll(func() {
-		mockMutex.Lock()
-		defer mockMutex.Unlock()
-		mockGet.Reset()
+		services := []corev1.Service{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epNamespacedName.Name,
+					Namespace: epNamespacedName.Namespace,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      epNamespacedNameHeadless.Name,
+					Namespace: epNamespacedNameHeadless.Namespace,
+				},
+			},
+		}
+		for i := range services {
+			service := services[i]
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &service))).Should(Succeed())
+		}
 	})
 
 	Context("endpoints with only one port", func() {
