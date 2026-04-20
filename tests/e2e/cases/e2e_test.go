@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +46,8 @@ var (
 	serviceRestarter *node.ServiceRestarter
 )
 
+const bypassPoliciesOnUpgradingFlowMark = "table=0, priority=350 "
+
 func TestE2e(t *testing.T) {
 	RegisterFailHandlerWithT(t, E2eFail)
 	RunSpecs(t, "Everoute e2e Suite")
@@ -59,6 +62,22 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	// reset resource before start e2e
 	Expect(e2eEnv.ResetResource(ctx)).ToNot(HaveOccurred())
+
+	By("wait bypass policies flow on upgrading removed")
+	Eventually(func() error {
+		flowMap, err := e2eEnv.NodeManager().DumpFlowAll()
+		if err != nil {
+			return err
+		}
+		for node, flows := range flowMap {
+			for _, flow := range flows {
+				if strings.Contains(flow, bypassPoliciesOnUpgradingFlowMark) {
+					return fmt.Errorf("found bypass flow on node %s: %s", node, flow)
+				}
+			}
+		}
+		return nil
+	}, 3*time.Minute, 5*time.Second).Should(Succeed())
 
 	serviceRestarter = e2eEnv.NodeManager().ServiceRestarter(15, 20)
 	serviceRestarter.RunAsync()
