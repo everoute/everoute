@@ -268,6 +268,10 @@ func TestEverouteDp(t *testing.T) {
 	if defaultFlowList, err = dumpAllFlows(); err != nil {
 		log.Fatalf("Failed to dump default flow while test env setup")
 	}
+	// reply should donot contains the bypass flow
+	defaultFlowList = lo.Filter(defaultFlowList, func(flow string, _ int) bool {
+		return !strings.Contains(flow, fmt.Sprintf("priority=%d", BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY))
+	})
 	RegisterTestingT(t)
 
 	t.Run("validate local endpoint learning flow", func(t *testing.T) {
@@ -879,20 +883,22 @@ func testFlowReplay(t *testing.T) {
 
 func testRoundNumFlip(t *testing.T) {
 	roundInfo := RoundInfo{
-		curRoundNum:      MaxRoundNum,
-		previousRoundNum: MaxRoundNum - 1,
+		currentRoundNum:             MaxRoundNum,
+		previousRoundNum:            MaxRoundNum - 1,
+		currentRoundDatapathVersion: "test-version",
 	}
 
 	t.Run("persistentRoundInfo into local bridge", func(t *testing.T) {
 		Eventually(func() error {
-			return persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
+			return persistentRoundInfo(roundInfo, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
 		}, timeout, interval).Should(Succeed())
 	})
 
 	t.Run("validate ER agent Round num flip", func(t *testing.T) {
 		Eventually(func() bool {
 			round, _ := getRoundInfo(datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
-			return round.curRoundNum == 1
+			return round.currentRoundNum == 1 &&
+				round.previousRoundDatapathVersion == roundInfo.currentRoundDatapathVersion
 		}, timeout, interval).Should(BeTrue())
 	})
 }

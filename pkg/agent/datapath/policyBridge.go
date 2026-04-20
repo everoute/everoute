@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
@@ -213,6 +214,11 @@ type PolicyBridge struct {
 	fromL7EgressTable              *ofctrl.Table
 	setPortMarkTable               *ofctrl.Table
 
+	// fixme: must remove when we support restart without network interruption
+	bypassPoliciesOnceOnUpgradingEnabled bool
+	bypassPoliciesOnceOnUpgrading        sync.Once
+	bypassPoliciesOnceOnUpgradingFlowID  uint64
+
 	ctZoneVDSVal    uint64
 	localBrName     string
 	TrafficRedirect TrafficRedirect
@@ -349,6 +355,10 @@ func (p *PolicyBridge) BridgeInit() {
 	p.fromL7IngressTable, _ = sw.NewTable(FROM_L7_INGRESS)
 	p.setPortMarkTable, _ = sw.NewTable(SET_PORT_MARK)
 
+	// bypass policies on everoute upgrading
+	p.bypassPoliciesOnceOnUpgradingEnabled = p.GetRoundInfo().previousRoundDatapathVersion != "" &&
+		p.GetRoundInfo().previousRoundDatapathVersion != p.GetRoundInfo().currentRoundDatapathVersion
+
 	// Initialize in reverse order of the flow table order for everoute upgrade
 	if err := p.initToLocalFlow(); err != nil {
 		klog.Fatalf("Failed to init to local flows, error: %s", err)
@@ -358,6 +368,9 @@ func (p *PolicyBridge) BridgeInit() {
 	}
 	if err := p.initInputTable(sw); err != nil {
 		klog.Fatalf("Failed to init inputTable, error: %v", err)
+	}
+	if err := p.initBypassPoliciesOnceOnUpgradingFlow(); err != nil {
+		klog.Fatalf("Failed to init bypass policies once on upgrading flow: %s", err)
 	}
 	if err := p.initDuplicateDropFlow(); err != nil {
 		klog.Fatalf("Failed to init duplicate packets drop flow: %s", err)
@@ -534,6 +547,32 @@ func (p *PolicyBridge) initInputTable(_ *ofctrl.OFSwitch) error {
 	}
 
 	return nil
+}
+
+func (p *PolicyBridge) PostDeletePreviousRoundFlow(*RoundInfo) {
+	if p.bypassPoliciesOnceOnUpgradingFlowID == 0 {
+		return
+	}
+	err := ofctrl.DeleteFlow(p.inputTable, BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY, p.bypassPoliciesOnceOnUpgradingFlowID)
+	if err != nil {
+		klog.Fatalf("Failed to delete bypass policies once on upgrading flow: %v", err)
+	}
+	p.bypassPoliciesOnceOnUpgradingFlowID = 0
+}
+
+func (p *PolicyBridge) initBypassPoliciesOnceOnUpgradingFlow() error {
+	if !p.bypassPoliciesOnceOnUpgradingEnabled {
+		return nil
+	}
+	var err error
+	p.bypassPoliciesOnceOnUpgrading.Do(func() {
+		bypassPoliciesFlow, _ := p.inputTable.NewFlow(ofctrl.FlowMatch{Priority: BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY})
+		err = bypassPoliciesFlow.Next(p.passthroughTable)
+		if err == nil {
+			p.bypassPoliciesOnceOnUpgradingFlowID = bypassPoliciesFlow.FlowID
+		}
+	})
+	return err
 }
 
 func (p *PolicyBridge) initIsolateEgressTable(_ *ofctrl.OFSwitch) error {

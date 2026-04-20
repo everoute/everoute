@@ -57,6 +57,7 @@ import (
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
+	"github.com/everoute/everoute/pkg/version"
 )
 
 //nolint:all
@@ -70,6 +71,11 @@ const (
 	DEFAULT_FLOW_MISS_PRIORITY          = 10
 	FLOW_MATCH_OFFSET                   = 3
 	LARGE_FLOW_MATCH_OFFSET             = 100
+
+	// BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY must between DUPLICATE_DROP_FLOW_PRIORITY and CT_LOOKUP_FLOW_PRIORITY
+	// this priority in policy table 0 must be unique to avoid flow overwrite
+	// fixme: must remove when we support restart without network interruption
+	BYPASS_POLICIES_ONCE_ON_UPGRADING_FLOW_PRIORITY = HIGH_MATCH_FLOW_PRIORITY + 50
 )
 
 //nolint:all
@@ -120,7 +126,9 @@ const (
 )
 
 const (
-	datapathRestartRound            string = "datapathRestartRound"
+	datapathCurrentRound            string = "datapathRestartRound"
+	datapathCurrentDatapathVersion  string = "datapathCurrentDatapathVersion"
+	datapathDatapathVersionUnknown  string = "unknown"
 	ovsVswitchdUnixDomainSockPath   string = "/var/run/openvswitch"
 	ovsVswitchdUnixDomainSockSuffix string = "mgmt"
 	ovsdbDomainSock                        = "/var/run/openvswitch/db.sock"
@@ -199,6 +207,8 @@ type Bridge interface {
 	BridgeInit()
 	BridgeReset()
 
+	PostDeletePreviousRoundFlow(roundInfo *RoundInfo)
+
 	BridgeInitCNI()
 
 	AddLocalEndpoint(endpoint *Endpoint) error
@@ -237,7 +247,8 @@ type Bridge interface {
 	GetIndex() (uint32, error)
 	getOfSwitch() *ofctrl.OFSwitch
 
-	SetRoundNumber(uint64)
+	SetRoundInfo(*RoundInfo)
+	GetRoundInfo() *RoundInfo
 
 	UpdateTREndpoint(*Endpoint) error
 	DeleteTREndpoint(*Endpoint) error
@@ -389,8 +400,10 @@ type Endpoint struct {
 }
 
 type RoundInfo struct {
-	previousRoundNum uint64
-	curRoundNum      uint64
+	previousRoundNum             uint64
+	previousRoundDatapathVersion string
+	currentRoundNum              uint64
+	currentRoundDatapathVersion  string
 }
 
 type PolicyInfo struct {
@@ -1047,13 +1060,13 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		klog.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
 	}
 
-	cookieAllocator := cookie.NewAllocator(roundInfo.curRoundNum, cookie.SetDefaultFlowIDRange())
+	cookieAllocator := cookie.NewAllocator(roundInfo.currentRoundNum, cookie.SetDefaultFlowIDRange())
 	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
-		// Delete flow with curRoundNum cookie, for case: failed when restart process flow install.
-		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.curRoundNum)
+		// Delete flow with currentRoundNum cookie, for case: failed when restart process flow install.
+		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.currentRoundNum)
 		// update cookie
 		if brKeyword == POLICY_BRIDGE_KEYWORD {
-			policyBrCookieAllo := policyBrCookieAllocator(roundInfo.curRoundNum)
+			policyBrCookieAllo := policyBrCookieAllocator(roundInfo.currentRoundNum)
 			if policyBrCookieAllo == nil {
 				klog.Fatalf("Failed to new policy bridge cookie allocator")
 			}
@@ -1061,7 +1074,7 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		} else {
 			datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 		}
-		datapathManager.BridgeChainMap[vdsID][brKeyword].SetRoundNumber(roundInfo.curRoundNum)
+		datapathManager.BridgeChainMap[vdsID][brKeyword].SetRoundInfo(roundInfo)
 
 		// bridge init
 		datapathManager.BridgeChainMap[vdsID][brKeyword].BridgeInit()
@@ -1155,7 +1168,7 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 	go DeletePreviousRoundFlow(datapathManager, vdsID, roundInfo)
 }
 
-// Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. We need to wait for long
+// Delete flow with previousRoundNum cookie, and then persistent currentRoundNum to ovsdb. We need to wait for long
 // enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
 // flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
 // non-determined.
@@ -1164,17 +1177,20 @@ func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo
 	time.Sleep(datapathManager.Config.FlowRoundCleanDelay)
 
 	klog.Infof(
-		"Delete flow with previousRoundNum cookie, and then persistent curRoundNum to ovsdb. vdsID: %s, previousRoundNum: %d, curRoundNum: %d",
+		"Delete previous round flows and persist current round info. vdsID: %s, roundNum: %d -> %d, datapathVersion: %s -> %s",
 		vdsID,
 		roundInfo.previousRoundNum,
-		roundInfo.curRoundNum,
+		roundInfo.currentRoundNum,
+		roundInfo.previousRoundDatapathVersion,
+		roundInfo.currentRoundDatapathVersion,
 	)
 
 	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
 		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+		datapathManager.BridgeChainMap[vdsID][brKeyword].PostDeletePreviousRoundFlow(roundInfo)
 	}
 
-	err := persistentRoundInfo(roundInfo.curRoundNum, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+	err := persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
 		klog.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
 	}
@@ -1214,14 +1230,14 @@ func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridg
 
 	var cookieAllocator cookie.Allocator
 	if bridgeKeyword == POLICY_BRIDGE_KEYWORD {
-		cookieAllocator = policyBrCookieAllocator(roundInfo.curRoundNum)
+		cookieAllocator = policyBrCookieAllocator(roundInfo.currentRoundNum)
 		if cookieAllocator == nil {
 			return fmt.Errorf("failed to create policy bridge cookie alloctor")
 		}
 	} else {
-		cookieAllocator = cookie.NewAllocator(roundInfo.curRoundNum, cookie.SetDefaultFlowIDRange())
+		cookieAllocator = cookie.NewAllocator(roundInfo.currentRoundNum, cookie.SetDefaultFlowIDRange())
 	}
-	dp.BridgeChainMap[vdsID][bridgeKeyword].SetRoundNumber(roundInfo.curRoundNum)
+	dp.BridgeChainMap[vdsID][bridgeKeyword].SetRoundInfo(roundInfo)
 	dp.BridgeChainMap[vdsID][bridgeKeyword].getOfSwitch().CookieAllocator = cookieAllocator
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInit()
 	dp.BridgeChainMap[vdsID][bridgeKeyword].BridgeInitCNI()
@@ -2137,54 +2153,47 @@ func DeepCopyMap(theMap interface{}) interface{} {
 }
 
 func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
-	var num, newRoundNum uint64
-	var err error
-
 	externalIDs, err := ovsdbDriver.GetExternalIds()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ovsdb externalids: %v", err)
 	}
 
-	if len(externalIDs) == 0 {
-		klog.Infof("Bridge's external-ids are empty")
-		return &RoundInfo{
-			curRoundNum: uint64(1),
-		}, nil
-	}
+	previousRoundNum := uint64(0)
+	previousRoundDatapathVersion := externalIDs[datapathCurrentDatapathVersion]
+	currentRoundNum := uint64(1)
+	currentRoundDatapathVersion := version.GetVersionInfo().GitVersion
 
-	roundNum, exists := externalIDs[datapathRestartRound]
-	if !exists {
-		klog.Infof("Bridge's external-ids don't contain ofnetRestartRound field")
-		return &RoundInfo{
-			curRoundNum: uint64(1),
-		}, nil
-	}
-
-	num, err = strconv.ParseUint(roundNum, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("bad format of round number: %+v, parse error: %+v", roundNum, err)
-	}
-
-	// Flipping current round num with minimum round num value while it equals with the maximum round num
-	if num >= MaxRoundNum {
-		newRoundNum = 1
-	} else {
-		newRoundNum = num + 1
+	roundNumRaw, ok := externalIDs[datapathCurrentRound]
+	if ok {
+		previousRoundNum, err = strconv.ParseUint(roundNumRaw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid round num %s: %w", roundNumRaw, err)
+		}
+		// Flipping current round num with minimum round num value while it equals with the maximum round num
+		if previousRoundNum < MaxRoundNum {
+			currentRoundNum = previousRoundNum + 1
+		}
+		if previousRoundDatapathVersion == "" {
+			previousRoundDatapathVersion = datapathDatapathVersionUnknown
+		}
 	}
 
 	return &RoundInfo{
-		previousRoundNum: num,
-		curRoundNum:      newRoundNum,
+		previousRoundNum:             previousRoundNum,
+		previousRoundDatapathVersion: previousRoundDatapathVersion,
+		currentRoundNum:              currentRoundNum,
+		currentRoundDatapathVersion:  currentRoundDatapathVersion,
 	}, nil
 }
 
-func persistentRoundInfo(curRoundNum uint64, ovsdbDriver *ovsdbDriver.OvsDriver) error {
+func persistentRoundInfo(roundInfo RoundInfo, ovsdbDriver *ovsdbDriver.OvsDriver) error {
 	externalIDs, err := ovsdbDriver.GetExternalIds()
 	if err != nil {
 		return err
 	}
 
-	externalIDs[datapathRestartRound] = fmt.Sprint(curRoundNum)
+	externalIDs[datapathCurrentRound] = fmt.Sprint(roundInfo.currentRoundNum)
+	externalIDs[datapathCurrentDatapathVersion] = roundInfo.currentRoundDatapathVersion
 
 	return ovsdbDriver.SetExternalIds(externalIDs)
 }

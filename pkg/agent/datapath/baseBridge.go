@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
@@ -28,7 +29,7 @@ type BaseBridge struct {
 	disconnectChan      chan struct{}
 	disconnectChanMutex sync.Mutex
 
-	roundNum uint64
+	roundInfo *RoundInfo
 }
 
 var _ Bridge = &BaseBridge{}
@@ -59,12 +60,16 @@ func (b *BaseBridge) GetIndex() (uint32, error) {
 	return index, nil
 }
 
-func (b *BaseBridge) SetRoundNumber(n uint64) {
-	atomic.StoreUint64(&b.roundNum, n)
+func (b *BaseBridge) SetRoundInfo(roundInfo *RoundInfo) {
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&b.roundInfo)), unsafe.Pointer(roundInfo))
+}
+
+func (b *BaseBridge) GetRoundInfo() *RoundInfo {
+	return (*RoundInfo)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&b.roundInfo))))
 }
 
 func (b *BaseBridge) GetRoundNumber() uint64 {
-	return atomic.LoadUint64(&b.roundNum)
+	return b.GetRoundInfo().currentRoundNum
 }
 
 func (b *BaseBridge) SwitchConnected(sw *ofctrl.OFSwitch) {
@@ -114,6 +119,8 @@ func (b *BaseBridge) WaitForSwitchConnection() {
 func (b *BaseBridge) BridgeInit() {}
 
 func (b *BaseBridge) BridgeInitCNI() {}
+
+func (b *BaseBridge) PostDeletePreviousRoundFlow(*RoundInfo) {}
 
 func (b *BaseBridge) AddVNFInstance() error {
 	return nil
