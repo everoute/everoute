@@ -152,7 +152,7 @@ var (
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	rule1v6Flow = `table=60, priority=200,icmp6,ipv6_src=2401::10:100:100:1,ipv6_dst=2401::10:100:100:2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
-	rule2WorkModeFlow              = `table=20, priority=0,udp,nw_src=10.100.100.0/24 actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_XXREG0[5],load:0x->NXM_NX_XXREG0[127],load:0x20->NXM_NX_REG4[0..15],goto_table:70`
+	rule2WorkModeFlow              = `table=20, priority=0,udp,nw_src=10.100.100.0/24 actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_XXREG0[127],load:0x20->NXM_NX_REG4[0..15],goto_table:70`
 	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x2->NXM_NX_PKT_MARK[17..18],load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x2->NXM_NX_PKT_MARK[17..18],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
@@ -178,6 +178,17 @@ var (
 		"table=10, priority=200,in_port=2 actions=load:0x1->NXM_NX_REG5[8],goto_table:50",
 	}
 
+	policyCTStateTableFlows = []string{
+		"table=1, priority=300,ct_state=+est-rel-rpl,ct_label=0/0x40,in_port=1 actions=goto_table:10",
+		"table=1, priority=300,ct_state=+est-rel-rpl,ct_label=0/0x80,in_port=2 actions=goto_table:10",
+		"table=1, priority=300,ct_state=+rpl+trk,ct_label=0x90/0x90,in_port=1 actions=goto_table:10",
+		"table=1, priority=300,ct_state=+rpl+trk,ct_label=0x60/0x60,in_port=2 actions=goto_table:10",
+		"table=1, priority=200,ct_state=-new+est actions=goto_table:69",
+		"table=1, priority=200,ct_state=+rel+trk actions=goto_table:69",
+		"table=1, priority=10,ip actions=goto_table:10",
+		"table=1, priority=10,ipv6 actions=goto_table:10",
+	}
+
 	policyActionUpdateTableFlows = []string{
 		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ip,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
 		"table=69, priority=200,ct_state=-rpl+trk,ct_label=0x30000000000000000000000000000020/0xb0000000000000000000000000000020,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[5]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
@@ -197,6 +208,47 @@ var (
 		"table=69, priority=200,ct_state=+rpl+trk,ct_label=0xb0000000000000000000000000000000/0xb0000000000000000000000000000010,ipv6,in_port=1 actions=ct(commit,table=70,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_CT_LABEL[4]->NXM_NX_CT_LABEL[127],load:0->NXM_NX_CT_LABEL[6..7]))",
 		"table=69, priority=100,ct_state=+new+trk actions=load:0x1->NXM_NX_REG5[8],goto_table:70",
 		"table=69, priority=10 actions=goto_table:70",
+	}
+
+	policyForwardingTableFlows = []string{
+		"table=70, priority=10 actions=goto_table:71",
+		"table=70, priority=200,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,ip,reg5=0/0x100 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))",
+		"table=70, priority=200,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,ipv6,reg5=0/0x100 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]))",
+		"table=70, priority=200,ct_state=+rpl+trk,ip,reg4=0/0xffff,reg5=0x100/0x100,in_port=1 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]))",
+		"table=70, priority=200,ct_state=+rpl+trk,ip,reg4=0/0xffff,reg5=0x100/0x100,in_port=2 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]))",
+		"table=70, priority=200,ct_state=+rpl+trk,ipv6,reg4=0/0xffff,reg5=0x100/0x100,in_port=1 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]))",
+		"table=70, priority=200,ct_state=+rpl+trk,ipv6,reg4=0/0xffff,reg5=0x100/0x100,in_port=2 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]))",
+		"table=70, priority=200,ct_state=-rpl+trk,ip,reg5=0x100/0x100,in_port=1 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]))",
+		"table=70, priority=200,ct_state=-rpl+trk,ip,reg5=0x100/0x100,in_port=2 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]))",
+		"table=70, priority=200,ct_state=-rpl+trk,ipv6,reg5=0x100/0x100,in_port=1 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]))",
+		"table=70, priority=200,ct_state=-rpl+trk,ipv6,reg5=0x100/0x100,in_port=2 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]))",
+		"table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ip,reg5=0/0x100 actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71",
+		"table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ipv6,reg5=0/0x100 actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71",
+		"table=70, priority=300,ct_state=+new+trk,tcp,reg4=0x20/0xffff,tcp_flags=-syn actions=goto_table:71",
+		"table=70, priority=300,ct_state=+new+trk,tcp6,reg4=0x20/0xffff,tcp_flags=-syn actions=goto_table:71",
+	}
+
+	policyForwardingTableALGFlows = []string{
+		"table=70, priority=203,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,tcp,reg5=0/0x100,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,tcp6,reg5=0/0x100,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,udp,reg5=0/0x100,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]),alg=tftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,ct_label=0/0xffff000000000000000000000000000,udp6,reg5=0/0x100,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125]),alg=tftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,tcp,reg4=0/0xffff,reg5=0x100/0x100,in_port=1,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,tcp,reg4=0/0xffff,reg5=0x100/0x100,in_port=2,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,tcp6,reg4=0/0xffff,reg5=0x100/0x100,in_port=1,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,tcp6,reg4=0/0xffff,reg5=0x100/0x100,in_port=2,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=ftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,udp,reg4=0/0xffff,reg5=0x100/0x100,in_port=1,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=tftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,udp,reg4=0/0xffff,reg5=0x100/0x100,in_port=2,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=tftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,udp6,reg4=0/0xffff,reg5=0x100/0x100,in_port=1,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=tftp)",
+		"table=70, priority=203,ct_state=+rpl+trk,udp6,reg4=0/0xffff,reg5=0x100/0x100,in_port=2,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=tftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,tcp,reg5=0x100/0x100,in_port=1,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=ftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,tcp,reg5=0x100/0x100,in_port=2,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=ftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,tcp6,reg5=0x100/0x100,in_port=1,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=ftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,tcp6,reg5=0x100/0x100,in_port=2,tp_dst=21 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=ftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,udp,reg5=0x100/0x100,in_port=1,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=tftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,udp,reg5=0x100/0x100,in_port=2,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=tftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,udp6,reg5=0x100/0x100,in_port=1,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[5],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[6]),alg=tftp)",
+		"table=70, priority=203,ct_state=-rpl+trk,udp6,reg5=0x100/0x100,in_port=2,tp_dst=69 actions=ct(commit,table=71,zone=NXM_NX_REG4[16..31],exec(move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127],move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87],move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3],move:NXM_NX_XXREG0[127]->NXM_NX_CT_LABEL[4],move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89],move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107],load:0->NXM_NX_CT_LABEL[90..91],load:0->NXM_NX_CT_LABEL[108..123],load:0x3->NXM_NX_CT_LABEL[124..125],load:0x1->NXM_NX_CT_LABEL[7]),alg=tftp)",
 	}
 )
 
@@ -1250,104 +1302,16 @@ func testUplinkBridgeMarkFlows(t *testing.T) {
 	})
 }
 
-func containsAll(flow string, strs ...string) bool {
-	for _, str := range strs {
-		if !strings.Contains(flow, str) {
-			return false
-		}
-	}
-	return true
-}
-
-func isOriginFlow(flow string) bool {
-	checkCommit := strings.Contains(flow, "reg5=0x100/0x100")
-	checkOriginActions := containsAll(flow,
-		"move:NXM_NX_XXREG0[126..127]->NXM_NX_CT_LABEL[126..127]", // final policy actions
-		"move:NXM_NX_XXREG0[4..5]->NXM_NX_CT_LABEL[4..5]",         // mark policy actions
-		"move:NXM_NX_XXREG0[0..3]->NXM_NX_CT_LABEL[0..3]",         // round number
-		"move:NXM_NX_XXREG0[32..87]->NXM_NX_CT_LABEL[32..87]",     // flow IDs
-		"load:0x3->NXM_NX_CT_LABEL[124..125]",                     // mark micro-segment
-		"move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[88..89]",   // origin packet source
-		"load:0->NXM_NX_CT_LABEL[90..91]",                         // reset reply packet source
-		"move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[92..107]",   // origin inport
-		"load:0->NXM_NX_CT_LABEL[108..123]",                       // reset reply inport
-	)
-	return checkCommit && checkOriginActions
-}
-
-func isRplFlow(flow string) bool {
-	checkRpl := strings.Contains(flow, "ct_state=+rpl+trk")
-	checkActions := containsAll(flow,
-		"load:0x3->NXM_NX_CT_LABEL[124..125]",                    // mark micro-segment
-		"move:NXM_NX_PKT_MARK[17..18]->NXM_NX_CT_LABEL[90..91]",  // reply packet source
-		"move:NXM_NX_PKT_MARK[0..15]->NXM_NX_CT_LABEL[108..123]", // reply inport
-	)
-	return checkRpl && checkActions
-}
-
-func isIp(flow string) bool {
-	return strings.Contains(flow, "ip") && !isIp6(flow)
-}
-
-func isIp6(flow string) bool {
-	return strings.Contains(flow, "ipv6")
-}
-
-func isTcp(flow string) bool {
-	return strings.Contains(flow, "tcp") && !isTcp6(flow)
-}
-
-func isTcp6(flow string) bool {
-	return strings.Contains(flow, "tcp6")
-}
-
-func isUdp(flow string) bool {
-	return strings.Contains(flow, "udp") && !isUdp6(flow)
-}
-
-func isUdp6(flow string) bool {
-	return strings.Contains(flow, "udp6")
-}
-
-func hasTpDst(flow string, port int) bool {
-	return strings.Contains(flow, fmt.Sprintf("tp_dst=%d", port))
-}
-
 func TestPolicyBridgeFlows(t *testing.T) {
 	t.Run("test policy bridge general flows", func(t *testing.T) {
 		RegisterTestingT(t)
 		flows, err := dumpAllFlows("ovsbr0-policy")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(flows).ShouldNot(BeEmpty())
-		table70Flows := []string{}
-		for _, flow := range flows {
-			// skip ALG flows and it should be in table 70
-			if strings.Contains(flow, "table=70,") && !strings.Contains(flow, "tp_dst") {
-				table70Flows = append(table70Flows, flow)
-			}
-		}
-		var (
-			ipOriginFlow   = false
-			ipv6OriginFlow = false
-			ipRplFlow      = false
-			ipv6RplFlow    = false
-		)
-		for _, flow := range table70Flows {
-			switch {
-			case isIp(flow) && isOriginFlow(flow):
-				ipOriginFlow = true
-			case isIp6(flow) && isOriginFlow(flow):
-				ipv6OriginFlow = true
-			case isIp(flow) && isRplFlow(flow):
-				ipRplFlow = true
-			case isIp6(flow) && isRplFlow(flow):
-				ipv6RplFlow = true
-			}
-		}
-		Expect(ipOriginFlow).Should(BeTrue())
-		Expect(ipv6OriginFlow).Should(BeTrue())
-		Expect(ipRplFlow).Should(BeTrue())
-		Expect(ipv6RplFlow).Should(BeTrue())
+		currentTable70Flows := lo.Filter(flows, func(f string, _ int) bool {
+			return strings.HasPrefix(f, "table=70,") && !strings.Contains(f, "tp_dst")
+		})
+		Expect(currentTable70Flows).Should(ConsistOf(policyForwardingTableFlows))
 	})
 
 	t.Run("test policy bridge ALG flows", func(t *testing.T) {
@@ -1355,50 +1319,10 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		flows, err := dumpAllFlows("ovsbr0-policy")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(flows).ShouldNot(BeEmpty())
-		table70Flows := []string{}
-		for _, flow := range flows {
-			if strings.Contains(flow, "table=70,") && strings.Contains(flow, "tp_dst") {
-				table70Flows = append(table70Flows, flow)
-			}
-		}
-		var (
-			ftpOriginFlow   = false // tcp 21
-			ftp6OriginFlow  = false // tcp6 21
-			tftpOriginFlow  = false // udp 69
-			tftp6OriginFlow = false // udp6 69
-			ftpRplFlow      = false // tcp 21
-			ftp6RplFlow     = false // tcp6 21
-			tftpRplFlow     = false // udp 69
-			tftp6RplFlow    = false // udp6 69
-		)
-		for _, flow := range table70Flows {
-			switch {
-			case isTcp(flow) && hasTpDst(flow, 21) && isOriginFlow(flow):
-				ftpOriginFlow = true
-			case isTcp6(flow) && hasTpDst(flow, 21) && isOriginFlow(flow):
-				ftp6OriginFlow = true
-			case isUdp(flow) && hasTpDst(flow, 69) && isOriginFlow(flow):
-				tftpOriginFlow = true
-			case isUdp6(flow) && hasTpDst(flow, 69) && isOriginFlow(flow):
-				tftp6OriginFlow = true
-			case isTcp(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
-				ftpRplFlow = true
-			case isTcp6(flow) && hasTpDst(flow, 21) && isRplFlow(flow):
-				ftp6RplFlow = true
-			case isUdp(flow) && hasTpDst(flow, 69) && isRplFlow(flow):
-				tftpRplFlow = true
-			case isUdp6(flow) && hasTpDst(flow, 69) && isRplFlow(flow):
-				tftp6RplFlow = true
-			}
-		}
-		Expect(ftpOriginFlow).Should(BeTrue())
-		Expect(ftp6OriginFlow).Should(BeTrue())
-		Expect(tftpOriginFlow).Should(BeTrue())
-		Expect(tftp6OriginFlow).Should(BeTrue())
-		Expect(ftpRplFlow).Should(BeTrue())
-		Expect(ftp6RplFlow).Should(BeTrue())
-		Expect(tftpRplFlow).Should(BeTrue())
-		Expect(tftp6RplFlow).Should(BeTrue())
+		currentTable70ALGFlows := lo.Filter(flows, func(f string, _ int) bool {
+			return strings.HasPrefix(f, "table=70,") && strings.Contains(f, "tp_dst")
+		})
+		Expect(currentTable70ALGFlows).Should(ConsistOf(policyForwardingTableALGFlows))
 	})
 
 	t.Run("test policy bridge ct state flows", func(t *testing.T) {
@@ -1409,39 +1333,7 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		Expect(currentFlows).ShouldNot(BeEmpty())
 
 		currentTable1Flows := lo.Filter(currentFlows, func(f string, _ int) bool { return strings.HasPrefix(f, "table=1,") })
-
-		var (
-			hasRematchFromLocal bool
-			hasRematchFromCls   bool
-			hasEstState         bool
-			hasRelState         bool
-			hasIPv4Default      bool
-			hasIPv6Default      bool
-		)
-
-		for _, f := range currentTable1Flows {
-			switch {
-			case containsAll(f, "table=1", "priority=300", "ct_state=+est-rel-rpl", "in_port=1", "ct_label=0/"):
-				hasRematchFromLocal = true
-			case containsAll(f, "table=1", "priority=300", "ct_state=+est-rel-rpl", "in_port=2", "ct_label=0/"):
-				hasRematchFromCls = true
-			case containsAll(f, "table=1", "priority=200", "ct_state=-new+est", "actions=goto_table:69"):
-				hasEstState = true
-			case containsAll(f, "table=1", "priority=200", "ct_state=+rel+trk", "actions=goto_table:69"):
-				hasRelState = true
-			case containsAll(f, "table=1", "priority=10", "ip actions=goto_table:10"):
-				hasIPv4Default = true
-			case containsAll(f, "table=1", "priority=10", "ipv6 actions=goto_table:10"):
-				hasIPv6Default = true
-			}
-		}
-
-		Expect(hasRematchFromLocal).Should(BeTrue())
-		Expect(hasRematchFromCls).Should(BeTrue())
-		Expect(hasEstState).Should(BeTrue())
-		Expect(hasRelState).Should(BeTrue())
-		Expect(hasIPv4Default).Should(BeTrue())
-		Expect(hasIPv6Default).Should(BeTrue())
+		Expect(currentTable1Flows).Should(ConsistOf(policyCTStateTableFlows))
 	})
 
 	t.Run("test policy bridge direction selection flows", func(t *testing.T) {
