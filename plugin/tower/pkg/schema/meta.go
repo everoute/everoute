@@ -20,6 +20,8 @@ package schema
 type Object interface {
 	// GetID returns the object ID.
 	GetID() string
+	// SetID sets the object ID.
+	SetID(string)
 }
 
 // ObjectMeta is metadata that all tower resources must have.
@@ -30,6 +32,9 @@ type ObjectMeta struct {
 
 // GetID returns the object ID.
 func (obj *ObjectMeta) GetID() string { return obj.ID }
+
+// SetID sets object ID for objects using ObjectMeta as identity.
+func (obj *ObjectMeta) SetID(id string) { obj.ID = id }
 
 // ObjectReference is the reference to other object
 type ObjectReference ObjectMeta
