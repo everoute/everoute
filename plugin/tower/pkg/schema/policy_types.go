@@ -172,6 +172,11 @@ func (s *SystemEndpoints) GetSubscriptionRequest(skipFields map[string][]string)
 	return fmt.Sprintf("subscription {systemEndpoints %s}", subscriptionFields)
 }
 
+func (s *SystemEndpoints) GetQueryRequestWithID(_ string, skipFields map[string][]string) string {
+	queryFields := utils.GqlTypeMarshal(reflect.TypeOf(s), skipFields, true)
+	return fmt.Sprintf("query {systemEndpoints %s}", queryFields)
+}
+
 func (s *SystemEndpoints) UnmarshalEvent(raw json.RawMessage, event *MutationEvent) error {
 	event.Mutation = UpdateEvent
 	event.Node = raw
@@ -198,6 +203,9 @@ func (s *SystemEndpoints) UnmarshalSlice(raw json.RawMessage, slice interface{})
 func (*SystemEndpoints) GetID() string {
 	return "systemEndpoints"
 }
+
+// SetID is a no-op because SystemEndpoints identity is fixed.
+func (*SystemEndpoints) SetID(string) {}
 
 type IDSystemEndpoint struct {
 	Key  string `json:"key"`

@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 
@@ -44,10 +45,15 @@ import (
 // NewReflectorBuilder return a NewReflectorFunc with giving client
 func NewReflectorBuilder(client *client.Client, crcEvent chan *CrcEvent) informer.NewReflectorFunc {
 	return func(options *informer.ReflectorOptions) informer.Reflector {
-		return &reflector{
-			client:     client,
-			store:      options.Store,
-			expectType: gqlType{reflect.TypeOf(options.ExpectedType)},
+		expectType := gqlType{reflect.TypeOf(options.ExpectedType)}
+		queryRequestFn, queryRequestWithIDFn, subscriptionRequestFn := buildRequestFuncs(expectType.Type)
+		r := &reflector{
+			client:                client,
+			store:                 options.Store,
+			expectType:            expectType,
+			queryRequestFn:        queryRequestFn,
+			queryRequestWithIDFn:  queryRequestWithIDFn,
+			subscriptionRequestFn: subscriptionRequestFn,
 			// With these parameters, backoff will stop at [30,60) sec interval which is 0.22 QPS.
 			// If we don't backoff for 2min, assume server is healthy, and we reset the backoff.
 			//nolint:staticcheck
@@ -58,7 +64,15 @@ func NewReflectorBuilder(client *client.Client, crcEvent chan *CrcEvent) informe
 			reconnectMin:   time.Minute * 30,
 			reconnectMax:   time.Minute * 60,
 			crcEvent:       crcEvent,
+			storeEventQueue: workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(),
+				fmt.Sprintf("tower-reflector-%s", expectType.TypeName()),
+			),
 		}
+		if r.newObject() == nil {
+			klog.Fatalf("object type %s doesn't implement schema.Object", expectType.TypeName())
+		}
+		return r
 	}
 }
 
@@ -72,6 +86,10 @@ type reflector struct {
 
 	// An example object of the type we expect to place in the store.
 	expectType gqlType
+	// Optional custom request builders cached at initialization.
+	queryRequestFn        func(skipFields map[string][]string) string
+	queryRequestWithIDFn  func(id string, skipFields map[string][]string) string
+	subscriptionRequestFn func(skipFields map[string][]string) string
 
 	// skipFields contains map with type name and skipped fields.
 	// When got field not exist error, we skip the fields
@@ -93,6 +111,31 @@ type reflector struct {
 	clock clock.Clock
 
 	crcEvent chan *CrcEvent
+
+	storeEventQueue workqueue.RateLimitingInterface
+}
+
+func buildRequestFuncs(expectedType reflect.Type) (
+	func(skipFields map[string][]string) string,
+	func(id string, skipFields map[string][]string) string,
+	func(skipFields map[string][]string) string,
+) {
+	var (
+		queryFn     func(skipFields map[string][]string) string
+		queryByIDFn func(id string, skipFields map[string][]string) string
+		subscribeFn func(skipFields map[string][]string) string
+	)
+	sample := reflect.New(expectedType).Elem().Interface()
+	if t, ok := sample.(Queryable); ok {
+		queryFn = t.GetQueryRequest
+	}
+	if t, ok := sample.(QueryByIDRequestable); ok {
+		queryByIDFn = t.GetQueryRequestWithID
+	}
+	if t, ok := sample.(Subscribable); ok {
+		subscribeFn = t.GetSubscriptionRequest
+	}
+	return queryFn, queryByIDFn, subscribeFn
 }
 
 // Run repeatedly fetch all the objects and subsequent deltas.
@@ -100,9 +143,15 @@ type reflector struct {
 func (r *reflector) Run(stopCh <-chan struct{}) {
 	klog.Infof("start reflector for object %s, with client %v", r.expectType.TypeName(), r.client.URL)
 	defer klog.Infof("stop reflector for object %s, with client %v", r.expectType.TypeName(), r.client.URL)
+	defer r.storeEventQueue.ShutDown()
 
 	go wait.BackoffUntil(r.reflectWorker(stopCh), r.backoffManager, true, stopCh)
 	go r.crcEventHandler(stopCh)
+	go ReconcileWorker(
+		fmt.Sprintf("tower-reflector-%s", r.expectType.TypeName()),
+		r.storeEventQueue,
+		r.processStoreEvent,
+	)()
 
 	<-stopCh
 }
@@ -117,33 +166,16 @@ func (r *reflector) crcEventHandler(stopCh <-chan struct{}) {
 	for {
 		select {
 		case event := <-r.crcEvent:
-			var newObj any
-			var err error
-			if event.NewObj != nil {
-				ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*10)
-				newObj, err = r.query(ctx, event.NewObj.GetID())
-				ctxCancel()
-				if err != nil || newObj == nil {
-					klog.Errorf("unable to query %s %s: %s", r.expectType, event.NewObj.GetID(), err)
-					continue
-				}
+			key := objectID(event.NewObj)
+			if key == "" {
+				key = objectID(event.OldObj)
 			}
-
-			klog.V(4).Infof("get %s crc event of type %s: new %+v old %+v",
-				event.EventType, r.expectType.TypeName(), newObj, event.OldObj)
-
-			switch event.EventType {
-			case CrcEventInsert:
-				_ = r.store.Add(newObj)
-			case CrcEventUpdate:
-				if newObj != nil {
-					_ = r.store.Update(newObj)
-				}
-			case CrcEventDelete:
-				_ = r.store.Delete(event.OldObj)
-			default:
-				klog.Infof("reflector %s unknown event %+v", r.expectType, event)
+			if key == "" {
+				klog.Infof("reflector %s skip crc event without key %+v", r.expectType, event)
+				continue
 			}
+			klog.V(4).Infof("get %s crc event of type %s, enqueue key %s", event.EventType, r.expectType.TypeName(), key)
+			r.storeEventQueue.Add(key)
 		case <-stopCh:
 			return
 		}
@@ -254,42 +286,100 @@ func (r *reflector) watchHandler(ctx context.Context, respCh <-chan client.Respo
 
 func (r *reflector) eventHandler(raw json.RawMessage) error {
 	var event schema.MutationEvent
-	var newObj = reflect.New(r.expectType.Type)
 
 	err := unmarshalEvent(r.expectType.Type, raw, &event)
 	if err != nil {
 		return fmt.Errorf("unable marshal %s into event %T", string(raw), event)
 	}
 
-	err = json.Unmarshal(event.Node, newObj.Interface())
+	key, err := r.eventKey(event)
 	if err != nil {
-		return fmt.Errorf("unable marshal %s into object %T", string(event.Node), r.expectType.TypeName())
+		return err
+	}
+	if key == "" {
+		klog.Infof("reflector %s skip subscription event without key %s", r.expectType, event.Mutation)
+		return nil
+	}
+	klog.V(4).Infof("get %s subscription event of type %s, enqueue key %s", event.Mutation, r.expectType.TypeName(), key)
+	r.storeEventQueue.Add(key)
+	return nil
+}
+
+func (r *reflector) processStoreEvent(key string) error {
+	klog.V(8).Infof("process store event for type %s key %s", r.expectType.TypeName(), key)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	obj, err := r.query(ctx, key)
+	if err != nil {
+		return fmt.Errorf("unable query %s %s: %w", r.expectType.TypeName(), key, err)
+	}
+	if obj == nil {
+		objWithID := r.newObjectWithID(key)
+		return r.store.Delete(objWithID)
+	}
+	return r.store.Add(obj)
+}
+
+func (r *reflector) eventKey(event schema.MutationEvent) (string, error) {
+	key, err := r.objectKeyFromRaw(event.Node)
+	if err != nil {
+		return "", fmt.Errorf("unable marshal %s into object key for %T", string(event.Node), r.expectType.TypeName())
+	}
+	if key != "" {
+		return key, nil
 	}
 
-	var obj = newObj.Elem().Interface()
-
-	// delete object may got nil object, read object from previous values
-	if reflect.ValueOf(obj).IsNil() && event.Mutation == schema.DeleteEvent {
-		err = json.Unmarshal(event.PreviousValues, newObj.Interface())
+	if event.Mutation == schema.DeleteEvent {
+		key, err = r.objectKeyFromRaw(event.PreviousValues)
 		if err != nil {
-			return fmt.Errorf("unable marshal %s into object %T for delete event", string(event.PreviousValues), r.expectType.TypeName())
+			return "", fmt.Errorf("unable marshal %s into object key for delete event %T", string(event.PreviousValues), r.expectType.TypeName())
 		}
-		obj = newObj.Elem().Interface()
 	}
-	klog.V(4).Infof("get %s event of type %s: %v", event.Mutation, r.expectType.TypeName(), obj)
+	return key, nil
+}
 
-	switch event.Mutation {
-	case schema.CreateEvent:
-		err = r.store.Add(obj)
-	case schema.UpdateEvent:
-		err = r.store.Update(obj)
-	case schema.DeleteEvent:
-		err = r.store.Delete(obj)
-	default:
-		return fmt.Errorf("unknow mutation type: %s", event.Mutation)
+func (r *reflector) newObject() schema.Object {
+	realType := r.expectType.Type
+	for realType.Kind() == reflect.Ptr {
+		realType = realType.Elem()
 	}
+	obj, _ := reflect.New(realType).Interface().(schema.Object)
+	return obj
+}
 
-	return err
+func (r *reflector) newObjectWithID(id string) schema.Object {
+	obj := r.newObject()
+	obj.SetID(id)
+	return obj
+}
+
+func (r *reflector) objectKeyFromRaw(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+	obj := r.newObject()
+	if obj == nil {
+		return "", fmt.Errorf("object type %s doesn't implement schema.Object", r.expectType.TypeName())
+	}
+	if err := json.Unmarshal(raw, obj); err != nil {
+		return "", err
+	}
+	return objectID(obj), nil
+}
+
+func objectID(obj any) string {
+	if obj == nil {
+		return ""
+	}
+	if resource, ok := obj.(schema.Object); ok {
+		value := reflect.ValueOf(resource)
+		if value.Kind() != reflect.Ptr || !value.IsNil() {
+			return resource.GetID()
+		}
+	}
+	return ""
 }
 
 func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.ResponseError, err error) {
@@ -406,40 +496,41 @@ type Queryable interface {
 	GetQueryRequest(skipFields map[string][]string) string
 }
 
+// QueryByIDRequestable allows customizing the query used for a single object lookup.
+type QueryByIDRequestable interface {
+	GetQueryRequestWithID(id string, skipFields map[string][]string) string
+}
+
 // Subscribable allow to mutate the default subscription request
 type Subscribable interface {
 	GetSubscriptionRequest(skipFields map[string][]string) string
 }
 
 func (r *reflector) queryRequest() *client.Request {
-	var queryRequest string
-
-	switch t := reflect.New(r.expectType.Type).Elem().Interface().(type) {
-	case Queryable:
-		queryRequest = t.GetQueryRequest(r.skipFields)
-	default:
-		queryRequest = fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields))
+	if r.queryRequestFn != nil {
+		return &client.Request{Query: r.queryRequestFn(r.skipFields)}
 	}
-
-	return &client.Request{Query: queryRequest}
+	return &client.Request{
+		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields)),
+	}
 }
 
 func (r *reflector) queryRequestWithID(id string) *client.Request {
+	if r.queryRequestWithIDFn != nil {
+		return &client.Request{Query: r.queryRequestWithIDFn(id, r.skipFields)}
+	}
+
 	return &client.Request{
 		Query: fmt.Sprintf("query {%s(where:{id:\"%s\"}) %s}", r.expectType.ListName(), id, r.expectType.QueryFields(r.skipFields))}
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {
-	var subscriptionRequest string
-
-	switch t := reflect.New(r.expectType.Type).Elem().Interface().(type) {
-	case Subscribable:
-		subscriptionRequest = t.GetSubscriptionRequest(r.skipFields)
-	default:
-		subscriptionRequest = fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields))
+	if r.subscriptionRequestFn != nil {
+		return &client.Request{Query: r.subscriptionRequestFn(r.skipFields)}
 	}
-
-	return &client.Request{Query: subscriptionRequest}
+	return &client.Request{
+		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
+	}
 }
 
 type gqlType struct {
