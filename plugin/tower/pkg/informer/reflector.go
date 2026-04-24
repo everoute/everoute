@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -94,6 +95,8 @@ type reflector struct {
 	// skipFields contains map with type name and skipped fields.
 	// When got field not exist error, we skip the fields
 	skipFields map[string][]string
+	// skipFieldsLock protects concurrent access to skipFields.
+	skipFieldsLock sync.RWMutex
 
 	// backoff manages backoff of reflector listAndWatch
 	backoffManager wait.BackoffManager
@@ -394,7 +397,7 @@ func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.Res
 
 	// reset skipFields from error message to handle the cause:
 	//   after tower upgrade, query all fields from the tower
-	r.skipFields = make(map[string][]string)
+	nextSkipFields := make(map[string][]string)
 	for _, respErr := range respErrs {
 		names := matchFieldNotExistFromMessage(respErr.Message)
 		if names != nil {
@@ -406,9 +409,10 @@ func (r *reflector) watchErrorHandler(ctx context.Context, respErrs []client.Res
 				_ = r.store.Replace(nil, r.LastSyncResourceVersion())
 				break
 			}
-			r.skipFields[typeName] = append(r.skipFields[typeName], fieldName)
+			nextSkipFields[typeName] = append(nextSkipFields[typeName], fieldName)
 		}
 	}
+	r.setSkipFields(nextSkipFields)
 
 	// not logged in or token expired, need relogin
 	if client.HasAuthError(respErrs) {
@@ -507,30 +511,54 @@ type Subscribable interface {
 }
 
 func (r *reflector) queryRequest() *client.Request {
+	skipFields := r.getSkipFieldsSnapshot()
 	if r.queryRequestFn != nil {
-		return &client.Request{Query: r.queryRequestFn(r.skipFields)}
+		return &client.Request{Query: r.queryRequestFn(skipFields)}
 	}
 	return &client.Request{
-		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(r.skipFields)),
+		Query: fmt.Sprintf("query {%s %s}", r.expectType.ListName(), r.expectType.QueryFields(skipFields)),
 	}
 }
 
 func (r *reflector) queryRequestWithID(id string) *client.Request {
+	skipFields := r.getSkipFieldsSnapshot()
 	if r.queryRequestWithIDFn != nil {
-		return &client.Request{Query: r.queryRequestWithIDFn(id, r.skipFields)}
+		return &client.Request{Query: r.queryRequestWithIDFn(id, skipFields)}
 	}
 
 	return &client.Request{
-		Query: fmt.Sprintf("query {%s(where:{id:\"%s\"}) %s}", r.expectType.ListName(), id, r.expectType.QueryFields(r.skipFields))}
+		Query: fmt.Sprintf("query {%s(where:{id:\"%s\"}) %s}", r.expectType.ListName(), id, r.expectType.QueryFields(skipFields))}
 }
 
 func (r *reflector) subscriptionRequest() *client.Request {
+	skipFields := r.getSkipFieldsSnapshot()
 	if r.subscriptionRequestFn != nil {
-		return &client.Request{Query: r.subscriptionRequestFn(r.skipFields)}
+		return &client.Request{Query: r.subscriptionRequestFn(skipFields)}
 	}
 	return &client.Request{
-		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(r.skipFields)),
+		Query: fmt.Sprintf("subscription {%s {mutation previousValues{id} node %s}}", r.expectType.TypeName(), r.expectType.QueryFields(skipFields)),
 	}
+}
+
+func (r *reflector) setSkipFields(skipFields map[string][]string) {
+	r.skipFieldsLock.Lock()
+	defer r.skipFieldsLock.Unlock()
+	r.skipFields = skipFields
+}
+
+func (r *reflector) getSkipFieldsSnapshot() map[string][]string {
+	r.skipFieldsLock.RLock()
+	defer r.skipFieldsLock.RUnlock()
+
+	if len(r.skipFields) == 0 {
+		return nil
+	}
+
+	snapshot := make(map[string][]string, len(r.skipFields))
+	for typeName, fields := range r.skipFields {
+		snapshot[typeName] = append([]string(nil), fields...)
+	}
+	return snapshot
 }
 
 type gqlType struct {
