@@ -1219,16 +1219,9 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	)
 
 	ctCommitReplyFlow, _ := p.ctCommitTable.NewFlow(ofctrl.FlowMatch{
-		Priority:  MID_MATCH_FLOW_PRIORITY,
-		Ethertype: protocol.IPv4_MSG,
-		CtStates:  ctRplTrkState(),
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg5,
-				Data:  0,
-				Range: OriginShouldCommitCTReg5NXRange,
-			},
-		},
+		Priority:    NORMAL_MATCH_FLOW_PRIORITY,
+		Ethertype:   protocol.IPv4_MSG,
+		CtStates:    ctRplTrkState(),
 		CTLabel:     &NoReplyMatchCTLabel,
 		CTLabelMask: &NoReplyMatchCTLabelMask,
 	})
@@ -1716,15 +1709,8 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 		// reg4[0..15]=0 means no deny/fallback action was set by policy matching.
 	}
 	replyFlowMatch := ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		CtStates: ctRplTrkState(),
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg5,
-				Data:  0,
-				Range: OriginShouldCommitCTReg5NXRange,
-			},
-		},
+		Priority:    NORMAL_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
+		CtStates:    ctRplTrkState(),
 		CTLabel:     &NoReplyMatchCTLabel,
 		CTLabelMask: &NoReplyMatchCTLabelMask,
 	}
