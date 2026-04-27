@@ -18,8 +18,8 @@ const (
 
 	DpActionMaxRetryTimes = 5
 
-	DPIHealthyCheckTimeout = 3 * time.Second
-	DPIHealthyCheckPeriod  = 3 * time.Second
+	DPIHealthyCheckTimeout = 1 * time.Second
+	DPIHealthyCheckPeriod  = 1 * time.Second
 )
 
 var (
