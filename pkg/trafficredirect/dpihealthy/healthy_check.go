@@ -2,11 +2,11 @@ package dpihealthy
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 
-	"github.com/everoute/everoute/pkg/constants/tr"
 	"github.com/everoute/everoute/pkg/types"
 )
 
@@ -15,8 +15,8 @@ func Run(ctx context.Context, f func(types.DPIStatus)) {
 		process:    f,
 		lastStatus: types.DPIUnknown,
 	}
-	go wait.UntilWithContext(ctx, p.Do, tr.DPIHealthyCheckPeriod)
-	klog.Infof("Success start the task of periodically check dpi healthy status, period: %v", tr.DPIHealthyCheckPeriod)
+	go wait.UntilWithContext(ctx, p.Do, 1*time.Second)
+	klog.Infof("Success start the task of periodically check dpi healthy status, period: %v", 1*time.Second)
 }
 
 type ProcessHealthyCheck struct {
