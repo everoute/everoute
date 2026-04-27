@@ -48,6 +48,7 @@ import (
 	"github.com/everoute/everoute/pkg/constants/ms"
 	ctrltypes "github.com/everoute/everoute/pkg/controller/types"
 	"github.com/everoute/everoute/pkg/metrics"
+	ersource "github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -283,19 +284,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	agentInfoCacheC, err := controller.New("agentinfo-controller", mgr, controller.Options{
-		Reconciler: reconcile.Func(r.ReconcileAgentInfo),
-	})
-	if err != nil {
-		return err
-	}
-	err = agentInfoCacheC.Watch(source.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
-		UpdateFunc: r.enqueueAgentInfoCacheUpdate,
-	})
-	if err != nil {
-		return err
-	}
-
 	err = c.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.Endpoint{}), &handler.EnqueueRequestForObject{}, predicate.Funcs{
 		DeleteFunc: func(event.DeleteEvent) bool {
 			return false
@@ -308,6 +296,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	agentInfoCacheC, err := controller.New("agentinfo-controller", mgr, controller.Options{
+		Reconciler: reconcile.Func(r.ReconcileAgentInfo),
+	})
+	if err != nil {
+		return err
+	}
+	err = agentInfoCacheC.Watch(ersource.Kind(mgr.GetCache(), &agentv1alpha1.AgentInfo{}), &handler.Funcs{
+		UpdateFunc: r.enqueueAgentInfoCacheUpdate,
+	})
+	if err != nil {
+		return err
+	}
+
 	if r.shareIPCache == nil {
 		r.shareIPCache = make(map[string]shareIP)
 	}
@@ -315,7 +316,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	err = shareIPC.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.ShareIP{}), &handler.EnqueueRequestForObject{})
+	err = shareIPC.Watch(ersource.Kind(mgr.GetCache(), &securityv1alpha1.ShareIP{}), &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
