@@ -1154,7 +1154,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 			},
 		},
 		// only re-commit +rpl traffic when current packet action is allow.
-		// reg4[0..15]=0 means no deny/fallback action was set by policy matching.
+		// reg4[0..15]=0 means no deny action was set by policy matching.
 	}
 
 	var (
@@ -1244,7 +1244,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 	}
 
 	// ct drop table: 71
-	ctByPassFlow1, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
+	ctDropFlow, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
 		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Regs: []*ofctrl.NXRegister{
 			{
@@ -1254,24 +1254,8 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 			},
 		},
 	})
-	if err := ctByPassFlow1.Next(p.OfSwitch.DropAction()); err != nil {
+	if err := ctDropFlow.Next(p.OfSwitch.DropAction()); err != nil {
 		return fmt.Errorf("failed to install ct drop flow, error: %v", err)
-	}
-	ctByPassFlow2, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
-		Priority: MID_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
-		Regs: []*ofctrl.NXRegister{
-			{
-				RegID: constants.OVSReg4,
-				Data:  0x30,
-				Range: openflow13.NewNXRange(0, 15),
-			},
-		},
-	})
-	if err := ctByPassFlow2.Resubmit(nil, &p.sfcPolicyTable.TableId); err != nil {
-		return fmt.Errorf("failed to install ct bypass flow 2, error: %v", err)
-	}
-	if err := ctByPassFlow2.Next(ofctrl.NewEmptyElem()); err != nil {
-		return fmt.Errorf("failed to install ct bypass flow 2, error: %v", err)
 	}
 
 	ctPassDefaultFlow, _ := p.ctDropTable.NewFlow(ofctrl.FlowMatch{
@@ -1706,7 +1690,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 			},
 		},
 		// only re-commit +rpl traffic when current packet action is allow.
-		// reg4[0..15]=0 means no deny/fallback action was set by policy matching.
+		// reg4[0..15]=0 means no deny action was set by policy matching.
 	}
 	replyFlowMatch := ofctrl.FlowMatch{
 		Priority:    NORMAL_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
@@ -2520,15 +2504,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 			return nil, err
 		}
 	case "work":
-		switch rule.Action {
-		case "allow":
-			if rule.Priority == GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY {
-				if err := ruleFlow.LoadField("nxm_nx_reg4", 0x30, openflow13.NewNXRange(0, 15)); err != nil {
-					log.Error(err, "Failed to load field")
-					return nil, err
-				}
-			}
-		case "deny":
+		if rule.Action == EveroutePolicyDeny {
 			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
 				log.Error(err, "Failed to load field")
 				return nil, err
@@ -2537,10 +2513,6 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 				log.Error(err, "Failed to load field")
 				return nil, err
 			}
-		default:
-			err := fmt.Errorf("unknown action")
-			log.Error(err, "unknown rule action", "ruleAction", rule.Action)
-			return nil, err
 		}
 
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
