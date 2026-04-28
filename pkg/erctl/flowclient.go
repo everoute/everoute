@@ -85,7 +85,7 @@ func GetFlows(dp bool, names ...string) (map[string][]string, error) {
 		ans[name] = flows
 	}
 	if dp {
-		b, err := exec.Command("/bin/sh", "-c", "ovs-dpctl dump-flows").CombinedOutput()
+		b, err := exec.Command("ovs-appctl", "dpctl/dump-flows").CombinedOutput()
 		if err != nil {
 			laste = fmt.Errorf("%s,%s", laste.Error(), err.Error())
 		} else {
