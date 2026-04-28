@@ -166,7 +166,9 @@ var (
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	rule1v6Flow = `table=60, priority=200,icmp6,ipv6_src=2401::10:100:100:1,ipv6_dst=2401::10:100:100:2 ` +
 		`actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
+	rule1WorkModeFlow              = `table=55, priority=200,icmp,nw_src=10.100.100.1,nw_dst=10.100.100.2 actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	rule2WorkModeFlow              = `table=20, priority=0,udp,nw_src=10.100.100.0/24 actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],load:0x->NXM_NX_XXREG0[127],load:0x20->NXM_NX_REG4[0..15],goto_table:70`
+	globalDefaultAllowWorkModeFlow = `table=55, priority=40,ip actions=load:0x->NXM_NX_XXREG0[60..87],load:0x->NXM_NX_XXREG0[0..3],goto_table:70`
 	ep1VlanInputFlow               = "table=0, priority=200,in_port=11 actions=push_vlan:0x8100,set_field:4097->vlan_vid,load:0x2->NXM_NX_PKT_MARK[17..18],load:0xb->NXM_NX_PKT_MARK[0..15],resubmit(,10),resubmit(,15)"
 	ep1LocalToLocalFlow            = "table=5, priority=200,dl_vlan=1,dl_src=00:00:aa:aa:aa:aa actions=load:0xb->NXM_OF_IN_PORT[],load:0->NXM_OF_VLAN_TCI[0..12],NORMAL"
 	ep2VlanInputFlow               = "table=0, priority=200,in_port=22,vlan_tci=0x1000/0x1000 actions=load:0x1->NXM_NX_REG3[0..1],load:0x2->NXM_NX_PKT_MARK[17..18],load:0x16->NXM_NX_PKT_MARK[0..15],resubmit(,1)"
@@ -240,6 +242,11 @@ var (
 		"table=70, priority=300,ct_label=0x80000000000000000000000000000000/0x80000000000000000000000000000000,ipv6,reg5=0/0x100 actions=load:0x20->NXM_NX_REG4[0..15],goto_table:71",
 		"table=70, priority=300,ct_state=+new+trk,tcp,reg4=0x20/0xffff,tcp_flags=-syn actions=goto_table:71",
 		"table=70, priority=300,ct_state=+new+trk,tcp6,reg4=0x20/0xffff,tcp_flags=-syn actions=goto_table:71",
+	}
+
+	policyCTDropTableFlows = []string{
+		"table=71, priority=203,reg4=0x20/0xffff actions=drop",
+		"table=71, priority=10 actions=goto_table:80",
 	}
 
 	policyForwardingTableALGFlows = []string{
@@ -428,6 +435,9 @@ func testERPolicyRule(t *testing.T) {
 		if datapathManager.policyRuleNums["policy1"] != 1 {
 			t.Errorf("Failed to update policyruleNums for rule %v", rule1)
 		}
+		Eventually(func() error {
+			return flowValidator([]string{rule1WorkModeFlow})
+		}, timeout, interval).Should(Succeed())
 
 		if err := datapathManager.RemoveEveroutePolicyRule(ctx, rule1.RuleID, baseInfo); err != nil {
 			t.Errorf("Failed to remove ER policy rule: %v, error: %v", rule1, err)
@@ -512,6 +522,28 @@ func testERPolicyRule(t *testing.T) {
 		}
 		if datapathManager.policyRuleNums["policy2"] != 1 {
 			t.Errorf("Failed to update policyruleNums for rule %v", rule3)
+		}
+
+		globalDefaultAllowRule := &EveroutePolicyRule{
+			RuleID:   "global-default-allow",
+			Priority: GLOBAL_DEFAULT_POLICY_FLOW_PRIORITY,
+			IPFamily: unix.AF_INET,
+			Action:   EveroutePolicyAllow,
+		}
+		globalDefaultAllowBaseInfo := RuleBaseInfo{
+			Ref:       PolicyRuleRef{Policy: "global", Rule: globalDefaultAllowRule.RuleID},
+			Tier:      POLICY_TIER2,
+			Direction: POLICY_DIRECTION_IN,
+			Mode:      DEFAULT_POLICY_ENFORCEMENT_MODE,
+		}
+		if err := datapathManager.AddEveroutePolicyRule(ctx, globalDefaultAllowRule, globalDefaultAllowBaseInfo); err != nil {
+			t.Errorf("Failed to add global default allow policy rule: %v, error: %v", globalDefaultAllowRule, err)
+		}
+		Eventually(func() error {
+			return flowValidator([]string{globalDefaultAllowWorkModeFlow})
+		}, timeout, interval).Should(Succeed())
+		if err := datapathManager.RemoveEveroutePolicyRule(ctx, globalDefaultAllowRule.RuleID, globalDefaultAllowBaseInfo); err != nil {
+			t.Errorf("Failed to remove global default allow policy rule: %v, error: %v", globalDefaultAllowRule, err)
 		}
 	})
 
@@ -1327,6 +1359,18 @@ func TestPolicyBridgeFlows(t *testing.T) {
 			return strings.HasPrefix(f, "table=70,") && !strings.Contains(f, "tp_dst")
 		})
 		Expect(currentTable70Flows).Should(ConsistOf(policyForwardingTableFlows))
+	})
+
+	t.Run("test policy bridge ct drop flows", func(t *testing.T) {
+		RegisterTestingT(t)
+		flows, err := dumpAllFlows("ovsbr0-policy")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(flows).ShouldNot(BeEmpty())
+		currentTable71Flows := lo.Filter(flows, func(f string, _ int) bool {
+			return strings.HasPrefix(f, "table=71,")
+		})
+		Expect(currentTable71Flows).Should(ConsistOf(policyCTDropTableFlows))
+		Expect(currentTable71Flows).ShouldNot(ContainElement(ContainSubstring("reg4=0x30/0xffff")))
 	})
 
 	t.Run("test policy bridge ALG flows", func(t *testing.T) {
