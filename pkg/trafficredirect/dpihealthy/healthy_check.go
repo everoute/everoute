@@ -27,6 +27,9 @@ type ProcessHealthyCheck struct {
 func (p *ProcessHealthyCheck) Do(_ context.Context) {
 	curS := HealthyCheck()
 	if curS != p.lastStatus {
+		if p.lastStatus == types.DPIUnknown && curS != types.DPIUnknown {
+			LogHealthyRecovered(curS)
+		}
 		klog.Infof("Begin to update DPI status from %s to %s", p.lastStatus, curS)
 		p.process(curS)
 		klog.Infof("Success update DPI status from %s to %s", p.lastStatus, curS)
