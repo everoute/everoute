@@ -24,6 +24,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1358,7 +1360,9 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		currentTable70Flows := lo.Filter(flows, func(f string, _ int) bool {
 			return strings.HasPrefix(f, "table=70,") && !strings.Contains(f, "tp_dst")
 		})
-		Expect(currentTable70Flows).Should(Equal(policyForwardingTableFlows))
+		currentTable70Flows = lo.Map(currentTable70Flows, func(f string, _ int) string { return sortExecCTLabelActions(f) })
+		policyForwardingTableFlows := lo.Map(policyForwardingTableFlows, func(f string, _ int) string { return sortExecCTLabelActions(f) })
+		Expect(currentTable70Flows).Should(ConsistOf(policyForwardingTableFlows))
 	})
 
 	t.Run("test policy bridge ct drop flows", func(t *testing.T) {
@@ -1381,7 +1385,9 @@ func TestPolicyBridgeFlows(t *testing.T) {
 		currentTable70ALGFlows := lo.Filter(flows, func(f string, _ int) bool {
 			return strings.HasPrefix(f, "table=70,") && strings.Contains(f, "tp_dst")
 		})
-		Expect(currentTable70ALGFlows).Should(Equal(policyForwardingTableALGFlows))
+		currentTable70ALGFlows = lo.Map(currentTable70ALGFlows, func(f string, _ int) string { return sortExecCTLabelActions(f) })
+		policyForwardingTableALGFlows := lo.Map(policyForwardingTableALGFlows, func(f string, _ int) string { return sortExecCTLabelActions(f) })
+		Expect(currentTable70ALGFlows).Should(ConsistOf(policyForwardingTableALGFlows))
 	})
 
 	t.Run("test policy bridge ct state flows", func(t *testing.T) {
@@ -1548,4 +1554,18 @@ func TestTREp(t *testing.T) {
 		err = flowValidator([]string{healthyFlows[i]})
 		Expect(err).Should(HaveOccurred())
 	}
+}
+
+func sortExecCTLabelActions(s string) string {
+	content := regexp.MustCompile(`exec\(([^)]*)\)`).FindStringSubmatch(s)
+	if content == nil {
+		return s
+	}
+	startBit := func(p string) int {
+		bit := regexp.MustCompile(`NXM_NX_CT_LABEL\[(\d+)`).FindStringSubmatch(p)
+		return lo.If(bit == nil, 0).ElseF(func() int { return lo.T2(strconv.Atoi(bit[1])).A })
+	}
+	actions := strings.Split(content[1], ",")
+	sort.SliceStable(actions, func(m, n int) bool { return startBit(actions[m]) < startBit(actions[n]) })
+	return strings.Replace(s, content[1], strings.Join(actions, ","), 1)
 }
