@@ -259,8 +259,8 @@ jobs:
           timeout_minutes: 5
           max_attempts: 5
           command: |
-            BRANCH="${{ github.head_ref || github.ref_name }}"
-            $COUSU build -m "ms=${BRANCH}" -p "${{ steps.version.outputs.version }}" -f
+            COMMIT_ID="${{ github.event.pull_request.head.sha || github.sha }}"
+            $COUSU build -m "ms=${COMMIT_ID}" -p "${{ steps.version.outputs.version }}" -f
 
       - name: wait for build completion
         uses: nick-fields/retry@v2
