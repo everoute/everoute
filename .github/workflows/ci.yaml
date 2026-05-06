@@ -64,7 +64,6 @@ jobs:
         run: echo "::error::Please run \"make generate\" or \"make docker-generate\" before commit."
 
   pr-check:
-    needs: [static-check, generate-check]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -94,6 +93,7 @@ jobs:
 
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
+    needs: [static-check, generate-check, pr-check]
     steps:
       - uses: actions/checkout@v2
 
@@ -106,7 +106,7 @@ jobs:
           push: true
 
   run-k8s-e2e:
-    needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
+    needs: [build-k8s-e2e-image]
     strategy:
       fail-fast: false
       matrix:
