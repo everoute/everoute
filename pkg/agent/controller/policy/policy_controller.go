@@ -678,21 +678,57 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 	}
 
 	log.Info("policy rule changed for object", "objectSpec", ctx.Value(ertypes.CtxKeyObject))
+	bundleID := datapath.PolicyRuleBundleID(fmt.Sprintf("%s/%d", policyName, time.Now().UnixNano()))
+	if err := r.DatapathManager.BeginEveroutePolicyRuleBundle(ctx, bundleID); err != nil {
+		return err
+	}
 	for _, item := range addRuleList {
 		errList = append(errList,
-			r.processPolicyRuleAdd(ctx, item),
+			r.processPolicyRuleAddInBundle(ctx, bundleID, item),
 		)
 	}
 
 	for _, item := range delRuleList {
 		errList = append(errList,
-			r.processPolicyRuleDelete(ctx, item),
+			r.processPolicyRuleDeleteInBundle(ctx, bundleID, item),
 		)
+	}
+	if err := errors.NewAggregate(errList); err != nil {
+		errList = append(errList, r.DatapathManager.AbortEveroutePolicyRuleBundle(bundleID))
+		return errors.NewAggregate(errList)
+	}
+	if err := r.DatapathManager.CommitEveroutePolicyRuleBundle(ctx, bundleID); err != nil {
+		errList = append(errList, err)
+		return errors.NewAggregate(errList)
 	}
 
 	r.DatapathManager.PolicyRuleMetricsUpdate(policyName, false)
 
 	return errors.NewAggregate(errList)
+}
+
+func (r *Reconciler) processPolicyRuleDeleteInBundle(ctx context.Context, bundleID datapath.PolicyRuleBundleID, policyRule *policycache.PolicyRule) error {
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: policyRule.Policy,
+			Rule:   policyRule.Name,
+		},
+	}
+	return r.DatapathManager.RemoveEveroutePolicyRuleToBundle(ctx, bundleID, datapath.FlowKeyFromRuleName(policyRule.Name), ruleBase)
+}
+
+func (r *Reconciler) processPolicyRuleAddInBundle(ctx context.Context, bundleID datapath.PolicyRuleBundleID, policyRule *policycache.PolicyRule) error {
+	everoutePolicyRule := toEveroutePolicyRule(datapath.FlowKeyFromRuleName(policyRule.Name), policyRule)
+	ruleBase := datapath.RuleBaseInfo{
+		Ref: datapath.PolicyRuleRef{
+			Policy: policyRule.Policy,
+			Rule:   policyRule.Name,
+		},
+		Direction: getRuleDirection(policyRule.Direction),
+		Tier:      getRuleTier(policyRule.Tier),
+		Mode:      policyRule.EnforcementMode,
+	}
+	return r.DatapathManager.AddEveroutePolicyRuleToBundle(ctx, bundleID, everoutePolicyRule, ruleBase)
 }
 
 func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, policyRule *policycache.PolicyRule) error {

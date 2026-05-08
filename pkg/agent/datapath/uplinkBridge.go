@@ -19,7 +19,7 @@ package datapath
 import (
 	"fmt"
 
-	"github.com/contiv/libOpenflow/openflow13"
+	openflow "antrea.io/libOpenflow/openflow15"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,7 +49,7 @@ func newUplinkBridge(brName, vdsID string, datapathManager *DpManager) *UplinkBr
 func (u *UplinkBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (u *UplinkBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
+func (u *UplinkBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow.MultipartReply) {
 }
 
 func (u *UplinkBridge) BridgeInit() {
@@ -145,7 +145,7 @@ func (u *UplinkBridge) storePacketSourceBridge(f *ofctrl.Flow) error {
 	markPacketSourceBridgeAction, err := ofctrl.NewNXLoadAction(
 		"nxm_nx_pkt_mark",
 		PacketSourceUplinkBridge,
-		openflow13.NewNXRange(PacketSourcePKTMARKBitStart, PacketSourcePKTMARKBitEnd),
+		openflow.NewNXRange(PacketSourcePKTMARKBitStart, PacketSourcePKTMARKBitEnd),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create source action, error: %v", err)

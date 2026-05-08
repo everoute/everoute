@@ -31,10 +31,10 @@ import (
 	"sync"
 	"time"
 
+	openflow "antrea.io/libOpenflow/openflow15"
+	"antrea.io/libOpenflow/protocol"
+	"antrea.io/libOpenflow/util"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	"github.com/contiv/libOpenflow/openflow13"
-	"github.com/contiv/libOpenflow/protocol"
-	"github.com/contiv/libOpenflow/util"
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/contiv/ofnet/ofctrl/cookie"
 	"github.com/contiv/ofnet/ovsdbDriver"
@@ -138,6 +138,8 @@ const (
 	openflowProtorolVersion11 string = "OpenFlow11"
 	openflowProtorolVersion12 string = "OpenFlow12"
 	openflowProtorolVersion13 string = "OpenFlow13"
+	openflowProtorolVersion14 string = "OpenFlow14"
+	openflowProtorolVersion15 string = "OpenFlow15"
 
 	IPAddressTimeout                        = 10
 	IPAddressCacheUpdateInterval            = 5
@@ -235,7 +237,7 @@ type Bridge interface {
 	PacketRcvd(sw *ofctrl.OFSwitch, pkt *ofctrl.PacketIn)
 
 	// Controller received a multi-part reply from the switch
-	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow13.MultipartReply)
+	MultipartReply(sw *ofctrl.OFSwitch, rep *openflow.MultipartReply)
 
 	// Everoute IPAM
 	AddIPPoolSubnet(string) error
@@ -275,6 +277,7 @@ type DpManager struct {
 	FlowIDToRules             map[uint64]*EveroutePolicyRuleEntry
 	VNicToRules               map[string]sets.Set[*EveroutePolicyRuleEntry]
 	policyRuleNums            map[string]int
+	policyRuleBundleSessions  map[PolicyRuleBundleID]*policyRuleBundleSession
 	flowReplayMutex           *lock.CASMutex
 	FlowIDAlloctorForRule     *FlowIDAlloctor
 	FlowIDAlloctorForTR       *FlowIDAlloctor
@@ -294,6 +297,32 @@ type DpManager struct {
 	// everoute ipam
 	ippoolSubnets sets.Set[string]
 	ippoolGWs     sets.Set[string]
+}
+
+type PolicyRuleBundleID string
+
+type policyRuleBundleSession struct {
+	id           PolicyRuleBundleID
+	txByVDS      map[string]*ofctrl.Transaction
+	pendingAdds  []*pendingPolicyRuleAdd
+	pendingDels  []*pendingPolicyRuleDel
+	sentMessages map[string]int
+}
+
+type pendingPolicyRuleAdd struct {
+	rule        *EveroutePolicyRule
+	ruleBase    RuleBaseInfo
+	ruleEntry   *EveroutePolicyRuleEntry
+	ruleFlowMap map[string]*FlowEntry
+}
+
+type pendingPolicyRuleDel struct {
+	ruleID     string
+	ruleBase   RuleBaseInfo
+	ruleEntry  *EveroutePolicyRuleEntry
+	refOnly    bool
+	delFlowIDs []uint64
+	resFlowIDs []uint64
 }
 
 type DpManagerInfo struct {
@@ -439,6 +468,7 @@ func NewDatapathManager(datapathConfig *DpManagerConfig, ofPortIPAddressUpdateCh
 	datapathManager.Rules = make(map[string]*EveroutePolicyRuleEntry)
 	datapathManager.FlowIDToRules = make(map[uint64]*EveroutePolicyRuleEntry)
 	datapathManager.VNicToRules = make(map[string]sets.Set[*EveroutePolicyRuleEntry])
+	datapathManager.policyRuleBundleSessions = make(map[PolicyRuleBundleID]*policyRuleBundleSession)
 	datapathManager.TRRules = make(map[string]*DPTRRule)
 	datapathManager.FlowIDToTRRules = make(map[uint64]*DPTRRule)
 	datapathManager.FlowIDAlloctorForRule = NewPolicyFlowIDAlloctor()
@@ -894,7 +924,8 @@ func NewVDSForConfigProxy(datapathManager *DpManager, vdsID, ovsbrname string) {
 
 	protocols := map[string][]string{
 		"protocols": {
-			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12,
+			openflowProtorolVersion13, openflowProtorolVersion14, openflowProtorolVersion15,
 		},
 	}
 	if err := natDriver.UpdateBridge(protocols); err != nil {
@@ -991,10 +1022,11 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	datapathManager.OvsdbDriverMap[vdsID] = vdsOvsdbDriverMap
 	datapathManager.DpManagerMutex.Unlock()
 
-	// setbridge work with openflow10 ~ openflow13
+	// setbridge work with openflow10 ~ openflow15
 	protocols := map[string][]string{
 		"protocols": {
-			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12,
+			openflowProtorolVersion13, openflowProtorolVersion14, openflowProtorolVersion15,
 		},
 	}
 	if err := vdsOvsdbDriverMap[LOCAL_BRIDGE_KEYWORD].UpdateBridge(protocols); err != nil {
@@ -1679,6 +1711,285 @@ func (dp *DpManager) decPolicyRuleNum(policyName string) {
 	}
 }
 
+func (dp *DpManager) BeginEveroutePolicyRuleBundle(ctx context.Context, bundleID PolicyRuleBundleID) error {
+	log := ctrl.LoggerFrom(ctx, "bundleID", bundleID)
+	dp.lockflowReplayWithTimeout()
+	if !dp.IsBridgesConnected() {
+		dp.WaitForBridgeConnected()
+	}
+	if _, ok := dp.policyRuleBundleSessions[bundleID]; ok {
+		dp.flowReplayMutex.Unlock()
+		return fmt.Errorf("policy rule bundle %s already exists", bundleID)
+	}
+
+	session := &policyRuleBundleSession{
+		id:           bundleID,
+		txByVDS:      make(map[string]*ofctrl.Transaction),
+		sentMessages: make(map[string]int),
+	}
+	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		if !dp.IsEnableDFWByVDS(vdsID) {
+			continue
+		}
+		tx := bridgeChain[POLICY_BRIDGE_KEYWORD].getOfSwitch().NewTransaction(ofctrl.Atomic | ofctrl.Ordered)
+		if err := tx.Begin(); err != nil {
+			for _, openedTx := range session.txByVDS {
+				if _, completeErr := openedTx.Complete(); completeErr == nil {
+					_ = openedTx.Abort()
+				}
+			}
+			dp.flowReplayMutex.Unlock()
+			return err
+		}
+		session.txByVDS[vdsID] = tx
+	}
+	dp.policyRuleBundleSessions[bundleID] = session
+	log.V(2).Info("Begin policy rule bundle")
+	return nil
+}
+
+func (dp *DpManager) AddEveroutePolicyRuleToBundle(ctx context.Context, bundleID PolicyRuleBundleID, rule *EveroutePolicyRule, ruleBase RuleBaseInfo) error {
+	session, ok := dp.policyRuleBundleSessions[bundleID]
+	if !ok {
+		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+	}
+
+	log := ctrl.LoggerFrom(ctx, "bundleID", bundleID, "ruleBase", ruleBase, "newRule", rule)
+	ruleEntry := dp.Rules[rule.RuleID]
+	if ruleEntry != nil && RuleIsSame(ruleEntry.EveroutePolicyRule, rule) {
+		session.pendingAdds = append(session.pendingAdds, &pendingPolicyRuleAdd{
+			rule:      rule,
+			ruleBase:  ruleBase,
+			ruleEntry: ruleEntry,
+		})
+		log.Info("Rule already exists, skip add flow")
+		return nil
+	}
+
+	seqID, err := dp.FlowIDAlloctorForRule.Allocate()
+	if err != nil {
+		log.Error(err, "Failed to allocate seqID for rule")
+		return err
+	}
+
+	ruleFlowMap := make(map[string]*FlowEntry)
+	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		tx, ok := session.txByVDS[vdsID]
+		if !ok || !dp.IsEnableDFWByVDS(vdsID) {
+			continue
+		}
+		policyBridge, ok := bridgeChain[POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+		if !ok {
+			return fmt.Errorf("policy bridge %s is not *PolicyBridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
+		}
+		logL := ctrl.LoggerFrom(ctx, "vds", vdsID, "bridge", policyBridge.GetName())
+		ctxL := ctrl.LoggerInto(ctx, logL)
+		flowMod, flowEntry, err := policyBridge.BuildAddMicroSegmentRuleFlowMod(ctxL, seqID, rule, ruleBase.Direction, ruleBase.Tier, ruleBase.Mode)
+		if err != nil {
+			return err
+		}
+		if err := tx.AddFlow(flowMod); err != nil {
+			return err
+		}
+		session.sentMessages[vdsID]++
+		ruleFlowMap[vdsID] = flowEntry
+	}
+
+	session.pendingAdds = append(session.pendingAdds, &pendingPolicyRuleAdd{
+		rule:        rule,
+		ruleBase:    ruleBase,
+		ruleEntry:   ruleEntry,
+		ruleFlowMap: ruleFlowMap,
+	})
+	return nil
+}
+
+func (dp *DpManager) RemoveEveroutePolicyRuleToBundle(ctx context.Context, bundleID PolicyRuleBundleID, ruleID string, ruleBase RuleBaseInfo) error {
+	session, ok := dp.policyRuleBundleSessions[bundleID]
+	if !ok {
+		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+	}
+
+	log := ctrl.LoggerFrom(ctx)
+	policyRef := ruleBase.Ref
+	pRule := dp.Rules[ruleID]
+	if pRule == nil {
+		log.Error(utils.ErrInternal, "rule not found when deleting", "ruleID", ruleID, "ruleRef", ruleBase.Ref)
+		return nil
+	}
+	if _, ok := pRule.PolicyRuleReference[policyRef]; !ok {
+		return nil
+	}
+	if len(pRule.PolicyRuleReference) > 1 {
+		session.pendingDels = append(session.pendingDels, &pendingPolicyRuleDel{
+			ruleID:    ruleID,
+			ruleBase:  ruleBase,
+			ruleEntry: pRule,
+			refOnly:   true,
+		})
+		log.Info("Rule referenced by other policy rules, skip del flow")
+		return nil
+	}
+
+	ruleBase.Direction = pRule.Direction
+	ruleBase.Tier = pRule.Tier
+	ruleBase.Mode = pRule.Mode
+	pendingDel := &pendingPolicyRuleDel{
+		ruleID:    ruleID,
+		ruleBase:  ruleBase,
+		ruleEntry: pRule,
+	}
+	for vdsID, bridgeChain := range dp.BridgeChainMap {
+		tx, ok := session.txByVDS[vdsID]
+		if !ok || !dp.IsEnableDFWByVDS(vdsID) || pRule.RuleFlowMap[vdsID] == nil {
+			continue
+		}
+		policyBridge, ok := bridgeChain[POLICY_BRIDGE_KEYWORD].(*PolicyBridge)
+		if !ok {
+			return fmt.Errorf("policy bridge %s is not *PolicyBridge", bridgeChain[POLICY_BRIDGE_KEYWORD].GetName())
+		}
+		flowEntry := pRule.RuleFlowMap[vdsID]
+		flowMod, err := policyBridge.BuildRemoveMicroSegmentRuleFlowMod(pRule, flowEntry.Table, flowEntry.Priority, flowEntry.FlowID)
+		if err != nil {
+			return err
+		}
+		if err := tx.AddFlow(flowMod); err != nil {
+			pendingDel.resFlowIDs = append(pendingDel.resFlowIDs, flowEntry.FlowID)
+			return err
+		}
+		session.sentMessages[vdsID]++
+		pendingDel.delFlowIDs = append(pendingDel.delFlowIDs, flowEntry.FlowID)
+	}
+	session.pendingDels = append(session.pendingDels, pendingDel)
+	return nil
+}
+
+func (dp *DpManager) CommitEveroutePolicyRuleBundle(ctx context.Context, bundleID PolicyRuleBundleID) error {
+	session, ok := dp.policyRuleBundleSessions[bundleID]
+	if !ok {
+		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+	}
+	defer dp.flowReplayMutex.Unlock()
+	defer delete(dp.policyRuleBundleSessions, bundleID)
+
+	for vdsID, tx := range session.txByVDS {
+		successAdds, err := tx.Complete()
+		if err != nil {
+			_ = tx.Abort()
+			return err
+		}
+		if successAdds != session.sentMessages[vdsID] {
+			_ = tx.Abort()
+			return fmt.Errorf("policy rule bundle %s on vds %s only added %d/%d messages", bundleID, vdsID, successAdds, session.sentMessages[vdsID])
+		}
+	}
+	for _, tx := range session.txByVDS {
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+
+	dp.applyPolicyRuleBundlePendingAdds(ctx, session)
+	dp.applyPolicyRuleBundlePendingDels(ctx, session)
+	return nil
+}
+
+func (dp *DpManager) AbortEveroutePolicyRuleBundle(bundleID PolicyRuleBundleID) error {
+	session, ok := dp.policyRuleBundleSessions[bundleID]
+	if !ok {
+		return nil
+	}
+	defer dp.flowReplayMutex.Unlock()
+	defer delete(dp.policyRuleBundleSessions, bundleID)
+
+	var errs []error
+	for _, tx := range session.txByVDS {
+		if _, err := tx.Complete(); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := tx.Abort(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (dp *DpManager) applyPolicyRuleBundlePendingAdds(ctx context.Context, session *policyRuleBundleSession) {
+	for _, pendingAdd := range session.pendingAdds {
+		rule := pendingAdd.rule
+		ruleBase := pendingAdd.ruleBase
+		ruleEntry := pendingAdd.ruleEntry
+		policyRef := ruleBase.Ref
+
+		if ruleEntry != nil && len(pendingAdd.ruleFlowMap) == 0 {
+			dp.updatePolicyRuleNumForAddRule(policyRef.Policy, ruleEntry.PolicyRuleReference)
+			ruleEntry.PolicyRuleReference[policyRef] = struct{}{}
+			continue
+		}
+
+		if rule.SrcVNicRef == "" && rule.DstVNicRef == "" {
+			dp.cleanConntrackFlow(ctx, rule)
+		}
+		if ruleEntry == nil {
+			dp.policyRuleNums[policyRef.Policy]++
+			ruleEntry = &EveroutePolicyRuleEntry{
+				PolicyRuleReference: map[PolicyRuleRef]struct{}{policyRef: struct{}{}},
+			}
+		}
+		ruleEntry.Direction = ruleBase.Direction
+		ruleEntry.Tier = ruleBase.Tier
+		ruleEntry.Mode = ruleBase.Mode
+		ruleEntry.EveroutePolicyRule = rule
+		ruleEntry.RuleFlowMap = pendingAdd.ruleFlowMap
+		dp.Rules[rule.RuleID] = ruleEntry
+		for _, v := range ruleEntry.RuleFlowMap {
+			dp.FlowIDToRules[v.FlowID] = ruleEntry
+		}
+		if rule.SrcVNicRef != "" {
+			if _, ok := dp.VNicToRules[rule.SrcVNicRef]; !ok {
+				dp.VNicToRules[rule.SrcVNicRef] = sets.New[*EveroutePolicyRuleEntry]()
+			}
+			dp.VNicToRules[rule.SrcVNicRef].Insert(ruleEntry)
+		}
+		if rule.DstVNicRef != "" {
+			if _, ok := dp.VNicToRules[rule.DstVNicRef]; !ok {
+				dp.VNicToRules[rule.DstVNicRef] = sets.New[*EveroutePolicyRuleEntry]()
+			}
+			dp.VNicToRules[rule.DstVNicRef].Insert(ruleEntry)
+		}
+	}
+}
+
+func (dp *DpManager) applyPolicyRuleBundlePendingDels(ctx context.Context, session *policyRuleBundleSession) {
+	for _, pendingDel := range session.pendingDels {
+		pRule := pendingDel.ruleEntry
+		if pendingDel.refOnly {
+			delete(pRule.PolicyRuleReference, pendingDel.ruleBase.Ref)
+			dp.updatePolicyRuleNumForRemoveRule(pendingDel.ruleBase.Ref.Policy, pRule.PolicyRuleReference)
+			continue
+		}
+		if pRule.EveroutePolicyRule.SrcVNicRef != "" {
+			dp.VNicToRules[pRule.EveroutePolicyRule.SrcVNicRef].Delete(pRule)
+			if dp.VNicToRules[pRule.EveroutePolicyRule.SrcVNicRef].Len() == 0 {
+				delete(dp.VNicToRules, pRule.EveroutePolicyRule.SrcVNicRef)
+			}
+		}
+		if pRule.EveroutePolicyRule.DstVNicRef != "" {
+			dp.VNicToRules[pRule.EveroutePolicyRule.DstVNicRef].Delete(pRule)
+			if dp.VNicToRules[pRule.EveroutePolicyRule.DstVNicRef].Len() == 0 {
+				delete(dp.VNicToRules, pRule.EveroutePolicyRule.DstVNicRef)
+			}
+		}
+		for _, flowID := range pendingDel.delFlowIDs {
+			delete(dp.FlowIDToRules, flowID)
+		}
+		delete(dp.Rules, pendingDel.ruleID)
+		dp.decPolicyRuleNum(pendingDel.ruleBase.Ref.Policy)
+		dp.FlowIDAlloctorForRule.Release(ctx, pendingDel.delFlowIDs, pendingDel.resFlowIDs)
+	}
+}
+
 //nolint:all
 func (dp *DpManager) AddEveroutePolicyRule(ctx context.Context, rule *EveroutePolicyRule, ruleBase RuleBaseInfo) error {
 	log := ctrl.LoggerFrom(ctx, "ruleBase", ruleBase, "newRule", rule)
@@ -2123,8 +2434,8 @@ func genNdpNSPkt(dstIP net.IP, srcMac net.HardwareAddr, vlanID uint16) *protocol
 }
 
 func sendProbeRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) {
-	ofPacketOut := openflow13.NewPacketOut()
-	ofPacketOut.AddAction(openflow13.NewActionOutput(ofPort))
+	ofPacketOut := openflow.NewPacketOut()
+	ofPacketOut.AddAction(openflow.NewActionOutput(ofPort))
 
 	if utils.IsIPv4(dstIP.String()) {
 		ofPacketOut.Data = genArpRequestPkt(dstIP, srcMac, vlanID)

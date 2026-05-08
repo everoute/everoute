@@ -59,7 +59,8 @@ func setupUplinkBridge() error {
 	datapathManager.BridgeChainMap["testuplink"][UPLINK_BRIDGE_KEYWORD] = br
 	protocols := map[string][]string{
 		"protocols": {
-			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12, openflowProtorolVersion13,
+			openflowProtorolVersion10, openflowProtorolVersion11, openflowProtorolVersion12,
+			openflowProtorolVersion13, openflowProtorolVersion14, openflowProtorolVersion15,
 		},
 	}
 	if err := driver.UpdateBridge(protocols); err != nil {

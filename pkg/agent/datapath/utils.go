@@ -26,8 +26,9 @@ import (
 	"strconv"
 	"strings"
 
+	openflow "antrea.io/libOpenflow/openflow15"
+	"antrea.io/libOpenflow/protocol"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	openflow "github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -120,7 +121,7 @@ const (
 		LOCAL_TO_NAT_PATCH="${DEFAULT_BRIDGE}-local-to-nat"
 		NAT_TO_LOCAL_PATCH="${NAT_BRIDGE}-nat-to-local"
 
-		ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13 fail_mode=secure
+		ovs-vsctl add-br ${NAT_BRIDGE} -- set bridge ${NAT_BRIDGE} protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13,OpenFlow14,OpenFlow15 fail_mode=secure
 		ip link set ${NAT_BRIDGE} up
 		ovs-vsctl \
 			-- add-port ${DEFAULT_BRIDGE} ${LOCAL_TO_NAT_PATCH} \
@@ -231,6 +232,24 @@ func InitCNIDpMgrUT(ctx context.Context, brName string, enableProxy bool, enable
 	datapathManager.InitializeCNI()
 
 	return datapathManager, nil
+}
+
+func ethernetPacketFromPacketIn(pkt *ofctrl.PacketIn) (*protocol.Ethernet, bool) {
+	if pkt == nil || pkt.Data == nil {
+		return nil, false
+	}
+	if ethPkt, ok := pkt.Data.(*protocol.Ethernet); ok {
+		return ethPkt, true
+	}
+	data, err := pkt.Data.MarshalBinary()
+	if err != nil {
+		return nil, false
+	}
+	ethPkt := &protocol.Ethernet{}
+	if err := ethPkt.UnmarshalBinary(data); err != nil {
+		return nil, false
+	}
+	return ethPkt, true
 }
 
 func ParseMacToUint64(b []byte) uint64 {
@@ -466,7 +485,7 @@ func setupIcmpProxyFlow(t *ofctrl.Table, ip *net.IP, next ofctrl.FgraphElem) (*o
 		Priority:  HIGH_MATCH_FLOW_PRIORITY + FLOW_MATCH_OFFSET,
 		Ethertype: PROTOCOL_IP,
 		IpProto:   PROTOCOL_ICMP,
-		IcmpType:  IcmpTypeRequest,
+		IcmpType:  &IcmpTypeRequest,
 		IpDa:      ip,
 	})
 	if err := f.SetMacSa(net.HardwareAddr(FACK_MAC)); err != nil {

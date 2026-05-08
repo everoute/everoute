@@ -3,6 +3,7 @@ module github.com/everoute/everoute
 go 1.20
 
 require (
+	antrea.io/libOpenflow v0.12.1
 	github.com/99designs/gqlgen v0.17.16
 	github.com/agiledragon/gomonkey v2.0.2+incompatible
 	github.com/agiledragon/gomonkey/v2 v2.13.0
@@ -10,7 +11,6 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containernetworking/cni v1.0.0
 	github.com/containernetworking/plugins v1.0.0
-	github.com/contiv/libOpenflow v0.0.0-20200107061746-e3817550c83b
 	github.com/contiv/libovsdb v0.0.0-20160406174930-bbc744d8ddc8
 	github.com/contiv/ofnet v0.0.0-20180104211757-c080e5b6e9be
 	github.com/coreos/go-iptables v0.7.0
@@ -162,9 +162,8 @@ require (
 )
 
 replace (
-	github.com/contiv/libOpenflow => github.com/everoute/libOpenflow v1.0.1-0.20241023024533-3fff8fcc5e74
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20250403093202-b7d20114258b
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20260508083246-172dc89e5b5f
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20260304034716-05cb4bdc0fc1
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0

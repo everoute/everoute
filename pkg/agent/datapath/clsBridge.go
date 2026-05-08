@@ -22,7 +22,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/contiv/libOpenflow/openflow13"
+	openflow "antrea.io/libOpenflow/openflow15"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 
@@ -68,7 +68,7 @@ func newClsBridge(brName, vdsID string, datapathManager *DpManager) *ClsBridge {
 func (c *ClsBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (c *ClsBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
+func (c *ClsBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow.MultipartReply) {
 }
 
 func (c *ClsBridge) InitVlanMacLearningAction(learnAction *ofctrl.LearnAction, learnedDstField string, learnedDstFieldBit uint16, learnedSrcValue uint16) error {
@@ -172,7 +172,7 @@ func (c *ClsBridge) initForwardingTable() error {
 		MacDa:     &broadcastMac,
 		MacDaMask: &broadcastMac,
 	})
-	if err := fromLocalBroadcastMarkFlow.LoadField("nxm_nx_reg0", 0, openflow13.NewNXRange(0, 15)); err != nil {
+	if err := fromLocalBroadcastMarkFlow.LoadField("nxm_nx_reg0", 0, openflow.NewNXRange(0, 15)); err != nil {
 		return fmt.Errorf("failed to add from local broadcast mark flow, error: %v", err)
 	}
 	if err := fromLocalBroadcastMarkFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -183,7 +183,7 @@ func (c *ClsBridge) initForwardingTable() error {
 	unlearnedFlow, _ := c.clsBridgeForwardingTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := unlearnedFlow.LoadField("nxm_nx_reg0", 0, openflow13.NewNXRange(0, 15)); err != nil {
+	if err := unlearnedFlow.LoadField("nxm_nx_reg0", 0, openflow.NewNXRange(0, 15)); err != nil {
 		return fmt.Errorf("failed to add unlearned flow, error: %v", err)
 	}
 	if err := unlearnedFlow.Next(ofctrl.NewEmptyElem()); err != nil {
@@ -202,12 +202,12 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 			{
 				RegID: constants.OVSReg0,
 				Data:  0,
-				Range: openflow13.NewNXRange(0, 15),
+				Range: openflow.NewNXRange(0, 15),
 			},
 		},
 	})
 
-	outputAction1 := ofctrl.NewOutputAction(uint32(openflow13.P_IN_PORT))
+	outputAction1 := ofctrl.NewOutputAction(uint32(openflow.P_IN_PORT))
 	outputAction2 := ofctrl.NewOutputAction(c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix])
 	_ = floodingOutputFlow.Output(outputAction1)
 	_ = floodingOutputFlow.Output(outputAction2)
@@ -222,11 +222,11 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 			{
 				RegID: constants.OVSReg0,
 				Data:  c.datapathManager.BridgeChainPortMap[localBrName][ClsToPolicySuffix],
-				Range: openflow13.NewNXRange(0, 15),
+				Range: openflow.NewNXRange(0, 15),
 			},
 		},
 	})
-	outputPort, _ := sw.OutputPort(openflow13.P_IN_PORT)
+	outputPort, _ := sw.OutputPort(openflow.P_IN_PORT)
 	if err := learnedLocalToLocalOutputFlow.Next(outputPort); err != nil {
 		return fmt.Errorf("failed to install cls bridge learnedLocalToLocalOutputFlow, error: %v", err)
 	}
@@ -238,7 +238,7 @@ func (c *ClsBridge) initOutputTable(sw *ofctrl.OFSwitch) error {
 			{
 				RegID: constants.OVSReg0,
 				Data:  c.datapathManager.BridgeChainPortMap[localBrName][ClsToUplinkSuffix],
-				Range: openflow13.NewNXRange(0, 15),
+				Range: openflow.NewNXRange(0, 15),
 			},
 		},
 	})
@@ -312,7 +312,7 @@ func (c *ClsBridge) BridgeInitCNI() {
 		Ethertype: PROTOCOL_IP,
 		IpDa:      &c.datapathManager.Info.LocalGwIP,
 	})
-	outputPort, _ := c.OfSwitch.OutputPort(openflow13.P_IN_PORT)
+	outputPort, _ := c.OfSwitch.OutputPort(openflow.P_IN_PORT)
 	if err := hairpinFlow.Next(outputPort); err != nil {
 		log.Fatalf("failed to install cls flow for cni hairpin traffic, error: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/contiv/libOpenflow/openflow13"
+	openflow "antrea.io/libOpenflow/openflow15"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -150,7 +150,7 @@ func (b *BaseBridge) RemoveMicroSegmentRule(*EveroutePolicyRuleEntry, *ofctrl.Ta
 func (b *BaseBridge) PacketRcvd(*ofctrl.OFSwitch, *ofctrl.PacketIn) {}
 
 // Controller received a multi-part reply from the switch
-func (b *BaseBridge) MultipartReply(*ofctrl.OFSwitch, *openflow13.MultipartReply) {}
+func (b *BaseBridge) MultipartReply(*ofctrl.OFSwitch, *openflow.MultipartReply) {}
 
 func (b *BaseBridge) getOfSwitch() *ofctrl.OFSwitch {
 	return b.OfSwitch

@@ -22,7 +22,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/contiv/libOpenflow/protocol"
+	"antrea.io/libOpenflow/protocol"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	openflow "github.com/contiv/libOpenflow/openflow13"
+	openflow "antrea.io/libOpenflow/openflow15"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 

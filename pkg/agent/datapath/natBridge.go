@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/contiv/libOpenflow/openflow13"
-	"github.com/contiv/libOpenflow/protocol"
+	openflow "antrea.io/libOpenflow/openflow15"
+	"antrea.io/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -51,21 +51,21 @@ var (
 )
 
 var (
-	CTZoneReg                       = "nxm_nx_reg0"
-	CTZoneRange *openflow13.NXRange = openflow13.NewNXRange(0, 15)
+	CTZoneReg                     = "nxm_nx_reg0"
+	CTZoneRange *openflow.NXRange = openflow.NewNXRange(0, 15)
 
-	ChooseBackendFlagReg                       = "nxm_nx_reg0"
-	ChooseBackendFlagRange *openflow13.NXRange = openflow13.NewNXRange(16, 16)
-	ChooseBackendFlagStart                     = 16
+	ChooseBackendFlagReg                     = "nxm_nx_reg0"
+	ChooseBackendFlagRange *openflow.NXRange = openflow.NewNXRange(16, 16)
+	ChooseBackendFlagStart                   = 16
 	NeedChoose             uint8
 	NoNeedChoose           uint8 = 1
 
-	BackendIPReg                             = "nxm_nx_reg1"
-	BackendIPRegNumber                       = 1
-	BackendIPRange       *openflow13.NXRange = openflow13.NewNXRange(0, 31)
-	BackendPortReg                           = "nxm_nx_reg2"
-	BackendPortRegNumber                     = 2
-	BackendPortRange     *openflow13.NXRange = openflow13.NewNXRange(0, 15)
+	BackendIPReg                           = "nxm_nx_reg1"
+	BackendIPRegNumber                     = 1
+	BackendIPRange       *openflow.NXRange = openflow.NewNXRange(0, 31)
+	BackendPortReg                         = "nxm_nx_reg2"
+	BackendPortRegNumber                   = 2
+	BackendPortRange     *openflow.NXRange = openflow.NewNXRange(0, 15)
 
 	ChooseBackendFlagLength uint16 = 1
 )
@@ -289,7 +289,7 @@ func (n *NatBridge) AddLBFlow(svcLB *proxycache.SvcLB) error {
 	}
 
 	if svcLB.TrafficPolicy == ertype.TrafficPolicyLocal && svcLB.IsExternal() {
-		ofRange := openflow13.NewNXRange(cniconst.SvcLocalPktMarkBit, cniconst.SvcLocalPktMarkBit)
+		ofRange := openflow.NewNXRange(cniconst.SvcLocalPktMarkBit, cniconst.SvcLocalPktMarkBit)
 		if err := lbFlow.LoadField("nxm_nx_pkt_mark", constants.PktMarkSetValue, ofRange); err != nil {
 			log.Errorf("Failed to setup set pkt mark for svc lb info %v with ExternalTrafficPolicy=Local flow load field action: %s", *svcLB, err)
 			return err
@@ -641,7 +641,7 @@ func (n *NatBridge) newEmptyGroup() (*ofctrl.Group, error) {
 		n.groupIDAllocator.Release(groupID)
 		return nil, err
 	}
-	newGp, err := sw.NewGroup(groupID, uint8(openflow13.OFPGT_SELECT))
+	newGp, err := sw.NewGroup(groupID, uint8(openflow.GT_SELECT))
 	if err != nil {
 		log.Errorf("Failed to new a group, err: %s", err)
 		return nil, err
@@ -743,7 +743,7 @@ func (n *NatBridge) initCTZoneTable() error {
 
 func (n *NatBridge) initCTStateTable() error {
 	// -new+trk flow commit immediately, and do dnat or snat according to conntrack table
-	ctState := openflow13.NewCTStates()
+	ctState := openflow.NewCTStates()
 	ctState.UnsetNew()
 	ctState.SetTrk()
 	trkFlow, err := n.ctStateTable.NewFlow(ofctrl.FlowMatch{
@@ -1151,7 +1151,7 @@ func (n *NatBridge) initOutputTable() error {
 		log.Errorf("Failed to new a flow in L3Forward table %d: %s", NatBrOutputTable, err)
 		return err
 	}
-	outputPort, err := n.OfSwitch.OutputPort(openflow13.P_IN_PORT)
+	outputPort, err := n.OfSwitch.OutputPort(openflow.P_IN_PORT)
 	if err != nil {
 		log.Errorf("Failed to make outputPort: %s", err)
 		return err
@@ -1183,7 +1183,7 @@ func (n *NatBridge) initGroupIDConfig() error {
 	if nextIter > cniconst.MaxGroupIter || gpIDs.TooManyGroups() {
 		log.Infof("No available groupid iter or there is too many groups to be deleted, so delete all groups for bridge %s", n.GetName())
 		// no available groupid iter
-		_ = ofctrl.DeleteGroup(n.OfSwitch, openflow13.OFPG_ALL)
+		_ = ofctrl.DeleteGroup(n.OfSwitch, openflow.OFPG_ALL)
 		nextIter = 0
 		n.curMaxGroupID = cniconst.GroupIDUpdateUnit
 		n.groupIDAllocator = NewGroupIDAllocate(nextIter)
@@ -1347,22 +1347,23 @@ func newBucketForLBGroup(ip string, port int32) (*ofctrl.Bucket, error) {
 }
 
 func (n *NatBridge) PacketRcvd(_ *ofctrl.OFSwitch, pkt *ofctrl.PacketIn) {
-	if pkt.Data.Ethertype != protocol.IPv4_MSG {
+	ethPkt, ok := ethernetPacketFromPacketIn(pkt)
+	if !ok || ethPkt.Ethertype != protocol.IPv4_MSG {
 		return
 	}
-	if pkt.Match.Type != openflow13.MatchType_OXM {
+	if pkt.Match.Type != openflow.MatchType_OXM {
 		return
 	}
 
 	var inport uint32
 inport_check:
 	for _, field := range pkt.Match.Fields {
-		if field.Class != openflow13.OXM_CLASS_OPENFLOW_BASIC ||
-			field.Field != openflow13.OXM_FIELD_IN_PORT {
+		if field.Class != openflow.OXM_CLASS_OPENFLOW_BASIC ||
+			field.Field != openflow.OXM_FIELD_IN_PORT {
 			continue
 		}
 		switch t := field.Value.(type) {
-		case *openflow13.InPortField:
+		case *openflow.InPortField:
 			inport = t.InPort
 			break inport_check
 		}
@@ -1372,10 +1373,10 @@ inport_check:
 	}
 
 	newPkt := &ofctrl.Packet{
-		SrcMac:     pkt.Data.HWDst,
-		DstMac:     pkt.Data.HWSrc,
-		SrcIP:      pkt.Data.Data.(*protocol.IPv4).NWDst,
-		DstIP:      pkt.Data.Data.(*protocol.IPv4).NWSrc,
+		SrcMac:     ethPkt.HWDst,
+		DstMac:     ethPkt.HWSrc,
+		SrcIP:      ethPkt.Data.(*protocol.IPv4).NWDst,
+		DstIP:      ethPkt.Data.(*protocol.IPv4).NWSrc,
 		IPProtocol: PROTOCOL_ICMP,
 		TTL:        0xff,
 		ICMPType:   0x3, // unreachable
@@ -1383,7 +1384,7 @@ inport_check:
 	}
 	pktOut := ofctrl.ConstructPacketOut(newPkt)
 	pktOut.OutPort = &inport
-	originData, _ := pkt.Data.Data.MarshalBinary()
+	originData, _ := ethPkt.Data.MarshalBinary()
 	originLen := 20 + 8 // ip header and 8 bytes for nested pkt
 	if len(originData) > originLen {
 		originData = originData[:originLen]

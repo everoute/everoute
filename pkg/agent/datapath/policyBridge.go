@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/contiv/libOpenflow/openflow13"
-	"github.com/contiv/libOpenflow/protocol"
+	openflow "antrea.io/libOpenflow/openflow15"
+	"antrea.io/libOpenflow/protocol"
 	"github.com/contiv/ofnet/ofctrl"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -150,20 +150,20 @@ var (
 	IngressTreatedMatchCTLabel           = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x80} // 1 << IngressTreatedXXREG0Bit
 	IngressTreatedMatchCTLabelMask       = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x80} // 1 << IngressTreatedXXREG0Bit
 
-	RoundNumNXRange                 = openflow13.NewNXRange(RoundNumXXREG0BitStart, RoundNumXXREG0BitEnd)
-	MonitorTier3FlowSpaceNXRange    = openflow13.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
-	WorkPolicyActionNXRange         = openflow13.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
-	MonitorTier3PolicyActionNXRange = openflow13.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
-	OriginShouldCommitCTReg5NXRange = openflow13.NewNXRange(OriginShouldCommitCTREG5Bit, OriginShouldCommitCTREG5Bit)
+	RoundNumNXRange                 = openflow.NewNXRange(RoundNumXXREG0BitStart, RoundNumXXREG0BitEnd)
+	MonitorTier3FlowSpaceNXRange    = openflow.NewNXRange(MonitorTier3FlowSpaceXXREG0BitStart, MonitorTier3FlowSpaceXXREG0BitEnd)
+	WorkPolicyActionNXRange         = openflow.NewNXRange(WorkPolicyActionXXREG0Bit, WorkPolicyActionXXREG0Bit)
+	MonitorTier3PolicyActionNXRange = openflow.NewNXRange(MonitorTier3PolicyActionXXREG0Bit, MonitorTier3PolicyActionXXREG0Bit)
+	OriginShouldCommitCTReg5NXRange = openflow.NewNXRange(OriginShouldCommitCTREG5Bit, OriginShouldCommitCTREG5Bit)
 
-	NXM_NX_XXREG0, _   = openflow13.FindFieldHeaderByName("nxm_nx_xxreg0", false)   //nolint:revive,stylecheck
-	NXM_NX_CT_LABEL, _ = openflow13.FindFieldHeaderByName("nxm_nx_ct_label", false) //nolint:revive,stylecheck
-	NXM_NX_PKT_MARK, _ = openflow13.FindFieldHeaderByName("nxm_nx_pkt_mark", false) //nolint:revive,stylecheck
+	NXM_NX_XXREG0, _   = openflow.FindFieldHeaderByName("nxm_nx_xxreg0", false)   //nolint:revive,stylecheck
+	NXM_NX_CT_LABEL, _ = openflow.FindFieldHeaderByName("nxm_nx_ct_label", false) //nolint:revive,stylecheck
+	NXM_NX_PKT_MARK, _ = openflow.FindFieldHeaderByName("nxm_nx_pkt_mark", false) //nolint:revive,stylecheck
 
-	policyCTZoneReg                           = "nxm_nx_reg4"
-	policyCTZoneRange     *openflow13.NXRange = openflow13.NewNXRange(16, 31)
-	policyCTZoneVDSRange  *openflow13.NXRange = openflow13.NewNXRange(28, 31)
-	policyCTZoneVlanRange *openflow13.NXRange = openflow13.NewNXRange(16, 27)
+	policyCTZoneReg                         = "nxm_nx_reg4"
+	policyCTZoneRange     *openflow.NXRange = openflow.NewNXRange(16, 31)
+	policyCTZoneVDSRange  *openflow.NXRange = openflow.NewNXRange(28, 31)
+	policyCTZoneVlanRange *openflow.NXRange = openflow.NewNXRange(16, 27)
 )
 
 type PolicyBridge struct {
@@ -299,7 +299,7 @@ func NewPolicyBridge(brName, vdsID string, datapathManager *DpManager) *PolicyBr
 func (p *PolicyBridge) PacketRcvd(_ *ofctrl.OFSwitch, _ *ofctrl.PacketIn) {
 }
 
-func (p *PolicyBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow13.MultipartReply) {
+func (p *PolicyBridge) MultipartReply(_ *ofctrl.OFSwitch, _ *openflow.MultipartReply) {
 }
 
 func (p *PolicyBridge) SetCTZoneIndex(index int) {
@@ -602,13 +602,13 @@ func (p *PolicyBridge) initPassthroughTable(sw *ofctrl.OFSwitch) error {
 // see more: https://docs.google.com/document/d/1SMdUlC-NJJ85Sw_0Cy9TfujykuboqVOQ__uCO7Cm3MM
 // //nolint:funlen
 func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
-	originCTState := openflow13.NewCTStates()
+	originCTState := openflow.NewCTStates()
 	originCTState.SetTrk()
 	originCTState.UnsetRpl()
-	replyCTState := openflow13.NewCTStates()
+	replyCTState := openflow.NewCTStates()
 	replyCTState.SetTrk()
 	replyCTState.SetRpl()
-	newCTState := openflow13.NewCTStates()
+	newCTState := openflow.NewCTStates()
 	newCTState.SetNew()
 	newCTState.SetTrk()
 	policyToClsPort := p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix]
@@ -729,8 +729,8 @@ func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, actionMatches [][]ofctrl.FlowMatch, originActionBit uint16) error {
-	resetTreatedAct := openflow13.NewNXActionRegLoad(
-		openflow13.NewNXRange(
+	resetTreatedAct := openflow.NewNXActionRegLoad(
+		openflow.NewNXRange(
 			cmp.MinTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
 			cmp.MaxTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
 		).ToOfsBits(),
@@ -747,7 +747,7 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 				match.CTLabelMask = bytesArray16BitOR(match.CTLabelMask, lo.Map(um, func(m ofctrl.FlowMatch, _ int) *[16]byte { return m.CTLabelMask })...)
 				match.Ethertype = et
 
-				moveWorkFinalActionAct := openflow13.NewNXActionRegMove(
+				moveWorkFinalActionAct := openflow.NewNXActionRegMove(
 					WorkPolicyActionXXREG0BitSize,
 					originActionBit,
 					WorkPolicyActionXXREG0Bit,
@@ -778,7 +778,7 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 
 func (p *PolicyBridge) initCtStateTableRematchPolicyFlow() error {
 	// For established connections, re-match policy based on direction when needed
-	ctEstNorelNorplState := openflow13.NewCTStates()
+	ctEstNorelNorplState := openflow.NewCTStates()
 	ctEstNorelNorplState.SetEst()
 	ctEstNorelNorplState.UnsetRel()
 	ctEstNorelNorplState.UnsetRpl()
@@ -839,7 +839,7 @@ func (p *PolicyBridge) initCtStateTableRematchPolicyFlow() error {
 func (p *PolicyBridge) initCtStateTableEstStateFlow() error {
 	// Table 1, ctState table, est state flow
 	// FIXME. should add ctEst flow and ctInv flow with same priority. With different, it have no side effect to flow intent.
-	ctEstState := openflow13.NewCTStates()
+	ctEstState := openflow.NewCTStates()
 	ctEstState.UnsetNew()
 	ctEstState.SetEst()
 	ctStateFlow, _ := p.ctStateTable.NewFlow(ofctrl.FlowMatch{
@@ -885,27 +885,27 @@ func (p *PolicyBridge) initCtStateTableFlows() error {
 	return nil
 }
 
-func ctNewTrkState() *openflow13.CTStates {
-	state := openflow13.NewCTStates()
+func ctNewTrkState() *openflow.CTStates {
+	state := openflow.NewCTStates()
 	state.SetNew()
 	state.SetTrk()
 	return state
 }
-func ctRplTrkState() *openflow13.CTStates {
-	state := openflow13.NewCTStates()
+func ctRplTrkState() *openflow.CTStates {
+	state := openflow.NewCTStates()
 	state.SetRpl()
 	state.SetTrk()
 	return state
 }
-func ctRelTrkState() *openflow13.CTStates {
-	state := openflow13.NewCTStates()
+func ctRelTrkState() *openflow.CTStates {
+	state := openflow.NewCTStates()
 	state.SetRel()
 	state.SetTrk()
 	return state
 }
 
-func ctNoRplTrkState() *openflow13.CTStates {
-	state := openflow13.NewCTStates()
+func ctNoRplTrkState() *openflow.CTStates {
+	state := openflow.NewCTStates()
 	state.SetTrk()
 	state.UnsetRpl()
 	return state
@@ -928,7 +928,7 @@ func (p *PolicyBridge) initNewAndACKDropFlow() error {
 			{
 				RegID: constants.OVSReg4,
 				Data:  0x20,
-				Range: openflow13.NewNXRange(0, 15),
+				Range: openflow.NewNXRange(0, 15),
 			},
 		},
 		TcpFlags:     &zeroFlag,
@@ -972,18 +972,18 @@ func (m *L4FlowMatch) BuildFlowMatch(match *ofctrl.FlowMatch, priority uint16) {
 
 type FlowMatchInportActions struct {
 	Inport  uint32
-	Actions []openflow13.Action
+	Actions []openflow.Action
 }
 
-func newCTLabelMoveAction(nBits, srcOfs, dstOfs uint16, srcField *openflow13.MatchField) openflow13.Action {
-	return openflow13.NewNXActionRegMove(nBits, srcOfs, dstOfs, srcField, NXM_NX_CT_LABEL)
+func newCTLabelMoveAction(nBits, srcOfs, dstOfs uint16, srcField *openflow.MatchField) openflow.Action {
+	return openflow.NewNXActionRegMove(nBits, srcOfs, dstOfs, srcField, NXM_NX_CT_LABEL)
 }
 
-func newCTLabelLoadAction(start, end int, value uint64) *openflow13.NXActionRegLoad {
-	return openflow13.NewNXActionRegLoad(openflow13.NewNXRange(start, end).ToOfsBits(), NXM_NX_CT_LABEL, value)
+func newCTLabelLoadAction(start, end int, value uint64) *openflow.NXActionRegLoad {
+	return openflow.NewNXActionRegLoad(openflow.NewNXRange(start, end).ToOfsBits(), NXM_NX_CT_LABEL, value)
 }
 
-func (p *PolicyBridge) setupCTCommitFlows(baseMatch ofctrl.FlowMatch, l4matches []L4FlowMatch, actions ...openflow13.Action) error {
+func (p *PolicyBridge) setupCTCommitFlows(baseMatch ofctrl.FlowMatch, l4matches []L4FlowMatch, actions ...openflow.Action) error {
 	for _, l4match := range l4matches {
 		match := baseMatch
 		l4match.BuildFlowMatch(&match, match.Priority)
@@ -996,7 +996,7 @@ func (p *PolicyBridge) setupCTCommitFlows(baseMatch ofctrl.FlowMatch, l4matches 
 			&p.ctDropTable.TableId,
 			policyCTZoneReg,
 			policyCTZoneRange,
-			append([]openflow13.Action{moveEncodingSchemeAct}, actions...)...,
+			append([]openflow.Action{moveEncodingSchemeAct}, actions...)...,
 		)
 		if err != nil {
 			return fmt.Errorf("unable to install flow: %w", err)
@@ -1039,12 +1039,12 @@ func (p *PolicyBridge) initCTCommitTableCommitFlow() error {
 		resetReplyInportAct = newCTLabelLoadAction(ReplyInportXXREG0BitStart, ReplyInportXXREG0BitEnd, 0)
 
 		// action combinations fixed
-		movePoliciesActions     = []openflow13.Action{moveRoundNumAct, movePolicySeqAct, moveFinalActionAct}
-		moveSourceActionActions = []openflow13.Action{moveSourceWorkActionAct, moveSourceWorkActionTreatedAct}
-		moveTargetActionActions = []openflow13.Action{moveTargetWorkActionAct, moveTargetWorkActionTreatedAct}
+		movePoliciesActions     = []openflow.Action{moveRoundNumAct, movePolicySeqAct, moveFinalActionAct}
+		moveSourceActionActions = []openflow.Action{moveSourceWorkActionAct, moveSourceWorkActionTreatedAct}
+		moveTargetActionActions = []openflow.Action{moveTargetWorkActionAct, moveTargetWorkActionTreatedAct}
 		// FIXME: remove reset_reply_inport_actions, we use independent ct zones now
-		moveOriginInportActions = []openflow13.Action{moveOriginSourceAct, moveOriginInportAct, resetReplySourceAct, resetReplyInportAct}
-		moveReplyInportActions  = []openflow13.Action{moveReplySourceAct, moveReplyInportAct}
+		moveOriginInportActions = []openflow.Action{moveOriginSourceAct, moveOriginInportAct, resetReplySourceAct, resetReplyInportAct}
+		moveReplyInportActions  = []openflow.Action{moveReplySourceAct, moveReplyInportAct}
 
 		// support matches protocols
 		protocols = []L4FlowMatch{
@@ -1058,7 +1058,7 @@ func (p *PolicyBridge) initCTCommitTableCommitFlow() error {
 
 		// universal matches
 		shouldCommitReg = &ofctrl.NXRegister{RegID: constants.OVSReg5, Data: OriginShouldCommitCTReg5NXRange.ToUint32Mask(), Range: OriginShouldCommitCTReg5NXRange}
-		actionAllowReg  = &ofctrl.NXRegister{RegID: constants.OVSReg4, Range: openflow13.NewNXRange(0, 15)}
+		actionAllowReg  = &ofctrl.NXRegister{RegID: constants.OVSReg4, Range: openflow.NewNXRange(0, 15)}
 		fromClsInport   = p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToClsSuffix]
 		fromLocalInport = p.datapathManager.BridgeChainPortMap[p.localBrName][PolicyToLocalSuffix]
 	)
@@ -1074,7 +1074,7 @@ func (p *PolicyBridge) initCTCommitTableCommitFlow() error {
 			InputPort: m.Inport,
 			Regs:      []*ofctrl.NXRegister{shouldCommitReg},
 		}
-		actions := lo.Flatten([][]openflow13.Action{movePoliciesActions, moveOriginInportActions, m.Actions})
+		actions := lo.Flatten([][]openflow.Action{movePoliciesActions, moveOriginInportActions, m.Actions})
 		err := p.setupCTCommitFlows(baseMatch, protocols, actions...)
 		if err != nil {
 			return fmt.Errorf("unable setup origin match policies flows: %w", err)
@@ -1092,7 +1092,7 @@ func (p *PolicyBridge) initCTCommitTableCommitFlow() error {
 			InputPort: m.Inport,
 			Regs:      []*ofctrl.NXRegister{actionAllowReg, shouldCommitReg},
 		}
-		actions := lo.Flatten([][]openflow13.Action{movePoliciesActions, moveReplyInportActions, m.Actions})
+		actions := lo.Flatten([][]openflow.Action{movePoliciesActions, moveReplyInportActions, m.Actions})
 		err := p.setupCTCommitFlows(baseMatch, protocols, actions...)
 		if err != nil {
 			return fmt.Errorf("unable setup reply rematch policies flows: %w", err)
@@ -1134,7 +1134,7 @@ func (p *PolicyBridge) initCtCommitTableDropFlow() error {
 	for _, ethertype := range ethertypes {
 		flowMatch.Ethertype = ethertype
 		ctDropFilterFlow, _ := p.ctCommitTable.NewFlow(flowMatch)
-		if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+		if err := ctDropFilterFlow.LoadField("nxm_nx_reg4", 0x20, openflow.NewNXRange(0, 15)); err != nil {
 			return err
 		}
 
@@ -1178,7 +1178,7 @@ func (p *PolicyBridge) initCTFlow(_ *ofctrl.OFSwitch) error {
 			{
 				RegID: constants.OVSReg4,
 				Data:  0x20,
-				Range: openflow13.NewNXRange(0, 15),
+				Range: openflow.NewNXRange(0, 15),
 			},
 		},
 	})
@@ -1232,7 +1232,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 	egressTier3DefaultFlow, _ := p.egressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := egressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow13.NewNXRange(60, 87)); err != nil {
+	if err := egressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow.NewNXRange(60, 87)); err != nil {
 		log.Error(err, "Failed to load field for default rule seq ID")
 		return err
 	}
@@ -1331,7 +1331,7 @@ func (p *PolicyBridge) initPolicyTable() error {
 	ingressTier3DefaultFlow, _ := p.ingressTier3PolicyTable.NewFlow(ofctrl.FlowMatch{
 		Priority: DEFAULT_FLOW_MISS_PRIORITY,
 	})
-	if err := ingressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow13.NewNXRange(60, 87)); err != nil {
+	if err := ingressTier3DefaultFlow.LoadField("nxm_nx_xxreg0", uint64(p.defaultRuleSeqID), openflow.NewNXRange(60, 87)); err != nil {
 		log.Error(err, "Failed to load field for default rule seq ID")
 		return err
 	}
@@ -1389,7 +1389,7 @@ func (p *PolicyBridge) initALGFlow(_ *ofctrl.OFSwitch) error {
 func (p *PolicyBridge) initToLocalFlow() error {
 	// table 141
 	// set pkt mark to local packets
-	pktMarkRange := openflow13.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
+	pktMarkRange := openflow.NewNXRange(constants.DuplicatePktMarkBit, constants.DuplicatePktMarkBit)
 	pktMarkSetAct, err := ofctrl.NewNXLoadAction("nxm_nx_pkt_mark", constants.PktMarkSetValue, pktMarkRange)
 	if err != nil {
 		return err
@@ -2032,8 +2032,17 @@ func (p *PolicyBridge) addIsolationDropRule(flowID uint64, rule *EveroutePolicyR
 	return entry, p.updateIsolationDropRule(ep, flowID, rule, direction)
 }
 
-//nolint:funlen
 func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*FlowEntry, error) {
+	_, flowEntry, err := p.buildMicroSegmentRule(ctx, seqID, rule, direction, tier, mode, true)
+	return flowEntry, err
+}
+
+func (p *PolicyBridge) BuildAddMicroSegmentRuleFlowMod(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string) (*openflow.FlowMod, *FlowEntry, error) {
+	return p.buildMicroSegmentRule(ctx, seqID, rule, direction, tier, mode, false)
+}
+
+//nolint:funlen
+func (p *PolicyBridge) buildMicroSegmentRule(ctx context.Context, seqID uint32, rule *EveroutePolicyRule, direction uint8, tier uint8, mode string, install bool) (*openflow.FlowMod, *FlowEntry, error) {
 	log := ctrl.LoggerFrom(ctx, "seqid", seqID)
 	var ipDa, ipDaMask, ipSa, ipSaMask *net.IP
 	var err error
@@ -2047,33 +2056,37 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 	log = log.WithValues("flowID", fmt.Sprintf("0x%x", flowID))
 
 	if p.isIsolationDropRule(tier, rule) {
-		return p.addIsolationDropRule(flowID, rule, direction)
+		if install {
+			flowEntry, err := p.addIsolationDropRule(flowID, rule, direction)
+			return nil, flowEntry, err
+		}
+		return nil, nil, fmt.Errorf("isolation drop rule doesn't support bundle build")
 	}
 
 	// Different tier have different nextTable select strategy:
 	policyTable, nextTable, e := p.GetTierTable(direction, tier, mode)
 	if e != nil {
 		log.Error(err, "Failed to get policy table tier", "tier", tier)
-		return nil, fmt.Errorf("failed get policy table, err:%s", e)
+		return nil, nil, fmt.Errorf("failed get policy table, err:%s", e)
 	}
 
 	// Parse dst ip
 	ipDa, ipDaMask, err = ParseIPAddrMaskString(rule.DstIPAddr)
 	if err != nil {
 		log.Error(err, "Failed to parse dst ip", "ip", rule.DstIPAddr)
-		return nil, err
+		return nil, nil, err
 	}
 
 	// parse src ip
 	ipSa, ipSaMask, err = ParseIPAddrMaskString(rule.SrcIPAddr)
 	if err != nil {
 		log.Error(err, "Failed to parse src ip", "ip", rule.SrcIPAddr)
-		return nil, err
+		return nil, nil, err
 	}
 
-	var icmpType uint8
+	var icmpType *uint8
 	if rule.IcmpTypeEnable && rule.IPProtocol == PROTOCOL_ICMP {
-		icmpType = rule.IcmpType
+		icmpType = &rule.IcmpType
 	}
 	// Install the rule in policy table
 	ruleFlow, err := policyTable.NewFlowWithFlowID(ofctrl.FlowMatch{
@@ -2091,7 +2104,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 	}, flowID)
 	if err != nil {
 		log.Error(err, "Failed to add flow for rule")
-		return nil, err
+		return nil, nil, err
 	}
 
 	if rule.IPFamily == unix.AF_INET {
@@ -2113,7 +2126,7 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 	case "monitor":
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
 			log.Error(err, "Failed to load field")
-			return nil, err
+			return nil, nil, err
 		}
 
 		// todo: support monitor policy on other tiers
@@ -2121,47 +2134,63 @@ func (p *PolicyBridge) AddMicroSegmentRule(ctx context.Context, seqID uint32, ru
 			if rule.Action == "deny" {
 				if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, MonitorTier3PolicyActionNXRange); err != nil {
 					log.Error(err, "Failed to load field")
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, MonitorTier3FlowSpaceNXRange); err != nil {
 				log.Error(err, "Failed to load field")
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
-		if err := ruleFlow.Next(nextTable); err != nil {
-			return nil, err
+		if install {
+			if err := ruleFlow.Next(nextTable); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			ruleFlow.NextElem = nextTable
 		}
 	case "work":
 		if rule.Action == EveroutePolicyDeny {
-			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow13.NewNXRange(0, 15)); err != nil {
+			if err := ruleFlow.LoadField("nxm_nx_reg4", 0x20, openflow.NewNXRange(0, 15)); err != nil {
 				log.Error(err, "Failed to load field")
-				return nil, err
+				return nil, nil, err
 			}
 			if err := ruleFlow.LoadField("nxm_nx_xxreg0", 0x1, WorkPolicyActionNXRange); err != nil {
 				log.Error(err, "Failed to load field")
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
 		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID>>FLOW_SEQ_NUM_LENGTH, RoundNumNXRange); err != nil {
 			log.Error(err, "Failed to load field")
-			return nil, err
+			return nil, nil, err
 		}
-		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow13.NewNXRange(60, 87)); err != nil {
+		if err := ruleFlow.LoadField("nxm_nx_xxreg0", ruleFlow.FlowID&FLOW_SEQ_NUM_MASK, openflow.NewNXRange(60, 87)); err != nil {
 			log.Error(err, "Failed to load field")
-			return nil, err
+			return nil, nil, err
 		}
 
-		if err := ruleFlow.Next(nextTable); err != nil {
-			log.Error(err, "Failed to install flow")
-			return nil, err
+		if install {
+			if err := ruleFlow.Next(nextTable); err != nil {
+				log.Error(err, "Failed to install flow")
+				return nil, nil, err
+			}
+		} else {
+			ruleFlow.NextElem = nextTable
+		}
+	}
+
+	var flowMod *openflow.FlowMod
+	if !install {
+		flowMod, err = ruleFlow.BuildInstallFlowMod(false)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 
 	log.V(2).Info("Success add flow for rule")
-	return &FlowEntry{
+	return flowMod, &FlowEntry{
 		Table:    policyTable,
 		Priority: ruleFlow.Match.Priority,
 		FlowID:   ruleFlow.FlowID,
@@ -2179,6 +2208,13 @@ func (p *PolicyBridge) RemoveMicroSegmentRule(entry *EveroutePolicyRuleEntry, ta
 	}
 
 	return p.deleteIsolationDropRule(endpoint, table, priority, flowID, entry.Direction, false)
+}
+
+func (p *PolicyBridge) BuildRemoveMicroSegmentRuleFlowMod(entry *EveroutePolicyRuleEntry, table *ofctrl.Table, priority uint16, flowID uint64) (*openflow.FlowMod, error) {
+	if p.isIsolationDropRule(entry.Tier, entry.EveroutePolicyRule) {
+		return nil, fmt.Errorf("isolation drop rule doesn't support bundle build")
+	}
+	return ofctrl.BuildDeleteFlowMod(table, priority, flowID)
 }
 
 func (p *PolicyBridge) AddVNFInstance() error {
