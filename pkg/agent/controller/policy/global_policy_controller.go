@@ -36,15 +36,15 @@ const (
 
 // ReconcileGlobalPolicy handle GlobalPolicy. At most one GlobalPolicy at the same time,
 // so we full sync PolicyRules every reconcile.
-func (r *Reconciler) ReconcileGlobalPolicy(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) ReconcileGlobalPolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("Reconcile start")
 	defer log.V(4).Info("Reconcile end")
 	var newPolicyRule, oldPolicyRule []cache.PolicyRule
 
-	if !r.isReadyToProcessGlobalRule(ctx) {
-		log.V(4).Info("Doesn't ready to process global rule, keep waiting")
-		return ctrl.Result{RequeueAfter: time.Second}, nil
+	if err := r.EnsurePolicyFlowInitialized(ctx); err != nil {
+		log.Error(err, "failed to initialize policy flows")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second}, nil
 	}
 
 	oldPolicyRuleList := r.globalRuleCache.List()
@@ -91,14 +91,28 @@ func (r *Reconciler) calculateExpectGlobalPolicyRules() (*securityv1alpha1.Globa
 		return nil, []cache.PolicyRule{}, err
 	}
 
+	ruleList, err := GlobalPolicyRulesFromList(policyList.Items)
+	if err != nil {
+		return nil, []cache.PolicyRule{}, err
+	}
 	switch len(policyList.Items) {
 	case 1:
-		ruleList := newGlobalPolicyRulePair(policyList.Items[0])
 		return &policyList.Items[0], ruleList, nil
 	case 0:
-		return nil, []cache.PolicyRule{}, nil
+		return nil, ruleList, nil
 	default:
 		return nil, []cache.PolicyRule{}, fmt.Errorf("unexpect multiple global policy found")
+	}
+}
+
+func GlobalPolicyRulesFromList(policies []securityv1alpha1.GlobalPolicy) ([]cache.PolicyRule, error) {
+	switch len(policies) {
+	case 1:
+		return newGlobalPolicyRulePair(policies[0]), nil
+	case 0:
+		return []cache.PolicyRule{}, nil
+	default:
+		return nil, fmt.Errorf("unexpect multiple global policy found")
 	}
 }
 

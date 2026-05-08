@@ -46,7 +46,6 @@ import (
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
-	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/source"
 	ertypes "github.com/everoute/everoute/pkg/types"
@@ -72,24 +71,22 @@ type Reconciler struct {
 	// before GroupPatch deleted, so save patches in cache.
 	groupCache *policycache.GroupCache
 
+	policyFlowInit *PolicyFlowInit
+
 	DatapathManager *datapath.DpManager
-
-	sysProcessedPolicyLock sync.RWMutex
-	sysProcessedPolicy     sets.Set[k8stypes.NamespacedName]
-
-	ReadyToProcessGlobalRule     bool
-	globalRuleFirstProcessedTime *time.Time
 }
 
 func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var policy securityv1alpha1.SecurityPolicy
 
-	r.reconcilerLock.Lock()
-	defer r.reconcilerLock.Unlock()
-
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("Reconcile start")
 	defer log.V(4).Info("Reconcile end")
+
+	if err := r.EnsurePolicyFlowInitialized(ctx); err != nil {
+		log.Error(err, "failed to initialize policy flows")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second}, nil
+	}
 
 	err := r.Get(ctx, req.NamespacedName, &policy)
 	if client.IgnoreNotFound(err) != nil {
@@ -110,16 +107,31 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), &policy)
 
 	ctx = context.WithValue(ctx, ertypes.CtxKeyObject, policy.Spec)
-	return r.processPolicyUpdate(ctx, &policy)
+	oldRuleList, newRuleList, err := r.updatePolicyRuleCache(ctx, &policy)
+	if IsGroupMembersNotFoundErr(err) {
+		// wait until groupmembers created
+		log.V(2).Info("Failed to calculate expect complete rule for policy", "err", err)
+		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
+	}
+	if err != nil {
+		log.Error(err, "failed fetch new policy rules")
+		return ctrl.Result{}, err
+	}
+	if err := r.syncPolicyRulesUntilSuccess(ctx, []string{fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)}, oldRuleList, newRuleList); err != nil {
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.reconcilerLock.Lock()
-	defer r.reconcilerLock.Unlock()
-
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("Reconcile start")
 	defer log.V(4).Info("Reconcile end")
+
+	if err := r.EnsurePolicyFlowInitialized(ctx); err != nil {
+		log.Error(err, "failed to initialize policy flows")
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second}, nil
+	}
 
 	gm := groupv1alpha1.GroupMembers{}
 	if err := r.Get(ctx, req.NamespacedName, &gm); err != nil {
@@ -186,8 +198,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.groupCache == nil {
 		r.groupCache = policycache.NewGroupCache()
 	}
-
-	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
 
 	if policyController, err = controller.New("policy-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
@@ -284,8 +294,7 @@ func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.
 	return r.syncPolicyRulesUntilSuccess(ctx, []string{policy.String()}, oldRuleList, nil)
 }
 
-func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx)
+func (r *Reconciler) updatePolicyRuleCache(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, []policycache.PolicyRule, error) {
 	var oldRuleList []policycache.PolicyRule
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
@@ -294,23 +303,7 @@ func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1
 	}
 
 	newRuleList, err := r.calculateExpectedPolicyRules(ctx, policy)
-	if IsGroupMembersNotFoundErr(err) {
-		// wait until groupmembers created
-		log.V(2).Info("Failed to calculate expect complete rule for policy", "err", err)
-		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
-	}
-	if err != nil {
-		log.Error(err, "failed fetch new policy rules")
-		return ctrl.Result{}, err
-	}
-
-	// start a force full synchronization of policyrule
-	if err := r.syncPolicyRulesUntilSuccess(ctx, []string{fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)}, oldRuleList, newRuleList); err != nil {
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
-	}
-
-	r.addProcessedSysPolicy(k8stypes.NamespacedName{Namespace: policy.Namespace, Name: policy.Name})
-	return ctrl.Result{}, nil
+	return oldRuleList, newRuleList, err
 }
 
 func (r *Reconciler) calculateExpectedPolicyRules(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, error) {
@@ -773,43 +766,3 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 // 	}
 // 	return &sp
 // }
-
-func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
-	log := ctrl.LoggerFrom(ctx)
-	if r.ReadyToProcessGlobalRule {
-		return true
-	}
-	if r.globalRuleFirstProcessedTime == nil {
-		curT := time.Now()
-		r.globalRuleFirstProcessedTime = &curT
-		log.Info("At least wait sometime when first process global rule", "waitTime", msconst.GlobalRuleFirstDelayTime)
-		time.Sleep(msconst.GlobalRuleFirstDelayTime)
-	} else if time.Now().After(r.globalRuleFirstProcessedTime.Add(msconst.GlobalRuleDelayTimeout)) {
-		r.ReadyToProcessGlobalRule = true
-		log.Info("It has waited enough time, begin to process global rule", "timeout", msconst.GlobalRuleDelayTimeout)
-		return true
-	}
-
-	r.sysProcessedPolicyLock.RLock()
-	defer r.sysProcessedPolicyLock.RUnlock()
-	if !r.sysProcessedPolicy.Has(msconst.SysEPPolicy) {
-		return false
-	}
-	if !r.sysProcessedPolicy.Has(msconst.ERvmPolicy) {
-		return false
-	}
-	if !r.sysProcessedPolicy.Has(msconst.LBPolicy) {
-		return false
-	}
-	r.ReadyToProcessGlobalRule = true
-	return true
-}
-
-func (r *Reconciler) addProcessedSysPolicy(p k8stypes.NamespacedName) {
-	r.sysProcessedPolicyLock.Lock()
-	defer r.sysProcessedPolicyLock.Unlock()
-
-	if p == msconst.SysEPPolicy || p == msconst.ERvmPolicy || p == msconst.LBPolicy {
-		r.sysProcessedPolicy.Insert(p)
-	}
-}
