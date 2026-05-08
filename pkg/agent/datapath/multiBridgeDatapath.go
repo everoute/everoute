@@ -278,6 +278,7 @@ type DpManager struct {
 	VNicToRules               map[string]sets.Set[*EveroutePolicyRuleEntry]
 	policyRuleNums            map[string]int
 	policyRuleBundleSessions  map[PolicyRuleBundleID]*policyRuleBundleSession
+	nextPolicyRuleBundleID    PolicyRuleBundleID
 	flowReplayMutex           *lock.CASMutex
 	FlowIDAlloctorForRule     *FlowIDAlloctor
 	FlowIDAlloctorForTR       *FlowIDAlloctor
@@ -299,7 +300,7 @@ type DpManager struct {
 	ippoolGWs     sets.Set[string]
 }
 
-type PolicyRuleBundleID string
+type PolicyRuleBundleID uint64
 
 type policyRuleBundleSession struct {
 	id           PolicyRuleBundleID
@@ -1711,15 +1712,17 @@ func (dp *DpManager) decPolicyRuleNum(policyName string) {
 	}
 }
 
-func (dp *DpManager) BeginEveroutePolicyRuleBundle(ctx context.Context, bundleID PolicyRuleBundleID) error {
-	log := ctrl.LoggerFrom(ctx, "bundleID", bundleID)
+func (dp *DpManager) BeginEveroutePolicyRuleBundle(ctx context.Context) (PolicyRuleBundleID, error) {
 	dp.lockflowReplayWithTimeout()
+	bundleID := dp.nextPolicyRuleBundleID
+	dp.nextPolicyRuleBundleID++
+	log := ctrl.LoggerFrom(ctx, "bundleID", bundleID)
 	if !dp.IsBridgesConnected() {
 		dp.WaitForBridgeConnected()
 	}
 	if _, ok := dp.policyRuleBundleSessions[bundleID]; ok {
 		dp.flowReplayMutex.Unlock()
-		return fmt.Errorf("policy rule bundle %s already exists", bundleID)
+		return 0, fmt.Errorf("policy rule bundle %d already exists", bundleID)
 	}
 
 	session := &policyRuleBundleSession{
@@ -1739,19 +1742,19 @@ func (dp *DpManager) BeginEveroutePolicyRuleBundle(ctx context.Context, bundleID
 				}
 			}
 			dp.flowReplayMutex.Unlock()
-			return err
+			return 0, err
 		}
 		session.txByVDS[vdsID] = tx
 	}
 	dp.policyRuleBundleSessions[bundleID] = session
 	log.V(2).Info("Begin policy rule bundle")
-	return nil
+	return bundleID, nil
 }
 
 func (dp *DpManager) AddEveroutePolicyRuleToBundle(ctx context.Context, bundleID PolicyRuleBundleID, rule *EveroutePolicyRule, ruleBase RuleBaseInfo) error {
 	session, ok := dp.policyRuleBundleSessions[bundleID]
 	if !ok {
-		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+		return fmt.Errorf("policy rule bundle %d doesn't exist", bundleID)
 	}
 
 	log := ctrl.LoggerFrom(ctx, "bundleID", bundleID, "ruleBase", ruleBase, "newRule", rule)
@@ -1807,7 +1810,7 @@ func (dp *DpManager) AddEveroutePolicyRuleToBundle(ctx context.Context, bundleID
 func (dp *DpManager) RemoveEveroutePolicyRuleToBundle(ctx context.Context, bundleID PolicyRuleBundleID, ruleID string, ruleBase RuleBaseInfo) error {
 	session, ok := dp.policyRuleBundleSessions[bundleID]
 	if !ok {
-		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+		return fmt.Errorf("policy rule bundle %d doesn't exist", bundleID)
 	}
 
 	log := ctrl.LoggerFrom(ctx)
@@ -1867,7 +1870,7 @@ func (dp *DpManager) RemoveEveroutePolicyRuleToBundle(ctx context.Context, bundl
 func (dp *DpManager) CommitEveroutePolicyRuleBundle(ctx context.Context, bundleID PolicyRuleBundleID) error {
 	session, ok := dp.policyRuleBundleSessions[bundleID]
 	if !ok {
-		return fmt.Errorf("policy rule bundle %s doesn't exist", bundleID)
+		return fmt.Errorf("policy rule bundle %d doesn't exist", bundleID)
 	}
 	defer dp.flowReplayMutex.Unlock()
 	defer delete(dp.policyRuleBundleSessions, bundleID)
@@ -1880,7 +1883,7 @@ func (dp *DpManager) CommitEveroutePolicyRuleBundle(ctx context.Context, bundleI
 		}
 		if successAdds != session.sentMessages[vdsID] {
 			_ = tx.Abort()
-			return fmt.Errorf("policy rule bundle %s on vds %s only added %d/%d messages", bundleID, vdsID, successAdds, session.sentMessages[vdsID])
+			return fmt.Errorf("policy rule bundle %d on vds %s only added %d/%d messages", bundleID, vdsID, successAdds, session.sentMessages[vdsID])
 		}
 	}
 	for _, tx := range session.txByVDS {

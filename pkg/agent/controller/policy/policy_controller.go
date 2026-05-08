@@ -678,8 +678,8 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 	}
 
 	log.Info("policy rule changed for object", "objectSpec", ctx.Value(ertypes.CtxKeyObject))
-	bundleID := datapath.PolicyRuleBundleID(fmt.Sprintf("%s/%d", policyName, time.Now().UnixNano()))
-	if err := r.DatapathManager.BeginEveroutePolicyRuleBundle(ctx, bundleID); err != nil {
+	bundleID, err := r.DatapathManager.BeginEveroutePolicyRuleBundle(ctx)
+	if err != nil {
 		return err
 	}
 	for _, item := range addRuleList {
