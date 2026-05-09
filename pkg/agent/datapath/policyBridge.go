@@ -729,12 +729,9 @@ func (p *PolicyBridge) initFinalActionUpdateTable(_ *ofctrl.OFSwitch) error {
 }
 
 func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, actionMatches [][]ofctrl.FlowMatch, originActionBit uint16) error {
-	resetTreatedAct := openflow.NewNXActionRegLoad(
-		openflow.NewNXRange(
-			cmp.MinTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
-			cmp.MaxTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
-		).ToOfsBits(),
-		NXM_NX_CT_LABEL,
+	resetTreatedAct := newCTLabelLoadAction(
+		cmp.MinTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
+		cmp.MaxTotalOrdered(EgressTreatedXXREG0Bit, IngressTreatedXXREG0Bit),
 		0x00,
 	)
 	ethertypes := []uint16{protocol.IPv4_MSG, protocol.IPv6_MSG}
@@ -747,7 +744,7 @@ func (p *PolicyBridge) setupFinalActionUpdateFlows(matches []ofctrl.FlowMatch, a
 				match.CTLabelMask = bytesArray16BitOR(match.CTLabelMask, lo.Map(um, func(m ofctrl.FlowMatch, _ int) *[16]byte { return m.CTLabelMask })...)
 				match.Ethertype = et
 
-				moveWorkFinalActionAct := openflow.NewNXActionRegMove(
+				moveWorkFinalActionAct := ofctrl.NewOF15MoveAction(
 					WorkPolicyActionXXREG0BitSize,
 					originActionBit,
 					WorkPolicyActionXXREG0Bit,
@@ -976,11 +973,15 @@ type FlowMatchInportActions struct {
 }
 
 func newCTLabelMoveAction(nBits, srcOfs, dstOfs uint16, srcField *openflow.MatchField) openflow.Action {
-	return openflow.NewNXActionRegMove(nBits, srcOfs, dstOfs, srcField, NXM_NX_CT_LABEL)
+	return ofctrl.NewOF15MoveAction(nBits, srcOfs, dstOfs, srcField, NXM_NX_CT_LABEL)
 }
 
-func newCTLabelLoadAction(start, end int, value uint64) *openflow.NXActionRegLoad {
-	return openflow.NewNXActionRegLoad(openflow.NewNXRange(start, end).ToOfsBits(), NXM_NX_CT_LABEL, value)
+func newCTLabelLoadAction(start, end int, value uint64) openflow.Action {
+	action, err := ofctrl.NewOF15LoadAction(NXM_NX_CT_LABEL, value, openflow.NewNXRange(start, end))
+	if err != nil {
+		panic(fmt.Sprintf("failed to create ct label load action: %v", err))
+	}
+	return action
 }
 
 func (p *PolicyBridge) setupCTCommitFlows(baseMatch ofctrl.FlowMatch, l4matches []L4FlowMatch, actions ...openflow.Action) error {

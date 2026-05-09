@@ -301,8 +301,8 @@ github.com/everoute/netlink v0.0.0-20260304034716-05cb4bdc0fc1 h1:BvdVSGTM2wgWlA
 github.com/everoute/netlink v0.0.0-20260304034716-05cb4bdc0fc1/go.mod h1:9deDtke0fUqZiXuBOW4KIxYuj8sBLheEPOOQg6XJ06I=
 github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4 h1:VEk9Ls84wQv9Tendag5DUMcS7S+yxKPIQ9SCjpC39Ak=
 github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4/go.mod h1:tVM+NiqrlevTmmvG3Z/XK+6rn6Z+/tzW7N6rJ6M+kAE=
-github.com/everoute/ofnet v0.0.0-20260508083246-172dc89e5b5f h1:FLkBK8eV8uxshXb31QxKtcyXi/mmtK3p9jzUf8ATSHI=
-github.com/everoute/ofnet v0.0.0-20260508083246-172dc89e5b5f/go.mod h1:i2/xvGG7spFTaZUw3EKmMgU5NuSHSgeXCqgFl6XiGW0=
+github.com/everoute/ofnet v0.0.0-20260509054702-e20b157a6b99 h1:u5N7l8ztyvhu1n/UmXb7TqYobwM8+RkWJFEyjAdWq58=
+github.com/everoute/ofnet v0.0.0-20260509054702-e20b157a6b99/go.mod h1:i2/xvGG7spFTaZUw3EKmMgU5NuSHSgeXCqgFl6XiGW0=
 github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e h1:JsBpdJZNt79M2WZOOI3g6Ml5f1QBj0i2GSiVkNrSrl8=
 github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e/go.mod h1:EvLkszIqANewNs/OCe8mNxLBeXno5dy0vl/eJTl1GbI=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=

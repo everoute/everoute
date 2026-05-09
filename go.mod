@@ -163,7 +163,7 @@ require (
 
 replace (
 	github.com/contiv/libovsdb => github.com/everoute/libovsdb v0.0.0-20230606074221-485f24386155
-	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20260508083246-172dc89e5b5f
+	github.com/contiv/ofnet => github.com/everoute/ofnet v0.0.0-20260509054702-e20b157a6b99
 	github.com/osrg/gobgp => github.com/everoute/gobgp v0.0.0-20210127101833-12edfc1f4514
 	github.com/vishvananda/netlink => github.com/everoute/netlink v0.0.0-20260304034716-05cb4bdc0fc1
 	golang.org/x/crypto => golang.org/x/crypto v0.23.0
