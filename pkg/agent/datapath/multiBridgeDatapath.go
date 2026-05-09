@@ -2437,7 +2437,13 @@ func genNdpNSPkt(dstIP net.IP, srcMac net.HardwareAddr, vlanID uint16) *protocol
 }
 
 func sendProbeRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) {
+	_ = ofSwitch.Send(newProbePacketOut(ofPort, vlanID, srcMac, dstIP))
+}
+
+func newProbePacketOut(ofPort uint32, vlanID uint16, srcMac net.HardwareAddr, dstIP net.IP) *openflow.PacketOut {
 	ofPacketOut := openflow.NewPacketOut()
+	ofPacketOut.Match = *openflow.NewMatch()
+	ofPacketOut.Match.AddField(*openflow.NewInPortField(openflow.P_CONTROLLER))
 	ofPacketOut.AddAction(openflow.NewActionOutput(ofPort))
 
 	if utils.IsIPv4(dstIP.String()) {
@@ -2447,7 +2453,7 @@ func sendProbeRequest(ofSwitch *ofctrl.OFSwitch, ofPort uint32, vlanID uint16, s
 		ofPacketOut.Data = genNdpNSPkt(dstIP, srcMac, vlanID)
 	}
 
-	_ = ofSwitch.Send(ofPacketOut)
+	return ofPacketOut
 }
 
 func RuleIsSame(r1, r2 *EveroutePolicyRule) bool {
