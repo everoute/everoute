@@ -21,11 +21,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
+	"github.com/everoute/everoute/pkg/agent/datapath"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 )
@@ -67,74 +67,138 @@ func (r *Reconciler) TryCompletePolicyFlowInit(ctx context.Context) error {
 		return nil
 	}
 
-	policyRules, completeRules, globalRules, policyIDs, err := r.BuildInitialPolicyFlowSnapshot(ctx)
-	if err != nil {
+	var securityPolicyList securityv1alpha1.SecurityPolicyList
+	if err := r.List(ctx, &securityPolicyList); err != nil {
+		return err
+	}
+	var globalPolicyList securityv1alpha1.GlobalPolicyList
+	if err := r.List(ctx, &globalPolicyList); err != nil {
+		return err
+	}
+	var groupMembersList groupv1alpha1.GroupMembersList
+	if err := r.List(ctx, &groupMembersList); err != nil {
 		return err
 	}
 
-	ruleCache, err := NewCompleteRuleCacheFromRules(completeRules)
-	if err != nil {
-		return err
-	}
-	globalRuleCache, err := NewGlobalRuleCacheFromRules(globalRules)
+	r.groupCache = NewGroupCacheFromGroupMembers(groupMembersList.Items)
+	ruleCache, globalRuleCache, ruleCount, err := r.applyInitialPolicyRulesInOneBundle(ctx, securityPolicyList.Items, globalPolicyList.Items)
 	if err != nil {
 		return err
 	}
 	r.ruleCache = ruleCache
 	r.globalRuleCache = globalRuleCache
 
-	if len(policyRules) > 0 {
-		if err := r.compareAndApplyPolicyRulesChanges(ctx, policyIDs, nil, policyRules); err != nil {
-			return err
-		}
-	}
 	r.EnsurePolicyFlowInit().done.Store(true)
-	klog.Infof("agent policy controller flow initialization completed, rules=%d", len(policyRules))
+	klog.Infof("agent policy controller flow initialization completed, rules=%d", ruleCount)
 	return nil
 }
 
-func (r *Reconciler) BuildInitialPolicyFlowSnapshot(ctx context.Context) ([]policycache.PolicyRule, []*policycache.CompleteRule, []policycache.PolicyRule, []string, error) {
-	var securityPolicyList securityv1alpha1.SecurityPolicyList
-	if err := r.List(ctx, &securityPolicyList); err != nil {
-		return nil, nil, nil, nil, err
-	}
-	var globalPolicyList securityv1alpha1.GlobalPolicyList
-	if err := r.List(ctx, &globalPolicyList); err != nil {
-		return nil, nil, nil, nil, err
-	}
-	var groupMembersList groupv1alpha1.GroupMembersList
-	if err := r.List(ctx, &groupMembersList); err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	r.groupCache = NewGroupCacheFromGroupMembers(groupMembersList.Items)
-
+func (r *Reconciler) applyInitialPolicyRulesInOneBundle(
+	ctx context.Context,
+	securityPolicies []securityv1alpha1.SecurityPolicy,
+	globalPolicies []securityv1alpha1.GlobalPolicy,
+) (cache.Indexer, cache.Indexer, int, error) {
+	ruleCache := policycache.NewCompleteRuleCache()
+	globalRuleCache := policycache.NewGlobalRuleCache()
 	var (
-		policyRules   []policycache.PolicyRule
-		completeRules []*policycache.CompleteRule
-		policyIDs     []string
+		bundleID     datapath.PolicyRuleBundleID
+		bundleOpened bool
+		ruleCount    int
+		policyIDs    []string
 	)
-	policyIDSet := sets.New[string]()
-	for i := range securityPolicyList.Items {
-		policy := &securityPolicyList.Items[i]
-		rules, err := r.completePolicy(ctx, policy)
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-		completeRules = append(completeRules, rules...)
-		for _, rule := range rules {
-			policyRules = append(policyRules, rule.ListRules(ctx, r.groupCache)...)
-		}
-		policyIDSet.Insert(policy.Namespace + "/" + policy.Name)
-	}
-	policyIDs = policyIDSet.UnsortedList()
 
-	globalRules, err := GlobalPolicyRulesFromList(globalPolicyList.Items)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	abortBundle := func() {
+		if bundleOpened {
+			_ = r.DatapathManager.AbortEveroutePolicyRuleBundle(bundleID)
+		}
 	}
-	policyRules = append(policyRules, globalRules...)
-	return policyRules, completeRules, globalRules, policyIDs, nil
+	ensureBundle := func() (datapath.PolicyRuleBundleID, error) {
+		if bundleOpened {
+			return bundleID, nil
+		}
+		id, err := r.DatapathManager.BeginEveroutePolicyRuleBundle(ctx)
+		if err != nil {
+			return 0, err
+		}
+		bundleID = id
+		bundleOpened = true
+		return bundleID, nil
+	}
+
+	for i := range securityPolicies {
+		policy := &securityPolicies[i]
+		policyIDs = append(policyIDs, policy.Namespace+"/"+policy.Name)
+		completeRules, err := r.completePolicy(ctx, policy)
+		if err != nil {
+			abortBundle()
+			return nil, nil, 0, err
+		}
+		policyRules, err := r.addCompleteRulesToInitialBundle(ctx, ensureBundle, completeRules)
+		if err != nil {
+			abortBundle()
+			return nil, nil, 0, err
+		}
+		for _, completeRule := range completeRules {
+			if err := ruleCache.Add(completeRule); err != nil {
+				abortBundle()
+				return nil, nil, 0, err
+			}
+		}
+		ruleCount += policyRules
+	}
+
+	globalRules, err := GlobalPolicyRulesFromList(globalPolicies)
+	if err != nil {
+		abortBundle()
+		return nil, nil, 0, err
+	}
+	if len(globalRules) > 0 {
+		currentBundleID, err := ensureBundle()
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		for i := range globalRules {
+			if err := r.processPolicyRuleAddInBundle(ctx, currentBundleID, &globalRules[i]); err != nil {
+				abortBundle()
+				return nil, nil, 0, err
+			}
+			if err := globalRuleCache.Add(globalRules[i]); err != nil {
+				abortBundle()
+				return nil, nil, 0, err
+			}
+			ruleCount++
+		}
+	}
+
+	if bundleOpened {
+		if err := r.DatapathManager.CommitEveroutePolicyRuleBundle(ctx, bundleID); err != nil {
+			return nil, nil, 0, err
+		}
+		r.DatapathManager.PolicyRuleMetricsUpdate(policyIDs, false)
+	}
+	return ruleCache, globalRuleCache, ruleCount, nil
+}
+
+func (r *Reconciler) addCompleteRulesToInitialBundle(
+	ctx context.Context,
+	ensureBundle func() (datapath.PolicyRuleBundleID, error),
+	completeRules []*policycache.CompleteRule,
+) (int, error) {
+	var ruleCount int
+	for _, completeRule := range completeRules {
+		policyRules := completeRule.ListRules(ctx, r.groupCache)
+		for i := range policyRules {
+			bundleID, err := ensureBundle()
+			if err != nil {
+				return 0, err
+			}
+			if err := r.processPolicyRuleAddInBundle(ctx, bundleID, &policyRules[i]); err != nil {
+				return 0, err
+			}
+			ruleCount++
+		}
+	}
+	return ruleCount, nil
 }
 
 func NewGroupCacheFromGroupMembers(groupMembers []groupv1alpha1.GroupMembers) *policycache.GroupCache {
@@ -143,26 +207,6 @@ func NewGroupCacheFromGroupMembers(groupMembers []groupv1alpha1.GroupMembers) *p
 		groupCache.UpdateGroupMembership(&groupMembers[i])
 	}
 	return groupCache
-}
-
-func NewCompleteRuleCacheFromRules(completeRules []*policycache.CompleteRule) (cache.Indexer, error) {
-	ruleCache := policycache.NewCompleteRuleCache()
-	for _, rule := range completeRules {
-		if err := ruleCache.Add(rule); err != nil {
-			return nil, err
-		}
-	}
-	return ruleCache, nil
-}
-
-func NewGlobalRuleCacheFromRules(policyRules []policycache.PolicyRule) (cache.Indexer, error) {
-	globalRuleCache := policycache.NewGlobalRuleCache()
-	for _, rule := range policyRules {
-		if err := globalRuleCache.Add(rule); err != nil {
-			return nil, err
-		}
-	}
-	return globalRuleCache, nil
 }
 
 func (r *Reconciler) EnsurePolicyFlowInit() *PolicyFlowInit {

@@ -263,9 +263,9 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	if opts.IsEnableMS() {
 		// Policy controller: watch policy related resource and update
 		if err = (&policy.Reconciler{
-			Client:                   mgr.GetClient(),
-			Scheme:                   mgr.GetScheme(),
-			DatapathManager:          datapathManager,
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			DatapathManager: datapathManager,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
