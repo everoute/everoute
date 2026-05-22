@@ -2,6 +2,9 @@ package computecluster
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -101,22 +104,14 @@ func (c *Controller) handleConfigMapUpdate(oldObj, newObj interface{}) {
 	if newCfg.Name != msconst.ComputeClustersConfigMapName || newCfg.Namespace != c.ConfigMapNamespace {
 		return
 	}
-	if len(oldCfg.Data) == 0 && len(newCfg.Data) == 0 {
-		return
-	}
-	if len(oldCfg.Data) == 0 || len(newCfg.Data) == 0 {
+	if !configMapDataEqual(oldCfg.Data, newCfg.Data) {
 		c.reconcileQueue.Add(c.EverouteClusterID)
 		return
 	}
-	oldELFs := make(sets.Set[string], len(oldCfg.Data))
-	newELFs := make(sets.Set[string], len(newCfg.Data))
-	for k := range oldCfg.Data {
-		oldELFs.Insert(k)
+	if !hasAssociationAnnotations(oldCfg.Annotations) && hasAssociationAnnotations(newCfg.Annotations) {
+		return
 	}
-	for k := range newCfg.Data {
-		newELFs.Insert(k)
-	}
-	if !oldELFs.Equal(newELFs) {
+	if !associationAnnotationValuesEqual(oldCfg.Annotations, newCfg.Annotations) {
 		c.reconcileQueue.Add(c.EverouteClusterID)
 	}
 }
@@ -141,7 +136,7 @@ func (c *Controller) handleClusterUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	if newCluster.GetELFs().Equal(oldCluster.GetELFs()) {
+	if reflect.DeepEqual(oldCluster.GetAssociation(), newCluster.GetAssociation()) {
 		return
 	}
 	c.reconcileQueue.Add(c.EverouteClusterID)
@@ -170,19 +165,23 @@ func (c *Controller) create() error {
 		klog.Errorf("Failed to get networkCluster from cloudPlatform: %s", err)
 		return err
 	}
+	if !exists {
+		klog.Errorf("Can't found networkCluster %s, skip create configMap which store computeClusters", c.EverouteClusterID)
+		return nil
+	}
+
 	ConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: c.ConfigMapNamespace,
 			Name:      msconst.ComputeClustersConfigMapName,
 		},
 	}
-	if exists {
-		ConfigMap.Data = make(map[string]string)
-		cluster := obj.(*schema.EverouteCluster)
-		for i := range cluster.AgentELFClusters {
-			ConfigMap.Data[cluster.AgentELFClusters[i].LocalID] = ""
-		}
+	cluster := obj.(*schema.EverouteCluster)
+	ConfigMap.Data, err = associationData(cluster.GetAssociation())
+	if err != nil {
+		return err
 	}
+	ConfigMap.Annotations = associationAnnotations()
 	_, err = c.erCli.CoreV1().ConfigMaps(ConfigMap.Namespace).Create(c.ctx, &ConfigMap, metav1.CreateOptions{})
 	if err != nil {
 		klog.Errorf("Failed to create configMap with computeClusters %v, err: %s", ConfigMap.Data, err)
@@ -204,22 +203,21 @@ func (c *Controller) update(configMap *corev1.ConfigMap) error {
 	}
 
 	cluster := obj.(*schema.EverouteCluster)
-	newELFs := cluster.GetELFs()
-
-	oldELFs := sets.New[string]()
-	if configMap.Data != nil {
-		for k := range configMap.Data {
-			oldELFs.Insert(k)
-		}
+	newData, err := associationData(cluster.GetAssociation())
+	if err != nil {
+		return err
 	}
-
-	if oldELFs.Equal(newELFs) {
+	newAnnotations := associationAnnotations()
+	if reflect.DeepEqual(configMap.Data, newData) && hasAssociationAnnotations(configMap.Annotations) {
 		return nil
 	}
 
-	configMap.Data = make(map[string]string, newELFs.Len())
-	for _, elf := range newELFs.UnsortedList() {
-		configMap.Data[elf] = ""
+	configMap.Data = newData
+	if configMap.Annotations == nil {
+		configMap.Annotations = map[string]string{}
+	}
+	for key, value := range newAnnotations {
+		configMap.Annotations[key] = value
 	}
 
 	_, err = c.erCli.CoreV1().ConfigMaps(configMap.Namespace).Update(c.ctx, configMap, metav1.UpdateOptions{})
@@ -229,4 +227,42 @@ func (c *Controller) update(configMap *corev1.ConfigMap) error {
 	}
 	klog.Infof("Success to update configMap with computeClusters %v", configMap.Data)
 	return nil
+}
+
+func associationData(association map[string]sets.Set[string]) (map[string]string, error) {
+	data := make(map[string]string, len(association))
+	for clusterID, vdsSet := range association {
+		vdsIDs := vdsSet.UnsortedList()
+		sort.Strings(vdsIDs)
+		raw, err := json.Marshal(vdsIDs)
+		if err != nil {
+			return nil, err
+		}
+		data[clusterID] = string(raw)
+	}
+	return data, nil
+}
+
+func associationAnnotations() map[string]string {
+	return map[string]string{
+		msconst.AssociationSyncCompletedAnnotation: "true",
+		msconst.AssociationFormatVersionAnnotation: msconst.AssociationFormatVersionV2,
+	}
+}
+
+func hasAssociationAnnotations(annotations map[string]string) bool {
+	return annotations[msconst.AssociationSyncCompletedAnnotation] == "true" &&
+		annotations[msconst.AssociationFormatVersionAnnotation] == msconst.AssociationFormatVersionV2
+}
+
+func associationAnnotationValuesEqual(a, b map[string]string) bool {
+	return a[msconst.AssociationSyncCompletedAnnotation] == b[msconst.AssociationSyncCompletedAnnotation] &&
+		a[msconst.AssociationFormatVersionAnnotation] == b[msconst.AssociationFormatVersionAnnotation]
+}
+
+func configMapDataEqual(a, b map[string]string) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(a, b)
 }

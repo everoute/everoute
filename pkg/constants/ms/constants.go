@@ -32,6 +32,10 @@ const (
 
 	ComputeClustersConfigMapName = "associate-compute-clusters"
 
+	AssociationSyncCompletedAnnotation = "everoute.io/association-sync-completed"
+	AssociationFormatVersionAnnotation = "everoute.io/association-format-version"
+	AssociationFormatVersionV2         = "2"
+
 	// used in shareIP
 	ALLInterfaceIDs = "ALL"
 )

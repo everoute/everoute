@@ -20,7 +20,7 @@ var _ = Describe("elf controller", func() {
 	})
 
 	Context("add elf ConfigMap", func() {
-		It("er cluster associate elf", func() {
+		It("er cluster associate elf without vds", func() {
 			erCluster := &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
@@ -36,9 +36,9 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(2))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf1", ""))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf2", ""))
+				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationSyncCompletedAnnotation, "true"))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationFormatVersionAnnotation, msconst.AssociationFormatVersionV2))
 			}, timeout, interval).Should(Succeed())
 		})
 
@@ -55,8 +55,11 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationSyncCompletedAnnotation, "true"))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationFormatVersionAnnotation, msconst.AssociationFormatVersionV2))
 			}, timeout, interval).Should(Succeed())
 		})
+
 	})
 
 	Context("update elf ConfigMap", func() {
@@ -75,14 +78,12 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(2))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf1", ""))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf2", ""))
+				g.Expect(len(res.Data)).Should(Equal(0))
 				g.Expect(controller.reconcileQueue.Len()).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("add associate elf cluster", func() {
+		It("add associate elf cluster doesn't change vds association", func() {
 			erCluster := &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
@@ -99,14 +100,11 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(3))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf1", ""))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf2", ""))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf", ""))
+				g.Expect(len(res.Data)).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("del assocaite elf cluster", func() {
+		It("del associate elf cluster doesn't change vds association", func() {
 			erCluster := &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
@@ -120,8 +118,7 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(1))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf2", ""))
+				g.Expect(len(res.Data)).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
 		})
 
@@ -142,9 +139,7 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(2))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf2", ""))
-				g.Expect(res.Data).Should(HaveKeyWithValue("elf1", ""))
+				g.Expect(len(res.Data)).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
 		})
 	})
@@ -407,14 +402,15 @@ func TestHandleClusterUpdate(t *testing.T) {
 		queueLen int
 	}{
 		{
-			name: "normal",
+			name: "vds association removed",
 			oldObj: &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
 				},
-				AgentELFClusters: []schema.AgentELFCluster{
+				AgentELFVDSes: []schema.AgentELFVDS{
 					{
-						LocalID: "elf1",
+						ObjectMeta: schema.ObjectMeta{ID: "vds1"},
+						Cluster:    schema.ObjectReference{ID: "elf1"},
 					},
 				},
 			},
@@ -450,6 +446,42 @@ func TestHandleClusterUpdate(t *testing.T) {
 				},
 			},
 			queueLen: 0,
+		},
+		{
+			name: "vds association changed",
+			oldObj: &schema.EverouteCluster{
+				ObjectMeta: schema.ObjectMeta{
+					ID: everouteCluster,
+				},
+				AgentELFClusters: []schema.AgentELFCluster{
+					{
+						LocalID: "elf1",
+					},
+				},
+				AgentELFVDSes: []schema.AgentELFVDS{
+					{
+						ObjectMeta: schema.ObjectMeta{ID: "vds1"},
+						Cluster:    schema.ObjectReference{ID: "elf1"},
+					},
+				},
+			},
+			newObj: &schema.EverouteCluster{
+				ObjectMeta: schema.ObjectMeta{
+					ID: everouteCluster,
+				},
+				AgentELFClusters: []schema.AgentELFCluster{
+					{
+						LocalID: "elf1",
+					},
+				},
+				AgentELFVDSes: []schema.AgentELFVDS{
+					{
+						ObjectMeta: schema.ObjectMeta{ID: "vds2"},
+						Cluster:    schema.ObjectReference{ID: "elf1"},
+					},
+				},
+			},
+			queueLen: 1,
 		},
 		{
 			name: "unexpected everoute cluster",

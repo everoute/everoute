@@ -18,6 +18,7 @@ package schema
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 )
 
 type VM struct {
@@ -112,12 +113,14 @@ type EverouteCluster struct {
 	GlobalDefaultAction GlobalPolicyAction           `json:"global_default_action"`
 	GlobalWhitelist     EverouteClusterWhitelist     `json:"global_whitelist,omitempty"`
 	EnableLogging       bool                         `json:"enable_logging,omitempty"`
+	Status              EverouteClusterStatus        `json:"status,omitempty"`
 }
 
 type AgentELFVDS struct {
 	ObjectMeta
 
 	EverouteClusterRef ObjectReference `json:"everoute_cluster,omitempty"`
+	Cluster            ObjectReference `json:"cluster,omitempty"`
 }
 
 type AgentELFCluster struct {
@@ -136,6 +139,63 @@ func (e *EverouteCluster) GetELFs() sets.Set[string] {
 		res.Insert(e.AgentELFClusters[i].LocalID)
 	}
 	return res
+}
+
+func (e *EverouteCluster) GetAssociation() map[string]sets.Set[string] {
+	res := map[string]sets.Set[string]{}
+	if e == nil {
+		return res
+	}
+
+	for i := range e.AgentELFVDSes {
+		clusterID := e.AgentELFVDSes[i].Cluster.ID
+		vdsID := e.AgentELFVDSes[i].ID
+		if vdsID != "" {
+			if clusterID == "" {
+				klog.Warningf("skip agent_elf_vdses vds %s in everoute cluster %s due to empty cluster id", vdsID, e.ID)
+				continue
+			}
+			ensureVDSSet(res, clusterID).Insert(vdsID)
+		}
+	}
+
+	for i := range e.Status.Agents.ManageVDSes {
+		managedVDS := e.Status.Agents.ManageVDSes[i]
+		clusterID := managedVDS.VDS.Cluster.ID
+		vdsID := managedVDS.VDS.ID
+		if vdsID == "" {
+			vdsID = managedVDS.VDSID
+		}
+		if vdsID != "" {
+			if clusterID == "" {
+				klog.Warningf("skip status managed vds %s in everoute cluster %s due to empty cluster id", vdsID, e.ID)
+				continue
+			}
+			ensureVDSSet(res, clusterID).Insert(vdsID)
+		}
+	}
+
+	return res
+}
+
+func ensureVDSSet(m map[string]sets.Set[string], clusterID string) sets.Set[string] {
+	if _, ok := m[clusterID]; !ok {
+		m[clusterID] = sets.New[string]()
+	}
+	return m[clusterID]
+}
+
+type EverouteClusterStatus struct {
+	Agents EverouteClusterAgentStatus `json:"agents,omitempty"`
+}
+
+type EverouteClusterAgentStatus struct {
+	ManageVDSes []EverouteClusterManagedVDS `json:"manageVDSes,omitempty"`
+}
+
+type EverouteClusterManagedVDS struct {
+	VDSID string      `json:"vdsID,omitempty"`
+	VDS   AgentELFVDS `json:"vds,omitempty"`
 }
 
 type EverouteClusterWhitelist struct {
