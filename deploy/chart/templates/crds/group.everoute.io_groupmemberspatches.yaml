@@ -72,6 +72,8 @@ spec:
                         type: string
                     type: object
                   type: array
+                vdsID:
+                  type: string
               required:
               - endpointReference
               type: object
@@ -153,6 +155,8 @@ spec:
                         type: string
                     type: object
                   type: array
+                vdsID:
+                  type: string
               required:
               - endpointReference
               type: object
@@ -209,6 +213,8 @@ spec:
                         type: string
                     type: object
                   type: array
+                vdsID:
+                  type: string
               required:
               - endpointReference
               type: object

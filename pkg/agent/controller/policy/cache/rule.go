@@ -135,7 +135,10 @@ type IPBlockItem struct {
 	// AgentRef means this ip has appeared in these agents.
 	// if sets is empty, this ip will apply to all agents.
 	AgentRef sets.Set[string]
-	Ports    []securityv1alpha1.NamedPort
+	// VDSRef means this ip belongs to these VDSes.
+	// if sets is empty, this ip will apply to all VDSes.
+	VDSRef sets.Set[string]
+	Ports  []securityv1alpha1.NamedPort
 }
 
 func (item *IPBlockItem) DeepCopy() interface{} {
@@ -145,6 +148,7 @@ func (item *IPBlockItem) DeepCopy() interface{} {
 	}
 	return &IPBlockItem{
 		AgentRef: sets.New(item.AgentRef.UnsortedList()...),
+		VDSRef:   sets.New(item.VDSRef.UnsortedList()...),
 		Ports:    item.Ports,
 	}
 }
@@ -152,6 +156,7 @@ func (item *IPBlockItem) DeepCopy() interface{} {
 func NewIPBlockItem() *IPBlockItem {
 	item := &IPBlockItem{}
 	item.AgentRef = sets.New[string]()
+	item.VDSRef = sets.New[string]()
 	return item
 }
 
@@ -238,11 +243,11 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 }
 
 // ListRules return a list of security.everoute.io/v1alpha1 PolicyRule
-func (rule *CompleteRule) ListRules(ctx context.Context, groupCache *GroupCache) []PolicyRule {
+func (rule *CompleteRule) ListRules(ctx context.Context, groupCache *GroupCache, managedVDSes sets.Set[string]) []PolicyRule {
 	rule.lock.RLock()
 	defer rule.lock.RUnlock()
 	policyRuleList := rule.GenerateRuleList(ctx, rule.assemblySrcIPBlocks(ctx, groupCache),
-		rule.assemblyDstIPBlocks(ctx, groupCache), rule.Ports)
+		rule.assemblyDstIPBlocks(ctx, groupCache), rule.Ports, managedVDSes)
 	policyRuleList = append(policyRuleList, rule.GenerateFullIsolationRule(groupCache, nil)...)
 
 	return policyRuleList
@@ -286,7 +291,7 @@ func (rule *CompleteRule) GenerateFullIsolationRule(groupCache *GroupCache, gm *
 }
 
 func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[string]*IPBlockItem,
-	dstIPBlocks map[string]*IPBlockItem, ports []RulePort) []PolicyRule {
+	dstIPBlocks map[string]*IPBlockItem, ports []RulePort, managedVDSes sets.Set[string]) []PolicyRule {
 	log := ctrl.LoggerFrom(ctx)
 	var policyRuleList []PolicyRule
 
@@ -320,14 +325,14 @@ func (rule *CompleteRule) GenerateRuleList(ctx context.Context, srcIPBlocks map[
 				for _, dstPort := range dstPorts {
 					if rule.SymmetricMode {
 						// SymmetricMode will ignore rule direction, create both ingress and egress
-						if rule.hasLocalRule(dstIPBlock) {
+						if rule.hasLocalRule(dstIPBlock, managedVDSes) {
 							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionIn, dstPort, "", "")...)
 						}
-						if rule.hasLocalRule(srcIPBlock) {
+						if rule.hasLocalRule(srcIPBlock, managedVDSes) {
 							policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, RuleDirectionOut, dstPort, "", "")...)
 						}
-					} else if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock)) ||
-						(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock)) {
+					} else if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock, managedVDSes)) ||
+						(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock, managedVDSes)) {
 						policyRuleList = append(policyRuleList, rule.generateRule(srcIP, dstIP, rule.Direction, dstPort, "", "")...)
 					}
 				}
@@ -354,16 +359,19 @@ func (rule *CompleteRule) assemblyDstIPBlocks(ctx context.Context, groupCache *G
 	return ipBlocks
 }
 
-func (rule *CompleteRule) hasLocalRule(ipBlock *IPBlockItem) bool {
+func (rule *CompleteRule) hasLocalRule(ipBlock *IPBlockItem, managedVDSes sets.Set[string]) bool {
 	// apply to all target
 	if ipBlock == nil {
 		return true
 	}
 	// apply to src/dst has current agent
-	if ipBlock.AgentRef.Len() == 0 || ipBlock.AgentRef.Has(utils.CurrentAgentName()) {
-		return true
+	if ipBlock.AgentRef.Len() > 0 {
+		return ipBlock.AgentRef.Has(utils.CurrentAgentName())
 	}
-	return false
+	if ipBlock.VDSRef.Len() > 0 {
+		return ipBlock.VDSRef.HasAny(managedVDSes.UnsortedList()...)
+	}
+	return true
 }
 
 func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction RuleDirection, port RulePort, srcVNicRef, dstVNicRef string) []PolicyRule {

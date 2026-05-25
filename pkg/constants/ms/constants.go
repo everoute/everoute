@@ -36,6 +36,8 @@ const (
 	AssociationFormatVersionAnnotation = "everoute.io/association-format-version"
 	AssociationFormatVersionV2         = "2"
 
+	EndpointLabelKeyVDSID = "everoute.io/vds-id"
+
 	// used in shareIP
 	ALLInterfaceIDs = "ALL"
 )

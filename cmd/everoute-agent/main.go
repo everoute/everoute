@@ -266,6 +266,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			Client:                   mgr.GetClient(),
 			Scheme:                   mgr.GetScheme(),
 			DatapathManager:          datapathManager,
+			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
 		}).SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())

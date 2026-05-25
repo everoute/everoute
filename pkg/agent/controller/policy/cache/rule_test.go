@@ -6,9 +6,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"golang.org/x/sys/unix"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/utils"
 )
 
 func TestResolveDstPort(t *testing.T) {
@@ -137,6 +139,73 @@ func TestResolveDstPort(t *testing.T) {
 				t.Errorf("test %s failed, expect is %#v, but the res is %#v", item.name, item.expect, res)
 			}
 		}
+	}
+}
+
+func TestCompleteRuleHasLocalRule(t *testing.T) {
+	rule := &CompleteRule{}
+	currentAgent := utils.CurrentAgentName()
+	otherAgent := currentAgent + "-other"
+	managedVDSes := sets.New("vds-1")
+
+	tests := []struct {
+		name     string
+		ipBlock  *IPBlockItem
+		expected bool
+	}{
+		{
+			name:     "nil ipBlock should apply to all",
+			ipBlock:  nil,
+			expected: true,
+		},
+		{
+			name: "current agent should apply",
+			ipBlock: &IPBlockItem{
+				AgentRef: sets.New(currentAgent),
+				VDSRef:   sets.New[string](),
+			},
+			expected: true,
+		},
+		{
+			name: "agent ref should take precedence over managed vds",
+			ipBlock: &IPBlockItem{
+				AgentRef: sets.New(otherAgent),
+				VDSRef:   sets.New("vds-1"),
+			},
+			expected: false,
+		},
+		{
+			name: "managed vds should apply when agent ref is empty",
+			ipBlock: &IPBlockItem{
+				AgentRef: sets.New[string](),
+				VDSRef:   sets.New("vds-1"),
+			},
+			expected: true,
+		},
+		{
+			name: "unmanaged vds should not apply when agent ref is empty",
+			ipBlock: &IPBlockItem{
+				AgentRef: sets.New[string](),
+				VDSRef:   sets.New("vds-2"),
+			},
+			expected: false,
+		},
+		{
+			name: "empty agent and vds refs should apply to all",
+			ipBlock: &IPBlockItem{
+				AgentRef: sets.New[string](),
+				VDSRef:   sets.New[string](),
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := rule.hasLocalRule(tt.ipBlock, managedVDSes); got != tt.expected {
+				t.Fatalf("expect %t, got %t", tt.expected, got)
+			}
+		})
 	}
 }
 

@@ -73,6 +73,7 @@ type Reconciler struct {
 	groupCache *policycache.GroupCache
 
 	DatapathManager *datapath.DpManager
+	ManagedVDSes    sets.Set[string]
 
 	sysProcessedPolicyLock sync.RWMutex
 	sysProcessedPolicy     sets.Set[k8stypes.NamespacedName]
@@ -186,6 +187,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.groupCache == nil {
 		r.groupCache = policycache.NewGroupCache()
 	}
+	if r.ManagedVDSes == nil {
+		r.ManagedVDSes = sets.New[string]()
+	}
 
 	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
 
@@ -243,10 +247,10 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 		var oldRuleList, newRuleList []policycache.PolicyRule
 		rule := rules[i].(*policycache.CompleteRule)
 
-		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache)...)
+		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
 		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
 		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
-		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
+		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports, r.ManagedVDSes)...)
 		newRuleList = append(newRuleList, rule.GenerateFullIsolationRule(nil, gm)...)
 		if err := r.syncPolicyRulesUntilSuccess(ctx, []string{rule.Policy}, oldRuleList, newRuleList); err != nil {
 			return err
@@ -275,7 +279,7 @@ func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.
 	// retrieve policy completeRules from cache
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache)...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
 		// start a force full synchronization of policyrule
 		// remove policy completeRules from cache
 		_ = r.ruleCache.Delete(completeRule)
@@ -290,7 +294,7 @@ func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1
 
 	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
 	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache)...)
+		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
 	}
 
 	newRuleList, err := r.calculateExpectedPolicyRules(ctx, policy)
@@ -329,7 +333,7 @@ func (r *Reconciler) calculateExpectedPolicyRules(ctx context.Context, policy *s
 
 	for _, completeRule := range completeRules {
 		_ = r.ruleCache.Add(completeRule)
-		policyRuleList = append(policyRuleList, completeRule.ListRules(ctx, r.groupCache)...)
+		policyRuleList = append(policyRuleList, completeRule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
 	}
 
 	return policyRuleList, nil

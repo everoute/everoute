@@ -157,7 +157,8 @@ func (r *Reconciler) updateEndpoint(_ context.Context, e event.UpdateEvent, q wo
 	if k8slabels.Equals(newEndpoint.Labels, oldEndpoint.Labels) &&
 		labels.Equals(newEndpoint.Spec.ExtendLabels, oldEndpoint.Spec.ExtendLabels) &&
 		utils.EqualIPs(newEndpoint.Status.IPs, oldEndpoint.Status.IPs) &&
-		utils.EqualStringSlice(newEndpoint.Status.Agents, oldEndpoint.Status.Agents) {
+		utils.EqualStringSlice(newEndpoint.Status.Agents, oldEndpoint.Status.Agents) &&
+		newEndpoint.Status.NotManaged == oldEndpoint.Status.NotManaged {
 		return
 	}
 
@@ -559,6 +560,9 @@ func (r *Reconciler) fetchCurrGroupMembers(ctx context.Context, group *groupv1al
 	// conversion endpoint list to member list
 	memberList := make([]groupv1alpha1.GroupMember, 0, len(matchedEndpoints))
 	for _, ep := range matchedEndpoints {
+		if ep.Status.NotManaged {
+			continue
+		}
 		if isAllEpsGroup && len(ep.Spec.Ports) == 0 {
 			// for AllEndpointsGroup skip endpoint has no named port
 			continue
@@ -570,6 +574,7 @@ func (r *Reconciler) fetchCurrGroupMembers(ctx context.Context, group *groupv1al
 				ExternalIDValue: ep.Spec.Reference.ExternalIDValue,
 			},
 			EndpointAgent: ep.Status.Agents,
+			VDSID:         ep.Spec.VDSID,
 			IPs:           ep.Status.IPs,
 			Ports:         ep.Spec.Ports,
 		}

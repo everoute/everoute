@@ -39,6 +39,7 @@ import (
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/client/clientset_generated/clientset"
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
+	"github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
@@ -671,10 +672,19 @@ func (c *Controller) setEndpoint(ep *v1alpha1.Endpoint, vnic *schema.VMNic, labe
 	var epCopy = ep.DeepCopy()
 
 	ep.Name = vnic.ID
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	if vnic.Vlan.VDS.ID == "" {
+		delete(labels, ms.EndpointLabelKeyVDSID)
+	} else {
+		labels[ms.EndpointLabelKeyVDSID] = vnic.Vlan.VDS.ID
+	}
 	ep.Labels = labels
 	ep.Namespace = c.namespace
 	ep.Spec.VID = uint32(vnic.Vlan.VlanID)
 	ep.Spec.VMID = vmID
+	ep.Spec.VDSID = vnic.Vlan.VDS.ID
 	ep.Spec.ExtendLabels = extendLabels
 	ep.Spec.Reference.ExternalIDName = ExternalIDName
 	ep.Spec.Reference.ExternalIDValue = vnic.InterfaceID

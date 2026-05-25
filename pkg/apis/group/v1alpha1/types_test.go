@@ -21,6 +21,7 @@ func TestGroupMemberEqual(t *testing.T) {
 					ExternalIDName:  "test",
 					ExternalIDValue: "value-a",
 				},
+				VDSID:         "vds-1",
 				EndpointAgent: []string{"agent1", "agent2"},
 				IPs:           []types.IPAddress{"192.168.1.1", "10.10.10.1"},
 				Ports: []v1alpha1.NamedPort{
@@ -40,6 +41,7 @@ func TestGroupMemberEqual(t *testing.T) {
 					ExternalIDName:  "test",
 					ExternalIDValue: "value-a",
 				},
+				VDSID:         "vds-1",
 				EndpointAgent: []string{"agent2", "agent1"},
 				IPs:           []types.IPAddress{"10.10.10.1", "192.168.1.1"},
 				Ports: []v1alpha1.NamedPort{
@@ -55,6 +57,24 @@ func TestGroupMemberEqual(t *testing.T) {
 				},
 			},
 			exp: true,
+		},
+		{
+			name: "vds id doesn't equal",
+			aGM: &GroupMember{
+				EndpointReference: EndpointReference{
+					ExternalIDName:  "test",
+					ExternalIDValue: "value-a",
+				},
+				VDSID: "vds-1",
+			},
+			bGM: &GroupMember{
+				EndpointReference: EndpointReference{
+					ExternalIDName:  "test",
+					ExternalIDValue: "value-a",
+				},
+				VDSID: "vds-2",
+			},
+			exp: false,
 		},
 		{
 			name: "ip num doesn't equal",

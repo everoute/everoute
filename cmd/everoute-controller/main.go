@@ -156,6 +156,14 @@ func main() {
 		}
 	}
 
+	if err = (&endpointctrl.NotManagedReconciler{
+		Client:             mgr.GetClient(),
+		ConfigMapNamespace: towerPluginOptions.Namespace,
+		ConfigMapName:      msconst.ComputeClustersConfigMapName,
+	}).SetupWithManager(mgr); err != nil {
+		klog.Fatalf("unable to create endpoint notManaged controller: %s", err.Error())
+	}
+
 	// group controller sync & manager group members.
 	if err = (&groupctrl.Reconciler{
 		Client: mgr.GetClient(),
