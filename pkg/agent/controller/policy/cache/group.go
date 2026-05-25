@@ -102,11 +102,19 @@ func GroupMembersToIPBlocks(ctx context.Context, members []groupv1alpha1.GroupMe
 			if _, ok := res[ipNetStr]; !ok {
 				res[ipNetStr] = NewIPBlockItem()
 				res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
+				if member.VDSID != "" {
+					res[ipNetStr].VDSRef.Insert(member.VDSID)
+				}
 			} else {
 				if res[ipNetStr].AgentRef.Len() == 0 || len(member.EndpointAgent) == 0 {
 					res[ipNetStr].AgentRef = sets.New[string]()
 				} else {
 					res[ipNetStr].AgentRef.Insert(member.EndpointAgent...)
+				}
+				if res[ipNetStr].VDSRef.Len() == 0 || member.VDSID == "" {
+					res[ipNetStr].VDSRef = sets.New[string]()
+				} else {
+					res[ipNetStr].VDSRef.Insert(member.VDSID)
 				}
 			}
 			res[ipNetStr].Ports = AppendIPBlockPorts(res[ipNetStr].Ports, member.Ports)

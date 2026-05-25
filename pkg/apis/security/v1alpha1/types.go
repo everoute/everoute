@@ -339,6 +339,8 @@ type EndpointSpec struct {
 	// VID describe the endpoint in which VLAN
 	VID  uint32 `json:"vid"`
 	VMID string `json:"vmID,omitempty"`
+	// VDSID is the VDS ID that the endpoint belongs to.
+	VDSID string `json:"vdsID,omitempty"`
 
 	// ExtendLabels contains extend labels of endpoint. Each key in the labels
 	// could have multiple values, but at least one should be specified.
@@ -382,6 +384,8 @@ type EndpointStatus struct {
 	MacAddress string `json:"macAddress,omitempty"`
 	// Agents where this endpoint is currently located
 	Agents []string `json:"agents,omitempty"`
+	// NotManaged indicates this endpoint is outside the current Everoute managed scope.
+	NotManaged bool `json:"notManaged,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

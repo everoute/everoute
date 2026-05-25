@@ -2450,6 +2450,7 @@ func endpointToMember(ep *securityv1alpha1.Endpoint) *groupv1alpha1.GroupMember 
 		},
 		IPs:           ep.Status.IPs,
 		EndpointAgent: ep.Status.Agents,
+		VDSID:         ep.Spec.VDSID,
 		Ports:         ep.Spec.Ports,
 	}
 }
@@ -2585,7 +2586,7 @@ func getRuleByPolicy(policy *securityv1alpha1.SecurityPolicy) []cache.PolicyRule
 		if err != nil {
 			return nil
 		}
-		policyRuleList = append(policyRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports)...)
+		policyRuleList = append(policyRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports, pCtrl.ManagedVDSes)...)
 		policyRuleList = append(policyRuleList, rule.GenerateFullIsolationRule(pCtrl.GetGroupCache(), nil)...)
 	}
 	return policyRuleList

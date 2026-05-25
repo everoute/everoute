@@ -160,6 +160,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 	}
+	expectStatus.NotManaged = endpoint.Status.NotManaged
 
 	// Skip if none change for this endpoint.
 	if EqualEndpointStatus(endpoint.Status, *expectStatus) {
@@ -777,8 +778,9 @@ func EqualEndpointStatus(s securityv1alpha1.EndpointStatus, e securityv1alpha1.E
 	macEqual := s.MacAddress == e.MacAddress
 	ipsEqual := utils.EqualIPs(s.IPs, e.IPs)
 	agentEqual := utils.EqualStringSlice(s.Agents, e.Agents)
+	notManagedEqual := s.NotManaged == e.NotManaged
 
-	return macEqual && ipsEqual && agentEqual
+	return macEqual && ipsEqual && agentEqual && notManagedEqual
 }
 
 // GetEndpointID return ID of an endpoint, it's unique in one cluster.

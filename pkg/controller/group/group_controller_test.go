@@ -104,6 +104,24 @@ var _ = Describe("GroupController", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
 				})
 			})
+			When("create a notManaged endpoint in the group", func() {
+				var ep *securityv1alpha1.Endpoint
+				var epStatus securityv1alpha1.EndpointStatus
+				var namespace = metav1.NamespaceDefault
+
+				BeforeEach(func() {
+					ep, epStatus = newTestEndpoint(namespace, "192.168.1.1", "agent1", map[string]string{"label.key": "label.value"}, nil)
+					epStatus.NotManaged = true
+
+					By(fmt.Sprintf("create notManaged endpoint %s with labels %v", ep.Name, ep.Labels))
+					Expect(k8sClient.Create(ctx, ep)).Should(Succeed())
+					ep.Status = epStatus
+					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+				})
+				It("should not add the endpoint to groupmembers", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{}})
+				})
+			})
 		})
 		Context("an endpoint in the group", func() {
 			var ep *securityv1alpha1.Endpoint
@@ -149,6 +167,19 @@ var _ = Describe("GroupController", func() {
 
 					By(fmt.Sprintf("update endpoint %s agents to %v", ep.Name, ep.Status.Agents))
 					Expect(k8sClient.Status().Update(ctx, ep)).Should(Succeed())
+				})
+				It("should update groupmembers contains the endpoint", func() {
+					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
+				})
+			})
+			When("update the endpoint vdsID", func() {
+				BeforeEach(func() {
+					updateEndpoint := ep.DeepCopy()
+					updateEndpoint.Spec.VDSID = "vds-2"
+
+					By(fmt.Sprintf("update endpoint %s vdsID to %s", ep.Name, updateEndpoint.Spec.VDSID))
+					Expect(k8sClient.Patch(ctx, updateEndpoint, client.MergeFrom(ep))).Should(Succeed())
+					ep = updateEndpoint
 				})
 				It("should update groupmembers contains the endpoint", func() {
 					assertHasGroupMembers(epGroup, groupv1alpha1.GroupMembers{GroupMembers: []groupv1alpha1.GroupMember{endpointToGroupMember(ep)}})
@@ -448,6 +479,7 @@ func endpointToGroupMember(ep *securityv1alpha1.Endpoint) groupv1alpha1.GroupMem
 		},
 		IPs:           ep.Status.IPs,
 		EndpointAgent: ep.Status.Agents,
+		VDSID:         ep.Spec.VDSID,
 	}
 }
 
@@ -463,6 +495,7 @@ func newTestEndpoint(namespace, ip, agent string, labels map[string]string, exte
 			Labels:    labels,
 		},
 		Spec: securityv1alpha1.EndpointSpec{
+			VDSID:        "vds-test",
 			ExtendLabels: extendLabels,
 			Reference: securityv1alpha1.EndpointReference{
 				ExternalIDName:  id,

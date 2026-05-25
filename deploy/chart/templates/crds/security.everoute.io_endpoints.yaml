@@ -123,6 +123,9 @@ spec:
                 - static
                 - static-ip
                 type: string
+              vdsID:
+                description: VDSID is the VDS ID that the endpoint belongs to.
+                type: string
               vid:
                 description: VID describe the endpoint in which VLAN
                 format: int32
@@ -151,6 +154,10 @@ spec:
               macAddress:
                 description: MacAddress of an endpoint.
                 type: string
+              notManaged:
+                description: NotManaged indicates this endpoint is outside the current
+                  Everoute managed scope.
+                type: boolean
             type: object
         required:
         - spec
