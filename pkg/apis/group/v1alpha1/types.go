@@ -52,6 +52,7 @@ type GroupMember struct {
 	// EndpointAgent means where this groupMember may appear.
 	// if this field is empty, this group member will apply to all agents.
 	EndpointAgent []string             `json:"endpointAgent,omitempty"`
+	VDSID         string               `json:"vdsID,omitempty"`
 	IPs           []types.IPAddress    `json:"ips,omitempty"`
 	Ports         []v1alpha1.NamedPort `json:"ports,omitempty"`
 }
@@ -64,6 +65,9 @@ func (g *GroupMember) Equal(a *GroupMember) bool {
 		return false
 	}
 	if !sets.New[string](g.EndpointAgent...).Equal(sets.New[string](a.EndpointAgent...)) {
+		return false
+	}
+	if g.VDSID != a.VDSID {
 		return false
 	}
 

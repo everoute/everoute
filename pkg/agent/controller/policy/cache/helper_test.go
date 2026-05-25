@@ -107,6 +107,34 @@ func TestGetIPCidr(t *testing.T) {
 	}
 }
 
+func TestGroupMembersToIPBlocksWithVDSRef(t *testing.T) {
+	members := []groupv1alpha1.GroupMember{
+		{
+			IPs:   []types.IPAddress{"10.10.0.1"},
+			VDSID: "vds-1",
+		},
+		{
+			IPs:   []types.IPAddress{"10.10.0.1"},
+			VDSID: "vds-2",
+		},
+		{
+			IPs:   []types.IPAddress{"10.10.0.2"},
+			VDSID: "vds-1",
+		},
+		{
+			IPs: []types.IPAddress{"10.10.0.2"},
+		},
+	}
+
+	expect := makeIPMap(
+		"10.10.0.1/32", &IPBlockItem{VDSRef: sets.New("vds-1", "vds-2")},
+		"10.10.0.2/32", &IPBlockItem{},
+	)
+	if got := GroupMembersToIPBlocks(context.Background(), members); !equalIPMap(got, expect) {
+		t.Fatalf("expect %v, got %v", expect, got)
+	}
+}
+
 func TestAssembleStaticIPAndGroup(t *testing.T) {
 	gCache := NewGroupCache()
 	gCache.members["group-1"] = []groupv1alpha1.GroupMember{
@@ -117,6 +145,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			},
 			IPs:           []types.IPAddress{"10.10.0.1", "10.10.0.2"},
 			EndpointAgent: []string{"agent1"},
+			VDSID:         "vds-1",
 			Ports: []securityv1alpha1.NamedPort{
 				{
 					Name:     "ssh",
@@ -145,6 +174,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 		{
 			IPs:           []types.IPAddress{"10.10.0.4"},
 			EndpointAgent: []string{"agent2"},
+			VDSID:         "vds-4",
 		},
 		{
 			IPs: []types.IPAddress{"10.10.0.5"},
@@ -162,6 +192,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 		{
 			IPs:           []types.IPAddress{"10.10.0.1"},
 			EndpointAgent: []string{"agent3", "agent2"},
+			VDSID:         "vds-2",
 			Ports: []securityv1alpha1.NamedPort{
 				{
 					Name:     "http",
@@ -173,6 +204,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 		{
 			IPs:           []types.IPAddress{"10.10.0.3"},
 			EndpointAgent: []string{"agent2"},
+			VDSID:         "vds-3",
 			Ports: []securityv1alpha1.NamedPort{
 				{
 					Name:     "http",
@@ -254,6 +286,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 			expErr: false,
 			exp: makeIPMap("10.10.0.1/32", &IPBlockItem{
 				AgentRef: sets.New("agent1", "agent2", "agent3"),
+				VDSRef:   sets.New("vds-1", "vds-2"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",
@@ -272,6 +305,7 @@ func TestAssembleStaticIPAndGroup(t *testing.T) {
 				},
 			}, "10.10.0.2/32", &IPBlockItem{
 				AgentRef: sets.New("agent1"),
+				VDSRef:   sets.New("vds-1"),
 				Ports: []securityv1alpha1.NamedPort{
 					{
 						Name:     "ssh",
@@ -355,6 +389,14 @@ func equalIPMap(i1, i2 map[string]*IPBlockItem) bool {
 		}
 		if len(v.AgentRef) != 0 {
 			if !v.AgentRef.Equal(v2.AgentRef) {
+				return false
+			}
+		}
+		if len(v.VDSRef) != len(v2.VDSRef) {
+			return false
+		}
+		if len(v.VDSRef) != 0 {
+			if !v.VDSRef.Equal(v2.VDSRef) {
 				return false
 			}
 		}

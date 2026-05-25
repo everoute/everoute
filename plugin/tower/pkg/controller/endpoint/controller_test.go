@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 	controller "github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
 	"github.com/everoute/everoute/plugin/tower/pkg/schema"
@@ -122,6 +123,19 @@ var _ = Describe("EndpointController", func() {
 				assertEndpointsNum(ctx, 2)
 				assertHasEndpoint(ctx, matchDynamic(vnicA, AggregateLabels(labelA, labelB), nil))
 				assertHasEndpoint(ctx, matchDynamic(vnicB, AggregateLabels(labelA, labelB), nil))
+			})
+
+			When("vnic belongs to vds", func() {
+				BeforeEach(func() {
+					vnicA.Vlan.VDS.ID = "vds-1"
+					vm.VMNics[0] = *vnicA
+					server.TrackerFactory().VM().CreateOrUpdate(vm)
+				})
+				It("should sync endpoint vds id and label", func() {
+					expectLabels := AggregateLabels(labelA, labelB)
+					expectLabels[constants.EndpointLabelKeyVDSID] = "vds-1"
+					assertHasEndpoint(ctx, matchDynamic(vnicA, expectLabels, nil))
+				})
 			})
 
 			When("add vnic to vm", func() {
@@ -464,6 +478,8 @@ func matchDynamic(vnic *schema.VMNic, labels map[string]string, extendLabels map
 		return endpoint.GetName() == vnic.GetID() &&
 			cmp.Equal(endpoint.GetLabels(), labels, cmpopts.EquateEmpty()) &&
 			cmp.Equal(endpoint.Spec.ExtendLabels, extendLabels, cmpopts.EquateEmpty(), cmpopts.SortSlices(lessFunc)) &&
+			endpoint.Spec.VID == uint32(vnic.Vlan.VlanID) &&
+			endpoint.Spec.VDSID == vnic.Vlan.VDS.ID &&
 			endpoint.Spec.Reference.ExternalIDName == controller.ExternalIDName &&
 			endpoint.Spec.Reference.ExternalIDValue == vnic.InterfaceID &&
 			endpoint.Spec.Type == v1alpha1.EndpointDynamic

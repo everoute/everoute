@@ -35,9 +35,11 @@ const (
 
 	DefaultMaxConcurrentReconciles = 4
 	DependentsCleanFinalizer       = "finalizer.everoute.io/dependentsclean"
-	OwnerGroupLabelKey             = "label.everoute.io/ownergroup"
-	OwnerPolicyLabelKey            = "label.everoute.io/ownerpolicy"
-	IsGlobalPolicyRuleLabel        = "label.everoute.io/isglobalpolicy"
+	LabelKeyPrefix                 = "label.everoute.io"
+	OwnerGroupLabelKey             = LabelKeyPrefix + "/ownergroup"
+	OwnerPolicyLabelKey            = LabelKeyPrefix + "/ownerpolicy"
+	IsGlobalPolicyRuleLabel        = LabelKeyPrefix + "/isglobalpolicy"
+	EndpointLabelKeyVDSID          = LabelKeyPrefix + "/vds-id"
 
 	// Tier0 used for isolation policy and forensic one side drop
 	Tier0 = "tier0"

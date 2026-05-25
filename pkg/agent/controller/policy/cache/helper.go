@@ -120,6 +120,11 @@ func AppendIPBlocks(ori map[string]*IPBlockItem, add map[string]*IPBlockItem) ma
 			} else {
 				res[ip].AgentRef.Insert(v.AgentRef.UnsortedList()...)
 			}
+			if res[ip].VDSRef.Len() == 0 || v.VDSRef.Len() == 0 {
+				res[ip].VDSRef = sets.New[string]()
+			} else {
+				res[ip].VDSRef.Insert(v.VDSRef.UnsortedList()...)
+			}
 			res[ip].Ports = AppendIPBlockPorts(res[ip].Ports, v.Ports)
 		}
 	}
