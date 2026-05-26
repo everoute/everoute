@@ -1494,6 +1494,12 @@ func (dp *DpManager) skipLocalEndpoint(endpoint *Endpoint) bool {
 	if strings.HasSuffix(endpoint.InterfaceName, LocalToNatSuffix) {
 		return true
 	}
+
+	// skip ovs bridge local interface
+	if endpoint.InterfaceName == endpoint.BridgeName {
+		return true
+	}
+
 	// skip cni local gateway
 	if dp.Info.LocalGwName == endpoint.InterfaceName {
 		return true
