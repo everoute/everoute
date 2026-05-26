@@ -722,8 +722,8 @@ func (r *Reconciler) fetchEndpointStatusFromAgentInfo(endpoint securityv1alpha1.
 		// combine all ifaces status into endpoint status
 		agentSets := sets.NewString()
 		for _, item := range ifaces {
+			agentSets.Insert(item.(*iface).agentName)
 			if len(item.(*iface).ipMap) != 0 {
-				agentSets.Insert(item.(*iface).agentName)
 				for ip := range item.(*iface).ipMap {
 					if v, ok := ipMap[ip.String()]; ok && v == "" {
 						continue
