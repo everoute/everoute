@@ -748,6 +748,12 @@ func testInterfaceIPUpdate(t *testing.T) {
 			t.Errorf("failed to process add agentinfo request")
 		}
 
+		endpointStatusA := getFakeEndpoint(r.Client, fakeEndpointA.Name).Status
+		expectAgents := []string{fakeAgentInfoA.Name, fakeAgentInfoC.Name}
+		if !utils.EqualStringSlice(endpointStatusA.Agents, expectAgents) {
+			t.Errorf("endpoint should update agents from all matched ifaces, get %v, want %v", endpointStatusA.Agents, expectAgents)
+		}
+
 		r.onAgentInfoUpdate(ctx, event.UpdateEvent{
 			ObjectOld: fakeAgentInfoC,
 			ObjectNew: updatedfakeAgentInfoC,
