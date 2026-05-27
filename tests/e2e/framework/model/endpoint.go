@@ -36,6 +36,8 @@ type Endpoint struct {
 	// Virtual network identifier, update VID not supported.
 	// VID must between 0-4095 when network is vlan.
 	VID int
+	// VDSID overrides the default VDS used by the endpoint provider.
+	VDSID string
 	// Expose tcp port. TODO: support tcp-ports
 	TCPPort int
 	// Expose udp port. TODO: support udp-ports
