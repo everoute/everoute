@@ -31,9 +31,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
+	policyctrl "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/tests/e2e/framework"
 	"github.com/everoute/everoute/tests/e2e/framework/config"
@@ -808,6 +811,78 @@ var _ = Describe("SecurityPolicy", func() {
 		})
 	})
 
+	Context("environment with endpoints from unmanaged vds [Feature:Tower]", func() {
+		var vm1, vm2, vm3 *model.Endpoint
+		var vm1Endpoint, vm2Endpoint, vm3Endpoint securityv1alpha1.Endpoint
+		var clientSelector, peerSelector *labels.Selector
+		var policy *securityv1alpha1.SecurityPolicy
+
+		BeforeEach(func() {
+			if e2eEnv.EndpointManager().Name() != "tower" {
+				Skip("only tower e2e supports vds")
+			}
+			if e2eEnv.EndpointManager().UnmanagedVDSID() == "" {
+				Skip("tower e2e unmanaged vds id isn't configured")
+			}
+
+			clientSelector = newSelector(map[string][]string{"vds-scope": {"client"}})
+			peerSelector = newSelector(map[string][]string{"vds-scope": {"peer"}})
+			vm1 = &model.Endpoint{
+				Name:   "managed-vds-client",
+				VID:    0,
+				Labels: map[string][]string{"vds-scope": {"client"}},
+			}
+			vm2 = &model.Endpoint{
+				Name:   "managed-vds-peer",
+				VID:    0,
+				Labels: map[string][]string{"vds-scope": {"peer"}},
+			}
+			vm3 = &model.Endpoint{
+				Name:   "unmanaged-vds-peer",
+				VID:    0,
+				VDSID:  e2eEnv.EndpointManager().UnmanagedVDSID(),
+				Labels: map[string][]string{"vds-scope": {"peer"}},
+			}
+
+			Expect(e2eEnv.EndpointManager().SetupMany(ctx, vm1, vm2, vm3)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			if policy != nil {
+				Expect(e2eEnv.CleanObjects(ctx, policy)).Should(Succeed())
+			}
+		})
+
+		It("should exclude endpoints outside managed vds from policy groupmembers", func() {
+			vm1Endpoint = waitEndpointByVMID(vm1, false)
+			vm2Endpoint = waitEndpointByVMID(vm2, false)
+			vm3Endpoint = waitEndpointByVMID(vm3, true)
+			Expect(vm1Endpoint.Spec.VDSID).ShouldNot(BeEmpty())
+			Expect(vm2Endpoint.Spec.VDSID).Should(Equal(vm1Endpoint.Spec.VDSID))
+			Expect(vm3Endpoint.Spec.VDSID).Should(Equal(e2eEnv.EndpointManager().UnmanagedVDSID()))
+
+			// The unmanaged-vds-id configured for this case must be reachable from the managed
+			// VDS before policy is installed, so policy behavior can be distinguished from
+			// underlying network isolation.
+			assertReachable([]*model.Endpoint{vm1}, []*model.Endpoint{vm2, vm3}, "ICMP", true)
+
+			policy = newPolicy("tower-unmanaged-vds-egress", constants.Tier2, securityv1alpha1.DefaultRuleDrop, clientSelector)
+			addEngressRule(policy, "ICMP", 0, peerSelector)
+			Expect(e2eEnv.SetupObjects(ctx, policy)).Should(Succeed())
+
+			namespace := e2eEnv.Namespace()
+			appliedPeer := policyctrl.AppliedAsSecurityPeer(namespace, policy.Spec.AppliedTo[0])
+			appliedGroup := policyctrl.PeerAsEndpointGroup(namespace, appliedPeer)
+			egressPeer := securityv1alpha1.SecurityPolicyPeer{EndpointSelector: peerSelector}
+			peerGroup := policyctrl.PeerAsEndpointGroup(namespace, egressPeer)
+			assertGroupMembers(appliedGroup.Name, vm1Endpoint)
+			assertGroupMembers(peerGroup.Name, vm2Endpoint)
+
+			assertReachable([]*model.Endpoint{vm1}, []*model.Endpoint{vm2}, "ICMP", true)
+			assertReachable([]*model.Endpoint{vm1}, []*model.Endpoint{vm3}, "ICMP", false)
+		})
+	})
+
 	Context("environment with endpoints has multiple labels with same key [Feature:ExtendLabels]", func() {
 		var groupA, groupB *labels.Selector
 		var endpointA, endpointB, endpointC *model.Endpoint
@@ -1332,6 +1407,59 @@ func getPolicyPeer(policyPeers ...interface{}) []securityv1alpha1.SecurityPolicy
 	}
 
 	return peerList
+}
+
+func waitEndpointByVMID(endpoint *model.Endpoint, notManaged bool) securityv1alpha1.Endpoint {
+	var matchedEndpoint securityv1alpha1.Endpoint
+	Eventually(func() bool {
+		if endpoint.Status == nil || endpoint.Status.LocalID == "" {
+			return false
+		}
+
+		endpointList := securityv1alpha1.EndpointList{}
+		err := e2eEnv.KubeClient().List(ctx, &endpointList, client.InNamespace(e2eEnv.Namespace()))
+		Expect(err).Should(Succeed())
+		for _, item := range endpointList.Items {
+			if item.Spec.VMID != endpoint.Status.LocalID {
+				continue
+			}
+			matchedEndpoint = item
+			return item.Status.NotManaged == notManaged
+		}
+		return false
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(BeTrue())
+	return matchedEndpoint
+}
+
+func assertGroupMembers(groupName string, endpoints ...securityv1alpha1.Endpoint) {
+	Eventually(func() error {
+		groupMembers := groupv1alpha1.GroupMembers{}
+		err := e2eEnv.KubeClient().Get(ctx, types.NamespacedName{Name: groupName}, &groupMembers)
+		if err != nil {
+			return err
+		}
+		if len(groupMembers.GroupMembers) != len(endpoints) {
+			return fmt.Errorf("unexpected groupmembers %v", groupMembers.GroupMembers)
+		}
+		want := map[string]string{}
+		for _, endpoint := range endpoints {
+			want[endpoint.Spec.Reference.ExternalIDValue] = endpoint.Spec.VDSID
+		}
+		for _, member := range groupMembers.GroupMembers {
+			vdsID, ok := want[member.EndpointReference.ExternalIDValue]
+			if !ok {
+				return fmt.Errorf("unexpected groupmember %v", member)
+			}
+			if member.VDSID != vdsID {
+				return fmt.Errorf("unexpected groupmember vds %s, want %s", member.VDSID, vdsID)
+			}
+			delete(want, member.EndpointReference.ExternalIDValue)
+		}
+		if len(want) != 0 {
+			return fmt.Errorf("missing groupmembers %v", want)
+		}
+		return nil
+	}, e2eEnv.Timeout(), e2eEnv.Interval()).Should(Succeed())
 }
 
 func assertFlowMatches(securityModel *SecurityModel) {

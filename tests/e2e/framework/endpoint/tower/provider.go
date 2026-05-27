@@ -142,7 +142,12 @@ func (m *provider) Create(ctx context.Context, endpoint *model.Endpoint) (*model
 		return nil, err
 	}
 
-	vm, err := m.newFromTemplate(endpoint.Name, endpoint.Status.Host, endpoint.VID, description)
+	vdsID := endpoint.VDSID
+	if vdsID == "" {
+		vdsID = m.vdsID
+	}
+
+	vm, err := m.newFromTemplate(endpoint.Name, endpoint.Status.Host, vdsID, endpoint.VID, description)
 	if err != nil {
 		return nil, fmt.Errorf("create %s from template %s: %s", endpoint.Name, m.vmTemplateID, err)
 	}
@@ -278,14 +283,14 @@ func (m *provider) RunCommand(ctx context.Context, name string, cmd string, arg 
 	return execContext(ctx, client, domain, cmd, nil, arg...)
 }
 
-func (m *provider) newFromTemplate(name string, agent string, vlanID int, describe string) (*VM, error) {
+func (m *provider) newFromTemplate(name string, agent string, vdsID string, vlanID int, describe string) (*VM, error) {
 	var err error
 	var vlanUUID string
 
 	if err = m.cacheVMTemplate(); err != nil {
 		return nil, err
 	}
-	if vlanUUID, err = m.mutationQueryVlan(context.TODO(), vlanID); err != nil {
+	if vlanUUID, err = m.mutationQueryVlan(context.TODO(), vdsID, vlanID); err != nil {
 		return nil, err
 	}
 
@@ -397,7 +402,7 @@ func (m *provider) mutationVMLabels(vmID string, labels map[string][]string) err
 }
 
 // mutationQueryVlan find vlan by id. If not found, it will be create.
-func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, error) {
+func (m *provider) mutationQueryVlan(ctx context.Context, vdsID string, vlanID int) (string, error) {
 	m.mutationVdsLock.Lock()
 	defer m.mutationVdsLock.Unlock()
 
@@ -412,7 +417,7 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 				// filter out invalid vlan
 				continue
 			}
-			if vlan.Vds.ID == m.vdsID && vlan.VlanID == vlanID {
+			if vlan.Vds.ID == vdsID && vlan.VlanID == vlanID {
 				vlanUUID = vlan.ID
 				break
 			}
@@ -425,7 +430,7 @@ func (m *provider) mutationQueryVlan(ctx context.Context, vlanID int) (string, e
 		vlan, err := adaptMutationCreateVlan(m.towerClient, &VlanCreateInput{
 			Name:   fmt.Sprintf("vlan%d", vlanID),
 			Type:   NetworkTypeVM,
-			Vds:    &ConnectInput{Connect: &UniqueInput{ID: &m.vdsID}},
+			Vds:    &ConnectInput{Connect: &UniqueInput{ID: &vdsID}},
 			VlanID: vlanID,
 		})
 		if err != nil {

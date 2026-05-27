@@ -54,10 +54,12 @@ const (
 
 type Manager struct {
 	model.EndpointProvider
+	unmanagedVDSID string
 }
 
 func NewManager(pool ipam.Pool, namespace string, kubeClient client.Client, nodeManager *node.Manager, config *config.EndpointConfig) *Manager {
 	var provider model.EndpointProvider
+	var unmanagedVDSID string
 
 	switch {
 	case config.Provider == nil, *config.Provider == "netns":
@@ -70,6 +72,9 @@ func NewManager(pool ipam.Pool, namespace string, kubeClient client.Client, node
 			vmNamePrefix = *config.VMNamePrefix
 		}
 		provider = tower.NewProvider(pool, nodeManager, config.TowerClient, *config.VMTemplateID, *config.VdsID, vmNamePrefix)
+		if config.UnmanagedVDSID != nil {
+			unmanagedVDSID = *config.UnmanagedVDSID
+		}
 
 	case *config.Provider == "pod":
 		provider = pod.NewProvider(config.KubeConfig, kubeClient, nodeManager, namespace)
@@ -77,7 +82,11 @@ func NewManager(pool ipam.Pool, namespace string, kubeClient client.Client, node
 		panic("unknown provider " + *config.Provider)
 	}
 
-	return &Manager{EndpointProvider: provider}
+	return &Manager{EndpointProvider: provider, unmanagedVDSID: unmanagedVDSID}
+}
+
+func (m *Manager) UnmanagedVDSID() string {
+	return m.unmanagedVDSID
 }
 
 func (m *Manager) SetupMany(ctx context.Context, endpoints ...*model.Endpoint) error {
