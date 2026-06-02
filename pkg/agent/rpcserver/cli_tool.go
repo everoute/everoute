@@ -17,8 +17,9 @@ import (
 var _ v1alpha1.CLIServer = &CLITool{}
 
 type CLITool struct {
-	dpManager  *datapath.DpManager
-	proxyCache *ctrlProxy.Cache
+	dpManager   *datapath.DpManager
+	proxyCache  *ctrlProxy.Cache
+	pprofSwitch *PprofSwitch
 }
 
 func (g *CLITool) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.CLI_GetAllRulesServer) error {
@@ -149,6 +150,29 @@ func (g *CLITool) SetGOMemLimit(_ context.Context, in *v1alpha1.SetGOMemLimitReq
 	}, nil
 }
 
+func (g *CLITool) EnablePprof(context.Context, *emptypb.Empty) (*v1alpha1.PprofStatus, error) {
+	g.pprofSwitch.Enable()
+	klog.Infof("Enabled pprof handler on %s", PprofPath)
+	return g.pprofStatus(), nil
+}
+
+func (g *CLITool) DisablePprof(context.Context, *emptypb.Empty) (*v1alpha1.PprofStatus, error) {
+	g.pprofSwitch.Disable()
+	klog.Infof("Disabled pprof handler on %s", PprofPath)
+	return g.pprofStatus(), nil
+}
+
+func (g *CLITool) GetPprofStatus(context.Context, *emptypb.Empty) (*v1alpha1.PprofStatus, error) {
+	return g.pprofStatus(), nil
+}
+
+func (g *CLITool) pprofStatus() *v1alpha1.PprofStatus {
+	return &v1alpha1.PprofStatus{
+		Enabled: g.pprofSwitch.Enabled(),
+		URL:     g.pprofSwitch.URL(),
+	}
+}
+
 func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
 	res := []*v1alpha1.TRRule{}
 	for i := range dpRules {
@@ -166,10 +190,11 @@ func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
 	return res
 }
 
-func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache) *CLITool {
+func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch) *CLITool {
 	s := &CLITool{
-		dpManager:  datapathManager,
-		proxyCache: proxyCache,
+		dpManager:   datapathManager,
+		proxyCache:  proxyCache,
+		pprofSwitch: pprofSwitch,
 	}
 
 	return s

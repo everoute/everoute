@@ -132,6 +132,9 @@ service CLI {
 
 	rpc SetGOMemLimit(SetGOMemLimitRequest) returns (SetGOMemLimitResponse) {}
 	rpc GetGOMemLimit(google.protobuf.Empty) returns (GetGOMemLimitResponse) {}
+	rpc EnablePprof(google.protobuf.Empty) returns (PprofStatus) {}
+	rpc DisablePprof(google.protobuf.Empty) returns (PprofStatus) {}
+	rpc GetPprofStatus(google.protobuf.Empty) returns (PprofStatus) {}
 }
 
 message TRRule{
@@ -164,4 +167,10 @@ message SetGOMemLimitResponse {
 // GetGOMemLimitResponse returns the current Go runtime memory limit.
 message GetGOMemLimitResponse {
 	int64 Limit = 1;
+}
+
+// PprofStatus returns the agent pprof switch state.
+message PprofStatus {
+	bool Enabled = 1;
+	string URL = 2;
 }
