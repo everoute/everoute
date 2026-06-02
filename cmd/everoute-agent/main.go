@@ -153,13 +153,17 @@ func main() {
 	if err != nil {
 		klog.Fatalf("failed to add startup check handler: %s", err)
 	}
+	pprofSwitch := rpcserver.NewPprofSwitch(opts.metricsAddr)
+	if err = pprofSwitch.Install(mgr.AddMetricsExtraHandler); err != nil {
+		klog.Fatalf("failed to add pprof handler: %s", err)
+	}
 
 	proxyCache, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
-	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache)
+	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache, pprofSwitch)
 	go rpcServer.Run(stopCtx.Done())
 
 	resourceInit(stopCtx, mgr, datapathManager)

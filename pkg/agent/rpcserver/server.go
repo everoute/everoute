@@ -38,15 +38,18 @@ type Server struct {
 
 	enableCNI bool
 
+	pprofSwitch *PprofSwitch
+
 	stopChan <-chan struct{}
 }
 
-func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache) *Server {
+func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch) *Server {
 	s := &Server{
-		dpManager:  datapathManager,
-		k8sClient:  k8sClient,
-		proxyCache: proxyCache,
-		enableCNI:  enableCNI,
+		dpManager:   datapathManager,
+		k8sClient:   k8sClient,
+		proxyCache:  proxyCache,
+		enableCNI:   enableCNI,
+		pprofSwitch: pprofSwitch,
 	}
 
 	return s
@@ -89,7 +92,7 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	klog.Infoln("Enable collector rpc server")
 
 	// register cli server
-	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache)
+	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache, s.pprofSwitch)
 	v1alpha1.RegisterCLIServer(rpcServer, cliTool)
 	klog.Infoln("Enable cli tools rpc server")
 

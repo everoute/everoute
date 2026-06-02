@@ -236,3 +236,30 @@ func GetGOMemLimit() (int64, error) {
 	}
 	return res.GetLimit(), nil
 }
+
+// EnablePprof enables the agent pprof HTTP handlers via RPC.
+func EnablePprof() (bool, string, error) {
+	status, err := ruleconn.EnablePprof(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return false, "", err
+	}
+	return status.GetEnabled(), status.GetURL(), nil
+}
+
+// DisablePprof disables the agent pprof HTTP handlers via RPC.
+func DisablePprof() (bool, string, error) {
+	status, err := ruleconn.DisablePprof(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return false, "", err
+	}
+	return status.GetEnabled(), status.GetURL(), nil
+}
+
+// GetPprofStatus retrieves the agent pprof switch state via RPC.
+func GetPprofStatus() (bool, string, error) {
+	status, err := ruleconn.GetPprofStatus(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return false, "", err
+	}
+	return status.GetEnabled(), status.GetURL(), nil
+}
