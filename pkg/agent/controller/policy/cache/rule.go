@@ -253,6 +253,132 @@ func (rule *CompleteRule) ListRules(ctx context.Context, groupCache *GroupCache,
 	return policyRuleList
 }
 
+// EstimateRuleCount estimates how many PolicyRules this complete rule will generate.
+func (rule *CompleteRule) EstimateRuleCount(ctx context.Context, groupCache *GroupCache,
+	managedVDSes sets.Set[string]) (uint64, error) {
+	rule.lock.RLock()
+	defer rule.lock.RUnlock()
+
+	srcIPBlocks, err := AssembleStaticIPAndGroup(ctx, rule.SrcIPs, rule.SrcGroups, groupCache)
+	if err != nil {
+		return 0, err
+	}
+	dstIPBlocks, err := AssembleStaticIPAndGroup(ctx, rule.DstIPs, rule.DstGroups, groupCache)
+	if err != nil {
+		return 0, err
+	}
+	return rule.estimateRuleCountWithIPBlocks(srcIPBlocks, dstIPBlocks, groupCache, nil, managedVDSes), nil
+}
+
+// EstimateRuleCountWithIPBlocks estimates rules generated from preassembled IPBlocks.
+func (rule *CompleteRule) EstimateRuleCountWithIPBlocks(srcIPBlocks, dstIPBlocks map[string]*IPBlockItem,
+	groupCache *GroupCache, gm *groupv1alpha1.GroupMembers, managedVDSes sets.Set[string]) uint64 {
+	rule.lock.RLock()
+	defer rule.lock.RUnlock()
+
+	return rule.estimateRuleCountWithIPBlocks(srcIPBlocks, dstIPBlocks, groupCache, gm, managedVDSes)
+}
+
+func (rule *CompleteRule) estimateRuleCountWithIPBlocks(srcIPBlocks, dstIPBlocks map[string]*IPBlockItem,
+	groupCache *GroupCache, gm *groupv1alpha1.GroupMembers, managedVDSes sets.Set[string]) uint64 {
+	var total uint64
+	for srcIP, srcIPBlock := range srcIPBlocks {
+		for dstIP, dstIPBlock := range dstIPBlocks {
+			if isSameSingleIP(srcIP, dstIP) || !utils.IsSameIPFamily(srcIP, dstIP) {
+				continue
+			}
+			portCount := estimatePortsForPair(rule.Ports, dstIPBlock)
+			if portCount == 0 {
+				continue
+			}
+			if rule.SymmetricMode {
+				if rule.hasLocalRule(dstIPBlock, managedVDSes) {
+					total += portCount * estimateIPFamilyFactor(srcIP, dstIP)
+				}
+				if rule.hasLocalRule(srcIPBlock, managedVDSes) {
+					total += portCount * estimateIPFamilyFactor(srcIP, dstIP)
+				}
+				continue
+			}
+			if (rule.Direction == RuleDirectionIn && rule.hasLocalRule(dstIPBlock, managedVDSes)) ||
+				(rule.Direction == RuleDirectionOut && rule.hasLocalRule(srcIPBlock, managedVDSes)) {
+				total += portCount * estimateIPFamilyFactor(srcIP, dstIP)
+			}
+		}
+	}
+	return total + rule.estimateFullIsolationRules(groupCache, gm)
+}
+
+func estimatePortsForPair(ports []RulePort, dstIPBlock *IPBlockItem) uint64 {
+	var total uint64
+	for _, port := range ports {
+		if port.DstPortName == "" {
+			total++
+			continue
+		}
+		if dstIPBlock == nil {
+			continue
+		}
+		total += uint64(len(resolveDstPort(port, dstIPBlock.Ports)))
+	}
+	return total
+}
+
+func estimateIPFamilyFactor(srcIP, dstIP string) uint64 {
+	var count uint64
+	if utils.IsIPv4Pair(srcIP, dstIP) {
+		count++
+	}
+	if utils.IsIPv6Pair(srcIP, dstIP) {
+		count++
+	}
+	return count
+}
+
+func (rule *CompleteRule) estimateFullIsolationRules(groupCache *GroupCache, gm *groupv1alpha1.GroupMembers) uint64 {
+	if !rule.FullIsolationPolicy {
+		return 0
+	}
+	if gm != nil {
+		return uint64(len(gm.GroupMembers))
+	}
+	if groupCache == nil {
+		return 0
+	}
+	var count uint64
+	switch rule.Direction {
+	case RuleDirectionIn:
+		for group := range rule.DstGroups {
+			count += uint64(len(groupCache.ListGroupVNics(group)))
+		}
+	case RuleDirectionOut:
+		for group := range rule.SrcGroups {
+			count += uint64(len(groupCache.ListGroupVNics(group)))
+		}
+	}
+	return count
+}
+
+// AssembleIPBlocksForGroupUpdate assembles IPBlocks using the new members for the updating group.
+func AssembleIPBlocksForGroupUpdate(ctx context.Context, staticIPs sets.Set[string], groups sets.Set[string],
+	groupCache *GroupCache, gm *groupv1alpha1.GroupMembers) (map[string]*IPBlockItem, error) {
+	res, err := AssembleStaticIPAndGroup(ctx, staticIPs, groups.Clone().Delete(gm.GetName()), groupCache)
+	if err != nil {
+		return nil, err
+	}
+	if !groups.Has(gm.GetName()) {
+		return res, nil
+	}
+	return AppendIPBlocks(res, GroupMembersToIPBlocks(ctx, gm.GroupMembers)), nil
+}
+
+func isSameSingleIP(srcIP, dstIP string) bool {
+	if srcIP == "" || dstIP == "" || srcIP != dstIP {
+		return false
+	}
+	return strings.Contains(srcIP, "/32") || strings.Contains(srcIP, "/128")
+}
+
 func (rule *CompleteRule) GenerateFullIsolationRule(groupCache *GroupCache, gm *groupv1alpha1.GroupMembers) []PolicyRule {
 	var policyRuleList []PolicyRule
 	if rule.FullIsolationPolicy {

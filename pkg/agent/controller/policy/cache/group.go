@@ -48,6 +48,17 @@ func (cache *GroupCache) UpdateGroupMembership(members *groupv1alpha1.GroupMembe
 	cache.members[members.Name] = append([]groupv1alpha1.GroupMember{}, members.GroupMembers...)
 }
 
+func (cache *GroupCache) GetGroupMembership(groupName string) ([]groupv1alpha1.GroupMember, bool) {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+
+	memberships, ok := cache.members[groupName]
+	if !ok {
+		return nil, false
+	}
+	return append([]groupv1alpha1.GroupMember{}, memberships...), true
+}
+
 // DelGroupMembership removed GroupMembers and it's patches from cache.
 func (cache *GroupCache) DelGroupMembership(groupName string) {
 	cache.lock.Lock()

@@ -41,11 +41,11 @@ var setGOMemLimitCmd = &cobra.Command{
 		if err := erctl.ConnectClient(); err != nil {
 			return err
 		}
-		prev, cur, err := erctl.SetGOMemLimit(limit)
+		prev, cur, policyMemoryLimit, err := erctl.SetGOMemLimit(limit)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("prev: %d, current: %d\n", prev, cur)
+		fmt.Printf("prev: %d, current: %d, policy-memory-limit: %d\n", prev, cur, policyMemoryLimit)
 		return nil
 	},
 }

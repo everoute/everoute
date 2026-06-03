@@ -132,6 +132,8 @@ service CLI {
 
 	rpc SetGOMemLimit(SetGOMemLimitRequest) returns (SetGOMemLimitResponse) {}
 	rpc GetGOMemLimit(google.protobuf.Empty) returns (GetGOMemLimitResponse) {}
+	rpc SetPolicyRuleEstimateLimit(SetPolicyRuleEstimateLimitRequest) returns (SetPolicyRuleEstimateLimitResponse) {}
+	rpc GetPolicyRuleEstimateLimit(google.protobuf.Empty) returns (GetPolicyRuleEstimateLimitResponse) {}
 	rpc EnablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc DisablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc GetPprofStatus(google.protobuf.Empty) returns (PprofStatus) {}
@@ -162,11 +164,28 @@ message SetGOMemLimitRequest {
 message SetGOMemLimitResponse {
 	int64 PrevLimit = 1;
 	int64 CurrentLimit = 2;
+	int64 PolicyMemoryLimit = 3;
 }
 
 // GetGOMemLimitResponse returns the current Go runtime memory limit.
 message GetGOMemLimitResponse {
 	int64 Limit = 1;
+}
+
+// SetPolicyRuleEstimateLimitRequest requests setting the policy rule estimate limit.
+message SetPolicyRuleEstimateLimitRequest {
+	uint64 Limit = 1;
+}
+
+// SetPolicyRuleEstimateLimitResponse returns previous and current policy rule estimate limits.
+message SetPolicyRuleEstimateLimitResponse {
+	uint64 PrevLimit = 1;
+	uint64 CurrentLimit = 2;
+}
+
+// GetPolicyRuleEstimateLimitResponse returns current policy rule estimate limit.
+message GetPolicyRuleEstimateLimitResponse {
+	uint64 Limit = 1;
 }
 
 // PprofStatus returns the agent pprof switch state.

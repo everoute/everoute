@@ -17,6 +17,7 @@ limitations under the License.
 package policy
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"runtime/debug"
@@ -25,6 +26,7 @@ import (
 	"github.com/contiv/libOpenflow/protocol"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
@@ -313,4 +315,17 @@ func toRuleMap(ruleList []policycache.PolicyRule) map[string]*policycache.Policy
 		}
 	}
 	return ruleMap
+}
+
+func estimateCompleteRules(ctx context.Context, rules []*policycache.CompleteRule, groupCache *policycache.GroupCache,
+	managedVDSes sets.Set[string]) (uint64, error) {
+	var total uint64
+	for _, rule := range rules {
+		estimate, err := rule.EstimateRuleCount(ctx, groupCache, managedVDSes)
+		if err != nil {
+			return 0, err
+		}
+		total += estimate
+	}
+	return total, nil
 }

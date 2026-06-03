@@ -9,6 +9,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 
+	policyctrl "github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -17,9 +18,10 @@ import (
 var _ v1alpha1.CLIServer = &CLITool{}
 
 type CLITool struct {
-	dpManager   *datapath.DpManager
-	proxyCache  *ctrlProxy.Cache
-	pprofSwitch *PprofSwitch
+	dpManager         *datapath.DpManager
+	proxyCache        *ctrlProxy.Cache
+	pprofSwitch       *PprofSwitch
+	policyGuardSetter policyctrl.GuardRuntimeSetter
 }
 
 func (g *CLITool) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.CLI_GetAllRulesServer) error {
@@ -143,10 +145,38 @@ func (g *CLITool) SetGOMemLimit(_ context.Context, in *v1alpha1.SetGOMemLimitReq
 	}
 	prevL := debug.SetMemoryLimit(newL)
 	curL := debug.SetMemoryLimit(-1)
-	klog.Infof("Set Go memory limit, prev: %d, new: %d, current: %d", prevL, newL, curL)
+	policyMemoryLimit := int64(0)
+	if g.policyGuardSetter != nil {
+		policyMemoryLimit = int64(g.policyGuardSetter.SetMemoryLimitFromGOMemLimit(curL))
+	}
+	klog.Infof("Set Go memory limit, prev: %d, new: %d, current: %d, policy memory limit: %d",
+		prevL, newL, curL, policyMemoryLimit)
 	return &v1alpha1.SetGOMemLimitResponse{
-		PrevLimit:    prevL,
-		CurrentLimit: curL,
+		PrevLimit:         prevL,
+		CurrentLimit:      curL,
+		PolicyMemoryLimit: policyMemoryLimit,
+	}, nil
+}
+
+func (g *CLITool) GetPolicyRuleEstimateLimit(context.Context, *emptypb.Empty) (*v1alpha1.GetPolicyRuleEstimateLimitResponse, error) {
+	if g.policyGuardSetter == nil {
+		return nil, fmt.Errorf("policy guard is not available")
+	}
+	return &v1alpha1.GetPolicyRuleEstimateLimitResponse{
+		Limit: g.policyGuardSetter.GetRuleEstimateLimit(),
+	}, nil
+}
+
+func (g *CLITool) SetPolicyRuleEstimateLimit(_ context.Context,
+	in *v1alpha1.SetPolicyRuleEstimateLimitRequest) (*v1alpha1.SetPolicyRuleEstimateLimitResponse, error) {
+	if g.policyGuardSetter == nil {
+		return nil, fmt.Errorf("policy guard is not available")
+	}
+	prevLimit, curLimit := g.policyGuardSetter.SetRuleEstimateLimit(in.GetLimit())
+	klog.Infof("Set policy rule estimate limit, prev: %d, current: %d", prevLimit, curLimit)
+	return &v1alpha1.SetPolicyRuleEstimateLimitResponse{
+		PrevLimit:    prevLimit,
+		CurrentLimit: curLimit,
 	}, nil
 }
 
@@ -190,11 +220,13 @@ func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
 	return res
 }
 
-func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch) *CLITool {
+func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch,
+	policyGuardSetter policyctrl.GuardRuntimeSetter) *CLITool {
 	s := &CLITool{
-		dpManager:   datapathManager,
-		proxyCache:  proxyCache,
-		pprofSwitch: pprofSwitch,
+		dpManager:         datapathManager,
+		proxyCache:        proxyCache,
+		pprofSwitch:       pprofSwitch,
+		policyGuardSetter: policyGuardSetter,
 	}
 
 	return s

@@ -49,6 +49,22 @@ type AgentMetric struct {
 	trNicMount  prometheus.GaugeVec
 	trNicStatus prometheus.GaugeVec
 	trHealthy   prometheus.GaugeVec
+
+	policyMemoryBreakerOpen             prometheus.GaugeVec
+	policyMemoryBreakerOpenTotal        prometheus.CounterVec
+	policyMemoryBreakerRecoverTotal     prometheus.CounterVec
+	policyMemoryBreakerRejectedObjects  prometheus.GaugeVec
+	policyMemoryUsageBytes              prometheus.GaugeVec
+	policyMemoryLimitBytes              prometheus.GaugeVec
+	policyMemoryBreakerThresholdBytes   prometheus.GaugeVec
+	policyMemoryBreakerRecoverThreshold prometheus.GaugeVec
+
+	policyRuleEstimateLimit             prometheus.GaugeVec
+	policyRuleEstimateRejectTotal       prometheus.CounterVec
+	policyRuleEstimateRejectedObjects   prometheus.GaugeVec
+	policyRuleEstimateRequeueTotal      prometheus.CounterVec
+	policyRuleEstimateRetrySuccessTotal prometheus.CounterVec
+	policyRuleEstimateRejectedValue     prometheus.GaugeVec
 }
 
 func newAgentCounterOpt(name, help string) prometheus.CounterOpts {
@@ -112,8 +128,71 @@ func NewAgentMetric() *AgentMetric {
 			"trafficredirect nic link status",
 		), []string{BridgeLabel, TypeLabel}),
 	}
+	m.initPolicyGuardMetrics()
 
 	return m
+}
+
+func (m *AgentMetric) initPolicyGuardMetrics() {
+	policyObjectLabels := []string{"resource", "namespace", "name", "operation", "reason"}
+	memoryEventLabels := []string{"reason"}
+
+	m.policyMemoryBreakerOpen = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_open",
+		"Whether agent policy controller memory breaker is open",
+	), nil)
+	m.policyMemoryBreakerOpenTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_memory_breaker_open_total",
+		"The count of agent policy controller memory breaker open events",
+	), memoryEventLabels)
+	m.policyMemoryBreakerRecoverTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_memory_breaker_recover_total",
+		"The count of agent policy controller memory breaker recover events",
+	), memoryEventLabels)
+	m.policyMemoryBreakerRejectedObjects = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_rejected_objects",
+		"The policy objects currently rejected by memory breaker",
+	), policyObjectLabels)
+	m.policyMemoryUsageBytes = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_usage_bytes",
+		"The memory usage bytes used by agent policy memory breaker",
+	), nil)
+	m.policyMemoryLimitBytes = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_limit_bytes",
+		"The memory limit bytes used by agent policy memory breaker",
+	), nil)
+	m.policyMemoryBreakerThresholdBytes = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_threshold_bytes",
+		"The memory usage threshold bytes to open agent policy memory breaker",
+	), nil)
+	m.policyMemoryBreakerRecoverThreshold = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_recover_threshold_bytes",
+		"The memory usage threshold bytes to recover agent policy memory breaker",
+	), nil)
+	m.policyRuleEstimateLimit = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_limit",
+		"The current policy rule estimate admission limit",
+	), nil)
+	m.policyRuleEstimateRejectTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_rule_estimate_reject_total",
+		"The count of policy rule estimate admission rejections",
+	), policyObjectLabels)
+	m.policyRuleEstimateRejectedObjects = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_rejected_objects",
+		"The policy objects currently rejected by rule estimate admission",
+	), policyObjectLabels)
+	m.policyRuleEstimateRequeueTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_rule_estimate_requeue_total",
+		"The count of low frequency requeues after rule estimate admission rejection",
+	), policyObjectLabels)
+	m.policyRuleEstimateRetrySuccessTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_rule_estimate_retry_success_total",
+		"The count of objects accepted after previous rule estimate admission rejection",
+	), policyObjectLabels)
+	m.policyRuleEstimateRejectedValue = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_rejected_value",
+		"The latest rejected rule estimate value for a policy object",
+	), policyObjectLabels)
 }
 
 func (m *AgentMetric) UpdatePolicyName(policyID string, policy *securityv1alpha1.SecurityPolicy) {
@@ -186,13 +265,74 @@ func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust}
 	if config.EnableMs {
 		klog.Infof("Register ms metrics for enabled ms")
-		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum)
+		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum,
+			m.policyMemoryBreakerOpen,
+			m.policyMemoryBreakerOpenTotal,
+			m.policyMemoryBreakerRecoverTotal,
+			m.policyMemoryBreakerRejectedObjects,
+			m.policyMemoryUsageBytes,
+			m.policyMemoryLimitBytes,
+			m.policyMemoryBreakerThresholdBytes,
+			m.policyMemoryBreakerRecoverThreshold,
+			m.policyRuleEstimateLimit,
+			m.policyRuleEstimateRejectTotal,
+			m.policyRuleEstimateRejectedObjects,
+			m.policyRuleEstimateRequeueTotal,
+			m.policyRuleEstimateRetrySuccessTotal,
+			m.policyRuleEstimateRejectedValue)
 	}
 	if config.EnableTR {
 		klog.Infof("Register tr metrics for enabled tr")
 		res = append(res, m.trHealthy, m.trNicMount, m.trNicStatus)
 	}
 	return res
+}
+
+func (m *AgentMetric) SetPolicyMemoryBreakerOpen(open bool) {
+	m.policyMemoryBreakerOpen.WithLabelValues().Set(boolToFloat64(open))
+}
+
+func (m *AgentMetric) IncPolicyMemoryBreakerOpen(reason string) {
+	m.policyMemoryBreakerOpenTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *AgentMetric) IncPolicyMemoryBreakerRecover(reason string) {
+	m.policyMemoryBreakerRecoverTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *AgentMetric) SetPolicyMemoryBreakerRejectedObject(resource, namespace, name, operation, reason string, rejected bool) {
+	m.policyMemoryBreakerRejectedObjects.WithLabelValues(resource, namespace, name, operation, reason).Set(boolToFloat64(rejected))
+}
+
+func (m *AgentMetric) SetPolicyMemoryInfo(usage, limit, threshold, recoverThreshold uint64) {
+	m.policyMemoryUsageBytes.WithLabelValues().Set(float64(usage))
+	m.policyMemoryLimitBytes.WithLabelValues().Set(float64(limit))
+	m.policyMemoryBreakerThresholdBytes.WithLabelValues().Set(float64(threshold))
+	m.policyMemoryBreakerRecoverThreshold.WithLabelValues().Set(float64(recoverThreshold))
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateLimit(limit uint64) {
+	m.policyRuleEstimateLimit.WithLabelValues().Set(float64(limit))
+}
+
+func (m *AgentMetric) IncPolicyRuleEstimateReject(resource, namespace, name, operation, reason string) {
+	m.policyRuleEstimateRejectTotal.WithLabelValues(resource, namespace, name, operation, reason).Inc()
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateRejectedObject(resource, namespace, name, operation, reason string, rejected bool) {
+	m.policyRuleEstimateRejectedObjects.WithLabelValues(resource, namespace, name, operation, reason).Set(boolToFloat64(rejected))
+}
+
+func (m *AgentMetric) IncPolicyRuleEstimateRequeue(resource, namespace, name, operation, reason string) {
+	m.policyRuleEstimateRequeueTotal.WithLabelValues(resource, namespace, name, operation, reason).Inc()
+}
+
+func (m *AgentMetric) IncPolicyRuleEstimateRetrySuccess(resource, namespace, name, operation, reason string) {
+	m.policyRuleEstimateRetrySuccessTotal.WithLabelValues(resource, namespace, name, operation, reason).Inc()
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateRejectedValue(resource, namespace, name, operation, reason string, value uint64) {
+	m.policyRuleEstimateRejectedValue.WithLabelValues(resource, namespace, name, operation, reason).Set(float64(value))
 }
 
 func (m *AgentMetric) SetSeqIDInfo(module string, exhaust bool, used int) {

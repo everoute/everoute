@@ -142,7 +142,7 @@ var _ = BeforeSuite(func() {
 		Scheme:          k8sManager.GetScheme(),
 		DatapathManager: datapathManager,
 	}
-	err = (pCtrl).SetupWithManager(k8sManager)
+	err = (pCtrl).SetupWithManager(k8sManager, DefaultPolicyRuleEstimateLimit, 0)
 	Expect(err).ToNot(HaveOccurred())
 	cutT := time.Now()
 	pCtrl.globalRuleFirstProcessedTime = &cutT

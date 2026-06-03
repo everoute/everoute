@@ -219,18 +219,36 @@ func GetIPNet(ip string) *net.IPNet {
 	return ipnet
 }
 
-// SetGOMemLimit sets the Go runtime memory limit via RPC and returns previous and current limits.
-func SetGOMemLimit(limit int64) (int64, int64, error) {
+// SetGOMemLimit sets the Go runtime memory limit via RPC and returns previous, current, and policy memory limits.
+func SetGOMemLimit(limit int64) (int64, int64, int64, error) {
 	res, err := ruleconn.SetGOMemLimit(context.Background(), &v1alpha1.SetGOMemLimitRequest{Limit: limit})
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return res.GetPrevLimit(), res.GetCurrentLimit(), res.GetPolicyMemoryLimit(), nil
+}
+
+// GetGOMemLimit retrieves the current Go runtime memory limit via RPC.
+func GetGOMemLimit() (int64, error) {
+	res, err := ruleconn.GetGOMemLimit(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return 0, err
+	}
+	return res.GetLimit(), nil
+}
+
+// SetPolicyRuleEstimateLimit sets policy rule estimate limit via RPC.
+func SetPolicyRuleEstimateLimit(limit uint64) (uint64, uint64, error) {
+	res, err := ruleconn.SetPolicyRuleEstimateLimit(context.Background(), &v1alpha1.SetPolicyRuleEstimateLimitRequest{Limit: limit})
 	if err != nil {
 		return 0, 0, err
 	}
 	return res.GetPrevLimit(), res.GetCurrentLimit(), nil
 }
 
-// GetGOMemLimit retrieves the current Go runtime memory limit via RPC.
-func GetGOMemLimit() (int64, error) {
-	res, err := ruleconn.GetGOMemLimit(context.Background(), &emptypb.Empty{})
+// GetPolicyRuleEstimateLimit retrieves current policy rule estimate limit via RPC.
+func GetPolicyRuleEstimateLimit() (uint64, error) {
+	res, err := ruleconn.GetPolicyRuleEstimateLimit(context.Background(), &emptypb.Empty{})
 	if err != nil {
 		return 0, err
 	}
