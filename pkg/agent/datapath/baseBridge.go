@@ -200,6 +200,6 @@ func (b *BaseBridge) DeleteTRRuleFlow(context.Context, *DPTRRuleSpec, uint64) er
 	return nil
 }
 
-func (b *BaseBridge) MatchDefaultSeqID(uint64) (bool, error) {
+func (b *BaseBridge) MatchDefaultRuleFlowID(uint64) (bool, error) {
 	return false, fmt.Errorf("not implemented")
 }

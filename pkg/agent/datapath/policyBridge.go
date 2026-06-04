@@ -2265,10 +2265,13 @@ func (p *PolicyBridge) getMacAndMask(macStr string) (*net.HardwareAddr, *net.Har
 	return &m, &mask, nil
 }
 
-func (p *PolicyBridge) MatchDefaultSeqID(flowID uint64) (bool, error) {
+func (p *PolicyBridge) MatchDefaultRuleFlowID(flowID uint64) (bool, error) {
 	seqID, err := p.datapathManager.FlowIDAlloctorForRule.GetSeqIDByFlowID(flowID)
 	if err != nil {
 		return false, err
 	}
-	return seqID == p.defaultRuleSeqID, nil
+	if seqID != p.defaultRuleSeqID {
+		return false, nil
+	}
+	return p.datapathManager.FlowIDAlloctorForRule.GetRoundNumberByFlowID(flowID) == p.GetRoundNumber(), nil
 }
