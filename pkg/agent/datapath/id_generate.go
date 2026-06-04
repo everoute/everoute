@@ -198,6 +198,11 @@ func (f *FlowIDAlloctor) GetSeqIDByFlowID(flowID uint64) (uint32, error) {
 	return res, nil
 }
 
+func (f *FlowIDAlloctor) GetRoundNumberByFlowID(flowID uint64) uint64 {
+	roundNumberMask := uint64(1<<constants.RoundNumberBits - 1)
+	return (flowID >> (64 - constants.FlowIDModuleBits - constants.FlowIDReservedBits - constants.RoundNumberBits)) & roundNumberMask
+}
+
 func (f *FlowIDAlloctor) Release(ctx context.Context, dels, ress []uint64) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("release rule seq id", "all", dels, "res", ress)

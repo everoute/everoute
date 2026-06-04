@@ -257,7 +257,7 @@ type Bridge interface {
 	AddTRRule(context.Context, *DPTRRuleSpec, uint32) (uint64, error)
 	DeleteTRRuleFlow(ctx context.Context, r *DPTRRuleSpec, fid uint64) error
 
-	MatchDefaultSeqID(flowID uint64) (bool, error)
+	MatchDefaultRuleFlowID(flowID uint64) (bool, error)
 }
 
 type DpManager struct {
@@ -708,7 +708,7 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 		} else {
 			// er-1497 flowid match default seq id
 			for vdsID, bridgeChain := range dp.BridgeChainMap {
-				match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultSeqID(id)
+				match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultRuleFlowID(id)
 				if err != nil {
 					klog.Errorf("FlowID %s failed to match default seq id for vds %s, bridge %s, error: %v", id, vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 					continue
@@ -735,7 +735,7 @@ func (dp *DpManager) GetBridgeIndexesWithFlowID(flowID uint64) []uint32 {
 	if !ok {
 		// er-1497 vds doesn't enable ms, flowID can't match ruleflowmap, find bridge by default seq id
 		for vdsID, bridgeChain := range dp.BridgeChainMap {
-			match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultSeqID(flowID)
+			match, err := bridgeChain[POLICY_BRIDGE_KEYWORD].MatchDefaultRuleFlowID(flowID)
 			if err != nil {
 				klog.Errorf("FlowID %s failed to match default seq id for vds %s, bridge %s, error: %v", flowID, vdsID, bridgeChain[POLICY_BRIDGE_KEYWORD].GetName(), err)
 				continue
