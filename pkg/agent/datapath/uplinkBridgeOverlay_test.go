@@ -112,10 +112,20 @@ func setupUplinkBridge() error {
 		datapathManager.WaitForBridgeConnected()
 	}
 
-	roundInfo, err := getRoundInfo(driver)
+	roundInfos, err := getDatapathRoundInfosAsPrevious(
+		[]string{"testuplink"},
+		map[string]map[string]*ovsdbDriver.OvsDriver{
+			"testuplink": {
+				LOCAL_BRIDGE_KEYWORD: driver,
+			},
+		},
+	)
 	if err != nil {
 		return err
 	}
+	assignNewRoundInfos(roundInfos)
+	roundInfo := roundInfos["testuplink"]
+	br.SetRoundInfo(roundInfo)
 	cookieAllocator := cookie.NewAllocator(roundInfo.currentRoundNum)
 	br.getOfSwitch().CookieAllocator = cookieAllocator
 	return nil
