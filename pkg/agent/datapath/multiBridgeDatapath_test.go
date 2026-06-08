@@ -968,7 +968,7 @@ func testFlowReplay(t *testing.T) {
 }
 
 func testRoundNumFlip(t *testing.T) {
-	roundInfo := RoundInfo{
+	roundInfo := &RoundInfo{
 		currentRoundNum:             MaxRoundNum,
 		previousRoundNum:            MaxRoundNum - 1,
 		currentRoundDatapathVersion: "test-version",
@@ -976,16 +976,156 @@ func testRoundNumFlip(t *testing.T) {
 
 	t.Run("persistentRoundInfo into local bridge", func(t *testing.T) {
 		Eventually(func() error {
-			return persistentRoundInfo(roundInfo, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
+			return persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
 		}, timeout, interval).Should(Succeed())
 	})
 
-	t.Run("validate ER agent Round num flip", func(t *testing.T) {
+	t.Run("validate datapath current round infos and assign round infos", func(t *testing.T) {
 		Eventually(func() bool {
-			round, _ := getRoundInfo(datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD])
-			return round.currentRoundNum == 1 &&
-				round.previousRoundDatapathVersion == roundInfo.currentRoundDatapathVersion
+			roundInfos, err := getDatapathRoundInfosAsPrevious(
+				[]string{"ovsbr0"},
+				datapathManager.OvsdbDriverMap,
+			)
+			if err != nil {
+				return false
+			}
+			round, ok := roundInfos["ovsbr0"]
+			if !ok {
+				return false
+			}
+			assignNewRoundInfos(roundInfos)
+			return round.previousRoundNum == MaxRoundNum &&
+				round.previousRoundDatapathVersion == roundInfo.currentRoundDatapathVersion &&
+				roundInfos["ovsbr0"].currentRoundNum == 1
 		}, timeout, interval).Should(BeTrue())
+	})
+}
+
+func TestAssignRoundInfos(t *testing.T) {
+	RegisterTestingT(t)
+
+	t.Run("assign clear rounds with stable order", func(t *testing.T) {
+		roundInfos := map[string]*RoundInfo{
+			"vds-b": {previousRoundNum: 2},
+			"vds-a": {previousRoundNum: 1},
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		Expect(roundInfos["vds-a"].currentRoundNum).Should(Equal(uint64(3)))
+		Expect(roundInfos["vds-b"].currentRoundNum).Should(Equal(uint64(4)))
+	})
+
+	t.Run("wrap from max round to one", func(t *testing.T) {
+		roundInfos := map[string]*RoundInfo{
+			"vds-a": {previousRoundNum: MaxRoundNum},
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		Expect(roundInfos["vds-a"].currentRoundNum).Should(Equal(uint64(1)))
+	})
+
+	t.Run("ignore invalid previous round when assigning", func(t *testing.T) {
+		roundInfos := map[string]*RoundInfo{
+			"vds-a": {previousRoundNum: MaxRoundNum + 3},
+			"vds-b": {previousRoundNum: 0},
+			"vds-c": {previousRoundNum: MaxRoundNum + 1},
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		Expect(roundInfos["vds-a"].currentRoundNum).Should(Equal(uint64(1)))
+		Expect(roundInfos["vds-b"].currentRoundNum).Should(Equal(uint64(2)))
+		Expect(roundInfos["vds-c"].currentRoundNum).Should(Equal(uint64(3)))
+	})
+
+	t.Run("assign unique round numbers when vds count equals max round num", func(t *testing.T) {
+		roundInfos := make(map[string]*RoundInfo, MaxRoundNum)
+		for i := 1; i <= MaxRoundNum; i++ {
+			vdsID := fmt.Sprintf("vds-%02d", i)
+			roundInfos[vdsID] = &RoundInfo{previousRoundNum: uint64(i)}
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		assignedRounds := sets.New[uint64]()
+		for vdsID, roundInfo := range roundInfos {
+			crn := roundInfo.currentRoundNum
+			prn := roundInfo.previousRoundNum
+			Expect(crn).Should(BeNumerically(">=", 1), "vds %s", vdsID)
+			Expect(crn).Should(BeNumerically("<=", MaxRoundNum), "vds %s", vdsID)
+			Expect(crn).ShouldNot(Equal(prn), "vds %s should not reuse previous round num", vdsID)
+			Expect(assignedRounds.Has(crn)).Should(BeFalse(), "round num %d duplicated for vds %s", crn, vdsID)
+			assignedRounds.Insert(crn)
+		}
+		Expect(assignedRounds.Len()).Should(Equal(MaxRoundNum))
+	})
+
+	t.Run("loop back to one when all round numbers are assigned", func(t *testing.T) {
+		roundInfos := make(map[string]*RoundInfo, MaxRoundNum+1)
+		for i := 1; i <= MaxRoundNum+1; i++ {
+			vdsID := fmt.Sprintf("vds-%02d", i)
+			roundInfos[vdsID] = &RoundInfo{previousRoundNum: MaxRoundNum}
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		assignedRounds := sets.New[uint64]()
+		for i := 1; i <= MaxRoundNum+1; i++ {
+			vdsID := fmt.Sprintf("vds-%02d", i)
+			crn := roundInfos[vdsID].currentRoundNum
+			prn := roundInfos[vdsID].previousRoundNum
+			Expect(crn).Should(BeNumerically(">=", 1), "vds %s", vdsID)
+			Expect(crn).Should(BeNumerically("<=", MaxRoundNum), "vds %s", vdsID)
+			Expect(crn).ShouldNot(Equal(prn), "vds %s should not reuse previous round num", vdsID)
+			assignedRounds.Insert(crn)
+		}
+		Expect(assignedRounds.Len()).Should(Equal(MaxRoundNum - 1))
+		Expect(roundInfos[fmt.Sprintf("vds-%02d", MaxRoundNum)].currentRoundNum).Should(Equal(uint64(1)))
+		Expect(roundInfos[fmt.Sprintf("vds-%02d", MaxRoundNum+1)].currentRoundNum).Should(Equal(uint64(2)))
+	})
+
+	t.Run("start next assignment round after all usable rounds are exhausted", func(t *testing.T) {
+		roundInfos := make(map[string]*RoundInfo, MaxRoundNum+2)
+		for i := 1; i <= MaxRoundNum+2; i++ {
+			vdsID := fmt.Sprintf("vds-%02d", i)
+			roundInfos[vdsID] = &RoundInfo{previousRoundNum: MaxRoundNum}
+		}
+
+		assignNewRoundInfos(roundInfos)
+
+		Expect(roundInfos[fmt.Sprintf("vds-%02d", MaxRoundNum)].currentRoundNum).Should(Equal(uint64(1)))
+		Expect(roundInfos[fmt.Sprintf("vds-%02d", MaxRoundNum+1)].currentRoundNum).Should(Equal(uint64(2)))
+		Expect(roundInfos[fmt.Sprintf("vds-%02d", MaxRoundNum+2)].currentRoundNum).Should(Equal(uint64(3)))
+	})
+}
+
+func TestGetDatapathCurrentRoundInfos(t *testing.T) {
+	RegisterTestingT(t)
+
+	t.Run("return unknown previous datapath version when round exists without version", func(t *testing.T) {
+		driver := datapathManager.OvsdbDriverMap["ovsbr0"][LOCAL_BRIDGE_KEYWORD]
+		externalIDs, err := driver.GetExternalIds()
+		Expect(err).ShouldNot(HaveOccurred())
+		originExternalIDs := make(map[string]string, len(externalIDs))
+		for k, v := range externalIDs {
+			originExternalIDs[k] = v
+		}
+		defer func() {
+			Expect(driver.SetExternalIds(originExternalIDs)).Should(Succeed())
+		}()
+		externalIDs[datapathCurrentRound] = "7"
+		delete(externalIDs, datapathCurrentDatapathVersion)
+		Expect(driver.SetExternalIds(externalIDs)).Should(Succeed())
+
+		roundInfos, err := getDatapathRoundInfosAsPrevious(
+			[]string{"ovsbr0"},
+			datapathManager.OvsdbDriverMap,
+		)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(roundInfos["ovsbr0"].previousRoundNum).Should(Equal(uint64(7)))
+		Expect(roundInfos["ovsbr0"].previousRoundDatapathVersion).Should(Equal(datapathDatapathVersionUnknown))
 	})
 }
 

@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -589,6 +590,17 @@ func (dp *DpManager) InitializeDatapath(ctx context.Context) {
 		}
 		bridgeSet.Insert(strings.TrimSpace(item))
 	}
+
+	roundInfos, err := getDatapathRoundInfosAsPrevious(lo.Keys(dp.Config.ManagedVDSMap), dp.OvsdbDriverMap)
+	if err != nil {
+		klog.Fatalf("Failed to get datapath current round infos, err = %s", err)
+	}
+	currentRoundDatapathVersion := version.GetVersionInfo().GitVersion
+	for vdsID := range roundInfos {
+		roundInfos[vdsID].currentRoundDatapathVersion = currentRoundDatapathVersion
+	}
+	assignNewRoundInfos(roundInfos)
+
 	var wg sync.WaitGroup
 	for vdsID, ovsbrName := range dp.Config.ManagedVDSMap {
 		wg.Add(1)
@@ -610,7 +622,7 @@ func (dp *DpManager) InitializeDatapath(ctx context.Context) {
 
 		go func(vdsID, ovsbrName string) {
 			defer wg.Done()
-			InitializeVDS(ctx, dp, vdsID, ovsbrName)
+			InitializeVDS(ctx, dp, vdsID, ovsbrName, roundInfos[vdsID])
 		}(vdsID, ovsbrName)
 	}
 	wg.Wait()
@@ -649,6 +661,118 @@ func (dp *DpManager) InitializeDatapath(ctx context.Context) {
 					}
 				}
 			}()
+		}
+	}
+}
+
+func getDatapathRoundInfosAsPrevious(
+	vdses []string,
+	ovsdbDriverMap map[string]map[string]*ovsdbDriver.OvsDriver,
+) (map[string]*RoundInfo, error) {
+	roundInfos := make(map[string]*RoundInfo, len(vdses))
+	for _, vdsID := range vdses {
+		ovsdbDriver := ovsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD]
+		externalIDs, err := ovsdbDriver.GetExternalIds()
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to get ovsdb externalids with vdsID %s, error: %v",
+				vdsID, err,
+			)
+		}
+		previousRoundNum := uint64(0)
+		previousRoundDatapathVersion := externalIDs[datapathCurrentDatapathVersion]
+
+		roundNumRaw, ok := externalIDs[datapathCurrentRound]
+		if ok {
+			previousRoundNum, err = strconv.ParseUint(roundNumRaw, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to parse round num %s with vdsID %s, error: %v",
+					roundNumRaw, vdsID, err,
+				)
+			}
+			// do not check previousRoundNum here, it may be invalid.
+			if previousRoundDatapathVersion == "" {
+				previousRoundDatapathVersion = datapathDatapathVersionUnknown
+			}
+		}
+		roundInfos[vdsID] = &RoundInfo{
+			previousRoundNum:             previousRoundNum,
+			previousRoundDatapathVersion: previousRoundDatapathVersion,
+		}
+	}
+	return roundInfos, nil
+}
+
+// Assign new round numbers to roundInfos with previous round numbers.
+func assignNewRoundInfos(roundInfos map[string]*RoundInfo) {
+	type AssignState uint8
+	const (
+		AssignStateClear    AssignState = iota // not assigned
+		AssignStateDirty                       // assigned by previous everoute-agent
+		AssignStateAssigned                    // assigned by current everoute-agent
+	)
+
+	// [1, MaxRoundNum] are assign-able round numbers
+	// assignStates[0] is reserved for invalid index
+	var assignStates [MaxRoundNum + 1]AssignState
+	for i := range assignStates {
+		assignStates[i] = AssignStateClear
+	}
+	// mark dirty round numbers
+	for _, roundInfo := range roundInfos {
+		if roundInfo.previousRoundNum > 0 && roundInfo.previousRoundNum <= MaxRoundNum {
+			assignStates[roundInfo.previousRoundNum] = AssignStateDirty
+		}
+	}
+
+	findNextRoundNumber := func(
+		assignStates [MaxRoundNum + 1]AssignState,
+		n uint64,
+		state AssignState,
+	) uint64 {
+		for i := n + 1; i <= MaxRoundNum; i++ { // [n+1:MaxRoundNum]
+			if assignStates[i] == state {
+				return i
+			}
+		}
+		for i := uint64(1); i < n; i++ { // [1:n-1]
+			if assignStates[i] == state {
+				return i
+			}
+		}
+		return 0 // not found
+	}
+
+	vdses := lo.Keys(roundInfos)
+	sort.Strings(vdses)
+
+	for _, vdsID := range vdses {
+		roundInfo := roundInfos[vdsID]
+		prn := roundInfo.previousRoundNum
+		if prn > MaxRoundNum {
+			prn = 0
+		}
+		if i := findNextRoundNumber(assignStates, prn, AssignStateClear); i != 0 {
+			// find a clear round number
+			assignStates[i] = AssignStateAssigned
+			roundInfo.currentRoundNum = i
+		} else if i := findNextRoundNumber(assignStates, prn, AssignStateDirty); i != 0 {
+			// find a dirty round number
+			assignStates[i] = AssignStateAssigned
+			roundInfo.currentRoundNum = i
+		} else {
+			// use next round number if all other round numbers are assigned
+			crn := prn + 1
+			if crn > MaxRoundNum {
+				crn = 1 // loop back to 1
+			}
+			roundInfo.currentRoundNum = crn
+			// start a new assignment round to reduce round number conflicts.
+			for i := 1; i <= MaxRoundNum; i++ {
+				assignStates[i] = AssignStateDirty
+			}
+			assignStates[crn] = AssignStateAssigned
 		}
 	}
 }
@@ -755,11 +879,12 @@ func (dp *DpManager) GetBridgeIndexesWithFlowID(flowID uint64) []uint32 {
 		return bridgeIndexes
 	}
 
+	roundNumber := dp.FlowIDAlloctorForRule.GetRoundNumberByFlowID(flowID)
 	for vdsID, flow := range rule.RuleFlowMap {
 		if flow.FlowID == flowID {
 			ovsbrname := dp.Config.ManagedVDSMap[vdsID]
 			bridge := dp.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD]
-			if bridge != nil {
+			if bridge != nil && roundNumber == bridge.GetRoundInfo().currentRoundNum {
 				index, err := bridge.GetIndex()
 				if err != nil {
 					klog.Errorf("failed to get index of bridge %s, error: %v", ovsbrname, err)
@@ -1053,12 +1178,10 @@ func policyBrCookieAllocator(roundNum uint64) cookie.Allocator {
 	return cookie.NewAllocator(roundNum, cookie.SetFlowIDRange(cookie.InitFlowID, 1<<CookieAutoAllocBitWidthForPolicyBr-1))
 }
 
-func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string, ovsbrName string) {
+func InitializeVDS(ctx context.Context,
+	datapathManager *DpManager, vdsID string, ovsbrName string, roundInfo *RoundInfo,
+) {
 	log := ctrl.LoggerFrom(ctx)
-	roundInfo, err := getRoundInfo(datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-	if err != nil {
-		klog.Fatalf("Failed to get Roundinfo from ovsdb: %v", err)
-	}
 
 	cookieAllocator := cookie.NewAllocator(roundInfo.currentRoundNum, cookie.SetDefaultFlowIDRange())
 	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
@@ -1104,68 +1227,69 @@ func InitializeVDS(ctx context.Context, datapathManager *DpManager, vdsID string
 		klog.Fatalf("Failed to reset patch port mcast-snooping-flood-reports config for vds %s, err: %v", vdsID, err)
 	}
 
-	// check no-forward configuration
-	go func(vdsID string) {
-		cmdStr := fmt.Sprintf("ovs-ofctl show %s | grep -B 1 NO_FWD | grep addr | awk -F '[()]' '{print $1\" \"$2}'",
-			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
-		out, err := ExecteCommandWithOutput(cmdStr)
-		if err != nil {
-			klog.Fatalf("fail to list ofport info for vds %s, err = %s", vdsID, err)
-		}
-
-		// key:   ifaceID
-		// value: ofPort
-		vnics := map[string]int{}
-		for _, item := range strings.Split(out, "\n") {
-			item = strings.TrimSpace(item)
-			ofPort, _ := strconv.Atoi(strings.Split(item, " ")[0])
-			if ofPort <= 0 {
-				continue
-			}
-			ifaceName := strings.Split(item, " ")[1]
-
-			out, _ = ExecteCommandWithOutput(
-				fmt.Sprintf("ovs-vsctl --bare get int %s external_ids:iface-id", ifaceName))
-			ifaceID := strings.ReplaceAll(out, "\n", "")
-			ifaceID = strings.ReplaceAll(ifaceID, " ", "")
-			ifaceID = strings.ReplaceAll(ifaceID, "\"", "")
-			if ifaceID != "" {
-				vnics[ifaceID] = ofPort
-			}
-		}
-
-		klog.Infof("find no-forward vnics %+v for bridge %s", vnics,
-			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
-
-		checkCnt := 1
-		for checkCnt < 60 {
-			klog.Infof("check(#%d) no-forward vnics %+v for bridge %s", checkCnt, vnics,
-				datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
-			if len(vnics) == 0 {
-				return
-			}
-			for ifaceID, ofPort := range vnics {
-				if _, ok := datapathManager.VNicToRules[ifaceID]; ok {
-					klog.Infof("find no-forward for bridge:%s ofPort %d ifaceID:%s",
-						datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID)
-					delete(vnics, ifaceID)
-				}
-			}
-			time.Sleep(time.Second)
-			checkCnt++
-		}
-
-		for ifaceID, ofPort := range vnics {
-			klog.Infof("set forward for bridge:%s ofPort:%d ifaceID:%s",
-				datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID)
-			if err := SetPortForward(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, true); err != nil {
-				klog.Fatalf("failed to set forward for bridge:%s ofPort:%d ifaceID:%s err:%s",
-					datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID, err)
-			}
-		}
-	}(vdsID)
-
+	go reconcileNoForwardPorts(datapathManager, vdsID)
 	go DeletePreviousRoundFlow(datapathManager, vdsID, roundInfo)
+}
+
+// check no-forward configuration
+func reconcileNoForwardPorts(datapathManager *DpManager, vdsID string) {
+	cmdStr := fmt.Sprintf("ovs-ofctl show %s | grep -B 1 NO_FWD | grep addr | awk -F '[()]' '{print $1\" \"$2}'",
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
+	out, err := ExecteCommandWithOutput(cmdStr)
+	if err != nil {
+		klog.Fatalf("fail to list ofport info for vds %s, err = %s", vdsID, err)
+	}
+
+	// key:   ifaceID
+	// value: ofPort
+	vnics := map[string]int{}
+	for _, item := range strings.Split(out, "\n") {
+		item = strings.TrimSpace(item)
+		ofPort, _ := strconv.Atoi(strings.Split(item, " ")[0])
+		if ofPort <= 0 {
+			continue
+		}
+		ifaceName := strings.Split(item, " ")[1]
+
+		out, _ = ExecteCommandWithOutput(
+			fmt.Sprintf("ovs-vsctl --bare get int %s external_ids:iface-id", ifaceName))
+		ifaceID := strings.ReplaceAll(out, "\n", "")
+		ifaceID = strings.ReplaceAll(ifaceID, " ", "")
+		ifaceID = strings.ReplaceAll(ifaceID, "\"", "")
+		if ifaceID != "" {
+			vnics[ifaceID] = ofPort
+		}
+	}
+
+	klog.Infof("find no-forward vnics %+v for bridge %s", vnics,
+		datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
+
+	checkCnt := 1
+	for checkCnt < 60 {
+		klog.Infof("check(#%d) no-forward vnics %+v for bridge %s", checkCnt, vnics,
+			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName())
+		if len(vnics) == 0 {
+			return
+		}
+		for ifaceID, ofPort := range vnics {
+			if _, ok := datapathManager.VNicToRules[ifaceID]; ok {
+				klog.Infof("find no-forward for bridge:%s ofPort %d ifaceID:%s",
+					datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID)
+				delete(vnics, ifaceID)
+			}
+		}
+		time.Sleep(time.Second)
+		checkCnt++
+	}
+
+	for ifaceID, ofPort := range vnics {
+		klog.Infof("set forward for bridge:%s ofPort:%d ifaceID:%s",
+			datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID)
+		if err := SetPortForward(datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, true); err != nil {
+			klog.Fatalf("failed to set forward for bridge:%s ofPort:%d ifaceID:%s err:%s",
+				datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].GetName(), ofPort, ifaceID, err)
+		}
+	}
 }
 
 // Delete flow with previousRoundNum cookie, and then persistent currentRoundNum to ovsdb. We need to wait for long
@@ -1185,9 +1309,15 @@ func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo
 		roundInfo.currentRoundDatapathVersion,
 	)
 
-	for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
-		datapathManager.BridgeChainMap[vdsID][brKeyword].getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
-		datapathManager.BridgeChainMap[vdsID][brKeyword].PostDeletePreviousRoundFlow(roundInfo)
+	if roundInfo.previousRoundNum > 0 && roundInfo.previousRoundNum <= MaxRoundNum {
+		for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
+			b := datapathManager.BridgeChainMap[vdsID][brKeyword]
+			if b == nil { // never happen
+				continue
+			}
+			b.getOfSwitch().DeleteFlowByRoundInfo(roundInfo.previousRoundNum)
+			b.PostDeletePreviousRoundFlow(roundInfo)
+		}
 	}
 
 	err := persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
@@ -1223,10 +1353,7 @@ func (dp *DpManager) replayVDSFlow(ctx context.Context, vdsID, bridgeName, bridg
 	}
 
 	// replay basic connectivity flow
-	roundInfo, err := getRoundInfo(dp.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
-	if err != nil {
-		return fmt.Errorf("failed to get Roundinfo from ovsdb: %v", err)
-	}
+	roundInfo := dp.BridgeChainMap[vdsID][POLICY_BRIDGE_KEYWORD].GetRoundInfo()
 
 	var cookieAllocator cookie.Allocator
 	if bridgeKeyword == POLICY_BRIDGE_KEYWORD {
@@ -2156,40 +2283,6 @@ func DeepCopyMap(theMap interface{}) interface{} {
 		dstMap.SetMapIndex(key, srcMap.MapIndex(key))
 	}
 	return dstMap.Interface()
-}
-
-func getRoundInfo(ovsdbDriver *ovsdbDriver.OvsDriver) (*RoundInfo, error) {
-	externalIDs, err := ovsdbDriver.GetExternalIds()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ovsdb externalids: %v", err)
-	}
-
-	previousRoundNum := uint64(0)
-	previousRoundDatapathVersion := externalIDs[datapathCurrentDatapathVersion]
-	currentRoundNum := uint64(1)
-	currentRoundDatapathVersion := version.GetVersionInfo().GitVersion
-
-	roundNumRaw, ok := externalIDs[datapathCurrentRound]
-	if ok {
-		previousRoundNum, err = strconv.ParseUint(roundNumRaw, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid round num %s: %w", roundNumRaw, err)
-		}
-		// Flipping current round num with minimum round num value while it equals with the maximum round num
-		if previousRoundNum < MaxRoundNum {
-			currentRoundNum = previousRoundNum + 1
-		}
-		if previousRoundDatapathVersion == "" {
-			previousRoundDatapathVersion = datapathDatapathVersionUnknown
-		}
-	}
-
-	return &RoundInfo{
-		previousRoundNum:             previousRoundNum,
-		previousRoundDatapathVersion: previousRoundDatapathVersion,
-		currentRoundNum:              currentRoundNum,
-		currentRoundDatapathVersion:  currentRoundDatapathVersion,
-	}, nil
 }
 
 func persistentRoundInfo(roundInfo RoundInfo, ovsdbDriver *ovsdbDriver.OvsDriver) error {
