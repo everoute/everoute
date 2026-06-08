@@ -89,7 +89,21 @@ type Reconciler struct {
 type GuardRuntimeSetter interface {
 	GetRuleEstimateLimit() uint64
 	SetRuleEstimateLimit(limit uint64) (uint64, uint64)
+	SetMemoryLimit(limit uint64) (uint64, uint64)
 	SetMemoryLimitFromGOMemLimit(goMemLimit int64) uint64
+	SetGuardEnabled(guardType string, enabled bool) (bool, bool, error)
+	GetGuardStatus() GuardStatus
+}
+
+// GuardStatus records runtime status for policy admission guards.
+type GuardStatus struct {
+	MemoryEnabled          bool
+	MemoryBreakerOpen      bool
+	MemoryLimit            uint64
+	MemoryOpenThreshold    uint64
+	MemoryRecoverThreshold uint64
+	RuleEnabled            bool
+	RuleEstimateLimit      uint64
 }
 
 func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -215,6 +229,16 @@ func (r *Reconciler) SetRuleEstimateLimit(limit uint64) (uint64, uint64) {
 	return prev, current
 }
 
+// SetMemoryLimit updates the policy memory guard limit and returns previous and current values.
+func (r *Reconciler) SetMemoryLimit(limit uint64) (uint64, uint64) {
+	if r == nil {
+		return 0, 0
+	}
+	prev, current := r.memoryGuard.setMemoryLimit(limit)
+	klog.Infof("Set policy memory guard limit, prev: %d, current: %d", prev, current)
+	return prev, current
+}
+
 // SetMemoryLimitFromGOMemLimit updates policy memory limit derived from Go memory limit plus extra headroom.
 func (r *Reconciler) SetMemoryLimitFromGOMemLimit(goMemLimit int64) uint64 {
 	if r == nil {
@@ -225,6 +249,50 @@ func (r *Reconciler) SetMemoryLimitFromGOMemLimit(goMemLimit int64) uint64 {
 	klog.Infof("Set policy memory guard limit from Go memory limit, gomemlimit: %d, prev: %d, current: %d",
 		goMemLimit, prev, current)
 	return current
+}
+
+// SetGuardEnabled enables or disables a policy admission guard at runtime.
+func (r *Reconciler) SetGuardEnabled(guardType string, enabled bool) (bool, bool, error) {
+	if r == nil {
+		return false, false, fmt.Errorf("policy guard is not available")
+	}
+	normalizedGuardType, err := normalizeGuardType(guardType)
+	if err != nil {
+		return false, false, err
+	}
+	switch normalizedGuardType {
+	case policyGuardTypeMemory:
+		prev, current := r.memoryGuard.setEnabled(enabled)
+		klog.Infof("Set policy memory guard enabled, prev: %t, current: %t", prev, current)
+		return prev, current, nil
+	case policyGuardTypeRule:
+		prev, current := r.ruleEstimateGuard.setEnabled(enabled)
+		klog.Infof("Set policy rule estimate guard enabled, prev: %t, current: %t", prev, current)
+		return prev, current, nil
+	default:
+		return false, false, fmt.Errorf("unsupported policy guard type %q", guardType)
+	}
+}
+
+// GetGuardStatus returns current policy admission guard runtime state.
+func (r *Reconciler) GetGuardStatus() GuardStatus {
+	if r == nil {
+		return GuardStatus{}
+	}
+	status := GuardStatus{}
+	if r.memoryGuard != nil {
+		memoryLimit, openThreshold, recoverThreshold := r.memoryGuard.memoryLimitSnapshot()
+		status.MemoryEnabled = r.memoryGuard.enabledValue()
+		status.MemoryBreakerOpen = r.memoryGuard.memoryOpen.Load()
+		status.MemoryLimit = memoryLimit
+		status.MemoryOpenThreshold = openThreshold
+		status.MemoryRecoverThreshold = recoverThreshold
+	}
+	if r.ruleEstimateGuard != nil {
+		status.RuleEnabled = r.ruleEstimateGuard.enabledValue()
+		status.RuleEstimateLimit = r.ruleEstimateGuard.ruleEstimateLimitValue()
+	}
+	return status
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, ruleEstimateLimit, staticMemoryLimit uint64) error {

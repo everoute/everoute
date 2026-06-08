@@ -237,6 +237,15 @@ func GetGOMemLimit() (int64, error) {
 	return res.GetLimit(), nil
 }
 
+// SetPolicyMemoryLimit sets policy memory guard limit via RPC.
+func SetPolicyMemoryLimit(limit uint64) (uint64, uint64, error) {
+	res, err := ruleconn.SetPolicyMemoryLimit(context.Background(), &v1alpha1.SetPolicyMemoryLimitRequest{Limit: limit})
+	if err != nil {
+		return 0, 0, err
+	}
+	return res.GetPrevLimit(), res.GetCurrentLimit(), nil
+}
+
 // SetPolicyRuleEstimateLimit sets policy rule estimate limit via RPC.
 func SetPolicyRuleEstimateLimit(limit uint64) (uint64, uint64, error) {
 	res, err := ruleconn.SetPolicyRuleEstimateLimit(context.Background(), &v1alpha1.SetPolicyRuleEstimateLimitRequest{Limit: limit})
@@ -253,6 +262,23 @@ func GetPolicyRuleEstimateLimit() (uint64, error) {
 		return 0, err
 	}
 	return res.GetLimit(), nil
+}
+
+// SetPolicyGuardEnabled enables or disables a policy guard via RPC.
+func SetPolicyGuardEnabled(guard string, enabled bool) (bool, bool, error) {
+	res, err := ruleconn.SetPolicyGuardEnabled(context.Background(), &v1alpha1.SetPolicyGuardEnabledRequest{
+		Guard:   guard,
+		Enabled: enabled,
+	})
+	if err != nil {
+		return false, false, err
+	}
+	return res.GetPrevEnabled(), res.GetCurrentEnabled(), nil
+}
+
+// GetPolicyGuardStatus retrieves current policy guard status via RPC.
+func GetPolicyGuardStatus() (*v1alpha1.PolicyGuardStatus, error) {
+	return ruleconn.GetPolicyGuardStatus(context.Background(), &emptypb.Empty{})
 }
 
 // EnablePprof enables the agent pprof HTTP handlers via RPC.

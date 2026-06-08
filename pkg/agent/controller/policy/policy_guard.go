@@ -2,6 +2,7 @@ package policy
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"runtime"
@@ -23,11 +24,11 @@ import (
 const (
 	// DefaultPolicyRuleEstimateLimit is the default rule count limit for policy admission.
 	DefaultPolicyRuleEstimateLimit uint64 = 20000
-	policyMemoryOpenRatio                 = 0.80
-	policyMemoryRecoverRatio              = 0.70
-	policyAdmissionRequeueAfter           = 5 * time.Minute
+	policyAdmissionRequeueAfter           = 2 * time.Minute
 
 	policyMemoryLimitExtraBytes = 50 * 1024 * 1024
+	policyMemoryRecoverSamples  = 2
+	policyMemoryRecoverInterval = 5 * time.Second
 
 	policyGuardResourcePolicy       = "policy"
 	policyGuardResourceGroupMembers = "group_members"
@@ -40,6 +41,11 @@ const (
 	policyGuardReasonMemoryBreakerOpen    = "memory_breaker_open"
 	policyGuardReasonMemoryExceeded       = "memory_usage_exceeded"
 	policyGuardReasonMemoryRecovered      = "memory_usage_recovered"
+)
+
+const (
+	policyGuardTypeMemory = "memory"
+	policyGuardTypeRule   = "rule"
 )
 
 type guardObjectKey struct {
@@ -97,8 +103,10 @@ type MemoryGuard struct {
 	memoryOpenThreshold    uint64
 	memoryRecoverThreshold uint64
 
-	memoryOpen       bool
-	rejectedByMemory map[guardObjectKey]struct{}
+	memoryOpen           atomic.Bool
+	enabled              atomic.Bool
+	rejectedByMemoryLock sync.Mutex
+	rejectedByMemory     map[guardObjectKey]struct{}
 }
 
 func newMemoryGuard(metric *metrics.AgentMetric, staticMemoryLimit uint64) *MemoryGuard {
@@ -106,6 +114,7 @@ func newMemoryGuard(metric *metrics.AgentMetric, staticMemoryLimit uint64) *Memo
 		metric:           metric,
 		rejectedByMemory: make(map[guardObjectKey]struct{}),
 	}
+	guard.enabled.Store(true)
 	guard.setMemoryLimit(staticMemoryLimit)
 	return guard
 }
@@ -114,12 +123,18 @@ func (g *MemoryGuard) admit(ctx context.Context, req admissionRequest) admission
 	if g == nil {
 		return admissionResult{Allowed: true}
 	}
+	if !g.enabled.Load() {
+		g.resetRejectedObject(req)
+		return admissionResult{Allowed: true}
+	}
 
 	log := ctrl.LoggerFrom(ctx)
 	if g.memoryRisky() {
 		key := req.key(policyGuardReasonMemoryBreakerOpen)
+		g.rejectedByMemoryLock.Lock()
 		g.rejectedByMemory[key] = struct{}{}
 		g.metric.SetPolicyMemoryBreakerRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, true)
+		g.rejectedByMemoryLock.Unlock()
 		log.Info("Reject policy reconcile by memory breaker", "resource", req.Resource, "namespace", req.Namespace,
 			"name", req.Name, "operation", req.Operation)
 		return admissionResult{Allowed: false, RequeueAfter: policyAdmissionRequeueAfter, Reason: policyGuardReasonMemoryBreakerOpen}
@@ -130,30 +145,48 @@ func (g *MemoryGuard) admit(ctx context.Context, req admissionRequest) admission
 }
 
 func (g *MemoryGuard) memoryRisky() bool {
-	memoryLimit, openThreshold, recoverThreshold := g.memoryLimitSnapshot()
-	if memoryLimit == 0 {
+	memoryLimit, openThreshold, _ := g.memoryLimitSnapshot()
+	if memoryLimit == 0 || !g.enabled.Load() {
 		return false
 	}
 
 	usage := readMemoryUsage()
-	g.recordMemoryUsage(usage, memoryLimit, openThreshold, recoverThreshold)
+	g.recordMemoryUsage(usage, memoryLimit, openThreshold, openThreshold)
 
-	if usage > openThreshold {
-		if !g.memoryOpen {
+	if usage >= openThreshold {
+		if !g.memoryOpen.Swap(true) {
 			g.openMemoryBreaker(policyGuardReasonMemoryExceeded)
 		}
 		return true
 	}
 
-	if usage < recoverThreshold {
-		if g.memoryOpen {
+	if !g.memoryOpen.Load() {
+		return false
+	}
+
+	if g.confirmMemoryRecovered(memoryLimit, openThreshold) {
+		if g.memoryOpen.Swap(false) {
 			g.recoverMemoryBreaker()
 		}
 		return false
 	}
 
-	// Keep the current breaker state inside the hysteresis window to avoid flapping.
-	return g.memoryOpen
+	return true
+}
+
+func (g *MemoryGuard) confirmMemoryRecovered(memoryLimit, openThreshold uint64) bool {
+	for i := 0; i < policyMemoryRecoverSamples; i++ {
+		time.Sleep(policyMemoryRecoverInterval)
+		if !g.enabled.Load() {
+			return true
+		}
+		usage := readMemoryUsage()
+		g.recordMemoryUsage(usage, memoryLimit, openThreshold, openThreshold)
+		if usage >= openThreshold {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *MemoryGuard) recordMemoryUsage(usage, limit, openThreshold, recoverThreshold uint64) {
@@ -165,27 +198,59 @@ func (g *MemoryGuard) recordMemoryUsage(usage, limit, openThreshold, recoverThre
 }
 
 func (g *MemoryGuard) recoverMemoryBreaker() {
-	g.memoryOpen = false
 	g.metric.SetPolicyMemoryBreakerOpen(false)
 	g.metric.IncPolicyMemoryBreakerRecover(policyGuardReasonMemoryRecovered)
 }
 
 func (g *MemoryGuard) openMemoryBreaker(reason string) {
-	g.memoryOpen = true
 	g.metric.SetPolicyMemoryBreakerOpen(true)
 	g.metric.IncPolicyMemoryBreakerOpen(reason)
+}
+
+func (g *MemoryGuard) setEnabled(enabled bool) (bool, bool) {
+	if g == nil {
+		return false, false
+	}
+	prev := g.enabled.Swap(enabled)
+	if !enabled {
+		g.memoryOpen.Store(false)
+		g.metric.SetPolicyMemoryBreakerOpen(false)
+		g.resetAllRejectedObjects()
+	}
+	return prev, enabled
+}
+
+func (g *MemoryGuard) enabledValue() bool {
+	if g == nil {
+		return false
+	}
+	return g.enabled.Load()
 }
 
 func (g *MemoryGuard) resetRejectedObject(req admissionRequest) {
 	if g == nil {
 		return
 	}
+	g.rejectedByMemoryLock.Lock()
+	defer g.rejectedByMemoryLock.Unlock()
 	for key := range g.rejectedByMemory {
 		if req.sameObject(key) {
 			// TODO: Consider deleting recovered object label values instead of setting them to 0.
 			g.metric.SetPolicyMemoryBreakerRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, false)
 			delete(g.rejectedByMemory, key)
 		}
+	}
+}
+
+func (g *MemoryGuard) resetAllRejectedObjects() {
+	if g == nil {
+		return
+	}
+	g.rejectedByMemoryLock.Lock()
+	defer g.rejectedByMemoryLock.Unlock()
+	for key := range g.rejectedByMemory {
+		g.metric.SetPolicyMemoryBreakerRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, false)
+		delete(g.rejectedByMemory, key)
 	}
 }
 
@@ -197,8 +262,8 @@ func (g *MemoryGuard) setMemoryLimit(limit uint64) (uint64, uint64) {
 
 	prev := g.memoryLimit
 	g.memoryLimit = limit
-	g.memoryOpenThreshold = uint64(float64(limit) * policyMemoryOpenRatio)
-	g.memoryRecoverThreshold = uint64(float64(limit) * policyMemoryRecoverRatio)
+	g.memoryOpenThreshold = policyMemoryThreshold(limit)
+	g.memoryRecoverThreshold = g.memoryOpenThreshold
 	current := g.memoryLimit
 	openThreshold := g.memoryOpenThreshold
 	recoverThreshold := g.memoryRecoverThreshold
@@ -224,12 +289,21 @@ func memoryLimitFromGOMemLimit(goMemLimit int64) uint64 {
 	return uint64(goMemLimit) + policyMemoryLimitExtraBytes
 }
 
+func policyMemoryThreshold(limit uint64) uint64 {
+	if limit <= policyMemoryLimitExtraBytes {
+		return limit
+	}
+	return limit - policyMemoryLimitExtraBytes
+}
+
 // RuleEstimateGuard rejects policy admission when estimated rules exceed the configured limit.
 type RuleEstimateGuard struct {
 	metric *metrics.AgentMetric
 
-	ruleEstimateLimit atomic.Uint64
-	rejectedByRule    map[guardObjectKey]struct{}
+	ruleEstimateLimit  atomic.Uint64
+	enabled            atomic.Bool
+	rejectedByRuleLock sync.Mutex
+	rejectedByRule     map[guardObjectKey]struct{}
 }
 
 func newRuleEstimateGuard(metric *metrics.AgentMetric, ruleEstimateLimit uint64) *RuleEstimateGuard {
@@ -237,12 +311,17 @@ func newRuleEstimateGuard(metric *metrics.AgentMetric, ruleEstimateLimit uint64)
 		metric:         metric,
 		rejectedByRule: make(map[guardObjectKey]struct{}),
 	}
+	guard.enabled.Store(true)
 	guard.setRuleEstimateLimit(ruleEstimateLimit)
 	return guard
 }
 
 func (g *RuleEstimateGuard) admit(ctx context.Context, req admissionRequest) admissionResult {
 	if g == nil {
+		return admissionResult{Allowed: true}
+	}
+	if !g.enabled.Load() {
+		g.resetRejectedObject(req)
 		return admissionResult{Allowed: true}
 	}
 	ruleEstimateLimit := g.ruleEstimateLimit.Load()
@@ -254,6 +333,7 @@ func (g *RuleEstimateGuard) admit(ctx context.Context, req admissionRequest) adm
 	log := ctrl.LoggerFrom(ctx)
 	if req.Estimate > ruleEstimateLimit {
 		key := req.key(policyGuardReasonRuleEstimateExceeded)
+		g.rejectedByRuleLock.Lock()
 		if _, exists := g.rejectedByRule[key]; exists {
 			g.metric.IncPolicyRuleEstimateRequeue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason)
 		}
@@ -261,6 +341,7 @@ func (g *RuleEstimateGuard) admit(ctx context.Context, req admissionRequest) adm
 		g.metric.IncPolicyRuleEstimateReject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason)
 		g.metric.SetPolicyRuleEstimateRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, true)
 		g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, req.Estimate)
+		g.rejectedByRuleLock.Unlock()
 		log.Info("Reject policy reconcile by rule estimate", "resource", req.Resource, "namespace", req.Namespace,
 			"name", req.Name, "operation", req.Operation, "estimate", req.Estimate, "limit", ruleEstimateLimit)
 		return admissionResult{Allowed: false, RequeueAfter: policyAdmissionRequeueAfter, Reason: policyGuardReasonRuleEstimateExceeded}
@@ -287,10 +368,30 @@ func (g *RuleEstimateGuard) setRuleEstimateLimit(limit uint64) (uint64, uint64) 
 	return prev, current
 }
 
+func (g *RuleEstimateGuard) setEnabled(enabled bool) (bool, bool) {
+	if g == nil {
+		return false, false
+	}
+	prev := g.enabled.Swap(enabled)
+	if !enabled {
+		g.resetAllRejectedObjects()
+	}
+	return prev, enabled
+}
+
+func (g *RuleEstimateGuard) enabledValue() bool {
+	if g == nil {
+		return false
+	}
+	return g.enabled.Load()
+}
+
 func (g *RuleEstimateGuard) resetRejectedObject(req admissionRequest) {
 	if g == nil {
 		return
 	}
+	g.rejectedByRuleLock.Lock()
+	defer g.rejectedByRuleLock.Unlock()
 	for key := range g.rejectedByRule {
 		if req.sameObject(key) {
 			// TODO: Consider deleting recovered object label values instead of setting them to 0.
@@ -299,6 +400,30 @@ func (g *RuleEstimateGuard) resetRejectedObject(req admissionRequest) {
 			g.metric.IncPolicyRuleEstimateRetrySuccess(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason)
 			delete(g.rejectedByRule, key)
 		}
+	}
+}
+
+func (g *RuleEstimateGuard) resetAllRejectedObjects() {
+	if g == nil {
+		return
+	}
+	g.rejectedByRuleLock.Lock()
+	defer g.rejectedByRuleLock.Unlock()
+	for key := range g.rejectedByRule {
+		g.metric.SetPolicyRuleEstimateRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, false)
+		g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, 0)
+		delete(g.rejectedByRule, key)
+	}
+}
+
+func normalizeGuardType(guardType string) (string, error) {
+	switch guardType {
+	case policyGuardTypeMemory:
+		return policyGuardTypeMemory, nil
+	case policyGuardTypeRule:
+		return policyGuardTypeRule, nil
+	default:
+		return "", fmt.Errorf("unsupported policy guard type %q", guardType)
 	}
 }
 

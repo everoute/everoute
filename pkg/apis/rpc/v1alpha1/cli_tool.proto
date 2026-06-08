@@ -132,8 +132,11 @@ service CLI {
 
 	rpc SetGOMemLimit(SetGOMemLimitRequest) returns (SetGOMemLimitResponse) {}
 	rpc GetGOMemLimit(google.protobuf.Empty) returns (GetGOMemLimitResponse) {}
+	rpc SetPolicyMemoryLimit(SetPolicyMemoryLimitRequest) returns (SetPolicyMemoryLimitResponse) {}
 	rpc SetPolicyRuleEstimateLimit(SetPolicyRuleEstimateLimitRequest) returns (SetPolicyRuleEstimateLimitResponse) {}
 	rpc GetPolicyRuleEstimateLimit(google.protobuf.Empty) returns (GetPolicyRuleEstimateLimitResponse) {}
+	rpc SetPolicyGuardEnabled(SetPolicyGuardEnabledRequest) returns (SetPolicyGuardEnabledResponse) {}
+	rpc GetPolicyGuardStatus(google.protobuf.Empty) returns (PolicyGuardStatus) {}
 	rpc EnablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc DisablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc GetPprofStatus(google.protobuf.Empty) returns (PprofStatus) {}
@@ -172,6 +175,17 @@ message GetGOMemLimitResponse {
 	int64 Limit = 1;
 }
 
+// SetPolicyMemoryLimitRequest requests setting the policy memory guard limit.
+message SetPolicyMemoryLimitRequest {
+	uint64 Limit = 1;
+}
+
+// SetPolicyMemoryLimitResponse returns previous and current policy memory guard limits.
+message SetPolicyMemoryLimitResponse {
+	uint64 PrevLimit = 1;
+	uint64 CurrentLimit = 2;
+}
+
 // SetPolicyRuleEstimateLimitRequest requests setting the policy rule estimate limit.
 message SetPolicyRuleEstimateLimitRequest {
 	uint64 Limit = 1;
@@ -186,6 +200,30 @@ message SetPolicyRuleEstimateLimitResponse {
 // GetPolicyRuleEstimateLimitResponse returns current policy rule estimate limit.
 message GetPolicyRuleEstimateLimitResponse {
 	uint64 Limit = 1;
+}
+
+// SetPolicyGuardEnabledRequest requests enabling or disabling a policy guard.
+message SetPolicyGuardEnabledRequest {
+	string Guard = 1;
+	bool Enabled = 2;
+}
+
+// SetPolicyGuardEnabledResponse returns previous and current policy guard enabled states.
+message SetPolicyGuardEnabledResponse {
+	string Guard = 1;
+	bool PrevEnabled = 2;
+	bool CurrentEnabled = 3;
+}
+
+// PolicyGuardStatus returns current policy admission guard status.
+message PolicyGuardStatus {
+	bool MemoryEnabled = 1;
+	bool MemoryBreakerOpen = 2;
+	uint64 MemoryLimit = 3;
+	bool RuleEnabled = 4;
+	uint64 RuleEstimateLimit = 5;
+	uint64 MemoryOpenThreshold = 6;
+	uint64 MemoryRecoverThreshold = 7;
 }
 
 // PprofStatus returns the agent pprof switch state.

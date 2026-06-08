@@ -167,6 +167,19 @@ func (g *CLITool) GetPolicyRuleEstimateLimit(context.Context, *emptypb.Empty) (*
 	}, nil
 }
 
+func (g *CLITool) SetPolicyMemoryLimit(_ context.Context,
+	in *v1alpha1.SetPolicyMemoryLimitRequest) (*v1alpha1.SetPolicyMemoryLimitResponse, error) {
+	if g.policyGuardSetter == nil {
+		return nil, fmt.Errorf("policy guard is not available")
+	}
+	prevLimit, curLimit := g.policyGuardSetter.SetMemoryLimit(in.GetLimit())
+	klog.Infof("Set policy memory guard limit, prev: %d, current: %d", prevLimit, curLimit)
+	return &v1alpha1.SetPolicyMemoryLimitResponse{
+		PrevLimit:    prevLimit,
+		CurrentLimit: curLimit,
+	}, nil
+}
+
 func (g *CLITool) SetPolicyRuleEstimateLimit(_ context.Context,
 	in *v1alpha1.SetPolicyRuleEstimateLimitRequest) (*v1alpha1.SetPolicyRuleEstimateLimitResponse, error) {
 	if g.policyGuardSetter == nil {
@@ -177,6 +190,40 @@ func (g *CLITool) SetPolicyRuleEstimateLimit(_ context.Context,
 	return &v1alpha1.SetPolicyRuleEstimateLimitResponse{
 		PrevLimit:    prevLimit,
 		CurrentLimit: curLimit,
+	}, nil
+}
+
+func (g *CLITool) SetPolicyGuardEnabled(_ context.Context,
+	in *v1alpha1.SetPolicyGuardEnabledRequest) (*v1alpha1.SetPolicyGuardEnabledResponse, error) {
+	if g.policyGuardSetter == nil {
+		return nil, fmt.Errorf("policy guard is not available")
+	}
+	prevEnabled, currentEnabled, err := g.policyGuardSetter.SetGuardEnabled(in.GetGuard(), in.GetEnabled())
+	if err != nil {
+		return nil, err
+	}
+	klog.Infof("Set policy guard enabled, guard: %s, prev: %t, current: %t",
+		in.GetGuard(), prevEnabled, currentEnabled)
+	return &v1alpha1.SetPolicyGuardEnabledResponse{
+		Guard:          in.GetGuard(),
+		PrevEnabled:    prevEnabled,
+		CurrentEnabled: currentEnabled,
+	}, nil
+}
+
+func (g *CLITool) GetPolicyGuardStatus(context.Context, *emptypb.Empty) (*v1alpha1.PolicyGuardStatus, error) {
+	if g.policyGuardSetter == nil {
+		return nil, fmt.Errorf("policy guard is not available")
+	}
+	status := g.policyGuardSetter.GetGuardStatus()
+	return &v1alpha1.PolicyGuardStatus{
+		MemoryEnabled:          status.MemoryEnabled,
+		MemoryBreakerOpen:      status.MemoryBreakerOpen,
+		MemoryLimit:            status.MemoryLimit,
+		MemoryOpenThreshold:    status.MemoryOpenThreshold,
+		MemoryRecoverThreshold: status.MemoryRecoverThreshold,
+		RuleEnabled:            status.RuleEnabled,
+		RuleEstimateLimit:      status.RuleEstimateLimit,
 	}, nil
 }
 
