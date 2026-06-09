@@ -295,7 +295,10 @@ func (r *Reconciler) GetGuardStatus() GuardStatus {
 	return status
 }
 
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, ruleEstimateLimit, staticMemoryLimit uint64) error {
+func (r *Reconciler) SetupWithManager(
+	mgr ctrl.Manager,
+	ruleEstimateLimit, staticMemoryLimit uint64,
+	disableMemoryGuard, disableRuleGuard bool) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -323,10 +326,16 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, ruleEstimateLimit, stati
 			r.DatapathManager.AgentMetric,
 			staticMemoryLimit)
 	}
+	if disableMemoryGuard {
+		r.memoryGuard.setEnabled(false)
+	}
 	if r.ruleEstimateGuard == nil {
 		r.ruleEstimateGuard = newRuleEstimateGuard(
 			r.DatapathManager.AgentMetric,
 			ruleEstimateLimit)
+	}
+	if disableRuleGuard {
+		r.ruleEstimateGuard.setEnabled(false)
 	}
 
 	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])

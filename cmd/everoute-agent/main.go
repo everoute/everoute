@@ -94,6 +94,10 @@ func main() {
 		"Maximum estimated policy rule expansion allowed before policy reconcile is rejected. 0 disables the limit.")
 	flag.Uint64Var(&opts.policyStaticMemoryLimit, "policy-static-memory-limit-bytes", 0,
 		"Static memory limit in bytes for policy memory guard. 0 disables the static override.")
+	flag.BoolVar(&opts.disablePolicyMemoryGuard, "disable-policy-memory-guard", false,
+		"Disable policy memory guard at startup.")
+	flag.BoolVar(&opts.disablePolicyRuleGuard, "disable-policy-rule-guard", false,
+		"Disable policy rule estimate guard at startup.")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
@@ -278,7 +282,12 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
 		}
-		if err = policyReconciler.SetupWithManager(mgr, opts.policyRuleEstimateLimit, opts.policyStaticMemoryLimit); err != nil {
+		if err = policyReconciler.SetupWithManager(
+			mgr,
+			opts.policyRuleEstimateLimit,
+			opts.policyStaticMemoryLimit,
+			opts.disablePolicyMemoryGuard,
+			opts.disablePolicyRuleGuard); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
 		policyGuardSetter = policyReconciler

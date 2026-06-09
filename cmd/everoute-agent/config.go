@@ -51,6 +51,8 @@ type Options struct {
 	flowRoundCleanDelay      time.Duration
 	policyRuleEstimateLimit  uint64
 	policyStaticMemoryLimit  uint64
+	disablePolicyMemoryGuard bool
+	disablePolicyRuleGuard   bool
 
 	svcTCPSet ipset.IPSet
 	svcUDPSet ipset.IPSet
