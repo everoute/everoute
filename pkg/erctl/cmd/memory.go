@@ -9,8 +9,13 @@ import (
 	"github.com/everoute/everoute/pkg/erctl"
 )
 
+var gomemlimitCmd = &cobra.Command{
+	Use:   "gomemlimit",
+	Short: "Manage Go runtime memory limit on agent",
+}
+
 var getGOMemLimitCmd = &cobra.Command{
-	Use:   "get-gomemlimit",
+	Use:   "get",
 	Short: "Get current Go runtime memory limit from agent",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
@@ -27,7 +32,7 @@ var getGOMemLimitCmd = &cobra.Command{
 }
 
 var setGOMemLimitCmd = &cobra.Command{
-	Use:   "set-gomemlimit [limit]",
+	Use:   "set [limit]",
 	Short: "Set Go runtime memory limit on agent (must be > 0)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
@@ -51,6 +56,7 @@ var setGOMemLimitCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(getGOMemLimitCmd)
-	rootCmd.AddCommand(setGOMemLimitCmd)
+	gomemlimitCmd.AddCommand(getGOMemLimitCmd)
+	gomemlimitCmd.AddCommand(setGOMemLimitCmd)
+	rootCmd.AddCommand(gomemlimitCmd)
 }

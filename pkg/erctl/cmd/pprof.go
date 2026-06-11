@@ -8,28 +8,17 @@ import (
 	"github.com/everoute/everoute/pkg/erctl"
 )
 
-var setPprofCmd = &cobra.Command{
-	Use:   "set-pprof [enable|disable]",
-	Short: "Enable or disable agent pprof HTTP handlers",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(_ *cobra.Command, args []string) error {
-		if err := erctl.ConnectClient(); err != nil {
-			return err
-		}
+var pprofCmd = &cobra.Command{
+	Use:   "pprof",
+	Short: "Manage agent pprof HTTP handlers",
+}
 
-		var (
-			enabled bool
-			url     string
-			err     error
-		)
-		switch args[0] {
-		case "enable":
-			enabled, url, err = erctl.EnablePprof()
-		case "disable":
-			enabled, url, err = erctl.DisablePprof()
-		default:
-			return fmt.Errorf("pprof state must be enable or disable")
-		}
+var enablePprofCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable agent pprof HTTP handlers",
+	Args:  cobra.NoArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		enabled, url, err := setPprofEnabled(true)
 		if err != nil {
 			return err
 		}
@@ -38,8 +27,22 @@ var setPprofCmd = &cobra.Command{
 	},
 }
 
-var getPprofCmd = &cobra.Command{
-	Use:   "get-pprof",
+var disablePprofCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable agent pprof HTTP handlers",
+	Args:  cobra.NoArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		enabled, url, err := setPprofEnabled(false)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("pprof enabled: %t, url: %s\n", enabled, url)
+		return nil
+	},
+}
+
+var pprofStatusCmd = &cobra.Command{
+	Use:   "status",
 	Short: "Get agent pprof HTTP handler status",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
@@ -55,7 +58,19 @@ var getPprofCmd = &cobra.Command{
 	},
 }
 
+func setPprofEnabled(enabled bool) (bool, string, error) {
+	if err := erctl.ConnectClient(); err != nil {
+		return false, "", err
+	}
+	if enabled {
+		return erctl.EnablePprof()
+	}
+	return erctl.DisablePprof()
+}
+
 func init() {
-	rootCmd.AddCommand(setPprofCmd)
-	rootCmd.AddCommand(getPprofCmd)
+	pprofCmd.AddCommand(enablePprofCmd)
+	pprofCmd.AddCommand(disablePprofCmd)
+	pprofCmd.AddCommand(pprofStatusCmd)
+	rootCmd.AddCommand(pprofCmd)
 }
