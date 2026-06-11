@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	policyctrl "github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -38,18 +39,21 @@ type Server struct {
 
 	enableCNI bool
 
-	pprofSwitch *PprofSwitch
+	pprofSwitch       *PprofSwitch
+	policyGuardSetter policyctrl.GuardRuntimeSetter
 
 	stopChan <-chan struct{}
 }
 
-func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch) *Server {
+func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache,
+	pprofSwitch *PprofSwitch, policyGuardSetter policyctrl.GuardRuntimeSetter) *Server {
 	s := &Server{
-		dpManager:   datapathManager,
-		k8sClient:   k8sClient,
-		proxyCache:  proxyCache,
-		enableCNI:   enableCNI,
-		pprofSwitch: pprofSwitch,
+		dpManager:         datapathManager,
+		k8sClient:         k8sClient,
+		proxyCache:        proxyCache,
+		enableCNI:         enableCNI,
+		pprofSwitch:       pprofSwitch,
+		policyGuardSetter: policyGuardSetter,
 	}
 
 	return s
@@ -92,7 +96,7 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	klog.Infoln("Enable collector rpc server")
 
 	// register cli server
-	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache, s.pprofSwitch)
+	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache, s.pprofSwitch, s.policyGuardSetter)
 	v1alpha1.RegisterCLIServer(rpcServer, cliTool)
 	klog.Infoln("Enable cli tools rpc server")
 
