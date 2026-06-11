@@ -49,6 +49,18 @@ type AgentMetric struct {
 	trNicMount  prometheus.GaugeVec
 	trNicStatus prometheus.GaugeVec
 	trHealthy   prometheus.GaugeVec
+
+	policyGuardEnabled                 prometheus.GaugeVec
+	policyMemoryBreakerOpen            prometheus.GaugeVec
+	policyMemoryBreakerOpenTotal       prometheus.CounterVec
+	policyMemoryBreakerRecoverTotal    prometheus.CounterVec
+	policyMemoryBreakerRejectedObjects prometheus.GaugeVec
+	policyMemoryUsageBytes             prometheus.GaugeVec
+	policyMemoryThresholdBytes         prometheus.GaugeVec
+
+	policyRuleEstimateLimit           prometheus.GaugeVec
+	policyRuleEstimateRejectedObjects prometheus.GaugeVec
+	policyRuleEstimateRejectedValue   prometheus.GaugeVec
 }
 
 func newAgentCounterOpt(name, help string) prometheus.CounterOpts {
@@ -112,8 +124,56 @@ func NewAgentMetric() *AgentMetric {
 			"trafficredirect nic link status",
 		), []string{BridgeLabel, TypeLabel}),
 	}
+	m.initPolicyGuardMetrics()
 
 	return m
+}
+
+func (m *AgentMetric) initPolicyGuardMetrics() {
+	policyObjectLabels := []string{"resource", "namespace", "name", "operation", "reason"}
+	memoryEventLabels := []string{"reason"}
+	guardLabels := []string{"type"}
+
+	m.policyGuardEnabled = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_guard_enabled",
+		"Whether agent policy admission guard is enabled",
+	), guardLabels)
+	m.policyMemoryBreakerOpen = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_open",
+		"Whether agent policy controller memory breaker is open",
+	), nil)
+	m.policyMemoryBreakerOpenTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_memory_breaker_open_total",
+		"The count of agent policy controller memory breaker open events",
+	), memoryEventLabels)
+	m.policyMemoryBreakerRecoverTotal = *prometheus.NewCounterVec(newAgentCounterOpt(
+		"policy_memory_breaker_recover_total",
+		"The count of agent policy controller memory breaker recover events",
+	), memoryEventLabels)
+	m.policyMemoryBreakerRejectedObjects = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_breaker_rejected_objects",
+		"The policy objects currently rejected by memory breaker",
+	), policyObjectLabels)
+	m.policyMemoryUsageBytes = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_usage_bytes",
+		"The memory usage bytes used by agent policy memory breaker",
+	), nil)
+	m.policyMemoryThresholdBytes = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_memory_threshold_bytes",
+		"The memory usage threshold bytes used by agent policy memory breaker",
+	), nil)
+	m.policyRuleEstimateLimit = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_limit",
+		"The current policy rule estimate admission limit",
+	), nil)
+	m.policyRuleEstimateRejectedObjects = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_rejected_objects",
+		"The policy objects currently rejected by rule estimate admission",
+	), policyObjectLabels)
+	m.policyRuleEstimateRejectedValue = *prometheus.NewGaugeVec(newAgentGaugeOpt(
+		"policy_rule_estimate_rejected_value",
+		"The latest rejected rule estimate value for a policy object",
+	), policyObjectLabels)
 }
 
 func (m *AgentMetric) UpdatePolicyName(policyID string, policy *securityv1alpha1.SecurityPolicy) {
@@ -186,13 +246,60 @@ func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust}
 	if config.EnableMs {
 		klog.Infof("Register ms metrics for enabled ms")
-		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum)
+		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum,
+			m.policyGuardEnabled,
+			m.policyMemoryBreakerOpen,
+			m.policyMemoryBreakerOpenTotal,
+			m.policyMemoryBreakerRecoverTotal,
+			m.policyMemoryBreakerRejectedObjects,
+			m.policyMemoryUsageBytes,
+			m.policyMemoryThresholdBytes,
+			m.policyRuleEstimateLimit,
+			m.policyRuleEstimateRejectedObjects,
+			m.policyRuleEstimateRejectedValue)
 	}
 	if config.EnableTR {
 		klog.Infof("Register tr metrics for enabled tr")
 		res = append(res, m.trHealthy, m.trNicMount, m.trNicStatus)
 	}
 	return res
+}
+
+func (m *AgentMetric) SetPolicyMemoryBreakerOpen(open bool) {
+	m.policyMemoryBreakerOpen.WithLabelValues().Set(boolToFloat64(open))
+}
+
+func (m *AgentMetric) IncPolicyMemoryBreakerOpen(reason string) {
+	m.policyMemoryBreakerOpenTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *AgentMetric) IncPolicyMemoryBreakerRecover(reason string) {
+	m.policyMemoryBreakerRecoverTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *AgentMetric) SetPolicyMemoryBreakerRejectedObject(resource, namespace, name, operation, reason string, rejected bool) {
+	m.policyMemoryBreakerRejectedObjects.WithLabelValues(resource, namespace, name, operation, reason).Set(boolToFloat64(rejected))
+}
+
+func (m *AgentMetric) SetPolicyMemoryInfo(usage, threshold uint64) {
+	m.policyMemoryUsageBytes.WithLabelValues().Set(float64(usage))
+	m.policyMemoryThresholdBytes.WithLabelValues().Set(float64(threshold))
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateLimit(limit uint64) {
+	m.policyRuleEstimateLimit.WithLabelValues().Set(float64(limit))
+}
+
+func (m *AgentMetric) SetPolicyGuardEnabled(guardType string, enabled bool) {
+	m.policyGuardEnabled.WithLabelValues(guardType).Set(boolToFloat64(enabled))
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateRejectedObject(resource, namespace, name, operation, reason string, rejected bool) {
+	m.policyRuleEstimateRejectedObjects.WithLabelValues(resource, namespace, name, operation, reason).Set(boolToFloat64(rejected))
+}
+
+func (m *AgentMetric) SetPolicyRuleEstimateRejectedValue(resource, namespace, name, operation, reason string, value uint64) {
+	m.policyRuleEstimateRejectedValue.WithLabelValues(resource, namespace, name, operation, reason).Set(float64(value))
 }
 
 func (m *AgentMetric) SetSeqIDInfo(module string, exhaust bool, used int) {

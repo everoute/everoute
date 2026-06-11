@@ -80,6 +80,9 @@ type Reconciler struct {
 
 	ReadyToProcessGlobalRule     bool
 	globalRuleFirstProcessedTime *time.Time
+
+	memoryGuard       *MemoryGuard
+	ruleEstimateGuard *RuleEstimateGuard
 }
 
 func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -100,6 +103,7 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 
 	if apierrors.IsNotFound(err) {
 		r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), nil)
+		r.resetGuard(newAdmissionRequest(policyGuardResourcePolicy, req.Namespace, req.Name, policyGuardOperationDelete))
 		err := r.cleanPolicyDependents(ctx, req.NamespacedName)
 		if err != nil {
 			log.Error(err, "failed to delete policy")
@@ -111,7 +115,21 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 	r.DatapathManager.AgentMetric.UpdatePolicyName(req.NamespacedName.String(), &policy)
 
 	ctx = context.WithValue(ctx, ertypes.CtxKeyObject, policy.Spec)
-	return r.processPolicyUpdate(ctx, &policy)
+	newCompleteRules, err := r.completePolicy(ctx, &policy)
+	if IsGroupMembersNotFoundErr(err) {
+		log.V(2).Info("Failed to calculate expect complete rule for policy", "err", err)
+		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
+	}
+	if err != nil {
+		log.Error(err, "failed fetch new policy complete rules")
+		return ctrl.Result{}, err
+	}
+	if res := r.admitPolicyUpdate(ctx, &policy, newCompleteRules); res.Err != nil {
+		return ctrl.Result{}, res.Err
+	} else if !res.Allowed {
+		return ctrl.Result{RequeueAfter: res.RequeueAfter}, nil
+	}
+	return r.processPolicyUpdate(ctx, &policy, newCompleteRules)
 }
 
 func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -136,6 +154,7 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 				return ctrl.Result{RequeueAfter: time.Second}, nil
 			}
 			r.groupCache.DelGroupMembership(req.Name)
+			r.resetGuard(newAdmissionRequest(policyGuardResourceGroupMembers, req.Namespace, req.Name, policyGuardOperationDelete))
 			log.Info("Success delete groupmembers")
 			return ctrl.Result{}, nil
 		}
@@ -144,6 +163,11 @@ func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request
 	}
 
 	ctx = context.WithValue(ctx, ertypes.CtxKeyObject, gm.GroupMembers)
+	if res := r.admitGroupUpdate(ctx, &gm); res.Err != nil {
+		return ctrl.Result{}, res.Err
+	} else if !res.Allowed {
+		return ctrl.Result{RequeueAfter: res.RequeueAfter}, nil
+	}
 	err := r.ruleUpdateByGroup(ctx, &gm)
 	r.groupCache.UpdateGroupMembership(&gm)
 	if err == nil {
@@ -167,7 +191,79 @@ func (r *Reconciler) GetGroupCache() *policycache.GroupCache {
 	return r.groupCache
 }
 
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+// GetRuleEstimateLimit returns the current policy rule estimate limit.
+func (r *Reconciler) GetRuleEstimateLimit() uint64 {
+	if r == nil {
+		return DefaultPolicyRuleEstimateLimit
+	}
+	return r.ruleEstimateGuard.ruleEstimateLimitValue()
+}
+
+// SetRuleEstimateLimit updates the policy rule estimate limit and returns previous and current values.
+func (r *Reconciler) SetRuleEstimateLimit(limit uint64) (uint64, uint64) {
+	if r == nil {
+		return 0, 0
+	}
+	prev, current := r.ruleEstimateGuard.setRuleEstimateLimit(limit)
+	klog.Infof("Set policy rule estimate limit, prev: %d, current: %d", prev, current)
+	return prev, current
+}
+
+// SetMemoryThreshold updates the policy memory guard threshold and returns previous and current values.
+func (r *Reconciler) SetMemoryThreshold(threshold uint64) (uint64, uint64) {
+	if r == nil {
+		return 0, 0
+	}
+	prev, current := r.memoryGuard.setMemoryThreshold(threshold)
+	klog.Infof("Set policy memory guard threshold, prev: %d, current: %d", prev, current)
+	return prev, current
+}
+
+// SetGuardEnabled enables or disables a policy admission guard at runtime.
+func (r *Reconciler) SetGuardEnabled(guardType string, enabled bool) (bool, bool, error) {
+	if r == nil {
+		return false, false, fmt.Errorf("policy guard is not available")
+	}
+	normalizedGuardType, err := normalizeGuardType(guardType)
+	if err != nil {
+		return false, false, err
+	}
+	switch normalizedGuardType {
+	case policyGuardTypeMemory:
+		prev, current := r.memoryGuard.setEnabled(enabled)
+		klog.Infof("Set policy memory guard enabled, prev: %t, current: %t", prev, current)
+		return prev, current, nil
+	case policyGuardTypeRule:
+		prev, current := r.ruleEstimateGuard.setEnabled(enabled)
+		klog.Infof("Set policy rule estimate guard enabled, prev: %t, current: %t", prev, current)
+		return prev, current, nil
+	default:
+		return false, false, fmt.Errorf("unsupported policy guard type %q", guardType)
+	}
+}
+
+// GetGuardStatus returns current policy admission guard runtime state.
+func (r *Reconciler) GetGuardStatus() GuardStatus {
+	if r == nil {
+		return GuardStatus{}
+	}
+	status := GuardStatus{}
+	if r.memoryGuard != nil {
+		status.MemoryEnabled = r.memoryGuard.enabledValue()
+		status.MemoryBreakerOpen = r.memoryGuard.isOpen()
+		status.MemoryThreshold = r.memoryGuard.memoryThresholdSnapshot()
+	}
+	if r.ruleEstimateGuard != nil {
+		status.RuleEnabled = r.ruleEstimateGuard.enabledValue()
+		status.RuleEstimateLimit = r.ruleEstimateGuard.ruleEstimateLimitValue()
+	}
+	return status
+}
+
+func (r *Reconciler) SetupWithManager(
+	mgr ctrl.Manager,
+	ruleEstimateLimit, staticMemoryThreshold uint64,
+	disableMemoryGuard, disableRuleGuard bool) error {
 	if mgr == nil {
 		return fmt.Errorf("can't setup with nil manager")
 	}
@@ -189,6 +285,25 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.ManagedVDSes == nil {
 		r.ManagedVDSes = sets.New[string]()
+	}
+	if r.memoryGuard == nil {
+		r.memoryGuard = newMemoryGuard(
+			r.DatapathManager.AgentMetric,
+			staticMemoryThreshold)
+	}
+	if disableMemoryGuard {
+		r.memoryGuard.setEnabled(false)
+	}
+	if err := mgr.Add(r.memoryGuard); err != nil {
+		return err
+	}
+	if r.ruleEstimateGuard == nil {
+		r.ruleEstimateGuard = newRuleEstimateGuard(
+			r.DatapathManager.AgentMetric,
+			ruleEstimateLimit)
+	}
+	if disableRuleGuard {
+		r.ruleEstimateGuard.setEnabled(false)
 	}
 
 	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
@@ -248,8 +363,14 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 		rule := rules[i].(*policycache.CompleteRule)
 
 		oldRuleList = append(oldRuleList, rule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
-		srcIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.SrcIPs, rule.SrcGroups, gm)
-		dstIPs := r.getRuleIPBlocksForUpdateGroupMembers(ctx, rule.DstIPs, rule.DstGroups, gm)
+		srcIPs, err := policycache.AssembleIPBlocksForGroupUpdate(ctx, rule.SrcIPs, rule.SrcGroups, r.groupCache, gm)
+		if err != nil {
+			return err
+		}
+		dstIPs, err := policycache.AssembleIPBlocksForGroupUpdate(ctx, rule.DstIPs, rule.DstGroups, r.groupCache, gm)
+		if err != nil {
+			return err
+		}
 		newRuleList = append(newRuleList, rule.GenerateRuleList(ctx, srcIPs, dstIPs, rule.Ports, r.ManagedVDSes)...)
 		newRuleList = append(newRuleList, rule.GenerateFullIsolationRule(nil, gm)...)
 		if err := r.syncPolicyRulesUntilSuccess(ctx, []string{rule.Policy}, oldRuleList, newRuleList); err != nil {
@@ -259,18 +380,83 @@ func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.Gr
 	return nil
 }
 
-//nolint:all
-func (r *Reconciler) getRuleIPBlocksForUpdateGroupMembers(ctx context.Context, staticIPs sets.Set[string], groups sets.Set[string], newGroup *groupv1alpha1.GroupMembers) map[string]*policycache.IPBlockItem {
-	res, err := policycache.AssembleStaticIPAndGroup(ctx, staticIPs, groups.Clone().Delete(newGroup.GetName()), r.groupCache)
-	if err != nil {
-		klog.Fatalf("Failed to assemble ipblocks, err: %v", err)
+func (r *Reconciler) resetGuard(req admissionRequest) {
+	r.memoryGuard.resetRejectedObject(req)
+	r.ruleEstimateGuard.resetRejectedObject(req)
+}
+
+func (r *Reconciler) admitPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy,
+	newCompleteRules []*policycache.CompleteRule) admissionResult {
+	oldRuleItems, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
+	oldCompleteRules := completeRuleInterfacesToRules(oldRuleItems)
+	operation := policyGuardOperationUpdate
+	if len(oldCompleteRules) == 0 {
+		operation = policyGuardOperationAdd
 	}
-	if !groups.Has(newGroup.GetName()) {
+
+	req := newAdmissionRequest(policyGuardResourcePolicy, policy.Namespace, policy.Name, operation)
+	if isPureCompleteRuleDelete(oldCompleteRules, newCompleteRules) {
+		r.resetGuard(req)
+		return admissionResult{Allowed: true}
+	}
+
+	if res := r.memoryGuard.admit(ctx, req); !res.Allowed {
 		return res
 	}
 
-	res = policycache.AppendIPBlocks(res, policycache.GroupMembersToIPBlocks(ctx, newGroup.GroupMembers))
-	return res
+	estimate, err := estimateCompleteRules(ctx, newCompleteRules, r.groupCache, r.ManagedVDSes)
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "Failed to estimate policy rules", "resource", req.Resource, "namespace", req.Namespace,
+			"name", req.Name, "operation", req.Operation)
+		return admissionResult{Err: err}
+	}
+	req.Estimate = estimate
+	return r.ruleEstimateGuard.admit(ctx, req)
+}
+
+func (r *Reconciler) admitGroupUpdate(ctx context.Context, gm *groupv1alpha1.GroupMembers) admissionResult {
+	rules, _ := r.ruleCache.ByIndex(policycache.GroupIndex, gm.GetName())
+	if len(rules) == 0 {
+		r.resetGuard(newAdmissionRequest(policyGuardResourceGroupMembers, gm.Namespace, gm.Name, policyGuardOperationUpdate))
+		return admissionResult{Allowed: true}
+	}
+
+	_, groupExists := r.groupCache.GetGroupMembership(gm.Name)
+	operation := policyGuardOperationUpdate
+	if !groupExists {
+		operation = policyGuardOperationAdd
+	}
+
+	req := newAdmissionRequest(policyGuardResourceGroupMembers, gm.Namespace, gm.Name, operation)
+	if groupMembersPureShrink(r.groupCache, gm) {
+		r.resetGuard(req)
+		return admissionResult{Allowed: true}
+	}
+
+	if res := r.memoryGuard.admit(ctx, req); !res.Allowed {
+		return res
+	}
+
+	var newEstimate uint64
+	for _, item := range rules {
+		rule := item.(*policycache.CompleteRule)
+		srcIPs, err := policycache.AssembleIPBlocksForGroupUpdate(ctx, rule.SrcIPs, rule.SrcGroups, r.groupCache, gm)
+		if err != nil {
+			ctrl.LoggerFrom(ctx).Error(err, "Failed to estimate policy rules", "resource", req.Resource, "namespace", req.Namespace,
+				"name", req.Name, "operation", req.Operation)
+			return admissionResult{Err: err}
+		}
+		dstIPs, err := policycache.AssembleIPBlocksForGroupUpdate(ctx, rule.DstIPs, rule.DstGroups, r.groupCache, gm)
+		if err != nil {
+			ctrl.LoggerFrom(ctx).Error(err, "Failed to estimate policy rules", "resource", req.Resource, "namespace", req.Namespace,
+				"name", req.Name, "operation", req.Operation)
+			return admissionResult{Err: err}
+		}
+		newEstimate += rule.EstimateRuleCountWithIPBlocks(srcIPs, dstIPs, nil, gm, r.ManagedVDSes)
+	}
+
+	req.Estimate = newEstimate
+	return r.ruleEstimateGuard.admit(ctx, req)
 }
 
 func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.NamespacedName) error {
@@ -288,24 +474,33 @@ func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.
 	return r.syncPolicyRulesUntilSuccess(ctx, []string{policy.String()}, oldRuleList, nil)
 }
 
-func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx)
-	var oldRuleList []policycache.PolicyRule
+func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1alpha1.SecurityPolicy,
+	newCompleteRules []*policycache.CompleteRule) (ctrl.Result, error) {
+	var oldRuleList, newRuleList []policycache.PolicyRule
 
-	completeRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
-	for _, completeRule := range completeRules {
-		oldRuleList = append(oldRuleList, completeRule.(*policycache.CompleteRule).ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
+	oldCompleteRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
+	oldRuleByID := make(map[string]*policycache.CompleteRule, len(oldCompleteRules))
+	newRuleByID := make(map[string]*policycache.CompleteRule, len(newCompleteRules))
+
+	for _, completeRule := range oldCompleteRules {
+		rule := completeRule.(*policycache.CompleteRule)
+		oldRuleByID[rule.RuleID] = rule
+	}
+	for _, rule := range newCompleteRules {
+		newRuleByID[rule.RuleID] = rule
 	}
 
-	newRuleList, err := r.calculateExpectedPolicyRules(ctx, policy)
-	if IsGroupMembersNotFoundErr(err) {
-		// wait until groupmembers created
-		log.V(2).Info("Failed to calculate expect complete rule for policy", "err", err)
-		return ctrl.Result{RequeueAfter: time.Nanosecond}, nil
+	for ruleID, oldRule := range oldRuleByID {
+		newRule, exists := newRuleByID[ruleID]
+		if !exists || completeRuleChanged(oldRule, newRule) {
+			oldRuleList = append(oldRuleList, oldRule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
+		}
 	}
-	if err != nil {
-		log.Error(err, "failed fetch new policy rules")
-		return ctrl.Result{}, err
+	for ruleID, newRule := range newRuleByID {
+		oldRule, exists := oldRuleByID[ruleID]
+		if !exists || completeRuleChanged(oldRule, newRule) {
+			newRuleList = append(newRuleList, newRule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
+		}
 	}
 
 	// start a force full synchronization of policyrule
@@ -313,30 +508,18 @@ func (r *Reconciler) processPolicyUpdate(ctx context.Context, policy *securityv1
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
 	}
 
+	r.updateCompleteRuleCache(oldCompleteRules, newCompleteRules)
 	r.addProcessedSysPolicy(k8stypes.NamespacedName{Namespace: policy.Namespace, Name: policy.Name})
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler) calculateExpectedPolicyRules(ctx context.Context, policy *securityv1alpha1.SecurityPolicy) ([]policycache.PolicyRule, error) {
-	var policyRuleList []policycache.PolicyRule
-
-	completeRules, err := r.completePolicy(ctx, policy)
-	if err != nil {
-		return policyRuleList, err
-	}
-
-	// todo: replace delete and add completeRules with update
-	oldCompleteRules, _ := r.ruleCache.ByIndex(policycache.PolicyIndex, policy.Namespace+"/"+policy.Name)
+func (r *Reconciler) updateCompleteRuleCache(oldCompleteRules []interface{}, newCompleteRules []*policycache.CompleteRule) {
 	for _, oldCompleteRule := range oldCompleteRules {
 		_ = r.ruleCache.Delete(oldCompleteRule)
 	}
-
-	for _, completeRule := range completeRules {
+	for _, completeRule := range newCompleteRules {
 		_ = r.ruleCache.Add(completeRule)
-		policyRuleList = append(policyRuleList, completeRule.ListRules(ctx, r.groupCache, r.ManagedVDSes)...)
 	}
-
-	return policyRuleList, nil
 }
 
 // classifyEgressPorts classify egress ports by port type.

@@ -90,6 +90,14 @@ func main() {
 	flag.BoolVar(&opts.readyToProcessGlobalRule, "ready-to-process-global-rule", false, "Is ready to process global rule when agent start.")
 	flag.DurationVar(&opts.flowRoundCleanDelay, "flow-round-clean-delay", 90*time.Second,
 		"Delay before cleaning previous round flows and persisting current round.")
+	flag.Uint64Var(&opts.policyRuleEstimateLimit, "policy-rule-estimate-limit", policy.DefaultPolicyRuleEstimateLimit,
+		"Maximum estimated policy rule expansion allowed before policy reconcile is rejected. 0 disables the limit.")
+	flag.Uint64Var(&opts.policyMemoryThreshold, "policy-memory-threshold-bytes", 0,
+		"Memory usage threshold in bytes for policy memory guard. 0 disables the threshold.")
+	flag.BoolVar(&opts.disablePolicyMemoryGuard, "disable-policy-memory-guard", false,
+		"Disable policy memory guard at startup.")
+	flag.BoolVar(&opts.disablePolicyRuleGuard, "disable-policy-rule-guard", false,
+		"Disable policy rule estimate guard at startup.")
 	klog.InitFlags(nil)
 	flag.Parse()
 	defer klog.Flush()
@@ -158,12 +166,12 @@ func main() {
 		klog.Fatalf("failed to add pprof handler: %s", err)
 	}
 
-	proxyCache, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
+	proxyCache, policyGuardSetter, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
-	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache, pprofSwitch)
+	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache, pprofSwitch, policyGuardSetter)
 	go rpcServer.Run(stopCtx.Done())
 
 	resourceInit(stopCtx, mgr, datapathManager)
@@ -262,19 +270,27 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 }
 
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
-	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, error) {
+	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, policy.GuardRuntimeSetter, error) {
 	var err error
+	var policyGuardSetter policy.GuardRuntimeSetter
 	if opts.IsEnableMS() {
 		// Policy controller: watch policy related resource and update
-		if err = (&policy.Reconciler{
+		policyReconciler := &policy.Reconciler{
 			Client:                   mgr.GetClient(),
 			Scheme:                   mgr.GetScheme(),
 			DatapathManager:          datapathManager,
 			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
-		}).SetupWithManager(mgr); err != nil {
+		}
+		if err = policyReconciler.SetupWithManager(
+			mgr,
+			opts.policyRuleEstimateLimit,
+			opts.policyMemoryThreshold,
+			opts.disablePolicyMemoryGuard,
+			opts.disablePolicyRuleGuard); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
+		policyGuardSetter = policyReconciler
 	}
 	if opts.IsEnableTR() {
 		if err = (&trctrl.Reconciler{
@@ -333,7 +349,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			}
 			if err = proxyReconciler.SetupWithManager(mgr); err != nil {
 				klog.Errorf("unable to create proxy controller: %s", err.Error())
-				return nil, err
+				return nil, nil, err
 			}
 			proxyCache = proxyReconciler.GetCache()
 
@@ -346,7 +362,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				}
 				if err := ipsetCtrl.SetupWithManager(mgr); err != nil {
 					klog.Errorf("unable to create ipset proxy controller: %s", err.Error())
-					return nil, err
+					return nil, nil, err
 				}
 			}
 		}
@@ -359,7 +375,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 		}
 	}()
 
-	return proxyCache, nil
+	return proxyCache, policyGuardSetter, nil
 }
 
 func resourceInit(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) {

@@ -49,6 +49,10 @@ type Options struct {
 	disableProbeTimeoutIP    bool
 	readyToProcessGlobalRule bool
 	flowRoundCleanDelay      time.Duration
+	policyRuleEstimateLimit  uint64
+	policyMemoryThreshold    uint64
+	disablePolicyMemoryGuard bool
+	disablePolicyRuleGuard   bool
 
 	svcTCPSet ipset.IPSet
 	svcUDPSet ipset.IPSet

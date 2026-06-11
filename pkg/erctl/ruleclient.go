@@ -237,6 +237,50 @@ func GetGOMemLimit() (int64, error) {
 	return res.GetLimit(), nil
 }
 
+// SetPolicyMemoryThreshold sets policy memory guard threshold via RPC.
+func SetPolicyMemoryThreshold(threshold uint64) (uint64, uint64, error) {
+	res, err := ruleconn.SetPolicyMemoryThreshold(context.Background(), &v1alpha1.SetPolicyMemoryThresholdRequest{Threshold: threshold})
+	if err != nil {
+		return 0, 0, err
+	}
+	return res.GetPrevThreshold(), res.GetCurrentThreshold(), nil
+}
+
+// SetPolicyRuleEstimateLimit sets policy rule estimate limit via RPC.
+func SetPolicyRuleEstimateLimit(limit uint64) (uint64, uint64, error) {
+	res, err := ruleconn.SetPolicyRuleEstimateLimit(context.Background(), &v1alpha1.SetPolicyRuleEstimateLimitRequest{Limit: limit})
+	if err != nil {
+		return 0, 0, err
+	}
+	return res.GetPrevLimit(), res.GetCurrentLimit(), nil
+}
+
+// GetPolicyRuleEstimateLimit retrieves current policy rule estimate limit via RPC.
+func GetPolicyRuleEstimateLimit() (uint64, error) {
+	res, err := ruleconn.GetPolicyRuleEstimateLimit(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return 0, err
+	}
+	return res.GetLimit(), nil
+}
+
+// SetPolicyGuardEnabled enables or disables a policy guard via RPC.
+func SetPolicyGuardEnabled(guard string, enabled bool) (bool, bool, error) {
+	res, err := ruleconn.SetPolicyGuardEnabled(context.Background(), &v1alpha1.SetPolicyGuardEnabledRequest{
+		Guard:   guard,
+		Enabled: enabled,
+	})
+	if err != nil {
+		return false, false, err
+	}
+	return res.GetPrevEnabled(), res.GetCurrentEnabled(), nil
+}
+
+// GetPolicyGuardStatus retrieves current policy guard status via RPC.
+func GetPolicyGuardStatus() (*v1alpha1.PolicyGuardStatus, error) {
+	return ruleconn.GetPolicyGuardStatus(context.Background(), &emptypb.Empty{})
+}
+
 // EnablePprof enables the agent pprof HTTP handlers via RPC.
 func EnablePprof() (bool, string, error) {
 	status, err := ruleconn.EnablePprof(context.Background(), &emptypb.Empty{})
