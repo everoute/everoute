@@ -41,6 +41,7 @@ import (
 	crd "github.com/everoute/everoute/pkg/client/informers_generated/externalversions"
 	"github.com/everoute/everoute/pkg/constants"
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
+	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
 	"github.com/everoute/everoute/pkg/labels"
 	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/controller/endpoint"
@@ -76,6 +77,11 @@ const (
 
 	K8sNsNameLabel = "kubernetes.io/metadata.name"
 )
+
+type EndpointGroupSecurityGroupMetric interface {
+	SetSecurityGroup(securityGroupID string, endpointGroupNames []string)
+	DeleteSecurityGroup(securityGroupID string)
+}
 
 // Controller sync SecurityPolicy and IsolationPolicy as v1alpha1.SecurityPolicy
 // from tower. For v1alpha1.SecurityPolicy, has the following naming rules:
@@ -136,6 +142,8 @@ type Controller struct {
 	serviceInformer       cache.SharedIndexInformer
 	serviceLister         informer.Lister
 	serviceInformerSynced cache.InformerSynced
+
+	sgMetric EndpointGroupSecurityGroupMetric
 }
 
 // New creates a new instance of controller.
@@ -149,6 +157,7 @@ func New(
 	namespace string,
 	podNamespace string,
 	everouteCluster string,
+	endpointGroupSecurityGroupMetrics ...EndpointGroupSecurityGroupMetric,
 ) *Controller {
 	crdPolicyInformer := crdFactory.Security().V1alpha1().SecurityPolicies().Informer()
 	vmInformer := towerFactory.VM()
@@ -159,6 +168,10 @@ func New(
 	systemEndpointInformer := towerFactory.SystemEndpoints()
 	securityGroupInformer := towerFactory.SecurityGroup()
 	serviceInformer := towerFactory.Service()
+	var sgMetric EndpointGroupSecurityGroupMetric
+	if len(endpointGroupSecurityGroupMetrics) > 0 {
+		sgMetric = endpointGroupSecurityGroupMetrics[0]
+	}
 
 	c := &Controller{
 		name:                          "PolicyController",
@@ -181,6 +194,7 @@ func New(
 		serviceInformer:               serviceInformer,
 		serviceLister:                 serviceInformer.GetIndexer(),
 		serviceInformerSynced:         serviceInformer.HasSynced,
+		sgMetric:                      sgMetric,
 		crdPolicyInformer:             crdPolicyInformer,
 		crdPolicyLister:               crdPolicyInformer.GetIndexer(),
 		crdPolicyInformerSynced:       crdPolicyInformer.HasSynced,
@@ -687,6 +701,9 @@ func (c *Controller) handleSecurityGroup(obj interface{}) {
 		securityGroup.EverouteCluster.ID != c.everouteCluster {
 		return
 	}
+	if securityGroup.EverouteCluster.ID == "" {
+		c.deleteSGMetric(securityGroup.GetID())
+	}
 
 	securityPolicies, _ := c.securityPolicyLister.ByIndex(securityGroupIndex, securityGroup.GetID())
 	for _, securityPolicy := range securityPolicies {
@@ -707,6 +724,20 @@ func (c *Controller) updateSecurityGroup(old, new interface{}) {
 		return
 	}
 	c.handleSecurityGroup(newGroup)
+}
+
+func (c *Controller) setSGMetric(securityGroupID string, endpointGroupNames []string) {
+	if c == nil || c.sgMetric == nil {
+		return
+	}
+	c.sgMetric.SetSecurityGroup(securityGroupID, endpointGroupNames)
+}
+
+func (c *Controller) deleteSGMetric(securityGroupID string) {
+	if c == nil || c.sgMetric == nil {
+		return
+	}
+	c.sgMetric.DeleteSecurityGroup(securityGroupID)
 }
 
 func (c *Controller) handleService(obj interface{}) {
@@ -1532,6 +1563,7 @@ func (c *Controller) parseIPSecurityGroup(securityGroup *schema.SecurityGroup) (
 
 func (c *Controller) parsePodSecurityGroup(securityGroup *schema.SecurityGroup) ([]v1alpha1.ApplyToPeer, error) {
 	var appliedPeers []v1alpha1.ApplyToPeer
+	endpointGroupNames := make([]string, 0, len(securityGroup.PodLabelGroups))
 	for _, podLabelGroup := range securityGroup.PodLabelGroups {
 		matchLabels := make(map[string]string, 2)
 		matchLabels[msconst.SKSLabelKeyClusterName] = utils.GetValidLabelString(podLabelGroup.KSC.Name)
@@ -1554,10 +1586,24 @@ func (c *Controller) parsePodSecurityGroup(securityGroup *schema.SecurityGroup) 
 			}
 			selector.LabelSelector.MatchExpressions = []metav1.LabelSelectorRequirement{matchExpre}
 		}
-		appliedPeers = append(appliedPeers, v1alpha1.ApplyToPeer{
+		appliedPeer := v1alpha1.ApplyToPeer{
 			EndpointSelector: selector,
-		})
+		}
+		appliedPeers = append(appliedPeers, appliedPeer)
+		// The same Pod SecurityGroup can be converted to an EndpointGroup through
+		// different policy paths. Record both possible EndpointGroup names so
+		// alerts can join the generated group back to the source SecurityGroup.
+		if group := ctrlpolicy.PeerAsEndpointGroup(c.podNamespace, ctrlpolicy.AppliedAsSecurityPeer(c.podNamespace, appliedPeer)); group != nil {
+			endpointGroupNames = append(endpointGroupNames, group.Name)
+		}
+		if group := ctrlpolicy.PeerAsEndpointGroup(c.podNamespace, v1alpha1.SecurityPolicyPeer{
+			EndpointSelector:  selector,
+			NamespaceSelector: c.genNamespaceSelector(true),
+		}); group != nil {
+			endpointGroupNames = append(endpointGroupNames, group.Name)
+		}
 	}
+	c.setSGMetric(securityGroup.GetID(), endpointGroupNames)
 	return appliedPeers, nil
 }
 
@@ -1573,12 +1619,14 @@ func (c *Controller) parseSecurityGroup(securityGroupRef *schema.ObjectReference
 	}
 	switch memberType {
 	case schema.VMGroupType:
+		c.deleteSGMetric(securityGroup.GetID())
 		vmPeers, err := c.parseVMSecurityGroup(securityGroup)
 		return vmPeers, false, err
 	case schema.PodGroupType:
 		podPeers, err := c.parsePodSecurityGroup(securityGroup)
 		return podPeers, true, err
 	case schema.IPGroupType:
+		c.deleteSGMetric(securityGroup.GetID())
 		ipPeers, err := c.parseIPSecurityGroup(securityGroup)
 		return ipPeers, false, err
 	default:
