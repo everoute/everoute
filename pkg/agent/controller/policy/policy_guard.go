@@ -84,6 +84,7 @@ type admissionRequest struct {
 	Resource  string
 	Namespace string
 	Name      string
+	TowerID   string
 	Operation string
 	Estimate  uint64
 }
@@ -386,8 +387,9 @@ func (g *RuleEstimateGuard) admit(ctx context.Context, req admissionRequest) adm
 		key := req.key(policyGuardReasonRuleEstimateExceeded)
 		g.rejectedByRuleLock.Lock()
 		g.rejectedByRule[key] = struct{}{}
-		g.metric.SetPolicyRuleEstimateRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, true)
-		g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, req.Estimate)
+		if g.metric != nil {
+			g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, req.TowerID, key.Operation, key.Reason, req.Estimate)
+		}
 		g.rejectedByRuleLock.Unlock()
 		log.Info("Reject policy reconcile by rule estimate", "resource", req.Resource, "namespace", req.Namespace,
 			"name", req.Name, "operation", req.Operation, "estimate", req.Estimate, "limit", ruleEstimateLimit)
@@ -442,9 +444,9 @@ func (g *RuleEstimateGuard) resetRejectedObject(req admissionRequest) {
 	defer g.rejectedByRuleLock.Unlock()
 	for key := range g.rejectedByRule {
 		if req.sameObject(key) {
-			// TODO: Consider deleting recovered object label values instead of setting them to 0.
-			g.metric.SetPolicyRuleEstimateRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, false)
-			g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, 0)
+			if g.metric != nil {
+				g.metric.DeletePolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason)
+			}
 			delete(g.rejectedByRule, key)
 		}
 	}
@@ -457,8 +459,9 @@ func (g *RuleEstimateGuard) resetAllRejectedObjects() {
 	g.rejectedByRuleLock.Lock()
 	defer g.rejectedByRuleLock.Unlock()
 	for key := range g.rejectedByRule {
-		g.metric.SetPolicyRuleEstimateRejectedObject(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, false)
-		g.metric.SetPolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason, 0)
+		if g.metric != nil {
+			g.metric.DeletePolicyRuleEstimateRejectedValue(key.Resource, key.Namespace, key.Name, key.Operation, key.Reason)
+		}
 		delete(g.rejectedByRule, key)
 	}
 }

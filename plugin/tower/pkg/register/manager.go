@@ -55,8 +55,9 @@ type Options struct {
 	Namespace    string
 	PodNamespace string
 	// which EverouteCluster should synchronize SecurityPolicy from
-	EverouteCluster string
-	SharedFactory   informer.SharedInformerFactory
+	EverouteCluster                  string
+	SharedFactory                    informer.SharedInformerFactory
+	EndpointGroupSecurityGroupMetric policy.EndpointGroupSecurityGroupMetric
 }
 
 // InitFlags set and load options from flagset.
@@ -123,7 +124,8 @@ func AddToManager(opts *Options, mgr manager.Manager) error {
 	// cache endpoints and security policies in the namespace
 	crdFactory := externalversions.NewSharedInformerFactoryWithOptions(crdClient, opts.ResyncPeriod)
 	endpointController := endpoint.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace)
-	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.PodNamespace, opts.EverouteCluster)
+	policyController := policy.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.Namespace, opts.PodNamespace,
+		opts.EverouteCluster, opts.EndpointGroupSecurityGroupMetric)
 	globalController := global.New(opts.SharedFactory, crdFactory, crdClient, opts.ResyncPeriod, opts.EverouteCluster)
 	elfController := &computecluster.Controller{EverouteClusterID: opts.EverouteCluster, ConfigMapNamespace: opts.Namespace}
 	if err := elfController.Setup(opts.SharedFactory, k8sFactory, k8sClient); err != nil {
