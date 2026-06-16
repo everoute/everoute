@@ -119,8 +119,8 @@ type EverouteCluster struct {
 type AgentELFVDS struct {
 	ObjectMeta
 
-	EverouteClusterRef ObjectReference `json:"everoute_cluster,omitempty"`
-	Cluster            ObjectReference `json:"cluster,omitempty"`
+	EverouteClusterRef ObjectReference  `json:"everoute_cluster,omitempty"`
+	Cluster            ClusterReference `json:"cluster,omitempty"`
 }
 
 type AgentELFCluster struct {
@@ -128,6 +128,10 @@ type AgentELFCluster struct {
 
 	LocalID            string          `json:"local_id"`
 	EverouteClusterRef ObjectReference `json:"everoute_cluster,omitempty"`
+}
+
+type ClusterReference struct {
+	LocalID string `json:"local_id,omitempty"`
 }
 
 func (e *EverouteCluster) GetELFs() sets.Set[string] {
@@ -148,11 +152,11 @@ func (e *EverouteCluster) GetAssociation() map[string]sets.Set[string] {
 	}
 
 	for i := range e.AgentELFVDSes {
-		clusterID := e.AgentELFVDSes[i].Cluster.ID
+		clusterID := e.AgentELFVDSes[i].Cluster.LocalID
 		vdsID := e.AgentELFVDSes[i].ID
 		if vdsID != "" {
 			if clusterID == "" {
-				klog.Warningf("skip agent_elf_vdses vds %s in everoute cluster %s due to empty cluster id", vdsID, e.ID)
+				klog.Warningf("skip agent_elf_vdses vds %s in everoute cluster %s due to empty cluster local_id", vdsID, e.ID)
 				continue
 			}
 			ensureVDSSet(res, clusterID).Insert(vdsID)
@@ -161,14 +165,14 @@ func (e *EverouteCluster) GetAssociation() map[string]sets.Set[string] {
 
 	for i := range e.Status.Agents.ManageVDSes {
 		managedVDS := e.Status.Agents.ManageVDSes[i]
-		clusterID := managedVDS.VDS.Cluster.ID
+		clusterID := managedVDS.VDS.Cluster.LocalID
 		vdsID := managedVDS.VDS.ID
 		if vdsID == "" {
 			vdsID = managedVDS.VDSID
 		}
 		if vdsID != "" {
 			if clusterID == "" {
-				klog.Warningf("skip status managed vds %s in everoute cluster %s due to empty cluster id", vdsID, e.ID)
+				klog.Warningf("skip status managed vds %s in everoute cluster %s due to empty cluster local_id", vdsID, e.ID)
 				continue
 			}
 			ensureVDSSet(res, clusterID).Insert(vdsID)
