@@ -59,8 +59,13 @@ type ComplexityRoot struct {
 	}
 
 	AgentELFVDS struct {
+		Cluster         func(childComplexity int) int
 		EverouteCluster func(childComplexity int) int
 		ID              func(childComplexity int) int
+	}
+
+	ClusterReference struct {
+		LocalID func(childComplexity int) int
 	}
 
 	EverouteCluster struct {
@@ -71,12 +76,26 @@ type ComplexityRoot struct {
 		GlobalDefaultAction func(childComplexity int) int
 		GlobalWhitelist     func(childComplexity int) int
 		ID                  func(childComplexity int) int
+		Status              func(childComplexity int) int
+	}
+
+	EverouteClusterAgentStatus struct {
+		ManageVDSes func(childComplexity int) int
 	}
 
 	EverouteClusterEvent struct {
 		Mutation       func(childComplexity int) int
 		Node           func(childComplexity int) int
 		PreviousValues func(childComplexity int) int
+	}
+
+	EverouteClusterManagedVDS struct {
+		VDS   func(childComplexity int) int
+		VDSID func(childComplexity int) int
+	}
+
+	EverouteClusterStatus struct {
+		Agents func(childComplexity int) int
 	}
 
 	EverouteClusterWhitelist struct {
@@ -414,6 +433,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.AgentELFCluster.LocalID(childComplexity), true
 
+	case "AgentELFVDS.cluster":
+		if e.complexity.AgentELFVDS.Cluster == nil {
+			break
+		}
+
+		return e.complexity.AgentELFVDS.Cluster(childComplexity), true
+
 	case "AgentELFVDS.everoute_cluster":
 		if e.complexity.AgentELFVDS.EverouteCluster == nil {
 			break
@@ -427,6 +453,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.AgentELFVDS.ID(childComplexity), true
+
+	case "ClusterReference.local_id":
+		if e.complexity.ClusterReference.LocalID == nil {
+			break
+		}
+
+		return e.complexity.ClusterReference.LocalID(childComplexity), true
 
 	case "EverouteCluster.agent_elf_clusters":
 		if e.complexity.EverouteCluster.AgentELFClusters == nil {
@@ -477,6 +510,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.EverouteCluster.ID(childComplexity), true
 
+	case "EverouteCluster.status":
+		if e.complexity.EverouteCluster.Status == nil {
+			break
+		}
+
+		return e.complexity.EverouteCluster.Status(childComplexity), true
+
+	case "EverouteClusterAgentStatus.manageVDSes":
+		if e.complexity.EverouteClusterAgentStatus.ManageVDSes == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterAgentStatus.ManageVDSes(childComplexity), true
+
 	case "EverouteClusterEvent.mutation":
 		if e.complexity.EverouteClusterEvent.Mutation == nil {
 			break
@@ -497,6 +544,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.EverouteClusterEvent.PreviousValues(childComplexity), true
+
+	case "EverouteClusterManagedVDS.vds":
+		if e.complexity.EverouteClusterManagedVDS.VDS == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterManagedVDS.VDS(childComplexity), true
+
+	case "EverouteClusterManagedVDS.vdsID":
+		if e.complexity.EverouteClusterManagedVDS.VDSID == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterManagedVDS.VDSID(childComplexity), true
+
+	case "EverouteClusterStatus.agents":
+		if e.complexity.EverouteClusterStatus.Agents == nil {
+			break
+		}
+
+		return e.complexity.EverouteClusterStatus.Agents(childComplexity), true
 
 	case "EverouteClusterWhitelist.egress":
 		if e.complexity.EverouteClusterWhitelist.Egress == nil {
@@ -2024,6 +2092,7 @@ type EverouteCluster {
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
     enable_logging: Boolean
+    status: EverouteClusterStatus
 }
 
 type AgentELFCluster {
@@ -2035,6 +2104,24 @@ type AgentELFCluster {
 type AgentELFVDS {
     id: ID!
     everoute_cluster: ObjectReference
+    cluster: ClusterReference
+}
+
+type ClusterReference {
+    local_id: String
+}
+
+type EverouteClusterStatus {
+    agents: EverouteClusterAgentStatus
+}
+
+type EverouteClusterAgentStatus {
+    manageVDSes: [EverouteClusterManagedVDS!]
+}
+
+type EverouteClusterManagedVDS {
+    vdsID: String
+    vds: AgentELFVDS
 }
 
 type EverouteClusterWhitelist {
@@ -2516,6 +2603,92 @@ func (ec *executionContext) fieldContext_AgentELFVDS_everoute_cluster(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentELFVDS_cluster(ctx context.Context, field graphql.CollectedField, obj *schema.AgentELFVDS) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentELFVDS_cluster(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cluster, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.ClusterReference)
+	fc.Result = res
+	return ec.marshalOClusterReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐClusterReference(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentELFVDS_cluster(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentELFVDS",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "local_id":
+				return ec.fieldContext_ClusterReference_local_id(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ClusterReference", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ClusterReference_local_id(ctx context.Context, field graphql.CollectedField, obj *schema.ClusterReference) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ClusterReference_local_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LocalID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ClusterReference_local_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ClusterReference",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EverouteCluster_id(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_EverouteCluster_id(ctx, field)
 	if err != nil {
@@ -2649,6 +2822,8 @@ func (ec *executionContext) fieldContext_EverouteCluster_agent_elf_vdses(ctx con
 				return ec.fieldContext_AgentELFVDS_id(ctx, field)
 			case "everoute_cluster":
 				return ec.fieldContext_AgentELFVDS_everoute_cluster(ctx, field)
+			case "cluster":
+				return ec.fieldContext_AgentELFVDS_cluster(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentELFVDS", field.Name)
 		},
@@ -2838,6 +3013,98 @@ func (ec *executionContext) fieldContext_EverouteCluster_enable_logging(ctx cont
 	return fc, nil
 }
 
+func (ec *executionContext) _EverouteCluster_status(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteCluster) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteCluster_status(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.EverouteClusterStatus)
+	fc.Result = res
+	return ec.marshalOEverouteClusterStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteCluster_status(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteCluster",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "agents":
+				return ec.fieldContext_EverouteClusterStatus_agents(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EverouteClusterStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EverouteClusterAgentStatus_manageVDSes(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterAgentStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteClusterAgentStatus_manageVDSes(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ManageVDSes, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]schema.EverouteClusterManagedVDS)
+	fc.Result = res
+	return ec.marshalOEverouteClusterManagedVDS2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterManagedVDSᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteClusterAgentStatus_manageVDSes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteClusterAgentStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "vdsID":
+				return ec.fieldContext_EverouteClusterManagedVDS_vdsID(ctx, field)
+			case "vds":
+				return ec.fieldContext_EverouteClusterManagedVDS_vds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EverouteClusterManagedVDS", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EverouteClusterEvent_mutation(ctx context.Context, field graphql.CollectedField, obj *model.EverouteClusterEvent) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_EverouteClusterEvent_mutation(ctx, field)
 	if err != nil {
@@ -2935,6 +3202,8 @@ func (ec *executionContext) fieldContext_EverouteClusterEvent_node(ctx context.C
 				return ec.fieldContext_EverouteCluster_global_whitelist(ctx, field)
 			case "enable_logging":
 				return ec.fieldContext_EverouteCluster_enable_logging(ctx, field)
+			case "status":
+				return ec.fieldContext_EverouteCluster_status(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EverouteCluster", field.Name)
 		},
@@ -2982,6 +3251,141 @@ func (ec *executionContext) fieldContext_EverouteClusterEvent_previousValues(ctx
 				return ec.fieldContext_ObjectReference_id(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ObjectReference", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EverouteClusterManagedVDS_vdsID(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterManagedVDS) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteClusterManagedVDS_vdsID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VDSID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteClusterManagedVDS_vdsID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteClusterManagedVDS",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EverouteClusterManagedVDS_vds(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterManagedVDS) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteClusterManagedVDS_vds(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VDS, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.AgentELFVDS)
+	fc.Result = res
+	return ec.marshalOAgentELFVDS2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFVDS(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteClusterManagedVDS_vds(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteClusterManagedVDS",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AgentELFVDS_id(ctx, field)
+			case "everoute_cluster":
+				return ec.fieldContext_AgentELFVDS_everoute_cluster(ctx, field)
+			case "cluster":
+				return ec.fieldContext_AgentELFVDS_cluster(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AgentELFVDS", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EverouteClusterStatus_agents(ctx context.Context, field graphql.CollectedField, obj *schema.EverouteClusterStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EverouteClusterStatus_agents(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Agents, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(schema.EverouteClusterAgentStatus)
+	fc.Result = res
+	return ec.marshalOEverouteClusterAgentStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterAgentStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EverouteClusterStatus_agents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EverouteClusterStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "manageVDSes":
+				return ec.fieldContext_EverouteClusterAgentStatus_manageVDSes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EverouteClusterAgentStatus", field.Name)
 		},
 	}
 	return fc, nil
@@ -6141,6 +6545,8 @@ func (ec *executionContext) fieldContext_Query_everouteClusters(ctx context.Cont
 				return ec.fieldContext_EverouteCluster_global_whitelist(ctx, field)
 			case "enable_logging":
 				return ec.fieldContext_EverouteCluster_enable_logging(ctx, field)
+			case "status":
+				return ec.fieldContext_EverouteCluster_status(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EverouteCluster", field.Name)
 		},
@@ -12338,6 +12744,35 @@ func (ec *executionContext) _AgentELFVDS(ctx context.Context, sel ast.SelectionS
 				return innerFunc(ctx)
 
 			})
+		case "cluster":
+
+			out.Values[i] = ec._AgentELFVDS_cluster(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var clusterReferenceImplementors = []string{"ClusterReference"}
+
+func (ec *executionContext) _ClusterReference(ctx context.Context, sel ast.SelectionSet, obj *schema.ClusterReference) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, clusterReferenceImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ClusterReference")
+		case "local_id":
+
+			out.Values[i] = ec._ClusterReference_local_id(ctx, field, obj)
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12396,6 +12831,35 @@ func (ec *executionContext) _EverouteCluster(ctx context.Context, sel ast.Select
 
 			out.Values[i] = ec._EverouteCluster_enable_logging(ctx, field, obj)
 
+		case "status":
+
+			out.Values[i] = ec._EverouteCluster_status(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteClusterAgentStatusImplementors = []string{"EverouteClusterAgentStatus"}
+
+func (ec *executionContext) _EverouteClusterAgentStatus(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteClusterAgentStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterAgentStatusImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteClusterAgentStatus")
+		case "manageVDSes":
+
+			out.Values[i] = ec._EverouteClusterAgentStatus_manageVDSes(ctx, field, obj)
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12434,6 +12898,60 @@ func (ec *executionContext) _EverouteClusterEvent(ctx context.Context, sel ast.S
 		case "previousValues":
 
 			out.Values[i] = ec._EverouteClusterEvent_previousValues(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteClusterManagedVDSImplementors = []string{"EverouteClusterManagedVDS"}
+
+func (ec *executionContext) _EverouteClusterManagedVDS(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteClusterManagedVDS) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterManagedVDSImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteClusterManagedVDS")
+		case "vdsID":
+
+			out.Values[i] = ec._EverouteClusterManagedVDS_vdsID(ctx, field, obj)
+
+		case "vds":
+
+			out.Values[i] = ec._EverouteClusterManagedVDS_vds(ctx, field, obj)
+
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var everouteClusterStatusImplementors = []string{"EverouteClusterStatus"}
+
+func (ec *executionContext) _EverouteClusterStatus(ctx context.Context, sel ast.SelectionSet, obj *schema.EverouteClusterStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, everouteClusterStatusImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EverouteClusterStatus")
+		case "agents":
+
+			out.Values[i] = ec._EverouteClusterStatus_agents(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -14671,6 +15189,10 @@ func (ec *executionContext) marshalNEverouteClusterEvent2ᚖgithubᚗcomᚋevero
 	return ec._EverouteClusterEvent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNEverouteClusterManagedVDS2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterManagedVDS(ctx context.Context, sel ast.SelectionSet, v schema.EverouteClusterManagedVDS) graphql.Marshaler {
+	return ec._EverouteClusterManagedVDS(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNEverouteControllerInstance2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteControllerInstance(ctx context.Context, sel ast.SelectionSet, v schema.EverouteControllerInstance) graphql.Marshaler {
 	return ec._EverouteControllerInstance(ctx, sel, &v)
 }
@@ -16010,6 +16532,10 @@ func (ec *executionContext) marshalOAgentELFCluster2ᚕgithubᚗcomᚋeveroute�
 	return ret
 }
 
+func (ec *executionContext) marshalOAgentELFVDS2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFVDS(ctx context.Context, sel ast.SelectionSet, v schema.AgentELFVDS) graphql.Marshaler {
+	return ec._AgentELFVDS(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalOAgentELFVDS2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐAgentELFVDSᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.AgentELFVDS) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -16081,6 +16607,65 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	}
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOClusterReference2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐClusterReference(ctx context.Context, sel ast.SelectionSet, v schema.ClusterReference) graphql.Marshaler {
+	return ec._ClusterReference(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalOEverouteClusterAgentStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterAgentStatus(ctx context.Context, sel ast.SelectionSet, v schema.EverouteClusterAgentStatus) graphql.Marshaler {
+	return ec._EverouteClusterAgentStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalOEverouteClusterManagedVDS2ᚕgithubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterManagedVDSᚄ(ctx context.Context, sel ast.SelectionSet, v []schema.EverouteClusterManagedVDS) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEverouteClusterManagedVDS2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterManagedVDS(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalOEverouteClusterStatus2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterStatus(ctx context.Context, sel ast.SelectionSet, v schema.EverouteClusterStatus) graphql.Marshaler {
+	return ec._EverouteClusterStatus(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalOEverouteClusterWhitelist2githubᚗcomᚋeverouteᚋeverouteᚋpluginᚋtowerᚋpkgᚋschemaᚐEverouteClusterWhitelist(ctx context.Context, sel ast.SelectionSet, v schema.EverouteClusterWhitelist) graphql.Marshaler {

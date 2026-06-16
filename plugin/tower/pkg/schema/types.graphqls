@@ -65,6 +65,7 @@ type EverouteCluster {
     global_default_action: GlobalPolicyAction!
     global_whitelist: EverouteClusterWhitelist
     enable_logging: Boolean
+    status: EverouteClusterStatus
 }
 
 type AgentELFCluster {
@@ -76,6 +77,24 @@ type AgentELFCluster {
 type AgentELFVDS {
     id: ID!
     everoute_cluster: ObjectReference
+    cluster: ClusterReference
+}
+
+type ClusterReference {
+    local_id: String
+}
+
+type EverouteClusterStatus {
+    agents: EverouteClusterAgentStatus
+}
+
+type EverouteClusterAgentStatus {
+    manageVDSes: [EverouteClusterManagedVDS!]
+}
+
+type EverouteClusterManagedVDS {
+    vdsID: String
+    vds: AgentELFVDS
 }
 
 type EverouteClusterWhitelist {

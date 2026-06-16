@@ -8,17 +8,10 @@ import (
 
 func TestEverouteClusterGetAssociation(t *testing.T) {
 	cluster := &EverouteCluster{
-		AgentELFClusters: []AgentELFCluster{
-			{LocalID: "cluster-without-vds"},
-		},
 		AgentELFVDSes: []AgentELFVDS{
 			{
-				ObjectMeta: ObjectMeta{ID: "vds-2"},
-				Cluster:    ObjectReference{ID: "cluster-1"},
-			},
-			{
 				ObjectMeta: ObjectMeta{ID: "vds-1"},
-				Cluster:    ObjectReference{ID: "cluster-1"},
+				Cluster:    ClusterReference{LocalID: "elf-1"},
 			},
 			{
 				ObjectMeta: ObjectMeta{ID: "vds-without-cluster"},
@@ -30,13 +23,19 @@ func TestEverouteClusterGetAssociation(t *testing.T) {
 					{
 						VDSID: "vds-3",
 						VDS: AgentELFVDS{
-							Cluster: ObjectReference{ID: "cluster-1"},
+							Cluster: ClusterReference{LocalID: "elf-1"},
 						},
 					},
 					{
 						VDS: AgentELFVDS{
 							ObjectMeta: ObjectMeta{ID: "vds-4"},
-							Cluster:    ObjectReference{ID: "cluster-2"},
+							Cluster:    ClusterReference{LocalID: "elf-2"},
+						},
+					},
+					{
+						VDS: AgentELFVDS{
+							ObjectMeta: ObjectMeta{ID: "vds-5"},
+							Cluster:    ClusterReference{LocalID: "elf-3"},
 						},
 					},
 					{
@@ -49,16 +48,17 @@ func TestEverouteClusterGetAssociation(t *testing.T) {
 
 	got := cluster.GetAssociation()
 	want := map[string]sets.Set[string]{
-		"cluster-1": sets.New("vds-1", "vds-2", "vds-3"),
-		"cluster-2": sets.New("vds-4"),
+		"elf-1": sets.New("vds-1", "vds-3"),
+		"elf-2": sets.New("vds-4"),
+		"elf-3": sets.New("vds-5"),
 	}
 
 	if len(got) != len(want) {
 		t.Fatalf("unexpected association length, got %d want %d: %v", len(got), len(want), got)
 	}
-	for clusterID, wantVDSes := range want {
-		if !got[clusterID].Equal(wantVDSes) {
-			t.Fatalf("unexpected vdses for cluster %s, got %v want %v", clusterID, got[clusterID], wantVDSes)
+	for clusterLocalID, wantVDSes := range want {
+		if !got[clusterLocalID].Equal(wantVDSes) {
+			t.Fatalf("unexpected vdses for cluster %s, got %v want %v", clusterLocalID, got[clusterLocalID], wantVDSes)
 		}
 	}
 }

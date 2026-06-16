@@ -36,7 +36,53 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Data).Should(Equal(map[string]string{}))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationSyncCompletedAnnotation, "true"))
+				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationFormatVersionAnnotation, msconst.AssociationFormatVersionV2))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("er cluster associate elf with vds", func() {
+			erCluster := &schema.EverouteCluster{
+				ObjectMeta: schema.ObjectMeta{
+					ID: everouteCluster,
+				},
+				AgentELFClusters: []schema.AgentELFCluster{
+					{LocalID: "elf1"},
+					{LocalID: "elf2"},
+				},
+				AgentELFVDSes: []schema.AgentELFVDS{
+					{
+						ObjectMeta: schema.ObjectMeta{ID: "vds2"},
+						Cluster:    schema.ClusterReference{LocalID: "elf1"},
+					},
+					{
+						ObjectMeta: schema.ObjectMeta{ID: "vds1"},
+						Cluster:    schema.ClusterReference{LocalID: "elf1"},
+					},
+				},
+				Status: schema.EverouteClusterStatus{
+					Agents: schema.EverouteClusterAgentStatus{
+						ManageVDSes: []schema.EverouteClusterManagedVDS{
+							{
+								VDSID: "vds3",
+								VDS: schema.AgentELFVDS{
+									Cluster: schema.ClusterReference{LocalID: "elf2"},
+								},
+							},
+						},
+					},
+				},
+			}
+			server.TrackerFactory().EverouteCluster().Create(erCluster)
+
+			Eventually(func(g Gomega) {
+				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
+				g.Expect(err).Should(BeNil())
+				g.Expect(res.Data).Should(Equal(map[string]string{
+					"elf1": `["vds1","vds2"]`,
+					"elf2": `["vds3"]`,
+				}))
 				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationSyncCompletedAnnotation, "true"))
 				g.Expect(res.Annotations).Should(HaveKeyWithValue(msconst.AssociationFormatVersionAnnotation, msconst.AssociationFormatVersionV2))
 			}, timeout, interval).Should(Succeed())
@@ -78,12 +124,12 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Data).Should(Equal(map[string]string{}))
 				g.Expect(controller.reconcileQueue.Len()).Should(Equal(0))
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("add associate elf cluster doesn't change vds association", func() {
+		It("add associate elf cluster", func() {
 			erCluster := &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
@@ -100,11 +146,11 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Data).Should(Equal(map[string]string{}))
 			}, timeout, interval).Should(Succeed())
 		})
 
-		It("del associate elf cluster doesn't change vds association", func() {
+		It("del associate elf cluster", func() {
 			erCluster := &schema.EverouteCluster{
 				ObjectMeta: schema.ObjectMeta{
 					ID: everouteCluster,
@@ -118,7 +164,7 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Data).Should(Equal(map[string]string{}))
 			}, timeout, interval).Should(Succeed())
 		})
 
@@ -139,7 +185,7 @@ var _ = Describe("elf controller", func() {
 				res, err := erClient.CoreV1().ConfigMaps(towerSpace).Get(ctx, msconst.ComputeClustersConfigMapName, metav1.GetOptions{})
 				g.Expect(err).Should(BeNil())
 				g.Expect(res.Data).ShouldNot(BeNil())
-				g.Expect(len(res.Data)).Should(Equal(0))
+				g.Expect(res.Data).Should(Equal(map[string]string{}))
 			}, timeout, interval).Should(Succeed())
 		})
 	})
@@ -410,7 +456,7 @@ func TestHandleClusterUpdate(t *testing.T) {
 				AgentELFVDSes: []schema.AgentELFVDS{
 					{
 						ObjectMeta: schema.ObjectMeta{ID: "vds1"},
-						Cluster:    schema.ObjectReference{ID: "elf1"},
+						Cluster:    schema.ClusterReference{LocalID: "elf1"},
 					},
 				},
 			},
@@ -461,7 +507,7 @@ func TestHandleClusterUpdate(t *testing.T) {
 				AgentELFVDSes: []schema.AgentELFVDS{
 					{
 						ObjectMeta: schema.ObjectMeta{ID: "vds1"},
-						Cluster:    schema.ObjectReference{ID: "elf1"},
+						Cluster:    schema.ClusterReference{LocalID: "elf1"},
 					},
 				},
 			},
@@ -477,7 +523,7 @@ func TestHandleClusterUpdate(t *testing.T) {
 				AgentELFVDSes: []schema.AgentELFVDS{
 					{
 						ObjectMeta: schema.ObjectMeta{ID: "vds2"},
-						Cluster:    schema.ObjectReference{ID: "elf1"},
+						Cluster:    schema.ClusterReference{LocalID: "elf1"},
 					},
 				},
 			},
