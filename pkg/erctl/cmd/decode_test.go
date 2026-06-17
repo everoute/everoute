@@ -119,15 +119,20 @@ var _ = Describe("Decode", func() {
 		})
 	})
 
-	Describe("ctlabelsCmd", func() {
+	Describe("ctlabelCmd", func() {
+		It("should use ctlabel as command name and keep ctlabels alias", func() {
+			Expect(ctlabelCmd.Use).Should(Equal("ctlabel"))
+			Expect(ctlabelCmd.Aliases).Should(ContainElement("ctlabels"))
+		})
+
 		It("should decode hex label and output JSON", func() {
 			// Use a known test case - all zeros
 			label := "0x00000000000000000000000000000000"
 			var buf bytes.Buffer
-			ctlabelsCmd.SetOut(&buf)
+			ctlabelCmd.SetOut(&buf)
 			humanOutput = false
 
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{label})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{label})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			var result map[string]interface{}
@@ -142,10 +147,10 @@ var _ = Describe("Decode", func() {
 			// All zeros in binary
 			label := "0b" + strings.Repeat("0", 128)
 			var buf bytes.Buffer
-			ctlabelsCmd.SetOut(&buf)
+			ctlabelCmd.SetOut(&buf)
 			humanOutput = false
 
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{label})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{label})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			var result map[string]interface{}
@@ -157,10 +162,10 @@ var _ = Describe("Decode", func() {
 		It("should output human-readable format", func() {
 			label := "0x00000000000000000000000000000000"
 			var buf bytes.Buffer
-			ctlabelsCmd.SetOut(&buf)
+			ctlabelCmd.SetOut(&buf)
 			humanOutput = true
 
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{label})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{label})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			output := buf.String()
@@ -168,7 +173,7 @@ var _ = Describe("Decode", func() {
 		})
 
 		It("should return error when no arguments provided", func() {
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{})
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("required"))
 		})
@@ -177,10 +182,10 @@ var _ = Describe("Decode", func() {
 			label1 := "0x00000000000000000000000000000000"
 			label2 := "0x00000000000000000000000000000001"
 			var buf bytes.Buffer
-			ctlabelsCmd.SetOut(&buf)
+			ctlabelCmd.SetOut(&buf)
 			humanOutput = false
 
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{label1, label2})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{label1, label2})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -189,10 +194,10 @@ var _ = Describe("Decode", func() {
 			// This is a simplified test - actual old scheme detection depends on ctlabels-go
 			label := "0x00000000000000000000000000000003" // May trigger old scheme
 			var buf bytes.Buffer
-			ctlabelsCmd.SetOut(&buf)
+			ctlabelCmd.SetOut(&buf)
 			humanOutput = false
 
-			err := ctlabelsCmd.RunE(ctlabelsCmd, []string{label})
+			err := ctlabelCmd.RunE(ctlabelCmd, []string{label})
 			// Should not error regardless of scheme
 			Expect(err).ShouldNot(HaveOccurred())
 		})

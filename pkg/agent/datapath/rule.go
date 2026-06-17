@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/contiv/ofnet/ofctrl"
+	"github.com/samber/mo"
 
 	"github.com/everoute/everoute/pkg/agent/datapath/conntrack"
 	"github.com/everoute/everoute/pkg/utils"
@@ -54,22 +55,27 @@ func (r *EveroutePolicyRule) DeepCopy() *EveroutePolicyRule {
 	}
 }
 
-func (r *EveroutePolicyRule) ToMatcher() (conntrack.Matcher, error) {
-	res := conntrack.Matcher{
-		ID:             r.RuleID,
-		IPProtocol:     r.IPProtocol,
-		IPFamily:       r.IPFamily,
-		SrcPort:        r.SrcPort,
-		SrcPortMask:    r.SrcPortMask,
-		DstPort:        r.DstPort,
-		DstPortMask:    r.DstPortMask,
-		IcmpTypeEnable: r.IcmpTypeEnable,
-		IcmpType:       r.IcmpType,
+func (r *EveroutePolicyRule) ToMatcher() (conntrack.TupleMatcher, error) {
+	icmpType := mo.Option[uint8]{}
+	if r.IcmpTypeEnable {
+		icmpType = mo.Some(r.IcmpType)
+	}
+	res := conntrack.TupleMatcher{
+		ID: r.RuleID,
+		IPTuple: conntrack.IPTuple{
+			IPProtocol:  r.IPProtocol,
+			IPFamily:    r.IPFamily,
+			SrcPort:     r.SrcPort,
+			SrcPortMask: r.SrcPortMask,
+			DstPort:     r.DstPort,
+			DstPortMask: r.DstPortMask,
+			IcmpType:    icmpType,
+		},
 	}
 	if r.SrcIPAddr != "" {
 		ip, prefixLen, ok := utils.ParseIPStringToIPAndSubnetPrefixLen(r.SrcIPAddr)
 		if !ok {
-			return conntrack.Matcher{}, fmt.Errorf("failed to parse src ip: %s", r.SrcIPAddr)
+			return conntrack.TupleMatcher{}, fmt.Errorf("failed to parse src ip: %s", r.SrcIPAddr)
 		}
 		res.SrcIP = ip.As16()
 		if prefixLen != 0 && ip.Is4() {
@@ -81,7 +87,7 @@ func (r *EveroutePolicyRule) ToMatcher() (conntrack.Matcher, error) {
 	if r.DstIPAddr != "" {
 		ip, prefixLen, ok := utils.ParseIPStringToIPAndSubnetPrefixLen(r.DstIPAddr)
 		if !ok {
-			return conntrack.Matcher{}, fmt.Errorf("failed to parse dst ip: %s", r.DstIPAddr)
+			return conntrack.TupleMatcher{}, fmt.Errorf("failed to parse dst ip: %s", r.DstIPAddr)
 		}
 		res.DstIP = ip.As16()
 		if prefixLen != 0 && ip.Is4() {

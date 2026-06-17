@@ -31,9 +31,11 @@ func TestUpdateConntrackFlows_NoPanicOnChannelClose(t *testing.T) {
 		}
 	}()
 
+	m := CookTupleMatcherBatch(nil)
+
 	_, _, _, _, err := UpdateConntrackFlows(
 		unix.AF_INET,
-		CookMatcherBatch(nil),
+		&m,
 		allocator,
 		deallocator,
 		updateFunc,
