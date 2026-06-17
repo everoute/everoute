@@ -41,7 +41,7 @@ func TestToMatcher(t *testing.T) {
 		name    string
 		src     EveroutePolicyRule
 		wantErr bool
-		check   func(t *testing.T, got conntrack.Matcher)
+		check   func(t *testing.T, got conntrack.TupleMatcher)
 	}{
 		{
 			name: "complete rule with src and dst",
@@ -59,7 +59,7 @@ func TestToMatcher(t *testing.T) {
 				IcmpType:       13,
 			},
 			wantErr: false,
-			check: func(t *testing.T, got conntrack.Matcher) {
+			check: func(t *testing.T, got conntrack.TupleMatcher) {
 				if got.ID != "rule1" || got.SrcPort != 60 || got.DstPort != 12 {
 					t.Errorf("ID/SrcPort/DstPort mismatch: got %+v", got)
 				}
@@ -96,7 +96,7 @@ func TestToMatcher(t *testing.T) {
 				IcmpType:       13,
 			},
 			wantErr: false,
-			check: func(t *testing.T, got conntrack.Matcher) {
+			check: func(t *testing.T, got conntrack.TupleMatcher) {
 				if got.SrcIPPrefixLen != 0 || got.DstIPPrefixLen != 0 {
 					t.Errorf("expect any IP (prefix 0), got Src=%d Dst=%d",
 						got.SrcIPPrefixLen, got.DstIPPrefixLen)
@@ -119,7 +119,7 @@ func TestToMatcher(t *testing.T) {
 				IcmpType:       13,
 			},
 			wantErr: false,
-			check: func(t *testing.T, got conntrack.Matcher) {
+			check: func(t *testing.T, got conntrack.TupleMatcher) {
 				expDst := ipTo16("12.1.1.4")
 				if got.DstIP != expDst {
 					t.Errorf("DstIP got %x, want %x", got.DstIP, expDst)

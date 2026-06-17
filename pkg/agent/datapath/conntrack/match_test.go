@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/samber/mo"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -389,17 +390,19 @@ func makeFlowGeneric(zone uint16, family uint8, srcIP, dstIP string, proto uint8
 }
 
 func TestMatcher_MatchConntrackFlow(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		SrcPort:        12345,
-		SrcPortMask:    0xffff,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			SrcPort:        12345,
+			SrcPortMask:    0xffff,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 12345, 80, unix.IPPROTO_TCP)
@@ -433,15 +436,17 @@ func TestMatcher_MatchConntrackFlow(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_Subnet(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.0.0"),
-		SrcIPPrefixLen: toIpv6PrefixLen(24),
-		DstIP:          ipTo16("10.0.0.0"),
-		DstIPPrefixLen: toIpv6PrefixLen(16),
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        443,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.0.0"),
+			SrcIPPrefixLen: toIpv6PrefixLen(24),
+			DstIP:          ipTo16("10.0.0.0"),
+			DstIPPrefixLen: toIpv6PrefixLen(16),
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        443,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	// src in 192.168.0.0/24, dst in 10.0.0.0/16
@@ -464,14 +469,16 @@ func TestMatcher_MatchConntrackFlow_Subnet(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_OnlySrcIP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIPPrefixLen: 0,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIPPrefixLen: 0,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "1.2.3.4", 12345, 80, unix.IPPROTO_TCP)
@@ -486,14 +493,16 @@ func TestMatcher_MatchConntrackFlow_OnlySrcIP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_OnlyDstIP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIPPrefixLen: 0,
-		DstIP:          ipTo16("10.0.0.1"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        22,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIPPrefixLen: 0,
+			DstIP:          ipTo16("10.0.0.1"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        22,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "10.0.0.1", 12345, 22, unix.IPPROTO_TCP)
@@ -508,17 +517,19 @@ func TestMatcher_MatchConntrackFlow_OnlyDstIP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_PortMask(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		SrcPort:        1024,
-		SrcPortMask:    0xfff0, // match 1024-1039
-		DstPort:        80,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			SrcPort:        1024,
+			SrcPortMask:    0xfff0, // match 1024-1039
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 1025, 80, unix.IPPROTO_TCP)
@@ -533,15 +544,17 @@ func TestMatcher_MatchConntrackFlow_PortMask(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_AnyProtocol(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     0,
-		SrcPort:        0,
-		DstPort:        0,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     0,
+			SrcPort:        0,
+			DstPort:        0,
+		},
 	}
 
 	// should match TCP
@@ -563,32 +576,62 @@ func TestMatcher_MatchConntrackFlow_AnyProtocol(t *testing.T) {
 	}
 }
 
-func TestCookMatcherBatch(t *testing.T) {
-	matchers := []Matcher{
-		{
-			ID:             "r1",
-			DstIP:          ipTo16("10.0.0.1"),
-			DstIPPrefixLen: toIpv6PrefixLen(32),
-			IPProtocol:     unix.IPPROTO_TCP,
+func TestMatcher_MatchConntrackFlow_PortFilterWithoutProtocolDoesNotMatchICMP(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
 			DstPort:        80,
 			DstPortMask:    0xffff,
 		},
+	}
+
+	flowTCP := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 12345, 80, unix.IPPROTO_TCP)
+	if !matcher.MatchConntrackFlow(flowTCP) {
+		t.Error("expected port-filter matcher without protocol to match TCP")
+	}
+
+	flowICMP := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 0, unix.IPPROTO_ICMP)
+	if matcher.MatchConntrackFlow(flowICMP) {
+		t.Error("expected port-filter matcher without protocol to NOT match ICMP")
+	}
+}
+
+func TestCookTupleMatcherBatch(t *testing.T) {
+	matchers := []TupleMatcher{
 		{
-			ID:             "r2",
-			SrcIP:          ipTo16("10.0.0.2"),
-			SrcIPPrefixLen: toIpv6PrefixLen(32),
-			IPProtocol:     unix.IPPROTO_UDP,
-			SrcPort:        53,
-			SrcPortMask:    0xffff,
+			ID: "r1",
+			IPTuple: IPTuple{
+				DstIP:          ipTo16("10.0.0.1"),
+				DstIPPrefixLen: toIpv6PrefixLen(32),
+				IPProtocol:     unix.IPPROTO_TCP,
+				DstPort:        80,
+				DstPortMask:    0xffff,
+			},
 		},
 		{
-			ID:             "r3",
-			DstIP:          ipTo16("192.168.0.0"),
-			DstIPPrefixLen: toIpv6PrefixLen(24),
-			IPProtocol:     unix.IPPROTO_TCP,
+			ID: "r2",
+			IPTuple: IPTuple{
+				SrcIP:          ipTo16("10.0.0.2"),
+				SrcIPPrefixLen: toIpv6PrefixLen(32),
+				IPProtocol:     unix.IPPROTO_UDP,
+				SrcPort:        53,
+				SrcPortMask:    0xffff,
+			},
+		},
+		{
+			ID: "r3",
+			IPTuple: IPTuple{
+				DstIP:          ipTo16("192.168.0.0"),
+				DstIPPrefixLen: toIpv6PrefixLen(24),
+				IPProtocol:     unix.IPPROTO_TCP,
+			},
 		},
 	}
-	bm := CookMatcherBatch(matchers)
+	bm := CookTupleMatcherBatch(matchers)
 	if len(bm.IDs) != 3 {
 		t.Errorf("IDs len = %d, want 3", len(bm.IDs))
 	}
@@ -611,7 +654,7 @@ func TestCookMatcherBatch(t *testing.T) {
 }
 
 func TestCookMatcherBatch_Empty(t *testing.T) {
-	bm := CookMatcherBatch(nil)
+	bm := CookTupleMatcherBatch(nil)
 	if bm.IDs == nil {
 		t.Error("IDs should not be nil (empty slice)")
 	}
@@ -630,41 +673,44 @@ func TestCookMatcherBatch_Empty(t *testing.T) {
 }
 
 func TestCookMatcherBatch_MultiProtocol(t *testing.T) {
-	matchers := []Matcher{
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_TCP, ID: "tcp"},
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_UDP, ID: "udp"},
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_ICMP, ID: "icmp"},
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: 50, ID: "esp"}, // OtherMatchers
+	matchers := []TupleMatcher{
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_TCP}, ID: "tcp"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_UDP}, ID: "udp"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_ICMP}, ID: "icmp"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: 50}, ID: "esp"}, // OtherMatchers
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: 50}, ID: "esp"}, // OtherMatchers
 	}
-	bm := CookMatcherBatch(matchers)
-	if len(bm.IDs) != 4 {
-		t.Errorf("IDs len = %d, want 4", len(bm.IDs))
+	bm := CookTupleMatcherBatch(matchers)
+	if len(bm.IDs) != 5 {
+		t.Errorf("IDs len = %d, want 5", len(bm.IDs))
 	}
 	if !bm.AnyIPMatchers.HasMatchers {
 		t.Error("AnyIPMatchers.HasMatchers should be true")
 	}
 	if len(bm.AnyIPMatchers.TCPMatchers) != 1 || len(bm.AnyIPMatchers.UDPMatchers) != 1 ||
-		len(bm.AnyIPMatchers.ICMPMatchers) != 1 || len(bm.AnyIPMatchers.OtherMatchers) != 1 {
-		t.Errorf("AnyIPMatchers should have 1 matcher each: Tcp=%d Udp=%d Icmp=%d Other=%d",
+		len(bm.AnyIPMatchers.ICMPMatchers) != 1 || len(bm.AnyIPMatchers.OtherMatchers) != 2 {
+		t.Errorf("AnyIPMatchers should keep duplicates: Tcp=%d Udp=%d Icmp=%d Other=%d",
 			len(bm.AnyIPMatchers.TCPMatchers), len(bm.AnyIPMatchers.UDPMatchers),
 			len(bm.AnyIPMatchers.ICMPMatchers), len(bm.AnyIPMatchers.OtherMatchers))
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.10.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.10.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		SrcPort:        1000,
-		SrcPortMask:    0xffff,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.10.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.10.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			SrcPort:        1000,
+			SrcPortMask:    0xffff,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.10.1", "192.168.10.2", 1000, 80, unix.IPPROTO_TCP)
 	if !bm.MatchConntrackFlow(flow) {
@@ -682,18 +728,20 @@ func TestMatcherBatch_MatchConntrackFlow(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_ZoneBoundary(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow_ZoneBoundary(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	// zone at min - should match
 	flowMinZone := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 80, unix.IPPROTO_TCP)
@@ -720,18 +768,20 @@ func TestMatcherBatch_MatchConntrackFlow_ZoneBoundary(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_Prefix(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("10.0.0.0"),
-		SrcIPPrefixLen: toIpv6PrefixLen(24),
-		DstIP:          ipTo16("192.168.0.0"),
-		DstIPPrefixLen: toIpv6PrefixLen(24),
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow_Prefix(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("10.0.0.0"),
+			SrcIPPrefixLen: toIpv6PrefixLen(24),
+			DstIP:          ipTo16("192.168.0.0"),
+			DstIPPrefixLen: toIpv6PrefixLen(24),
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "10.0.0.50", "192.168.0.100", 12345, 80, unix.IPPROTO_TCP)
 	if !bm.MatchConntrackFlow(flowMatch) {
@@ -744,18 +794,20 @@ func TestMatcherBatch_MatchConntrackFlow_Prefix(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_IPv4Conversion(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow_IPv4Conversion(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	// flow with 4-byte IPv4 - MatchConntrackFlow converts to IPv4-mapped internally
 	flow := &netlink.ConntrackFlow{
@@ -782,30 +834,34 @@ func TestMatcherBatch_MatchConntrackFlow_IPv4Conversion(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_Multiple(t *testing.T) {
-	matchers := []Matcher{
+func TestTupleMatcherBatch_MatchConntrackFlow_Multiple(t *testing.T) {
+	matchers := []TupleMatcher{
 		{
-			ID:             "r1",
-			SrcIP:          ipTo16("192.168.1.1"),
-			SrcIPPrefixLen: 128,
-			DstIP:          ipTo16("192.168.1.2"),
-			DstIPPrefixLen: 128,
-			IPProtocol:     unix.IPPROTO_TCP,
-			DstPort:        80,
-			DstPortMask:    0xffff,
+			ID: "r1",
+			IPTuple: IPTuple{
+				SrcIP:          ipTo16("192.168.1.1"),
+				SrcIPPrefixLen: 128,
+				DstIP:          ipTo16("192.168.1.2"),
+				DstIPPrefixLen: 128,
+				IPProtocol:     unix.IPPROTO_TCP,
+				DstPort:        80,
+				DstPortMask:    0xffff,
+			},
 		},
 		{
-			ID:             "r2",
-			SrcIP:          ipTo16("192.168.1.3"),
-			SrcIPPrefixLen: 128,
-			DstIP:          ipTo16("192.168.1.4"),
-			DstIPPrefixLen: 128,
-			IPProtocol:     unix.IPPROTO_TCP,
-			DstPort:        443,
-			DstPortMask:    0xffff,
+			ID: "r2",
+			IPTuple: IPTuple{
+				SrcIP:          ipTo16("192.168.1.3"),
+				SrcIPPrefixLen: 128,
+				DstIP:          ipTo16("192.168.1.4"),
+				DstIPPrefixLen: 128,
+				IPProtocol:     unix.IPPROTO_TCP,
+				DstPort:        443,
+				DstPortMask:    0xffff,
+			},
 		},
 	}
-	bm := CookMatcherBatch(matchers)
+	bm := CookTupleMatcherBatch(matchers)
 
 	// first matcher matches
 	flow1 := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 80, unix.IPPROTO_TCP)
@@ -826,16 +882,18 @@ func TestMatcherBatch_MatchConntrackFlow_Multiple(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_AnyIP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIPPrefixLen: 0,
-		DstIPPrefixLen: 0,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        443,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow_AnyIP(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIPPrefixLen: 0,
+			DstIPPrefixLen: 0,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        443,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "1.2.3.4", "5.6.7.8", 12345, 443, unix.IPPROTO_TCP)
 	if !bm.MatchConntrackFlow(flow) {
@@ -849,15 +907,17 @@ func TestMatcherBatch_MatchConntrackFlow_AnyIP(t *testing.T) {
 	}
 
 	// UDP any-IP matcher
-	matcherUDP := Matcher{
-		ID:             "r2",
-		SrcIPPrefixLen: 0,
-		DstIPPrefixLen: 0,
-		IPProtocol:     unix.IPPROTO_UDP,
-		DstPort:        53,
-		DstPortMask:    0xffff,
+	matcherUDP := TupleMatcher{
+		ID: "r2",
+		IPTuple: IPTuple{
+			SrcIPPrefixLen: 0,
+			DstIPPrefixLen: 0,
+			IPProtocol:     unix.IPPROTO_UDP,
+			DstPort:        53,
+			DstPortMask:    0xffff,
+		},
 	}
-	bmUDP := CookMatcherBatch([]Matcher{matcherUDP})
+	bmUDP := CookTupleMatcherBatch([]TupleMatcher{matcherUDP})
 	flowUDP := makeIPv4Flow(constants.CTZoneForPolicyMin, "8.8.8.8", "1.1.1.1", 54321, 53, unix.IPPROTO_UDP)
 	if !bmUDP.MatchConntrackFlow(flowUDP) {
 		t.Error("expected any-IP UDP matcher to match flow")
@@ -865,15 +925,16 @@ func TestMatcherBatch_MatchConntrackFlow_AnyIP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_ICMP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_ICMP,
-		IcmpTypeEnable: true,
-		IcmpType:       8,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_ICMP,
+			IcmpType:       mo.Some(uint8(8)),
+		},
 	}
 
 	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 0, unix.IPPROTO_ICMP)
@@ -893,14 +954,16 @@ func TestMatcher_MatchConntrackFlow_ICMP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_ICMP_AnyType(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_ICMP,
-		IcmpTypeEnable: false,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_ICMP,
+			IcmpType:       mo.None[uint8](),
+		},
 	}
 
 	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 0, unix.IPPROTO_ICMP)
@@ -917,18 +980,19 @@ func TestMatcher_MatchConntrackFlow_ICMP_AnyType(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_ICMP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_ICMP,
-		IcmpTypeEnable: true,
-		IcmpType:       8,
+func TestTupleMatcherBatch_MatchConntrackFlow_ICMP(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_ICMP,
+			IcmpType:       mo.Some(uint8(8)),
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 0, 0, unix.IPPROTO_ICMP)
 	flow.Forward.ICMPType = 8
@@ -938,17 +1002,19 @@ func TestMatcherBatch_MatchConntrackFlow_ICMP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_UDP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_UDP,
-		SrcPort:        54321,
-		SrcPortMask:    0xffff,
-		DstPort:        53,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_UDP,
+			SrcPort:        54321,
+			SrcPortMask:    0xffff,
+			DstPort:        53,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 54321, 53, unix.IPPROTO_UDP)
@@ -968,15 +1034,17 @@ func TestMatcher_MatchConntrackFlow_UDP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_IPv6_TCP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("2001:db8::1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("2001:db8::2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        443,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("2001:db8::1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("2001:db8::2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        443,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv6Flow(constants.CTZoneForPolicyMin, "2001:db8::1", "2001:db8::2", 12345, 443, unix.IPPROTO_TCP)
@@ -991,15 +1059,17 @@ func TestMatcher_MatchConntrackFlow_IPv6_TCP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_IPv6_UDP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("2001:db8::1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("2001:db8::2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_UDP,
-		DstPort:        53,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("2001:db8::1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("2001:db8::2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_UDP,
+			DstPort:        53,
+			DstPortMask:    0xffff,
+		},
 	}
 
 	flowMatch := makeIPv6Flow(constants.CTZoneForPolicyMin, "2001:db8::1", "2001:db8::2", 54321, 53, unix.IPPROTO_UDP)
@@ -1009,15 +1079,16 @@ func TestMatcher_MatchConntrackFlow_IPv6_UDP(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_IPv6_ICMPv6(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("2001:db8::1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("2001:db8::2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_ICMPV6,
-		IcmpTypeEnable: true,
-		IcmpType:       128, // ICMPv6 echo request
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("2001:db8::1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("2001:db8::2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_ICMPV6,
+			IcmpType:       mo.Some(uint8(128)), // ICMPv6 echo request
+		},
 	}
 
 	flow := makeFlowWithICMP(constants.CTZoneForPolicyMin, unix.AF_INET6, "2001:db8::1", "2001:db8::2", 128, 0, 1, unix.IPPROTO_ICMPV6)
@@ -1032,13 +1103,15 @@ func TestMatcher_MatchConntrackFlow_IPv6_ICMPv6(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_GRE(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_GRE,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_GRE,
+		},
 	}
 
 	flowMatch := makeFlowGeneric(constants.CTZoneForPolicyMin, unix.AF_INET, "192.168.1.1", "192.168.1.2", unix.IPPROTO_GRE)
@@ -1053,13 +1126,15 @@ func TestMatcher_MatchConntrackFlow_GRE(t *testing.T) {
 }
 
 func TestMatcher_MatchConntrackFlow_IPIP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("10.0.0.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("10.0.0.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_IPIP,
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("10.0.0.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("10.0.0.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_IPIP,
+		},
 	}
 
 	flowMatch := makeFlowGeneric(constants.CTZoneForPolicyMin, unix.AF_INET, "10.0.0.1", "10.0.0.2", unix.IPPROTO_IPIP)
@@ -1073,16 +1148,18 @@ func TestMatcher_MatchConntrackFlow_IPIP(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_GRE(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("192.168.1.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("192.168.1.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_GRE,
+func TestTupleMatcherBatch_MatchConntrackFlow_GRE(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_GRE,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeFlowGeneric(constants.CTZoneForPolicyMin, unix.AF_INET, "192.168.1.1", "192.168.1.2", unix.IPPROTO_GRE)
 	if !bm.MatchConntrackFlow(flow) {
@@ -1090,16 +1167,18 @@ func TestMatcherBatch_MatchConntrackFlow_GRE(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_IPIP(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("10.0.0.1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("10.0.0.2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_IPIP,
+func TestTupleMatcherBatch_MatchConntrackFlow_IPIP(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("10.0.0.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("10.0.0.2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_IPIP,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeFlowGeneric(constants.CTZoneForPolicyMin, unix.AF_INET, "10.0.0.1", "10.0.0.2", unix.IPPROTO_IPIP)
 	if !bm.MatchConntrackFlow(flow) {
@@ -1107,18 +1186,20 @@ func TestMatcherBatch_MatchConntrackFlow_IPIP(t *testing.T) {
 	}
 }
 
-func TestMatcherBatch_MatchConntrackFlow_IPv6(t *testing.T) {
-	matcher := Matcher{
-		ID:             "r1",
-		SrcIP:          ipTo16("2001:db8::1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("2001:db8::2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		DstPort:        80,
-		DstPortMask:    0xffff,
+func TestTupleMatcherBatch_MatchConntrackFlow_IPv6(t *testing.T) {
+	matcher := TupleMatcher{
+		ID: "r1",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("2001:db8::1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("2001:db8::2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			DstPort:        80,
+			DstPortMask:    0xffff,
+		},
 	}
-	bm := CookMatcherBatch([]Matcher{matcher})
+	bm := CookTupleMatcherBatch([]TupleMatcher{matcher})
 
 	flow := makeIPv6Flow(constants.CTZoneForPolicyMin, "2001:db8::1", "2001:db8::2", 12345, 80, unix.IPPROTO_TCP)
 	if !bm.MatchConntrackFlow(flow) {
@@ -1126,36 +1207,71 @@ func TestMatcherBatch_MatchConntrackFlow_IPv6(t *testing.T) {
 	}
 
 	flowICMPv6 := makeFlowWithICMP(constants.CTZoneForPolicyMin, unix.AF_INET6, "2001:db8::1", "2001:db8::2", 128, 0, 1, unix.IPPROTO_ICMPV6)
-	matcherICMPv6 := Matcher{
-		ID:             "r2",
-		SrcIP:          ipTo16("2001:db8::1"),
-		SrcIPPrefixLen: 128,
-		DstIP:          ipTo16("2001:db8::2"),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_ICMPV6,
-		IcmpTypeEnable: true,
-		IcmpType:       128,
+	matcherICMPv6 := TupleMatcher{
+		ID: "r2",
+		IPTuple: IPTuple{
+			SrcIP:          ipTo16("2001:db8::1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("2001:db8::2"),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_ICMPV6,
+			IcmpType:       mo.Some(uint8(128)),
+		},
 	}
-	bmICMPv6 := CookMatcherBatch([]Matcher{matcherICMPv6})
+	bmICMPv6 := CookTupleMatcherBatch([]TupleMatcher{matcherICMPv6})
 	if !bmICMPv6.MatchConntrackFlow(flowICMPv6) {
 		t.Error("expected batch matcher to match IPv6 ICMPv6 flow")
 	}
 }
 
-func TestCookMatcherBatch_ICMPv6AndGRE(t *testing.T) {
-	matchers := []Matcher{
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_ICMPV6, ID: "icmpv6"},
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_GRE, ID: "gre"},
-		{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_IPIP, ID: "ipip"},
+func TestFlowMatcher_MatchConntrackFlow(t *testing.T) {
+	matcher := FlowMatcher{
+		IPFamily:   unix.AF_INET,
+		IPProtocol: unix.IPPROTO_TCP,
+		Src: IPTuple{
+			SrcIP:          ipTo16("192.168.1.1"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.2"),
+			DstIPPrefixLen: 128,
+			SrcPort:        12345,
+			DstPort:        80,
+		},
+		Dst: IPTuple{
+			SrcIP:          ipTo16("192.168.1.2"),
+			SrcIPPrefixLen: 128,
+			DstIP:          ipTo16("192.168.1.1"),
+			DstIPPrefixLen: 128,
+			SrcPort:        80,
+			DstPort:        12345,
+		},
 	}
-	bm := CookMatcherBatch(matchers)
-	if len(bm.IDs) != 3 {
-		t.Errorf("IDs len = %d, want 3", len(bm.IDs))
+
+	flow := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.1", "192.168.1.2", 12345, 80, unix.IPPROTO_TCP)
+	if !matcher.MatchConntrackFlow(flow) {
+		t.Fatalf("expected flow matcher to match forward/reply tuples")
+	}
+
+	reversed := makeIPv4Flow(constants.CTZoneForPolicyMin, "192.168.1.2", "192.168.1.1", 80, 12345, unix.IPPROTO_TCP)
+	if matcher.MatchConntrackFlow(reversed) {
+		t.Fatalf("expected flow matcher not to match reversed tuples")
+	}
+}
+
+func TestCookMatcherBatch_ICMPv6AndGRE(t *testing.T) {
+	matchers := []TupleMatcher{
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_ICMPV6}, ID: "icmpv6"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_GRE}, ID: "gre"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_IPIP}, ID: "ipip"},
+		{IPTuple: IPTuple{SrcIPPrefixLen: 0, DstIPPrefixLen: 0, IPProtocol: unix.IPPROTO_IPIP}, ID: "ipip"},
+	}
+	bm := CookTupleMatcherBatch(matchers)
+	if len(bm.IDs) != 4 {
+		t.Errorf("IDs len = %d, want 4", len(bm.IDs))
 	}
 	if len(bm.AnyIPMatchers.ICMPMatchers) != 1 {
 		t.Errorf("ICMPMatchers len = %d, want 1 (ICMPv6)", len(bm.AnyIPMatchers.ICMPMatchers))
 	}
-	if len(bm.AnyIPMatchers.OtherMatchers) != 2 {
-		t.Errorf("OtherMatchers len = %d, want 2 (GRE, IPIP)", len(bm.AnyIPMatchers.OtherMatchers))
+	if len(bm.AnyIPMatchers.OtherMatchers) != 3 {
+		t.Errorf("OtherMatchers len = %d, want 3 (GRE, IPIP, IPIP)", len(bm.AnyIPMatchers.OtherMatchers))
 	}
 }
