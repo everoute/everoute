@@ -18,8 +18,8 @@ package informer
 
 import (
 	"encoding/json"
+	"net/url"
 	"reflect"
-	"strings"
 	"time"
 
 	graphcclient "github.com/everoute/graphc/pkg/client"
@@ -63,12 +63,15 @@ func MustNewCrcFactory(c *client.Client) *CrcFactory {
 		"SecurityGroup",
 		"NetworkPolicyRuleService",
 	}
-	host := strings.TrimPrefix(c.URL, "https://")
-	host = strings.TrimSuffix(host, "/api")
-	var err error
+	u, err := url.Parse(c.URL)
+	if err != nil {
+		klog.Fatalf("unable parse url %s: %s", c.URL, err)
+	}
 	factory.w, err = crcwatch.NewWatch(resTypes, crcwatch.SetUserInfo(userInfo),
 		crcwatch.SetAPIAuth(c.APIUsername, c.APIPassword),
-		crcwatch.SetHost(host),
+		crcwatch.SetHost(u.Host),
+		crcwatch.SetScheme(u.Scheme),
+		crcwatch.SetAllowInsecure(c.AllowInsecure),
 		crcwatch.SetPollingInterval(10*time.Second))
 	if err != nil {
 		klog.Fatalln("fail to init crc watch client", err)
