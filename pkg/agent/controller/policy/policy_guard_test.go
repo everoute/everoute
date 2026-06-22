@@ -106,6 +106,25 @@ func TestMemoryGuardAdmitRejectAndDisableReset(t *testing.T) {
 	}
 }
 
+func TestMemoryGuardAllowsUsageEqualToThreshold(t *testing.T) {
+	patches := gomonkey.ApplyFuncReturn(readMemoryUsage, uint64(100))
+	defer patches.Reset()
+
+	guard := newMemoryGuard(metrics.NewAgentMetric(), 100)
+	req := newAdmissionRequest(policyGuardResourcePolicy, "ns", "policy-a", policyGuardOperationUpdate)
+
+	res := guard.admit(context.Background(), req)
+	if !res.Allowed {
+		t.Fatalf("expected memory guard to allow usage equal to threshold: %+v", res)
+	}
+	if guard.isOpen() {
+		t.Fatalf("expected memory breaker to stay closed when usage equals threshold")
+	}
+	if len(guard.rejectedByMemory) != 0 {
+		t.Fatalf("expected no memory rejected object, got %d", len(guard.rejectedByMemory))
+	}
+}
+
 func TestMemoryGuardUnlimitedThresholdAllowsAndClosesBreaker(t *testing.T) {
 	patches := gomonkey.ApplyFuncReturn(readMemoryUsage, uint64(200))
 	defer patches.Reset()
