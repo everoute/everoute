@@ -16,7 +16,7 @@ require (
 	github.com/coreos/go-iptables v0.7.0
 	github.com/everoute/container v0.0.0-20231227060557-cbcbd25ae991
 	github.com/everoute/ctlabels-go v0.0.0-20251223084813-611df91d7fa7
-	github.com/everoute/graphc v0.0.0-20260311060513-4046a92a8786
+	github.com/everoute/graphc v0.0.0-20260622102003-1a5fac10bce2
 	github.com/everoute/ipam v1.2.1-0.20240510092120-066023ea9f99
 	github.com/everoute/numeric-go v0.0.0-20251223074813-1affd646f5e4
 	github.com/everoute/trafficredirect v0.0.0-20250928025708-f06e9064969e

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/agiledragon/gomonkey"
+	"github.com/everoute/graphc/pkg/crcwatch"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
@@ -44,6 +45,7 @@ var (
 	crcFactory               *informer.CrcFactory
 	eventChanLabel           chan *informer.CrcEvent
 	eventChanEverouteCluster chan *informer.CrcEvent
+	crcWatchOpts             *crcwatch.Options
 )
 
 const (
@@ -56,6 +58,24 @@ func TestFactorCrc(t *testing.T) {
 	RunSpecs(t, "Factory CRC test suit")
 }
 
+type fakeResourceChangeWatcher struct{}
+
+func (f *fakeResourceChangeWatcher) Start(_ *watchor.ResourceChangeWatchStartParams) error {
+	return nil
+}
+
+func (f *fakeResourceChangeWatcher) Channel() <-chan *models.ResourceChangeEvent {
+	return eventChanInject
+}
+
+func (f *fakeResourceChangeWatcher) ErrorChannel() <-chan *watchor.ErrorEvent {
+	return errorChanInject
+}
+
+func (f *fakeResourceChangeWatcher) WarningChannel() <-chan *watchor.WarningEvent {
+	return nil
+}
+
 var _ = BeforeSuite(func() {
 	eventChanInject = make(chan *models.ResourceChangeEvent, 100)
 	errorChanInject = make(chan *watchor.ErrorEvent, 100)
@@ -64,6 +84,12 @@ var _ = BeforeSuite(func() {
 		func(_ apiclient.ClientConfig, _ apiclient.UserConfig) (*apiclient.Cloudtower, error) {
 			By("gomonkey apiclient.NewWithUserConfig")
 			return &apiclient.Cloudtower{}, nil
+		})
+	mock.ApplyFunc(crcwatch.NewWatchClient,
+		func(_ []string, opts *crcwatch.Options) (crcwatch.ResourceChangeWatcher, error) {
+			By("gomonkey crcwatch.NewWatchClient")
+			crcWatchOpts = opts
+			return &fakeResourceChangeWatcher{}, nil
 		})
 	mock.ApplyMethod(reflect.TypeOf(&watchor.ResourceChangeWatchClient{}), "Start",
 		func(m *watchor.ResourceChangeWatchClient, p *watchor.ResourceChangeWatchStartParams) error {
@@ -82,7 +108,9 @@ var _ = BeforeSuite(func() {
 		})
 
 	crcFactory = informer.MustNewCrcFactory(&client.Client{
-		UserInfo: &client.UserInfo{},
+		URL:           "https://127.0.0.1:21003/api",
+		AllowInsecure: true,
+		UserInfo:      &client.UserInfo{},
 	})
 
 	eventChanLabel = crcFactory.RegisterEvent(reflect.TypeOf(&schema.Label{}))
@@ -103,6 +131,12 @@ var _ = Describe("Factory CRC", func() {
 		})
 		It("should create factory", func() {
 			Expect(crcFactory).NotTo(BeNil())
+		})
+		It("should configure crcwatch endpoint", func() {
+			Expect(crcWatchOpts).NotTo(BeNil())
+			Expect(crcWatchOpts.Host).To(Equal("127.0.0.1:21003"))
+			Expect(crcWatchOpts.Scheme).To(Equal("https"))
+			Expect(crcWatchOpts.AllowInsecure).To(BeTrue())
 		})
 
 		When("common resource event - label event", func() {
