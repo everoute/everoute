@@ -201,7 +201,7 @@ func (g *MemoryGuard) refresh(reason string) (bool, error) {
 	usage := readMemoryUsage()
 	g.recordMemoryUsage(usage, threshold)
 
-	if usage >= threshold {
+	if usage > threshold {
 		return g.markOpen(reason), nil
 	}
 
@@ -218,7 +218,7 @@ func (g *MemoryGuard) refresh(reason string) (bool, error) {
 
 	usage = readMemoryUsage()
 	g.recordMemoryUsage(usage, threshold)
-	if usage >= threshold {
+	if usage > threshold {
 		return g.markOpen(reason), nil
 	}
 
