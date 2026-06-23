@@ -56,6 +56,10 @@ spec:
                 description: K8sClusterManagedPlatform the platform that a k8scluster
                   managedby.
                 type: string
+              skipEICPodSecurityPolicy:
+                type: boolean
+              skipNodeSecurityPolicy:
+                type: boolean
               sksOption:
                 properties:
                   kscName:

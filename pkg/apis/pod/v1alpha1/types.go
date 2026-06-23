@@ -42,7 +42,9 @@ type K8sClusterSpec struct {
 	CNI                   K8sClusterCNIType         `json:"cni"`
 	ManagedBy             K8sClusterManagedPlatform `json:"managedBy"`
 
-	SksOption *SksOption `json:"sksOption,omitempty"`
+	SksOption                *SksOption `json:"sksOption,omitempty"`
+	SkipNodeSecurityPolicy   bool       `json:"skipNodeSecurityPolicy,omitempty"`
+	SkipEICPodSecurityPolicy bool       `json:"skipEICPodSecurityPolicy,omitempty"`
 }
 
 type SksOption struct {
