@@ -2,6 +2,7 @@ package conntrack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -28,8 +29,9 @@ const (
 type Manager struct {
 	flushTimeout      time.Duration
 	flushingConntrack atomic.Bool
-	v4MatcherChan     chan Matcher
-	v6MatcherChan     chan Matcher
+	// FIXME: adapt more matchers
+	v4MatcherChan chan TupleMatcher
+	v6MatcherChan chan TupleMatcher
 }
 
 func NewManager(flushTimeout time.Duration, v4BufferSize, v6BufferSize int) *Manager {
@@ -43,8 +45,8 @@ func NewManager(flushTimeout time.Duration, v4BufferSize, v6BufferSize int) *Man
 	if v6BufferSize <= 0 {
 		v6BufferSize = DefaultV6BufferSize
 	}
-	v4MatcherChan := make(chan Matcher, v4BufferSize)
-	v6MatcherChan := make(chan Matcher, v6BufferSize)
+	v4MatcherChan := make(chan TupleMatcher, v4BufferSize)
+	v6MatcherChan := make(chan TupleMatcher, v6BufferSize)
 
 	return &Manager{
 		flushTimeout:  flushTimeout,
@@ -88,7 +90,7 @@ func (m *Manager) updateConntrackFlowsLoop(
 	updateFunc UpdateConntrackFlowFunc,
 	updateDelay time.Duration,
 ) {
-	var ctMatcherChan chan Matcher
+	var ctMatcherChan chan TupleMatcher
 	switch family {
 	case unix.AF_INET:
 		ctMatcherChan = m.v4MatcherChan
@@ -114,7 +116,7 @@ func (m *Manager) updateConntrackFlowsLoop(
 // loop body of clearConntrackFlowsLoop
 func updateConntrackFlows(ctx context.Context,
 	family uint8,
-	ctMatcherChan chan Matcher,
+	ctMatcherChan chan TupleMatcher,
 	conntrackFlowAllocator func() *netlink.ConntrackFlow,
 	conntrackFlowDeallocator func(*netlink.ConntrackFlow),
 	updateFunc UpdateConntrackFlowFunc,
@@ -141,10 +143,10 @@ func updateConntrackFlows(ctx context.Context,
 		if updateDelay > 0 {
 			time.Sleep(updateDelay)
 		}
-		ids := sets.NewString(m.ID)
+		ids := sets.NewString(m.GetID())
 		// receive matchers from ctMatcherChan
 		currentBufferredMatchers := len(ctMatcherChan) + 1
-		matchers := make([]Matcher, currentBufferredMatchers)
+		matchers := make([]TupleMatcher, currentBufferredMatchers)
 		matchers[0] = m
 		i := 1
 		for i < currentBufferredMatchers {
@@ -152,10 +154,10 @@ func updateConntrackFlows(ctx context.Context,
 			case <-ctx.Done():
 				return true
 			case matcher := <-ctMatcherChan:
-				if ids.Has(matcher.ID) {
+				if ids.Has(matcher.GetID()) {
 					continue
 				}
-				ids.Insert(matcher.ID)
+				ids.Insert(matcher.GetID())
 				matchers[i] = matcher
 				i++
 			default:
@@ -165,11 +167,11 @@ func updateConntrackFlows(ctx context.Context,
 	endReceive:
 		matchers = matchers[:i]
 
-		cookedMatcher := CookMatcherBatch(matchers)
+		cookedMatcher := CookTupleMatcherBatch(matchers)
 
 		dumpCount, matchCount, successCount, failureCount, err := UpdateConntrackFlows(
 			family,
-			cookedMatcher,
+			&cookedMatcher,
 			conntrackFlowAllocator, conntrackFlowDeallocator,
 			updateFunc,
 		)
@@ -191,7 +193,7 @@ func updateConntrackFlows(ctx context.Context,
 // if skipOnFlushing is false, it will update conntrack flows even if the conntrack is currently flushing
 // onFull is called when the conntrack is full and the update is skipped
 // this function requires StartUpdateConntrackFlows to be called before using it
-func (m *Manager) AsyncUpdateConntrackFlows(family uint8, matcher Matcher, onFull func(), skipOnFlushing bool) {
+func (m *Manager) AsyncUpdateConntrackFlows(family uint8, matcher TupleMatcher, onFull func(), skipOnFlushing bool) {
 	if skipOnFlushing && m.flushingConntrack.Load() {
 		// skip update conntrack flows
 		return
@@ -254,7 +256,7 @@ func (m *Manager) AsyncFlushConntrackFlows() {
 // update conntrack flows
 // return: dumpCount, matchCount, successCount, failureCount, error
 func UpdateConntrackFlows(
-	family uint8, bm MatcherBatch,
+	family uint8, matcher Matcher,
 	conntrackFlowAllocator func() *netlink.ConntrackFlow,
 	conntrackFlowDeallocator func(*netlink.ConntrackFlow),
 	updateFunc UpdateConntrackFlowFunc,
@@ -308,7 +310,7 @@ func UpdateConntrackFlows(
 			continue // never happen
 		}
 		dumpCount++
-		if bm.MatchConntrackFlow(flow) {
+		if matcher != nil && matcher.MatchConntrackFlow(flow) {
 			matchCount++
 			updated := updateFunc(flow)
 			if !updated {
@@ -351,4 +353,128 @@ func UpdateConntrackFlows(
 		conntrackFlowDeallocator(flow)
 	}
 	return dumpCount, matchCount, successCount, failureCount, nil
+}
+
+func DumpConntrackFlows(
+	family uint8, matcher Matcher,
+	conntrackFlowAllocator func() *netlink.ConntrackFlow,
+	conntrackFlowDeallocator func(*netlink.ConntrackFlow),
+	dumpFunc func(*netlink.ConntrackFlow) error,
+) (int, int, error) {
+	if family != unix.AF_INET && family != unix.AF_INET6 {
+		klog.Errorf("invalid family: %d", family)
+		return 0, 0, fmt.Errorf("invalid family: %d", family)
+	}
+	if conntrackFlowAllocator == nil {
+		return 0, 0, fmt.Errorf("conntrackFlowAllocator must not be nil")
+	}
+	if dumpFunc == nil {
+		return 0, 0, fmt.Errorf("dumpFunc must not be nil")
+	}
+
+	conntrackFlowChan := make(chan *netlink.ConntrackFlow, 10000)
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(conntrackFlowChan)
+		errCh <- netlink.ConntrackTableListStream(
+			netlink.ConntrackTable,
+			netlink.InetFamily(family),
+			conntrackFlowChan,
+			conntrackFlowAllocator,
+		)
+	}()
+
+	dumpCount := 0
+	matchCount := 0
+	var dumpErr error
+	for flow := range conntrackFlowChan {
+		if flow == nil {
+			continue
+		}
+		dumpCount++
+		if matcher == nil || matcher.MatchConntrackFlow(flow) {
+			matchCount++
+			if dumpErr == nil {
+				dumpErr = dumpFunc(flow)
+			}
+		}
+		if conntrackFlowDeallocator != nil {
+			conntrackFlowDeallocator(flow)
+		}
+	}
+
+	return dumpCount, matchCount, errors.Join(<-errCh, dumpErr)
+}
+
+func DeleteConntrackFlows(
+	family uint8, matcher Matcher,
+	conntrackFlowAllocator func() *netlink.ConntrackFlow,
+	conntrackFlowDeallocator func(*netlink.ConntrackFlow),
+) (int, int, int, int, error) {
+	if family != unix.AF_INET && family != unix.AF_INET6 {
+		klog.Errorf("invalid family: %d", family)
+		return 0, 0, 0, 0, fmt.Errorf("invalid family: %d", family)
+	}
+	if conntrackFlowAllocator == nil {
+		return 0, 0, 0, 0, fmt.Errorf("conntrackFlowAllocator must not be nil")
+	}
+
+	handle, err := netlink.NewHandle(unix.NETLINK_NETFILTER)
+	if err != nil {
+		klog.Errorf("create netlink handle error, err: %s", err)
+		return 0, 0, 0, 0, err
+	}
+	defer handle.Close()
+
+	request := handle.NewConntrackUpdateRequest(netlink.ConntrackTable, netlink.InetFamily(family), true)
+	request.NlMsghdr.Type = uint16((int(netlink.ConntrackTable) << 8) | nl.IPCTNL_MSG_CT_DELETE)
+	request.NlMsghdr.Flags = unix.NLM_F_REQUEST | unix.NLM_F_ACK
+
+	rtAttrs := make([]*nl.RtAttr, 0)
+	rtAttrIndex := 0
+	buffer := make([]nl.NetlinkRequestData, 32)
+
+	successCount := 0
+	failureCount := 0
+	dumpCount, matchCount, err := DumpConntrackFlows(
+		family,
+		matcher,
+		conntrackFlowAllocator,
+		conntrackFlowDeallocator,
+		func(flow *netlink.ConntrackFlow) error {
+			rtAttrIndex = 0
+			newRtAttr := func(attrType int, data []byte) *nl.RtAttr {
+				if rtAttrIndex >= len(rtAttrs) {
+					rtAttr := nl.NewRtAttr(attrType, data)
+					rtAttrs = append(rtAttrs, rtAttr)
+					rtAttrIndex++
+					return rtAttr
+				}
+				attr := rtAttrs[rtAttrIndex]
+				*attr = nl.RtAttr{}
+				attr.RtAttr.Type = uint16(attrType)
+				attr.Data = data
+				rtAttrIndex++
+				return attr
+			}
+			err := handle.ExecuteConntrackRequest(
+				request,
+				flow,
+				newRtAttr, buffer,
+				true,
+			)
+			if err != nil {
+				if !errors.Is(err, syscall.ENOENT) {
+					failureCount++
+					return nil
+				}
+			}
+			successCount++
+			return nil
+		},
+	)
+	if failureCount > 0 {
+		err = errors.Join(err, fmt.Errorf("failed to delete %d conntrack flows", failureCount))
+	}
+	return dumpCount, matchCount, successCount, failureCount, err
 }

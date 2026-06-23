@@ -3,6 +3,7 @@ package conntrack
 import (
 	"net"
 
+	"github.com/samber/mo"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -10,8 +11,13 @@ import (
 	"github.com/everoute/everoute/pkg/utils"
 )
 
-type Matcher struct {
-	ID string
+type Matcher interface {
+	MatchConntrackFlow(flow *netlink.ConntrackFlow) bool
+}
+
+type IPTuple struct {
+	// IP family
+	IPFamily uint8
 	// IPv6 address or IPv4 over IPv6 address
 	SrcIP [16]byte
 	// for single IP address, it is equal to the bit length of the IP address
@@ -22,48 +28,99 @@ type Matcher struct {
 	// for single IP address, it is equal to the bit length of the IP address
 	// for any IP address, it is 0
 	DstIPPrefixLen int
-	// IP family
-	IPFamily uint8
-	// IP protocol number
+
 	IPProtocol uint8
-	// Source port
+
+	// TCP/UDP
 	SrcPort     uint16
 	SrcPortMask uint16
-	// Destination port
-	DstPort        uint16
-	DstPortMask    uint16
-	IcmpTypeEnable bool
-	IcmpType       uint8
+	DstPort     uint16
+	DstPortMask uint16
+
+	// ICMP/ICMPv6
+	IcmpType mo.Option[uint8]
 }
 
-func (r *Matcher) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+type TupleMatcher struct {
+	ID string
+	IPTuple
+}
+
+func (r *TupleMatcher) GetID() string {
+	return r.ID
+}
+
+func (r *TupleMatcher) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 	return r.matchIPTuple(&flow.Forward) || r.matchIPTuple(&flow.Reverse)
 }
 
-func (r *Matcher) matchIPTuple(tuple *netlink.IPTuple) bool {
-	if r.IPProtocol != 0 && r.IPProtocol != tuple.Protocol {
+func (r *TupleMatcher) matchIPTuple(tuple *netlink.IPTuple) bool {
+	return matchTuple(&r.IPTuple, r.IPFamily, tuple)
+}
+
+func matchTuple(m *IPTuple, flowFamily uint8, tuple *netlink.IPTuple) bool {
+	if tuple == nil {
+		return false
+	}
+	if m.IPFamily != 0 && m.IPFamily != flowFamily {
+		return false
+	}
+	if m.IPProtocol != 0 && m.IPProtocol != tuple.Protocol {
 		return false
 	}
 	switch tuple.Protocol {
 	case unix.IPPROTO_TCP, unix.IPPROTO_UDP:
-		if r.SrcPort != 0 && !matchPort(r.SrcPortMask, r.SrcPort, tuple.SrcPort) {
+		if m.SrcPort != 0 && !matchPort(m.SrcPortMask, m.SrcPort, tuple.SrcPort) {
 			return false
 		}
-		if r.DstPort != 0 && !matchPort(r.DstPortMask, r.DstPort, tuple.DstPort) {
+		if m.DstPort != 0 && !matchPort(m.DstPortMask, m.DstPort, tuple.DstPort) {
 			return false
 		}
 	case unix.IPPROTO_ICMP, unix.IPPROTO_ICMPV6:
-		if r.IcmpTypeEnable && r.IcmpType != tuple.ICMPType {
+		if t, ok := m.IcmpType.Get(); ok && t != tuple.ICMPType {
+			return false
+		}
+		if m.SrcPort != 0 || m.DstPort != 0 {
 			return false
 		}
 	}
-	if !matchIP(r.SrcIP, [16]byte(tuple.SrcIP), r.SrcIPPrefixLen) {
+	if !matchIP(m.SrcIP, netIPTo16(tuple.SrcIP), m.SrcIPPrefixLen) {
 		return false
 	}
-	if !matchIP(r.DstIP, [16]byte(tuple.DstIP), r.DstIPPrefixLen) {
+	if !matchIP(m.DstIP, netIPTo16(tuple.DstIP), m.DstIPPrefixLen) {
 		return false
 	}
 
+	return true
+}
+
+func netIPTo16(ip net.IP) [16]byte {
+	if v4 := ip.To4(); v4 != nil {
+		var out [16]byte
+		out[10] = 0xff
+		out[11] = 0xff
+		copy(out[12:], v4)
+		return out
+	}
+	return [16]byte(ip.To16())
+}
+
+func (r *FlowMatcher) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+	if r.IPFamily != 0 && r.IPFamily != flow.FamilyType {
+		return false
+	}
+	if r.IPProtocol != 0 && r.IPProtocol != flow.Forward.Protocol {
+		return false
+	}
+	if flow.Reverse.Protocol != 0 && r.IPProtocol != 0 && r.IPProtocol != flow.Reverse.Protocol {
+		return false
+	}
+	if !matchTuple(&r.Src, flow.FamilyType, &flow.Forward) {
+		return false
+	}
+	if !matchTuple(&r.Dst, flow.FamilyType, &flow.Reverse) {
+		return false
+	}
 	return true
 }
 
@@ -124,7 +181,7 @@ func matchPort(mask, port1, port2 uint16) bool {
 }
 
 //nolint:gocritic
-func CookMatcherBatch(matchers []Matcher) MatcherBatch {
+func CookTupleMatcherBatch(matchers []TupleMatcher) TupleMatcherBatch {
 	matcherIDs := make([]string, len(matchers))
 
 	exactIPMatchers := make(map[[16]byte]*MatcherNodeValue, len(matchers)/2)
@@ -172,27 +229,27 @@ func CookMatcherBatch(matchers []Matcher) MatcherBatch {
 		switch matchers[i].IPProtocol {
 		case unix.IPPROTO_TCP:
 			if value.TCPMatchers == nil {
-				value.TCPMatchers = make([]Matcher, 0, 4)
+				value.TCPMatchers = make([]TupleMatcher, 0, 4)
 			}
 			value.TCPMatchers = append(value.TCPMatchers, matchers[i])
 		case unix.IPPROTO_UDP:
 			if value.UDPMatchers == nil {
-				value.UDPMatchers = make([]Matcher, 0, 4)
+				value.UDPMatchers = make([]TupleMatcher, 0, 4)
 			}
 			value.UDPMatchers = append(value.UDPMatchers, matchers[i])
 		case unix.IPPROTO_ICMP, unix.IPPROTO_ICMPV6:
 			if value.ICMPMatchers == nil {
-				value.ICMPMatchers = make([]Matcher, 0, 4)
+				value.ICMPMatchers = make([]TupleMatcher, 0, 4)
 			}
 			value.ICMPMatchers = append(value.ICMPMatchers, matchers[i])
 		default:
 			if value.OtherMatchers == nil {
-				value.OtherMatchers = make([]Matcher, 0, 4)
+				value.OtherMatchers = make([]TupleMatcher, 0, 4)
 			}
 			value.OtherMatchers = append(value.OtherMatchers, matchers[i])
 		}
 	}
-	return MatcherBatch{
+	return TupleMatcherBatch{
 		IDs:              matcherIDs,
 		ExactIPMatchers:  exactIPMatchers,
 		PrefixIPMatchers: prefixIPMatchers,
@@ -200,10 +257,10 @@ func CookMatcherBatch(matchers []Matcher) MatcherBatch {
 	}
 }
 
-// MatcherBatch batches policy matchers for matching conntrack flows.
+// TupleMatcherBatch batches policy matchers for matching conntrack flows.
 // Usually the dst IP is the server IP and changes less often than the src IP,
 // so we check dst matchers before src matchers.
-type MatcherBatch struct {
+type TupleMatcherBatch struct {
 	IDs []string // for logging
 
 	// Fast lookup for matchers with prefix length 128 (exact IP, or /32 for IPv4).
@@ -216,16 +273,16 @@ type MatcherBatch struct {
 }
 
 type MatcherNodeValue struct {
-	HasMatchers   bool      // all matchers are nil
-	TCPMatchers   []Matcher // matching TCP protocol
-	UDPMatchers   []Matcher // matching UDP protocol
-	ICMPMatchers  []Matcher // matching ICMP protocol
-	OtherMatchers []Matcher // matching other protocols or any protocol
+	HasMatchers   bool           // all matchers are nil
+	TCPMatchers   []TupleMatcher // matching TCP protocol
+	UDPMatchers   []TupleMatcher // matching UDP protocol
+	ICMPMatchers  []TupleMatcher // matching ICMP protocol
+	OtherMatchers []TupleMatcher // matching other protocols or any protocol
 }
 
 var MatcherNodeValueAllocator = utils.NewSlabBinaryTrieNodeAllocator[MatcherNodeValue](0)
 
-func (bm *MatcherBatch) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+func (bm *TupleMatcherBatch) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 	// Convert IPv4 to IPv4-mapped format. Callers can assume IP length is 16 after this.
 	oldSrcIP := flow.Forward.SrcIP
 	oldDstIP := flow.Forward.DstIP
@@ -262,7 +319,7 @@ func (bm *MatcherBatch) MatchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 	return matched
 }
 
-func (bm *MatcherBatch) matchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+func (bm *TupleMatcherBatch) matchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 	// not everoute conntrack flows, skip
 	if flow.Zone < constants.CTZoneForPolicyMin || flow.Zone > constants.CTZoneForPolicyMax {
 		return false
@@ -281,7 +338,7 @@ func (bm *MatcherBatch) matchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 	for _, ip := range ips {
 		matcher, ok := bm.ExactIPMatchers[ip]
 		if ok && matcher != nil {
-			if matchConntrackFlow(matcher, flow) {
+			if matcher.matchConntrackFlow(flow) {
 				return true
 			}
 		}
@@ -292,37 +349,37 @@ func (bm *MatcherBatch) matchConntrackFlow(flow *netlink.ConntrackFlow) bool {
 			return true
 		}
 	}
-	return matchConntrackFlow(bm.AnyIPMatchers, flow)
+	return bm.AnyIPMatchers.matchConntrackFlow(flow)
 }
 
-func matchConntrackFlow(matcher *MatcherNodeValue, flow *netlink.ConntrackFlow) bool {
-	if !matcher.HasMatchers {
+func (m *MatcherNodeValue) matchConntrackFlow(flow *netlink.ConntrackFlow) bool {
+	if !m.HasMatchers {
 		return false
 	}
 	switch flow.Forward.Protocol {
 	case unix.IPPROTO_TCP:
-		matchers := matcher.TCPMatchers
+		matchers := m.TCPMatchers
 		for i := range matchers {
 			if matchers[i].MatchConntrackFlow(flow) {
 				return true
 			}
 		}
 	case unix.IPPROTO_UDP:
-		matchers := matcher.UDPMatchers
+		matchers := m.UDPMatchers
 		for i := range matchers {
 			if matchers[i].MatchConntrackFlow(flow) {
 				return true
 			}
 		}
 	case unix.IPPROTO_ICMP, unix.IPPROTO_ICMPV6:
-		matchers := matcher.ICMPMatchers
+		matchers := m.ICMPMatchers
 		for i := range matchers {
 			if matchers[i].MatchConntrackFlow(flow) {
 				return true
 			}
 		}
 	}
-	matchers := matcher.OtherMatchers // other protocols, or any protocol when IPProtocol is 0
+	matchers := m.OtherMatchers // other protocols, or any protocol when IPProtocol is 0
 	for i := range matchers {
 		if matchers[i].MatchConntrackFlow(flow) {
 			return true
@@ -381,4 +438,18 @@ func matchConntrackFlowWithTrie(
 	}
 	utils.VisitBinaryTriePrefixes(node, ip[:], 128, visitor)
 	return matched
+}
+
+type FlowMatcher struct {
+	ID  string
+	Src IPTuple
+	Dst IPTuple
+	// IP family
+	IPFamily uint8
+	// IP protocol number
+	IPProtocol uint8
+}
+
+func (r *FlowMatcher) GetID() string {
+	return r.ID
 }
