@@ -35,8 +35,9 @@ import (
 
 type Reconciler struct {
 	client.Client
-	ReadClient client.Reader
-	Scheme     *runtime.Scheme
+	ReadClient   client.Reader
+	Scheme       *runtime.Scheme
+	PolicyMetric Metric
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -73,6 +74,21 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		constants.SecurityPolicyByEndpointGroupIndex,
 		EndpointGroupIndexSecurityPolicyFunc,
 	)
+	if err != nil {
+		return err
+	}
+
+	var policyMetricController controller.Controller
+	policyMetricController, err = controller.New("policy-metric", mgr, controller.Options{
+		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
+		Reconciler:              reconcile.Func(r.ReconcilePolicyMetric),
+	})
+	if err != nil {
+		return err
+	}
+
+	err = policyMetricController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.SecurityPolicy{}),
+		&handler.EnqueueRequestForObject{}, policyMetricPredicate())
 	if err != nil {
 		return err
 	}

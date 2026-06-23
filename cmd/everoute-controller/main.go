@@ -132,6 +132,9 @@ func main() {
 
 	controllerMetric := metrics.NewControllerMetric()
 	controllerMetric.Init()
+	if err = mgr.Add(controllerMetric.GetControllerActive()); err != nil {
+		klog.Fatalf("unable to add controller active metric: %s", err.Error())
+	}
 
 	if !disableAutoTLS {
 		// set secret and webhook
@@ -166,16 +169,18 @@ func main() {
 
 	// group controller sync & manager group members.
 	if err = (&groupctrl.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		EndpointGroupMetric: controllerMetric.GetEndpointGroupInfo(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create group controller: %s", err.Error())
 	}
 
 	if err = (&ctrlpolicy.Reconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		ReadClient: mgr.GetAPIReader(),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		ReadClient:   mgr.GetAPIReader(),
+		PolicyMetric: controllerMetric.GetPolicyInfo(),
 	}).SetupWithManager(mgr); err != nil {
 		klog.Fatalf("unable to create policy controller: %s", err.Error())
 	}
@@ -234,6 +239,7 @@ func main() {
 	}
 
 	// register tower plugin
+	towerPluginOptions.EndpointGroupSecurityGroupMetric = controllerMetric.GetEndpointGroupSecurityGroup()
 	err = towerplugin.AddToManager(&towerPluginOptions, mgr)
 	if err != nil {
 		klog.Fatalf("unable register tower plugin: %s", err.Error())
