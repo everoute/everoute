@@ -36,7 +36,7 @@ docker-generate: image-generate
 
 docker-generate-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct registry.smtx.io/everoute/generate:$(COMMIT_ID) make generate
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -e GOPROXY="http://goproxy.smartx.com|https://goproxy.cn|direct" registry.smtx.io/everoute/generate:$(COMMIT_ID) make generate
 
 controller:
 	CGO_ENABLED=0 go build -o bin/everoute-controller -ldflags \
@@ -105,7 +105,7 @@ docker-cover-test: image-test
 
 docker-cover-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make cover-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY="http://goproxy.smartx.com|https://goproxy.cn|direct" --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make cover-test
 
 race-test: agent-uuid
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
@@ -118,7 +118,7 @@ docker-race-test: image-test
 
 docker-race-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
-	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make race-test
+	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY="http://goproxy.smartx.com|https://goproxy.cn|direct" --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make race-test
 
 e2e-test:
 	go test ./tests/e2e/...
