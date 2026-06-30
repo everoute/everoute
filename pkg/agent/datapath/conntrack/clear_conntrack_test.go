@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/netip"
 	"os"
 	"strconv"
 	"sync"
@@ -194,19 +193,21 @@ func TestUpdateConntrackFlows_MatchAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Skipf("conntrack create failed (may need root): %v", err)
 	}
-	matcher := Matcher{
-		ID:             "test-match",
-		SrcIP:          netIPTo16(flow.Forward.SrcIP),
-		SrcIPPrefixLen: 128,
-		DstIP:          netIPTo16(flow.Forward.DstIP),
-		DstIPPrefixLen: 128,
-		IPProtocol:     unix.IPPROTO_TCP,
-		SrcPort:        9999,
-		SrcPortMask:    0xffff,
-		DstPort:        8080,
-		DstPortMask:    0xffff,
+	matcher := TupleMatcher{
+		ID: "test-match",
+		IPTuple: IPTuple{
+			SrcIP:          netIPTo16(flow.Forward.SrcIP),
+			SrcIPPrefixLen: 128,
+			DstIP:          netIPTo16(flow.Forward.DstIP),
+			DstIPPrefixLen: 128,
+			IPProtocol:     unix.IPPROTO_TCP,
+			SrcPort:        9999,
+			SrcPortMask:    0xffff,
+			DstPort:        8080,
+			DstPortMask:    0xffff,
+		},
 	}
-	matchers := CookMatcherBatch([]Matcher{matcher})
+	matchers := CookTupleMatcherBatch([]TupleMatcher{matcher})
 	pool := sync.Pool{New: func() any { return &netlink.ConntrackFlow{} }}
 	allocator := func() *netlink.ConntrackFlow { return pool.Get().(*netlink.ConntrackFlow) }
 	deallocator := func(f *netlink.ConntrackFlow) { pool.Put(f) }
@@ -219,7 +220,7 @@ func TestUpdateConntrackFlows_MatchAndUpdate(t *testing.T) {
 		f.LabelsMask[0] = 0xFF
 		return true
 	}
-	dumpCount, matchCount, successCount, failureCount, err := UpdateConntrackFlows(unix.AF_INET, matchers, allocator, deallocator, updateFunc)
+	dumpCount, matchCount, successCount, failureCount, err := UpdateConntrackFlows(unix.AF_INET, &matchers, allocator, deallocator, updateFunc)
 	if err != nil {
 		t.Fatalf("UpdateConntrackFlows failed: %v", err)
 	}
@@ -500,17 +501,8 @@ func initRandomConntrackFlows(familyType uint8, conntrackFlows []netlink.Conntra
 	}
 }
 
-// netIPTo16 converts net.IP to [16]byte (IPv4-mapped for IPv4).
-func netIPTo16(ip net.IP) [16]byte {
-	addr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		return [16]byte{}
-	}
-	return addr.As16()
-}
-
-func randomMatchersFromFlows(flows []netlink.ConntrackFlow, count int) MatcherBatch {
-	matchers := make([]Matcher, 0, count)
+func randomMatchersFromFlows(flows []netlink.ConntrackFlow, count int) TupleMatcherBatch {
+	matchers := make([]TupleMatcher, 0, count)
 	randomFlows := make([]int, len(flows))
 	for i := 0; i < len(randomFlows); i++ {
 		randomFlows[i] = i
@@ -527,16 +519,18 @@ func randomMatchersFromFlows(flows []netlink.ConntrackFlow, count int) MatcherBa
 			f := flows[randomFlows[i]].Forward
 			srcIP := netIPTo16(f.SrcIP)
 			dstIP := netIPTo16(f.DstIP)
-			matcher := Matcher{
-				ID:             fmt.Sprintf("from-%d", randomFlows[i]),
-				IPFamily:       flows[randomFlows[i]].FamilyType,
-				IPProtocol:     f.Protocol,
-				SrcIP:          srcIP,
-				DstIP:          dstIP,
-				SrcIPPrefixLen: prefixLen,
-				DstIPPrefixLen: prefixLen,
-				SrcPort:        f.SrcPort,
-				DstPort:        f.DstPort,
+			matcher := TupleMatcher{
+				ID: fmt.Sprintf("from-%d", randomFlows[i]),
+				IPTuple: IPTuple{
+					IPFamily:       flows[randomFlows[i]].FamilyType,
+					IPProtocol:     f.Protocol,
+					SrcIP:          srcIP,
+					DstIP:          dstIP,
+					SrcIPPrefixLen: prefixLen,
+					DstIPPrefixLen: prefixLen,
+					SrcPort:        f.SrcPort,
+					DstPort:        f.DstPort,
+				},
 			}
 			matchers = append(matchers, matcher)
 		}
@@ -547,16 +541,18 @@ func randomMatchersFromFlows(flows []netlink.ConntrackFlow, count int) MatcherBa
 			f := flows[randomFlows[i]].Forward
 			srcIP := netIPTo16(f.SrcIP)
 			dstIP := netIPTo16(f.DstIP)
-			matcher := Matcher{
-				ID:             fmt.Sprintf("from-%d", randomFlows[i]),
-				IPFamily:       flows[randomFlows[i]].FamilyType,
-				IPProtocol:     f.Protocol,
-				SrcIP:          srcIP,
-				DstIP:          dstIP,
-				SrcIPPrefixLen: prefixLen,
-				DstIPPrefixLen: prefixLen,
-				SrcPort:        f.SrcPort,
-				DstPort:        f.DstPort,
+			matcher := TupleMatcher{
+				ID: fmt.Sprintf("from-%d", randomFlows[i]),
+				IPTuple: IPTuple{
+					IPFamily:       flows[randomFlows[i]].FamilyType,
+					IPProtocol:     f.Protocol,
+					SrcIP:          srcIP,
+					DstIP:          dstIP,
+					SrcIPPrefixLen: prefixLen,
+					DstIPPrefixLen: prefixLen,
+					SrcPort:        f.SrcPort,
+					DstPort:        f.DstPort,
+				},
 			}
 			matchers = append(matchers, matcher)
 		}
@@ -565,24 +561,26 @@ func randomMatchersFromFlows(flows []netlink.ConntrackFlow, count int) MatcherBa
 			f := flows[randomFlows[randomIndex]].Forward
 			srcIP := netIPTo16(f.SrcIP)
 			dstIP := netIPTo16(f.DstIP)
-			matcher := Matcher{
-				ID:             fmt.Sprintf("from-%d-extra-%d", randomFlows[randomIndex], i),
-				IPFamily:       flows[randomFlows[randomIndex]].FamilyType,
-				IPProtocol:     f.Protocol,
-				SrcIP:          srcIP,
-				DstIP:          dstIP,
-				SrcIPPrefixLen: prefixLen,
-				DstIPPrefixLen: prefixLen,
-				SrcPort:        f.SrcPort,
-				DstPort:        f.DstPort,
+			matcher := TupleMatcher{
+				ID: fmt.Sprintf("from-%d-extra-%d", randomFlows[randomIndex], i),
+				IPTuple: IPTuple{
+					IPFamily:       flows[randomFlows[randomIndex]].FamilyType,
+					IPProtocol:     f.Protocol,
+					SrcIP:          srcIP,
+					DstIP:          dstIP,
+					SrcIPPrefixLen: prefixLen,
+					DstIPPrefixLen: prefixLen,
+					SrcPort:        f.SrcPort,
+					DstPort:        f.DstPort,
+				},
 			}
 			matchers = append(matchers, matcher)
 		}
 	}
-	return CookMatcherBatch(matchers)
+	return CookTupleMatcherBatch(matchers)
 }
 
-func prepareFlowsAndMatchers(zone uint16, ipFamily uint8, flowCount int, matcherCount int, ctlabels [16]byte, hasLabels bool) ([]netlink.ConntrackFlow, MatcherBatch) {
+func prepareFlowsAndMatchers(zone uint16, ipFamily uint8, flowCount int, matcherCount int, ctlabels [16]byte, hasLabels bool) ([]netlink.ConntrackFlow, TupleMatcherBatch) {
 	flows := make([]netlink.ConntrackFlow, flowCount)
 	for i := 0; i < flowCount; i++ {
 		initRandomConntrackFlow(&flows[i], zone, ipFamily, ctlabels, hasLabels)
@@ -616,7 +614,7 @@ func doBenchmarkClearConntrackFlows(b *testing.B, zone uint16, ipFamily uint8, f
 			flow.LabelsMask[0] = 1<<EgressTreatedXXREG0Bit | 1<<IngressTreatedXXREG0Bit
 			return true
 		}
-		dumpCount, matchCount, successCount, failureCount, err := UpdateConntrackFlows(ipFamily, matchers, allocator, deallocator, unsetTreatedRegs)
+		dumpCount, matchCount, successCount, failureCount, err := UpdateConntrackFlows(ipFamily, &matchers, allocator, deallocator, unsetTreatedRegs)
 		if err != nil {
 			b.Fatalf("clear conntrack worker error, family: %d, err: %v", ipFamily, err)
 		}

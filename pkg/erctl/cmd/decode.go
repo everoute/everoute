@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,20 +21,26 @@ var (
 	humanOutput bool
 )
 
+type formattedInfoField struct {
+	Key   string
+	Value string
+}
+
 var decodeCmd = &cobra.Command{
 	Use:   "decode",
 	Short: "decode some formatted string",
 }
 
-var ctlabelsCmd = &cobra.Command{
-	Use:   "ctlabels",
-	Short: "decode ct labels from hex or binary string",
+var ctlabelCmd = &cobra.Command{
+	Use:     "ctlabel",
+	Aliases: []string{"ctlabels"},
+	Short:   "decode ct labels from hex or binary string",
 	Long: "decode ct labels from hex or binary string, " +
-		"e.g. erctl decode ctlabels 0x0123456789abcdef or " +
-		"erctl decode ctlabels 0b0000000100100011010001010110011110001001101010111100110111101111",
+		"e.g. erctl decode ctlabel 0x0123456789abcdef or " +
+		"erctl decode ctlabel 0b0000000100100011010001010110011110001001101010111100110111101111",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			return fmt.Errorf("ctlabels hex or binary string is required")
+			return fmt.Errorf("ctlabel hex or binary string is required")
 		}
 
 		errs := lo.Map(args, func(label string, _ int) (err error) {
@@ -49,9 +56,9 @@ var ctlabelsCmd = &cobra.Command{
 				return fmt.Errorf("parse %s: %v", label, err)
 			}
 
-			scheme, info := lo.Must2(ctlabels.DecodeConntrackLabels(raw))
-			if scheme == ctlabels.EncodingSchemeOld {
-				info = lo.Must(ctlabels.DecodeMicroSegmentation(numeric.Uint128FromLittleEndianBytes(raw)))
+			scheme, info, err := decodeConntrackLabel(raw)
+			if err != nil {
+				return fmt.Errorf("decode %s: %v", label, err)
 			}
 
 			if humanOutput {
@@ -134,6 +141,20 @@ func parseBinaryString(binStr string) ([]byte, error) {
 	}
 
 	return lo.ToPtr(numeric.Uint128FromBigEndianBytes(bytes)).Bytes(), nil
+}
+
+func decodeConntrackLabel(raw []byte) (ctlabels.EncodingScheme, any, error) {
+	scheme, info, err := ctlabels.DecodeConntrackLabels(raw)
+	if err != nil {
+		return scheme, nil, err
+	}
+	if scheme == ctlabels.EncodingSchemeOld {
+		info, err = ctlabels.DecodeMicroSegmentation(numeric.Uint128FromLittleEndianBytes(raw))
+		if err != nil {
+			return scheme, nil, err
+		}
+	}
+	return scheme, info, nil
 }
 
 func printJSONFormat(cmd *cobra.Command, label string, scheme ctlabels.EncodingScheme, info any) error {
@@ -233,44 +254,58 @@ func formatFieldValue(fieldName string, value any) string {
 }
 
 func printHumanInfoStruct(out io.Writer, info any, prefix string) {
+	for _, field := range formattedInfoFields(info, prefix) {
+		fmt.Fprintf(out, "%s\n", field)
+	}
+}
+
+func formattedInfoFields(info any, prefix string) []string {
+	fields := collectFormattedInfoFields(info)
+	lines := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if field.Key == "" {
+			lines = append(lines, prefix+field.Value)
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s%s: %s", prefix, field.Key, field.Value))
+	}
+	return lines
+}
+
+func collectFormattedInfoFields(info any) []formattedInfoField {
 	if info == nil {
-		return
+		return nil
 	}
 
 	val := reflect.ValueOf(info)
 	if val.Kind() == reflect.Ptr {
 		if val.IsNil() {
-			return
+			return nil
 		}
 		val = val.Elem()
 	}
 
 	if val.Kind() != reflect.Struct {
-		// Fallback to JSON marshaling for non-struct types
 		infoBytes, err := json.Marshal(info)
 		if err == nil {
 			var infoMap map[string]any
 			if err := json.Unmarshal(infoBytes, &infoMap); err == nil {
-				printHumanInfoMap(out, infoMap, prefix)
-				return
+				return collectFormattedInfoMapFields(infoMap, "")
 			}
 		}
-		fmt.Fprintf(out, "%s%v\n", prefix, info)
-		return
+		return []formattedInfoField{{Value: fmt.Sprintf("%v", info)}}
 	}
 
+	fields := make([]formattedInfoField, 0, val.NumField())
 	typ := val.Type()
 	for i := 0; i < val.NumField(); i++ {
 		field := typ.Field(i)
 		fieldVal := val.Field(i)
-
-		// Skip unexported fields
 		if !fieldVal.CanInterface() {
 			continue
 		}
 
 		fieldName := field.Name
-		// Use json tag if available
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
 			if name, _, found := strings.Cut(jsonTag, ","); found {
 				fieldName = name
@@ -279,39 +314,47 @@ func printHumanInfoStruct(out io.Writer, info any, prefix string) {
 			}
 		}
 
-		value := fieldVal.Interface()
-		formattedValue := formatFieldValue(fieldName, value)
-
-		fmt.Fprintf(out, "%s%s: %s\n", prefix, fieldName, formattedValue)
+		fields = append(fields, formattedInfoField{
+			Key:   fieldName,
+			Value: formatFieldValue(fieldName, fieldVal.Interface()),
+		})
 	}
+	return fields
 }
 
-func printHumanInfoMap(out io.Writer, data map[string]any, prefix string) {
-	for k, v := range data {
+func collectFormattedInfoMapFields(data map[string]any, prefix string) []formattedInfoField {
+	keys := lo.Keys(data)
+	sort.Strings(keys)
+
+	fields := make([]formattedInfoField, 0, len(keys))
+	for _, k := range keys {
+		v := data[k]
 		switch val := v.(type) {
 		case map[string]any:
-			fmt.Fprintf(out, "%s%s:\n", prefix, k)
-			printHumanInfoMap(out, val, prefix+"  ")
+			fields = append(fields, collectFormattedInfoMapFields(val, prefix+k+".")...)
 		case []any:
-			fmt.Fprintf(out, "%s%s:\n", prefix, k)
 			for i, item := range val {
 				if itemMap, ok := item.(map[string]any); ok {
-					fmt.Fprintf(out, "%s  [%d]:\n", prefix, i)
-					printHumanInfoMap(out, itemMap, prefix+"    ")
+					fields = append(fields, collectFormattedInfoMapFields(itemMap, fmt.Sprintf("%s%s[%d].", prefix, k, i))...)
 				} else {
-					formattedValue := formatFieldValue(k, item)
-					fmt.Fprintf(out, "%s  [%d]: %s\n", prefix, i, formattedValue)
+					fields = append(fields, formattedInfoField{
+						Key:   fmt.Sprintf("%s%s[%d]", prefix, k, i),
+						Value: formatFieldValue(k, item),
+					})
 				}
 			}
 		default:
-			formattedValue := formatFieldValue(k, v)
-			fmt.Fprintf(out, "%s%s: %s\n", prefix, k, formattedValue)
+			fields = append(fields, formattedInfoField{
+				Key:   prefix + k,
+				Value: formatFieldValue(k, v),
+			})
 		}
 	}
+	return fields
 }
 
 func init() {
 	rootCmd.AddCommand(decodeCmd)
-	decodeCmd.AddCommand(ctlabelsCmd)
-	ctlabelsCmd.Flags().BoolVarP(&humanOutput, "human", "H", false, "display in human-readable format")
+	decodeCmd.AddCommand(ctlabelCmd)
+	ctlabelCmd.Flags().BoolVarP(&humanOutput, "human", "H", false, "display in human-readable format")
 }
