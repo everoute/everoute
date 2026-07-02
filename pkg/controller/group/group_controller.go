@@ -42,6 +42,7 @@ import (
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/labels"
+	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/utils"
 )
 
@@ -49,7 +50,8 @@ import (
 // or delete groupmembers and groupmemberspatches according to group members changes.
 type Reconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme              *runtime.Scheme
+	EndpointGroupMetric *metrics.EndpointGroupInfoMetric
 }
 
 // Reconcile receive endpointgroup from work queue, first it create groupmemberspatch,
@@ -63,8 +65,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// we'll ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification), and we can get them
 		// on deleted requests.
+		if apierrors.IsNotFound(err) {
+			r.EndpointGroupMetric.Delete(req.Name)
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	r.recordEndpointGroupInfo(ctx, &group)
 
 	if r.isNewEndpointGroup(&group) {
 		klog.Infof("process endpointgroup %s create request", group.Name)
@@ -445,6 +452,7 @@ func (r *Reconciler) processEndpointGroupCreate(ctx context.Context, group *grou
 
 func (r *Reconciler) processEndpointGroupDelete(ctx context.Context, group *groupv1alpha1.EndpointGroup) (ctrl.Result, error) {
 	klog.V(2).Infof("clean group dependents for deleting endpointgroup %s", group.Name)
+	r.EndpointGroupMetric.Delete(group.Name)
 
 	// clean all group dependents groupmembers & groupmemberslist
 	err := r.DeleteAllOf(ctx, &groupv1alpha1.GroupMembersPatch{}, client.MatchingLabels{constants.OwnerGroupLabelKey: group.Name})

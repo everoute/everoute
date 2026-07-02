@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/agiledragon/gomonkey/v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/metrics"
 )
 
@@ -213,5 +216,27 @@ func TestNormalizeGuardType(t *testing.T) {
 
 	if _, err := normalizeGuardType("invalid"); err == nil {
 		t.Fatalf("expected invalid guard type to return error")
+	}
+}
+
+func TestPolicyTowerID(t *testing.T) {
+	policy := &securityv1alpha1.SecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "tower-space",
+			Name:      "policy-a",
+		},
+	}
+
+	if got := policyTowerID(policy); got != "tower-space/policy-a" {
+		t.Fatalf("expected ns/name tower id fallback, got %q", got)
+	}
+
+	policy.Spec.Logging = &securityv1alpha1.Logging{
+		Tags: map[string]string{
+			msconst.LoggingTagPolicyID: "tower-policy-id",
+		},
+	}
+	if got := policyTowerID(policy); got != "tower-policy-id" {
+		t.Fatalf("expected tower id from logging tags, got %q", got)
 	}
 }
