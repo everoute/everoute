@@ -33,11 +33,11 @@ func TestEndpointGroupTargetType(t *testing.T) {
 			want: metrics.EndpointGroupTargetTypePod,
 		},
 		{
-			name: "vm endpoint",
+			name: "vnic endpoint",
 			spec: groupv1alpha1.EndpointGroupSpec{
 				Endpoint: &securityv1alpha1.NamespacedName{Namespace: "tower-space", Name: "vnic-a"},
 			},
-			want: metrics.EndpointGroupTargetTypeVM,
+			want: metrics.EndpointGroupTargetTypeVNIC,
 		},
 		{
 			name: "vm label selector",
@@ -83,7 +83,7 @@ func TestEndpointGroupTargetDisplayStable(t *testing.T) {
 	}
 }
 
-func TestEndpointGroupVMTargetDisplay(t *testing.T) {
+func TestEndpointGroupVNICTargetDisplay(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := securityv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add security scheme: %s", err)
@@ -104,13 +104,13 @@ func TestEndpointGroupVMTargetDisplay(t *testing.T) {
 		Name:      "endpoint-a",
 	}}
 
-	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVM); got != "vm-a" {
+	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVNIC); got != "vm-a" {
 		t.Fatalf("expected vm id display %q, got %q", "vm-a", got)
 	}
 
 	spec.Endpoint = &securityv1alpha1.NamespacedName{Namespace: "tower-space", Name: "endpoint-missing"}
-	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVM); got != "endpoint-missing" {
-		t.Fatalf("expected endpoint id fallback %q, got %q", "endpoint-missing", got)
+	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVNIC); got != "tower-space/endpoint-missing" {
+		t.Fatalf("expected endpoint ref fallback %q, got %q", "tower-space/endpoint-missing", got)
 	}
 
 	spec.Endpoint = &securityv1alpha1.NamespacedName{Namespace: "tower-space", Name: "endpoint-a"}
@@ -122,7 +122,7 @@ func TestEndpointGroupVMTargetDisplay(t *testing.T) {
 	if err := reconciler.Update(context.Background(), &endpoint); err != nil {
 		t.Fatalf("update endpoint: %s", err)
 	}
-	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVM); got != "endpoint-a" {
-		t.Fatalf("expected endpoint id fallback %q, got %q", "endpoint-a", got)
+	if got := reconciler.endpointGroupTargetDisplay(context.Background(), spec, metrics.EndpointGroupTargetTypeVNIC); got != "tower-space/endpoint-a" {
+		t.Fatalf("expected endpoint ref fallback %q, got %q", "tower-space/endpoint-a", got)
 	}
 }

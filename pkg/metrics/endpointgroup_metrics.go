@@ -10,7 +10,7 @@ import (
 
 const (
 	EndpointGroupTargetTypePod     = "pod"
-	EndpointGroupTargetTypeVM      = "vm"
+	EndpointGroupTargetTypeVNIC    = "vnic"
 	EndpointGroupTargetTypeVMLabel = "vm_label"
 	EndpointGroupTargetTypeUnknown = "unknown"
 
