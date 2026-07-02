@@ -395,6 +395,7 @@ func (r *Reconciler) admitPolicyUpdate(ctx context.Context, policy *securityv1al
 	}
 
 	req := newAdmissionRequest(policyGuardResourcePolicy, policy.Namespace, policy.Name, operation)
+	req.TowerID = policyTowerID(policy)
 	if isPureCompleteRuleDelete(oldCompleteRules, newCompleteRules) {
 		r.resetGuard(req)
 		return admissionResult{Allowed: true}
@@ -457,6 +458,18 @@ func (r *Reconciler) admitGroupUpdate(ctx context.Context, gm *groupv1alpha1.Gro
 
 	req.Estimate = newEstimate
 	return r.ruleEstimateGuard.admit(ctx, req)
+}
+
+func policyTowerID(policy *securityv1alpha1.SecurityPolicy) string {
+	if policy == nil {
+		return ""
+	}
+	if policy.Spec.Logging != nil {
+		if towerID := policy.Spec.Logging.Tags[msconst.LoggingTagPolicyID]; towerID != "" {
+			return towerID
+		}
+	}
+	return fmt.Sprintf("%s/%s", policy.Namespace, policy.Name)
 }
 
 func (r *Reconciler) cleanPolicyDependents(ctx context.Context, policy k8stypes.NamespacedName) error {
