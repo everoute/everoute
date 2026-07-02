@@ -58,9 +58,8 @@ type AgentMetric struct {
 	policyMemoryUsageBytes             prometheus.GaugeVec
 	policyMemoryThresholdBytes         prometheus.GaugeVec
 
-	policyRuleEstimateLimit           prometheus.GaugeVec
-	policyRuleEstimateRejectedObjects prometheus.GaugeVec
-	policyRuleEstimateRejectedValue   prometheus.GaugeVec
+	policyRuleEstimateLimit         prometheus.GaugeVec
+	policyRuleEstimateRejectedValue prometheus.GaugeVec
 }
 
 func newAgentCounterOpt(name, help string) prometheus.CounterOpts {
@@ -131,6 +130,7 @@ func NewAgentMetric() *AgentMetric {
 
 func (m *AgentMetric) initPolicyGuardMetrics() {
 	policyObjectLabels := []string{"resource", "namespace", "name", "operation", "reason"}
+	policyRuleObjectLabels := []string{"resource", "namespace", "name", "tower_id", "operation", "reason"}
 	memoryEventLabels := []string{"reason"}
 	guardLabels := []string{"type"}
 
@@ -166,14 +166,10 @@ func (m *AgentMetric) initPolicyGuardMetrics() {
 		"policy_rule_estimate_limit",
 		"The current policy rule estimate admission limit",
 	), nil)
-	m.policyRuleEstimateRejectedObjects = *prometheus.NewGaugeVec(newAgentGaugeOpt(
-		"policy_rule_estimate_rejected_objects",
-		"The policy objects currently rejected by rule estimate admission",
-	), policyObjectLabels)
 	m.policyRuleEstimateRejectedValue = *prometheus.NewGaugeVec(newAgentGaugeOpt(
 		"policy_rule_estimate_rejected_value",
-		"The latest rejected rule estimate value for a policy object",
-	), policyObjectLabels)
+		"The estimated rule count for policy objects rejected by rule estimate admission",
+	), policyRuleObjectLabels)
 }
 
 func (m *AgentMetric) UpdatePolicyName(policyID string, policy *securityv1alpha1.SecurityPolicy) {
@@ -255,7 +251,6 @@ func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 			m.policyMemoryUsageBytes,
 			m.policyMemoryThresholdBytes,
 			m.policyRuleEstimateLimit,
-			m.policyRuleEstimateRejectedObjects,
 			m.policyRuleEstimateRejectedValue)
 	}
 	if config.EnableTR {
@@ -294,12 +289,18 @@ func (m *AgentMetric) SetPolicyGuardEnabled(guardType string, enabled bool) {
 	m.policyGuardEnabled.WithLabelValues(guardType).Set(boolToFloat64(enabled))
 }
 
-func (m *AgentMetric) SetPolicyRuleEstimateRejectedObject(resource, namespace, name, operation, reason string, rejected bool) {
-	m.policyRuleEstimateRejectedObjects.WithLabelValues(resource, namespace, name, operation, reason).Set(boolToFloat64(rejected))
+func (m *AgentMetric) SetPolicyRuleEstimateRejectedValue(resource, namespace, name, towerID, operation, reason string, value uint64) {
+	m.policyRuleEstimateRejectedValue.WithLabelValues(resource, namespace, name, towerID, operation, reason).Set(float64(value))
 }
 
-func (m *AgentMetric) SetPolicyRuleEstimateRejectedValue(resource, namespace, name, operation, reason string, value uint64) {
-	m.policyRuleEstimateRejectedValue.WithLabelValues(resource, namespace, name, operation, reason).Set(float64(value))
+func (m *AgentMetric) DeletePolicyRuleEstimateRejectedValue(resource, namespace, name, operation, reason string) {
+	m.policyRuleEstimateRejectedValue.DeletePartialMatch(prometheus.Labels{
+		"resource":  resource,
+		"namespace": namespace,
+		"name":      name,
+		"operation": operation,
+		"reason":    reason,
+	})
 }
 
 func (m *AgentMetric) SetSeqIDInfo(module string, exhaust bool, used int) {
