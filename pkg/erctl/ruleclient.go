@@ -137,6 +137,10 @@ func GetTRRulesByKeys(ks []string) (*v1alpha1.TRRules, error) {
 	return ruleconn.GetTRRulesByRuleKeys(context.Background(), &v1alpha1.TRRuleKeys{TRRuleKeys: ks})
 }
 
+func DeletePreviousRoundFlows() (*v1alpha1.PreviousRoundFlowCleanupResponse, error) {
+	return ruleconn.DeletePreviousRoundFlows(context.Background(), &emptypb.Empty{})
+}
+
 type tuple struct {
 	srcIP, dstIP, status string
 	srcPort, dstPort     uint32

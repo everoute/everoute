@@ -73,6 +73,10 @@ var (
 	ipsetCtrl *ctrlProxy.IPSetCtrl
 )
 
+type startupFlowInitializer interface {
+	EnqueueStartupFlowSync(context.Context)
+}
+
 func init() {
 	utilruntime.Must(corev1.AddToScheme(clientsetscheme.Scheme))
 	utilruntime.Must(appsv1.AddToScheme(clientsetscheme.Scheme))
@@ -125,6 +129,7 @@ func main() {
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan, agentMetric)
+	datapathManager.SetStartupFlowSync(datapath.NewStartupFlowSync(opts.IsEnableMS(), opts.IsEnableTR()))
 	datapathManager.InitializeDatapath(stopCtx)
 
 	var mgr manager.Manager
@@ -166,7 +171,7 @@ func main() {
 		klog.Fatalf("failed to add pprof handler: %s", err)
 	}
 
-	proxyCache, policyGuardSetter, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
+	proxyCache, policyGuardSetter, startupFlowInitializers, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
@@ -174,7 +179,7 @@ func main() {
 	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache, pprofSwitch, policyGuardSetter)
 	go rpcServer.Run(stopCtx.Done())
 
-	resourceInit(stopCtx, mgr, datapathManager)
+	resourceInit(stopCtx, mgr, datapathManager, startupFlowInitializers)
 
 	<-stopCtx.Done()
 }
@@ -270,9 +275,10 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 }
 
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
-	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, policy.GuardRuntimeSetter, error) {
+	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, policy.GuardRuntimeSetter, []startupFlowInitializer, error) {
 	var err error
 	var policyGuardSetter policy.GuardRuntimeSetter
+	startupFlowInitializers := []startupFlowInitializer{}
 	if opts.IsEnableMS() {
 		// Policy controller: watch policy related resource and update
 		policyReconciler := &policy.Reconciler{
@@ -281,6 +287,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			DatapathManager:          datapathManager,
 			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
+			StartupFlowSync:          datapathManager.StartupFlowSync(),
 		}
 		if err = policyReconciler.SetupWithManager(
 			mgr,
@@ -291,14 +298,18 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
 		policyGuardSetter = policyReconciler
+		startupFlowInitializers = append(startupFlowInitializers, policyReconciler)
 	}
 	if opts.IsEnableTR() {
-		if err = (&trctrl.Reconciler{
-			Client: mgr.GetClient(),
-			DpMgr:  datapathManager,
-		}).SetupWithManager(mgr); err != nil {
+		trReconciler := &trctrl.Reconciler{
+			Client:          mgr.GetClient(),
+			DpMgr:           datapathManager,
+			StartupFlowSync: datapathManager.StartupFlowSync(),
+		}
+		if err = trReconciler.SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create trafficredirect controller: %s", err.Error())
 		}
+		startupFlowInitializers = append(startupFlowInitializers, trReconciler)
 	}
 
 	var proxyCache *ctrlProxy.Cache
@@ -349,7 +360,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			}
 			if err = proxyReconciler.SetupWithManager(mgr); err != nil {
 				klog.Errorf("unable to create proxy controller: %s", err.Error())
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			proxyCache = proxyReconciler.GetCache()
 
@@ -362,7 +373,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 				}
 				if err := ipsetCtrl.SetupWithManager(mgr); err != nil {
 					klog.Errorf("unable to create ipset proxy controller: %s", err.Error())
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 			}
 		}
@@ -375,11 +386,14 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 		}
 	}()
 
-	return proxyCache, policyGuardSetter, nil
+	return proxyCache, policyGuardSetter, startupFlowInitializers, nil
 }
 
-func resourceInit(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) {
+func resourceInit(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, startupFlowInitializers []startupFlowInitializer) {
 	mgr.GetCache().WaitForCacheSync(ctx)
+	for i := range startupFlowInitializers {
+		startupFlowInitializers[i].EnqueueStartupFlowSync(ctx)
+	}
 
 	var wg sync.WaitGroup
 	if opts.IsEnableOverlay() {

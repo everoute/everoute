@@ -140,6 +140,7 @@ service CLI {
 	rpc EnablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc DisablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc GetPprofStatus(google.protobuf.Empty) returns (PprofStatus) {}
+	rpc DeletePreviousRoundFlows(google.protobuf.Empty) returns (PreviousRoundFlowCleanupResponse) {}
 }
 
 message TRRule{
@@ -227,4 +228,8 @@ message PolicyGuardStatus {
 message PprofStatus {
 	bool Enabled = 1;
 	string URL = 2;
+}
+
+message PreviousRoundFlowCleanupResponse {
+	string Message = 1;
 }

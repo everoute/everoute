@@ -6,21 +6,32 @@ import (
 
 	"github.com/everoute/trafficredirect/api/trafficredirect/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	crsource "sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/common/startupsync"
 	"github.com/everoute/everoute/pkg/source"
 )
 
 type Reconciler struct {
 	client.Client
-	DpMgr *datapath.DpManager
-	cache *ruleCache
+	DpMgr           *datapath.DpManager
+	StartupFlowSync *datapath.StartupFlowSync
+	StartupQueue    chan event.GenericEvent
+	cache           *ruleCache
+
+	startupSync *startupsync.Reconciler
 }
+
+var startupTRSyncRequest = types.NamespacedName{Name: "__everoute_startup_trafficredirect_sync__"}
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
@@ -34,6 +45,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	r.cache = newRuleCache()
 
+	if r.StartupFlowSync != nil {
+		if r.StartupQueue == nil {
+			r.StartupQueue = make(chan event.GenericEvent, 1)
+		}
+		r.initStartupReconciler()
+	}
 	c, err := controller.New("tr-rule", mgr, controller.Options{
 		Reconciler: r,
 	})
@@ -41,10 +58,25 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Rule{}), &handler.EnqueueRequestForObject{})
+	if err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Rule{}), &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+	if r.StartupFlowSync != nil {
+		if err = c.Watch(&crsource.Channel{Source: r.StartupQueue}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.startupSync != nil {
+		return r.startupSync.Reconcile(ctx, req, r.reconcile)
+	}
+	return r.reconcile(ctx, req)
+}
+
+func (r *Reconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Reconcile start")
 	defer log.Info("Reconcile end")
@@ -65,18 +97,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	log.Info("success get rule object", "objSpec", vr.Spec)
 	newR := toLocalRule(vr)
+	var err error
 	if old == nil {
-		return ctrl.Result{}, r.add(ctx, req.NamespacedName, newR)
-	}
-	if !old.DiffFromRuleCR(vr) {
+		err = r.add(ctx, req.NamespacedName, newR)
+	} else if !old.DiffFromRuleCR(vr) {
 		log.V(4).Info("rule fields of interest doesn't update, skip process it", "ruleCache", old)
-		return ctrl.Result{}, nil
+	} else {
+		log.Info("begin to update rule", "old", old, "new", newR)
+		if err = r.delete(ctx, req.NamespacedName, old); err == nil {
+			err = r.add(ctx, req.NamespacedName, newR)
+		}
 	}
-	log.Info("begin to update rule", "old", old, "new", newR)
-	if err := r.delete(ctx, req.NamespacedName, old); err != nil {
-		return ctrl.Result{}, err
-	}
-	return ctrl.Result{}, r.add(ctx, req.NamespacedName, newR)
+	return ctrl.Result{}, err
 }
 
 func (r *Reconciler) delete(ctx context.Context, k types.NamespacedName, old *LocalRule) error {
@@ -93,4 +125,40 @@ func (r *Reconciler) add(ctx context.Context, k types.NamespacedName, newR *Loca
 	}
 	r.cache.add(k, newR)
 	return nil
+}
+
+func (r *Reconciler) EnqueueStartupFlowSync(ctx context.Context) {
+	r.startupSync.Enqueue(ctx)
+}
+
+func (r *Reconciler) initStartupReconciler() {
+	r.startupSync = &startupsync.Reconciler{
+		Request:  startupTRSyncRequest,
+		Queue:    r.StartupQueue,
+		Name:     "trafficRedirect",
+		Resource: "rule",
+		NewObject: func(key types.NamespacedName) client.Object {
+			return &v1alpha1.Rule{
+				ObjectMeta: metav1.ObjectMeta{Namespace: key.Namespace, Name: key.Name},
+			}
+		},
+		Completion: &startupsync.Completion{
+			ListExpected:        r.listStartupRuleKeys,
+			MarkDone:            r.StartupFlowSync.MarkTrafficRedirectDone,
+			RequeueOnCheckError: true,
+		},
+	}
+}
+
+func (r *Reconciler) listStartupRuleKeys(ctx context.Context) (sets.Set[string], error) {
+	ruleList := v1alpha1.RuleList{}
+	if err := r.List(ctx, &ruleList); err != nil {
+		return nil, err
+	}
+	expected := sets.New[string]()
+	for i := range ruleList.Items {
+		key := client.ObjectKeyFromObject(&ruleList.Items[i])
+		expected.Insert(key.String())
+	}
+	return expected, nil
 }

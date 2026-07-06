@@ -57,15 +57,19 @@ func (r *Reconciler) ReconcileGlobalPolicy(ctx context.Context, _ ctrl.Request) 
 		log.Error(err, "unable calculate global PolicyRules")
 		return ctrl.Result{}, err
 	}
+	if policy != nil {
+		ctx = context.WithValue(ctx, ertypes.CtxKeyObject, policy.Spec)
+	}
+	if err := r.syncPolicyRulesUntilSuccess(ctx, []string{}, oldPolicyRule, newPolicyRule); err != nil {
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
+	}
 	if err := r.updateGlobalPolicyCache(oldPolicyRule, newPolicyRule); err != nil {
 		log.Error(err, "unable update global PolicyRules cache")
 		return ctrl.Result{}, err
 	}
-
-	if policy != nil {
-		ctx = context.WithValue(ctx, ertypes.CtxKeyObject, policy.Spec)
+	if r.StartupFlowSync != nil {
+		r.StartupFlowSync.MarkGlobalPolicyDone()
 	}
-	_ = r.syncPolicyRulesUntilSuccess(ctx, []string{}, oldPolicyRule, newPolicyRule)
 	return ctrl.Result{}, nil
 }
 

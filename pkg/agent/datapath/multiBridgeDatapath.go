@@ -283,6 +283,7 @@ type DpManager struct {
 	FlowIDToTRRules           map[uint64]*DPTRRule
 
 	conntrackManager *conntrack.Manager
+	startupFlowSync  *StartupFlowSync
 
 	ArpChan    chan ArpInfo
 	ArpLimiter *rate.Limiter
@@ -488,6 +489,14 @@ func (dp *DpManager) lockRflowReplayWithTimeout() {
 	if !dp.flowReplayMutex.RTryLockWithTimeout(lockTimeout) {
 		klog.Fatalf("fail to acquire datapath flowReplayMutex read lock for %s", lockTimeout)
 	}
+}
+
+func (dp *DpManager) SetStartupFlowSync(startupFlowSync *StartupFlowSync) {
+	dp.startupFlowSync = startupFlowSync
+}
+
+func (dp *DpManager) StartupFlowSync() *StartupFlowSync {
+	return dp.startupFlowSync
 }
 
 // used by unittest
@@ -1228,7 +1237,7 @@ func InitializeVDS(ctx context.Context,
 	}
 
 	go reconcileNoForwardPorts(datapathManager, vdsID)
-	go DeletePreviousRoundFlow(datapathManager, vdsID, roundInfo)
+	go DeletePreviousRoundFlow(ctx, datapathManager, vdsID, roundInfo)
 }
 
 // check no-forward configuration
@@ -1292,13 +1301,49 @@ func reconcileNoForwardPorts(datapathManager *DpManager, vdsID string) {
 	}
 }
 
-// Delete flow with previousRoundNum cookie, and then persistent currentRoundNum to ovsdb. We need to wait for long
-// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
-// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
-// non-determined.
-// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
-func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo *RoundInfo) {
-	time.Sleep(datapathManager.Config.FlowRoundCleanDelay)
+// Delete flow with previousRoundNum cookie, and then persist currentRoundNum to ovsdb.
+func DeletePreviousRoundFlow(ctx context.Context, datapathManager *DpManager, vdsID string, roundInfo *RoundInfo) {
+	if startupFlowSync := datapathManager.StartupFlowSync(); startupFlowSync != nil {
+		if err := startupFlowSync.Wait(ctx, time.Minute); err != nil {
+			klog.Infof("Skip deleting previous round flows because startup flow sync wait stopped, vdsID: %s, err: %v", vdsID, err)
+			return
+		}
+	} else {
+		time.Sleep(datapathManager.Config.FlowRoundCleanDelay)
+	}
+
+	if err := datapathManager.DeletePreviousRoundFlow(vdsID, roundInfo); err != nil {
+		klog.Fatalf("Failed to delete previous round flow: %v", err)
+	}
+}
+
+func (dp *DpManager) DeletePreviousRoundFlows() error {
+	dp.lockflowReplayWithTimeout()
+	defer dp.flowReplayMutex.Unlock()
+
+	for vdsID, bridgeMap := range dp.BridgeChainMap {
+		localBridge := bridgeMap[LOCAL_BRIDGE_KEYWORD]
+		if localBridge == nil {
+			continue
+		}
+		if err := dp.deletePreviousRoundFlowLocked(vdsID, localBridge.GetRoundInfo()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dp *DpManager) DeletePreviousRoundFlow(vdsID string, roundInfo *RoundInfo) error {
+	dp.lockflowReplayWithTimeout()
+	defer dp.flowReplayMutex.Unlock()
+
+	return dp.deletePreviousRoundFlowLocked(vdsID, roundInfo)
+}
+
+func (dp *DpManager) deletePreviousRoundFlowLocked(vdsID string, roundInfo *RoundInfo) error {
+	if roundInfo == nil {
+		return fmt.Errorf("roundInfo is nil for vds %s", vdsID)
+	}
 
 	klog.Infof(
 		"Delete previous round flows and persist current round info. vdsID: %s, roundNum: %d -> %d, datapathVersion: %s -> %s",
@@ -1310,8 +1355,8 @@ func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo
 	)
 
 	if roundInfo.previousRoundNum > 0 && roundInfo.previousRoundNum <= MaxRoundNum {
-		for brKeyword := range datapathManager.BridgeChainMap[vdsID] {
-			b := datapathManager.BridgeChainMap[vdsID][brKeyword]
+		for brKeyword := range dp.BridgeChainMap[vdsID] {
+			b := dp.BridgeChainMap[vdsID][brKeyword]
 			if b == nil { // never happen
 				continue
 			}
@@ -1320,10 +1365,11 @@ func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo
 		}
 	}
 
-	err := persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
+	err := persistentRoundInfo(*roundInfo, dp.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
-		klog.Fatalf("Failed to persistent roundInfo into ovsdb: %v", err)
+		return fmt.Errorf("failed to persist roundInfo into ovsdb: %w", err)
 	}
+	return nil
 }
 
 func (dp *DpManager) SeqIDExhaust() (string, bool) {

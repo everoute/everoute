@@ -40,11 +40,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	crsource "sigs.k8s.io/controller-runtime/pkg/source"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/common/startupsync"
 	"github.com/everoute/everoute/pkg/constants"
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	ctrlpolicy "github.com/everoute/everoute/pkg/controller/policy"
@@ -72,8 +74,16 @@ type Reconciler struct {
 	// before GroupPatch deleted, so save patches in cache.
 	groupCache *policycache.GroupCache
 
-	DatapathManager *datapath.DpManager
-	ManagedVDSes    sets.Set[string]
+	DatapathManager          *datapath.DpManager
+	ManagedVDSes             sets.Set[string]
+	StartupFlowSync          *datapath.StartupFlowSync
+	StartupPolicyQueue       chan event.GenericEvent
+	StartupGroupMembersQueue chan event.GenericEvent
+	StartupGlobalPolicyQueue chan event.GenericEvent
+
+	startupPolicySync       *startupsync.Reconciler
+	startupGroupMembersSync *startupsync.Reconciler
+	startupGlobalPolicySync *startupsync.Reconciler
 
 	sysProcessedPolicyLock sync.RWMutex
 	sysProcessedPolicy     sets.Set[k8stypes.NamespacedName]
@@ -86,11 +96,17 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var policy securityv1alpha1.SecurityPolicy
+	if r.startupPolicySync != nil {
+		return r.startupPolicySync.Reconcile(ctx, req, r.reconcilePolicy)
+	}
+	return r.reconcilePolicy(ctx, req)
+}
 
+func (r *Reconciler) reconcilePolicy(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
+	var policy securityv1alpha1.SecurityPolicy
 	log := ctrl.LoggerFrom(ctx)
 	log.V(4).Info("Reconcile start")
 	defer log.V(4).Info("Reconcile end")
@@ -133,6 +149,13 @@ func (r *Reconciler) ReconcilePolicy(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *Reconciler) ReconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.startupGroupMembersSync != nil {
+		return r.startupGroupMembersSync.Reconcile(ctx, req, r.reconcileGroupMembers)
+	}
+	return r.reconcileGroupMembers(ctx, req)
+}
+
+func (r *Reconciler) reconcileGroupMembers(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.reconcilerLock.Lock()
 	defer r.reconcilerLock.Unlock()
 
@@ -308,6 +331,12 @@ func (r *Reconciler) SetupWithManager(
 
 	r.sysProcessedPolicy = make(sets.Set[k8stypes.NamespacedName])
 
+	if r.StartupFlowSync != nil {
+		if r.StartupPolicyQueue == nil {
+			r.StartupPolicyQueue = make(chan event.GenericEvent, 1)
+		}
+		r.initStartupPolicyReconciler()
+	}
 	if policyController, err = controller.New("policy-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: constants.DefaultMaxConcurrentReconciles,
 		Reconciler:              reconcile.Func(r.ReconcilePolicy),
@@ -323,6 +352,11 @@ func (r *Reconciler) SetupWithManager(
 		},
 	}); err != nil {
 		return err
+	}
+	if r.StartupFlowSync != nil {
+		if err = policyController.Watch(&crsource.Channel{Source: r.StartupPolicyQueue}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
 	}
 
 	if patchController, err = controller.New("groupMembers-controller", mgr, controller.Options{
@@ -341,6 +375,15 @@ func (r *Reconciler) SetupWithManager(
 	}); err != nil {
 		return err
 	}
+	if r.StartupFlowSync != nil {
+		if r.StartupGroupMembersQueue == nil {
+			r.StartupGroupMembersQueue = make(chan event.GenericEvent, 1)
+		}
+		r.initStartupGroupMembersReconciler()
+		if err = patchController.Watch(&crsource.Channel{Source: r.StartupGroupMembersQueue}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
+	}
 
 	if globalPolicyController, err = controller.New("global-policy-controller", mgr, controller.Options{
 		// Serial handle GlobalPolicy event
@@ -350,7 +393,19 @@ func (r *Reconciler) SetupWithManager(
 		return err
 	}
 
-	return globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{})
+	if err = globalPolicyController.Watch(source.Kind(mgr.GetCache(), &securityv1alpha1.GlobalPolicy{}), &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+	if r.StartupFlowSync != nil {
+		if r.StartupGlobalPolicyQueue == nil {
+			r.StartupGlobalPolicyQueue = make(chan event.GenericEvent, 1)
+		}
+		r.initStartupGlobalPolicyReconciler()
+		if err = globalPolicyController.Watch(&crsource.Channel{Source: r.StartupGlobalPolicyQueue}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) ruleUpdateByGroup(ctx context.Context, gm *groupv1alpha1.GroupMembers) error {
@@ -831,7 +886,7 @@ func (r *Reconciler) syncPolicyRulesUntilSuccess(ctx context.Context, policyID [
 	for err != nil && !apierrors.IsForbidden(err) {
 		if time.Now().After(deadline) {
 			log.Error(utils.ErrInternal, "Sync securitypolicy failed and timeout to retry", "oldRule", oldRuleList, "newRule", newRuleList, "timeout", timeout)
-			return nil
+			return fmt.Errorf("sync securitypolicy failed and timeout to retry after %s", timeout)
 		}
 		duration := rateLimiter.When("next-sync")
 		log.Error(err, "Failed to sync policyRules, wait next sync", "waitTime", duration)
@@ -940,6 +995,12 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 
 func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
 	log := ctrl.LoggerFrom(ctx)
+	if r.StartupFlowSync != nil {
+		if !r.StartupFlowSync.NormalPolicyDone() {
+			return false
+		}
+		return true
+	}
 	if r.ReadyToProcessGlobalRule {
 		return true
 	}

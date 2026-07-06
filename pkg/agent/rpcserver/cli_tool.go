@@ -235,6 +235,13 @@ func (g *CLITool) GetPprofStatus(context.Context, *emptypb.Empty) (*v1alpha1.Ppr
 	return g.pprofStatus(), nil
 }
 
+func (g *CLITool) DeletePreviousRoundFlows(context.Context, *emptypb.Empty) (*v1alpha1.PreviousRoundFlowCleanupResponse, error) {
+	if err := g.dpManager.DeletePreviousRoundFlows(); err != nil {
+		return nil, err
+	}
+	return &v1alpha1.PreviousRoundFlowCleanupResponse{Message: "deleted previous round flows"}, nil
+}
+
 func (g *CLITool) pprofStatus() *v1alpha1.PprofStatus {
 	return &v1alpha1.PprofStatus{
 		Enabled: g.pprofSwitch.Enabled(),
