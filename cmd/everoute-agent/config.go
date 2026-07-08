@@ -49,6 +49,7 @@ type Options struct {
 	disableProbeTimeoutIP    bool
 	readyToProcessGlobalRule bool
 	flowRoundCleanDelay      time.Duration
+	disableInitSyncClean     bool
 	policyRuleEstimateLimit  uint64
 	policyMemoryThreshold    uint64
 	disablePolicyMemoryGuard bool

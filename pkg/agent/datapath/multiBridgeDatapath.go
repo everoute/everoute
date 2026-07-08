@@ -283,6 +283,7 @@ type DpManager struct {
 	FlowIDToTRRules           map[uint64]*DPTRRule
 
 	conntrackManager *conntrack.Manager
+	startupFlowSync  *StartupFlowSync
 
 	ArpChan    chan ArpInfo
 	ArpLimiter *rate.Limiter
@@ -488,6 +489,14 @@ func (dp *DpManager) lockRflowReplayWithTimeout() {
 	if !dp.flowReplayMutex.RTryLockWithTimeout(lockTimeout) {
 		klog.Fatalf("fail to acquire datapath flowReplayMutex read lock for %s", lockTimeout)
 	}
+}
+
+func (dp *DpManager) SetStartupFlowSync(startupFlowSync *StartupFlowSync) {
+	dp.startupFlowSync = startupFlowSync
+}
+
+func (dp *DpManager) StartupFlowSync() *StartupFlowSync {
+	return dp.startupFlowSync
 }
 
 // used by unittest
@@ -1228,7 +1237,7 @@ func InitializeVDS(ctx context.Context,
 	}
 
 	go reconcileNoForwardPorts(datapathManager, vdsID)
-	go DeletePreviousRoundFlow(datapathManager, vdsID, roundInfo)
+	go DeletePreviousRoundFlow(ctx, datapathManager, vdsID, roundInfo)
 }
 
 // check no-forward configuration
@@ -1292,13 +1301,17 @@ func reconcileNoForwardPorts(datapathManager *DpManager, vdsID string) {
 	}
 }
 
-// Delete flow with previousRoundNum cookie, and then persistent currentRoundNum to ovsdb. We need to wait for long
-// enough to guarantee that all of the basic flow which we are still required updated with new roundInfo encoding to
-// flow cookie fields. But the time required to update all of the basic flow with updated roundInfo is
-// non-determined.
-// TODO  Implement a deterministic mechanism to control outdated flow flush procedure
-func DeletePreviousRoundFlow(datapathManager *DpManager, vdsID string, roundInfo *RoundInfo) {
-	time.Sleep(datapathManager.Config.FlowRoundCleanDelay)
+// Delete flow with previousRoundNum cookie, and then persist currentRoundNum to ovsdb.
+func DeletePreviousRoundFlow(ctx context.Context, datapathManager *DpManager, vdsID string, roundInfo *RoundInfo) {
+	// Keep the original 90s clean delay because this cleanup also deletes old
+	// flows on non-policy bridges, and deleting them too early may break
+	// forwarding. Internal IP allow flows may also still be initializing; if
+	// global deny has already been installed, deleting the old allow flows too
+	// early may affect host-local traffic.
+	if err := datapathManager.StartupFlowSync().WaitWithMinDelay(ctx, vdsID, datapathManager.Config.FlowRoundCleanDelay, time.Minute); err != nil {
+		klog.Infof("Skip deleting previous round flows because startup flow sync wait stopped before cleanup, vdsID: %s, err: %v", vdsID, err)
+		return
+	}
 
 	klog.Infof(
 		"Delete previous round flows and persist current round info. vdsID: %s, roundNum: %d -> %d, datapathVersion: %s -> %s",

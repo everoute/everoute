@@ -7,19 +7,27 @@ import (
 	"github.com/everoute/trafficredirect/api/trafficredirect/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	crsource "sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	"github.com/everoute/everoute/pkg/common/startupsync"
 	"github.com/everoute/everoute/pkg/source"
 )
 
 type Reconciler struct {
 	client.Client
-	DpMgr *datapath.DpManager
-	cache *ruleCache
+	DpMgr           *datapath.DpManager
+	StartupFlowSync *datapath.StartupFlowSync
+	StartupQueue    chan event.GenericEvent
+	cache           *ruleCache
+
+	startupSync *startupsync.Reconciler
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -41,10 +49,30 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Rule{}), &handler.EnqueueRequestForObject{})
+	if err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.Rule{}), &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+	if r.StartupFlowSync != nil {
+		if r.StartupQueue == nil {
+			r.StartupQueue = make(chan event.GenericEvent, 1)
+		}
+		r.initStartupReconciler()
+		if err = c.Watch(&crsource.Channel{Source: r.StartupQueue}, &handler.EnqueueRequestForObject{}); err != nil {
+			return err
+		}
+		r.startupSync.Enqueue(context.Background())
+	}
+	return nil
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.startupSync != nil {
+		return r.startupSync.Reconcile(ctx, req, r.reconcile)
+	}
+	return r.reconcile(ctx, req)
+}
+
+func (r *Reconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Reconcile start")
 	defer log.Info("Reconcile end")
@@ -93,4 +121,25 @@ func (r *Reconciler) add(ctx context.Context, k types.NamespacedName, newR *Loca
 	}
 	r.cache.add(k, newR)
 	return nil
+}
+
+func (r *Reconciler) initStartupReconciler() {
+	r.startupSync = &startupsync.Reconciler{
+		Queue:        r.StartupQueue,
+		ListExpected: r.listStartupRuleKeys,
+		MarkDone:     r.StartupFlowSync.MarkTrafficRedirectDone,
+	}
+}
+
+func (r *Reconciler) listStartupRuleKeys(ctx context.Context) (sets.Set[string], error) {
+	ruleList := v1alpha1.RuleList{}
+	if err := r.List(ctx, &ruleList); err != nil {
+		return nil, err
+	}
+	expected := sets.New[string]()
+	for i := range ruleList.Items {
+		key := client.ObjectKeyFromObject(&ruleList.Items[i])
+		expected.Insert(key.String())
+	}
+	return expected, nil
 }

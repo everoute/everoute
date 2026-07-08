@@ -66,6 +66,9 @@ func (r *Reconciler) ReconcileGlobalPolicy(ctx context.Context, _ ctrl.Request) 
 		ctx = context.WithValue(ctx, ertypes.CtxKeyObject, policy.Spec)
 	}
 	_ = r.syncPolicyRulesUntilSuccess(ctx, []string{}, oldPolicyRule, newPolicyRule)
+	if r.StartupFlowSync != nil {
+		r.StartupFlowSync.MarkGlobalPolicyDone()
+	}
 	return ctrl.Result{}, nil
 }
 

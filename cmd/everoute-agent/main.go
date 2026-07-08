@@ -90,6 +90,8 @@ func main() {
 	flag.BoolVar(&opts.readyToProcessGlobalRule, "ready-to-process-global-rule", false, "Is ready to process global rule when agent start.")
 	flag.DurationVar(&opts.flowRoundCleanDelay, "flow-round-clean-delay", 90*time.Second,
 		"Delay before cleaning previous round flows and persisting current round.")
+	flag.BoolVar(&opts.disableInitSyncClean, "disable-clean-after-init-sync-flow", false,
+		"Disable waiting to clean previous round flows until startup flow sync is complete.")
 	flag.Uint64Var(&opts.policyRuleEstimateLimit, "policy-rule-estimate-limit", policy.DefaultPolicyRuleEstimateLimit,
 		"Maximum estimated policy rule expansion allowed before policy reconcile is rejected. 0 disables the limit.")
 	flag.Uint64Var(&opts.policyMemoryThreshold, "policy-memory-threshold-bytes", 0,
@@ -126,6 +128,9 @@ func main() {
 	// TODO Update vds which is managed by everoute agent from datapathConfig.
 	datapathConfig := opts.getDatapathConfig()
 	datapathManager := datapath.NewDatapathManager(datapathConfig, ofportIPMonitorChan, agentMetric)
+	if !opts.disableInitSyncClean {
+		datapathManager.SetStartupFlowSync(datapath.NewStartupFlowSync())
+	}
 	datapathManager.InitializeDatapath(stopCtx)
 
 	var mgr manager.Manager
@@ -274,6 +279,8 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, policy.GuardRuntimeSetter, error) {
 	var err error
 	var policyGuardSetter policy.GuardRuntimeSetter
+	startupPolicyControllerStarted := false
+	startupTRControllerStarted := false
 	if opts.IsEnableMS() {
 		// Policy controller: watch policy related resource and update
 		policyReconciler := &policy.Reconciler{
@@ -282,6 +289,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			DatapathManager:          datapathManager,
 			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
 			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
+			StartupFlowSync:          datapathManager.StartupFlowSync(),
 		}
 		if err = policyReconciler.SetupWithManager(
 			mgr,
@@ -292,15 +300,20 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
 		policyGuardSetter = policyReconciler
+		startupPolicyControllerStarted = true
 	}
 	if opts.IsEnableTR() {
-		if err = (&trctrl.Reconciler{
-			Client: mgr.GetClient(),
-			DpMgr:  datapathManager,
-		}).SetupWithManager(mgr); err != nil {
+		trReconciler := &trctrl.Reconciler{
+			Client:          mgr.GetClient(),
+			DpMgr:           datapathManager,
+			StartupFlowSync: datapathManager.StartupFlowSync(),
+		}
+		if err = trReconciler.SetupWithManager(mgr); err != nil {
 			klog.Fatalf("unable to create trafficredirect controller: %s", err.Error())
 		}
+		startupTRControllerStarted = true
 	}
+	markUnstartedStartupFlowSyncDone(datapathManager.StartupFlowSync(), startupPolicyControllerStarted, startupTRControllerStarted)
 
 	var proxyCache *ctrlProxy.Cache
 	if opts.IsEnableCNI() {
@@ -377,6 +390,19 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 	}()
 
 	return proxyCache, policyGuardSetter, nil
+}
+
+func markUnstartedStartupFlowSyncDone(startupFlowSync *datapath.StartupFlowSync, policyControllerStarted, trControllerStarted bool) {
+	if startupFlowSync == nil {
+		return
+	}
+	if !policyControllerStarted {
+		startupFlowSync.MarkNormalPolicyDone()
+		startupFlowSync.MarkGlobalPolicyDone()
+	}
+	if !trControllerStarted {
+		startupFlowSync.MarkTrafficRedirectDone()
+	}
 }
 
 func resourceInit(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager) {
