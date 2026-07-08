@@ -28,15 +28,95 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
+	groupv1alpha1 "github.com/everoute/everoute/pkg/apis/group/v1alpha1"
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	"github.com/everoute/everoute/pkg/common/startupsync"
 	"github.com/everoute/everoute/pkg/constants"
+	"github.com/everoute/everoute/pkg/source"
 	ertypes "github.com/everoute/everoute/pkg/types"
 )
 
 const GroupMembersRscType = "groupMembers"
+
+var startupGlobalPolicySyncRequest = types.NamespacedName{Name: "__everoute_startup_global_policy_sync__"}
+
+func (r *Reconciler) EnqueueStartupFlowSync(ctx context.Context) {
+	if r.StartupFlowSync == nil {
+		return
+	}
+	r.startupPolicySync.Enqueue(ctx)
+	r.startupGroupMembersSync.Enqueue(ctx)
+	r.enqueueStartupGlobalPolicySync(ctx)
+}
+
+func (r *Reconciler) initStartupPolicyReconciler() {
+	r.startupPolicySync = &startupsync.Reconciler{
+		Queue:        r.StartupPolicyQueue,
+		ListExpected: r.listStartupPolicyKeys,
+		MarkDone:     r.markStartupNormalPolicyDone,
+	}
+}
+
+func (r *Reconciler) initStartupGroupMembersReconciler() {
+	r.startupGroupMembersSync = &startupsync.Reconciler{
+		Queue:        r.StartupGroupMembersQueue,
+		ListExpected: r.listStartupGroupMembersKeys,
+		MarkDone:     r.markStartupNormalPolicyDone,
+	}
+}
+
+func (r *Reconciler) enqueueStartupGlobalPolicySync(ctx context.Context) {
+	if r.StartupGlobalPolicyQueue == nil {
+		return
+	}
+	log := ctrl.LoggerFrom(ctx)
+	select {
+	case r.StartupGlobalPolicyQueue <- source.NewResourceEvent(startupGlobalPolicySyncRequest.Name, startupGlobalPolicySyncRequest.Namespace):
+		log.Info("Enqueued startup sync request")
+	case <-ctx.Done():
+	default:
+	}
+}
+
+func (r *Reconciler) listStartupPolicyKeys(ctx context.Context) (sets.Set[string], error) {
+	policyList := securityv1alpha1.SecurityPolicyList{}
+	if err := r.List(ctx, &policyList); err != nil {
+		return nil, err
+	}
+	expected := sets.New[string]()
+	for i := range policyList.Items {
+		key := client.ObjectKeyFromObject(&policyList.Items[i])
+		expected.Insert(key.String())
+	}
+	return expected, nil
+}
+
+func (r *Reconciler) listStartupGroupMembersKeys(ctx context.Context) (sets.Set[string], error) {
+	groupMembersList := groupv1alpha1.GroupMembersList{}
+	if err := r.List(ctx, &groupMembersList); err != nil {
+		return nil, err
+	}
+	expected := sets.New[string]()
+	for i := range groupMembersList.Items {
+		key := client.ObjectKeyFromObject(&groupMembersList.Items[i])
+		expected.Insert(key.String())
+	}
+	return expected, nil
+}
+
+func (r *Reconciler) markStartupNormalPolicyDone() {
+	if r.startupPolicySync == nil || r.startupGroupMembersSync == nil {
+		return
+	}
+	if r.startupPolicySync.IsDone() && r.startupGroupMembersSync.IsDone() {
+		r.StartupFlowSync.MarkNormalPolicyDone()
+	}
+}
 
 func NewGroupMembersNotFoundErr(groupName string) error {
 	return ertypes.NewRscInCacheNotFoundErr(GroupMembersRscType, types.NamespacedName{Name: groupName})
