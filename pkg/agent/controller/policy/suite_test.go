@@ -39,7 +39,6 @@ import (
 	"github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	clientsetscheme "github.com/everoute/everoute/pkg/client/clientset_generated/clientset/scheme"
-	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
 	"github.com/everoute/everoute/pkg/utils"
@@ -141,17 +140,13 @@ var _ = BeforeSuite(func() {
 	datapathManager.InitializeDatapath(ctx)
 
 	pCtrl = &Reconciler{
-		Client:          k8sManager.GetClient(),
-		Scheme:          k8sManager.GetScheme(),
-		DatapathManager: datapathManager,
+		Client:                   k8sManager.GetClient(),
+		Scheme:                   k8sManager.GetScheme(),
+		DatapathManager:          datapathManager,
+		ReadyToProcessGlobalRule: true,
 	}
 	err = (pCtrl).SetupWithManager(k8sManager, DefaultPolicyRuleEstimateLimit, 0, false, false)
 	Expect(err).ToNot(HaveOccurred())
-	cutT := time.Now()
-	pCtrl.globalRuleFirstProcessedTime = &cutT
-	pCtrl.sysProcessedPolicy.Insert(msconst.ERvmPolicy)
-	pCtrl.sysProcessedPolicy.Insert(msconst.SysEPPolicy)
-	pCtrl.sysProcessedPolicy.Insert(msconst.LBPolicy)
 
 	ruleCacheLister = pCtrl.GetCompleteRuleLister()
 	Expect(ruleCacheLister).ShouldNot(BeNil())
