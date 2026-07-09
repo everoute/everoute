@@ -140,6 +140,9 @@ service CLI {
 	rpc EnablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc DisablePprof(google.protobuf.Empty) returns (PprofStatus) {}
 	rpc GetPprofStatus(google.protobuf.Empty) returns (PprofStatus) {}
+	rpc GetFlowRoundStatus(google.protobuf.Empty) returns (FlowRoundStatus) {}
+	rpc SkipGlobalPolicyWaitNormal(google.protobuf.Empty) returns (FlowRoundStatus) {}
+	rpc CleanupPreviousRound(google.protobuf.Empty) returns (FlowRoundStatus) {}
 }
 
 message TRRule{
@@ -227,4 +230,22 @@ message PolicyGuardStatus {
 message PprofStatus {
 	bool Enabled = 1;
 	string URL = 2;
+}
+
+message FlowRoundVDSStatus {
+	string VDSID = 1;
+	string Bridge = 2;
+	uint64 PreviousRound = 3;
+	uint64 CurrentRound = 4;
+	string PreviousDatapathVersion = 5;
+	string CurrentDatapathVersion = 6;
+}
+
+message FlowRoundStatus {
+	bool NormalPolicyDone = 1;
+	bool GlobalPolicyDone = 2;
+	bool TrafficRedirectDone = 3;
+	bool GlobalPolicyWaitNormalSkipped = 4;
+	bool ManualCleanupRequested = 5;
+	repeated FlowRoundVDSStatus VDSStatuses = 7;
 }

@@ -76,6 +76,38 @@ func TestStartupFlowSyncWaitWithMinDelayReturnsOnContextCancel(t *testing.T) {
 	}
 }
 
+func TestStartupFlowSyncWaitWithMinDelayReturnsOnManualCleanup(t *testing.T) {
+	sync := NewStartupFlowSync()
+	result := waitStartupFlowSync(t, sync, time.Hour)
+
+	select {
+	case err := <-result:
+		t.Fatalf("wait returned before manual cleanup: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	if !sync.TriggerManualCleanup() {
+		t.Fatalf("expected first manual cleanup request to succeed")
+	}
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("wait returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("wait should return after manual cleanup request")
+	}
+
+	status := sync.Status()
+	if !status.ManualCleanupRequested {
+		t.Fatalf("expected manual cleanup request to be recorded")
+	}
+	if sync.TriggerManualCleanup() {
+		t.Fatalf("expected repeated manual cleanup request to be ignored")
+	}
+}
+
 func waitStartupFlowSync(t *testing.T, sync *StartupFlowSync, minDelay time.Duration) <-chan error {
 	t.Helper()
 

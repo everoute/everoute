@@ -83,6 +83,35 @@ func (r *Reconciler) enqueueStartupGlobalPolicySync(ctx context.Context) {
 	}
 }
 
+func (r *Reconciler) GetReadyToProcessGlobalRule() bool {
+	if r == nil {
+		return false
+	}
+	return r.readyToProcessGlobalRule.Load()
+}
+
+func (r *Reconciler) SetReadyToProcessGlobalRule(ready bool) {
+	if r == nil {
+		return
+	}
+	r.readyToProcessGlobalRule.Store(ready)
+}
+
+func (r *Reconciler) SkipGlobalPolicyWaitNormal(ctx context.Context) bool {
+	if r == nil {
+		return false
+	}
+	alreadyReady := r.GetReadyToProcessGlobalRule()
+	if !alreadyReady {
+		r.SetReadyToProcessGlobalRule(true)
+		klog.Infof("Skip global policy wait normal requested, runtime flag enabled")
+	} else {
+		klog.Infof("Skip global policy wait normal requested, runtime flag already enabled")
+	}
+	r.enqueueStartupGlobalPolicySync(ctx)
+	return !alreadyReady
+}
+
 func (r *Reconciler) listStartupPolicyKeys(ctx context.Context) (sets.Set[string], error) {
 	policyList := securityv1alpha1.SecurityPolicyList{}
 	if err := r.List(ctx, &policyList); err != nil {

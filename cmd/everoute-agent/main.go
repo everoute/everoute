@@ -172,17 +172,33 @@ func main() {
 		klog.Fatalf("failed to add pprof handler: %s", err)
 	}
 
-	proxyCache, policyGuardSetter, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
+	proxyCache, policyController, err := startManager(stopCtx, mgr, datapathManager, proxySyncChan, overlaySyncChan)
 	if err != nil {
 		klog.Fatalf("error %v when start controller manager.", err)
 	}
 
-	rpcServer := rpcserver.Initialize(datapathManager, mgr.GetClient(), opts.IsEnableCNI(), proxyCache, pprofSwitch, policyGuardSetter)
+	policyGuardSetter, flowRoundRuntime := policyRuntimeInterfaces(policyController)
+	rpcServer := rpcserver.Initialize(
+		datapathManager,
+		mgr.GetClient(),
+		opts.IsEnableCNI(),
+		proxyCache,
+		pprofSwitch,
+		policyGuardSetter,
+		flowRoundRuntime,
+	)
 	go rpcServer.Run(stopCtx.Done())
 
 	resourceInit(stopCtx, mgr, datapathManager)
 
 	<-stopCtx.Done()
+}
+
+func policyRuntimeInterfaces(policyController *policy.Reconciler) (rpcserver.GuardRuntimeSetter, rpcserver.FlowRoundRuntime) {
+	if policyController == nil {
+		return nil, nil
+	}
+	return policyController, policyController
 }
 
 func initCNI(datapathManager *datapath.DpManager, mgr manager.Manager, proxySyncChan chan event.GenericEvent, overlaySyncChan chan event.GenericEvent) {
@@ -276,21 +292,21 @@ func startMonitor(datapathManager *datapath.DpManager, config *rest.Config, ofpo
 }
 
 func startManager(ctx context.Context, mgr manager.Manager, datapathManager *datapath.DpManager, proxySyncChan chan event.GenericEvent,
-	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, policy.GuardRuntimeSetter, error) {
+	overlaySyncChan chan event.GenericEvent) (*ctrlProxy.Cache, *policy.Reconciler, error) {
 	var err error
-	var policyGuardSetter policy.GuardRuntimeSetter
+	var policyController *policy.Reconciler
 	startupPolicyControllerStarted := false
 	startupTRControllerStarted := false
 	if opts.IsEnableMS() {
 		// Policy controller: watch policy related resource and update
 		policyReconciler := &policy.Reconciler{
-			Client:                   mgr.GetClient(),
-			Scheme:                   mgr.GetScheme(),
-			DatapathManager:          datapathManager,
-			ManagedVDSes:             datapathManager.Config.MSVdsSet.Clone(),
-			ReadyToProcessGlobalRule: opts.readyToProcessGlobalRule,
-			StartupFlowSync:          datapathManager.StartupFlowSync(),
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			DatapathManager: datapathManager,
+			ManagedVDSes:    datapathManager.Config.MSVdsSet.Clone(),
+			StartupFlowSync: datapathManager.StartupFlowSync(),
 		}
+		policyReconciler.SetReadyToProcessGlobalRule(opts.readyToProcessGlobalRule)
 		if err = policyReconciler.SetupWithManager(
 			mgr,
 			opts.policyRuleEstimateLimit,
@@ -299,7 +315,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 			opts.disablePolicyRuleGuard); err != nil {
 			klog.Fatalf("unable to create policy controller: %s", err.Error())
 		}
-		policyGuardSetter = policyReconciler
+		policyController = policyReconciler
 		startupPolicyControllerStarted = true
 	}
 	if opts.IsEnableTR() {
@@ -389,7 +405,7 @@ func startManager(ctx context.Context, mgr manager.Manager, datapathManager *dat
 		}
 	}()
 
-	return proxyCache, policyGuardSetter, nil
+	return proxyCache, policyController, nil
 }
 
 func markUnstartedStartupFlowSyncDone(startupFlowSync *datapath.StartupFlowSync, policyControllerStarted, trControllerStarted bool) {

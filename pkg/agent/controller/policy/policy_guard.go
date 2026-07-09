@@ -55,15 +55,6 @@ type guardObjectKey struct {
 	Reason    string
 }
 
-// GuardRuntimeSetter updates policy admission guard limits at runtime.
-type GuardRuntimeSetter interface {
-	GetRuleEstimateLimit() uint64
-	SetRuleEstimateLimit(limit uint64) (uint64, uint64)
-	SetMemoryThreshold(threshold uint64) (uint64, uint64)
-	SetGuardEnabled(guardType string, enabled bool) (bool, bool, error)
-	GetGuardStatus() GuardStatus
-}
-
 // GuardStatus records runtime status for policy admission guards.
 type GuardStatus struct {
 	MemoryEnabled     bool

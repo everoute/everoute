@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -83,7 +84,7 @@ type Reconciler struct {
 	startupPolicySync       *startupsync.Reconciler
 	startupGroupMembersSync *startupsync.Reconciler
 
-	ReadyToProcessGlobalRule bool
+	readyToProcessGlobalRule atomic.Bool
 
 	memoryGuard       *MemoryGuard
 	ruleEstimateGuard *RuleEstimateGuard
@@ -963,7 +964,7 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 }
 
 func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
-	if r.ReadyToProcessGlobalRule {
+	if r.GetReadyToProcessGlobalRule() {
 		return true
 	}
 	if r.StartupFlowSync != nil {
