@@ -140,11 +140,11 @@ var _ = BeforeSuite(func() {
 	datapathManager.InitializeDatapath(ctx)
 
 	pCtrl = &Reconciler{
-		Client:                   k8sManager.GetClient(),
-		Scheme:                   k8sManager.GetScheme(),
-		DatapathManager:          datapathManager,
-		ReadyToProcessGlobalRule: true,
+		Client:          k8sManager.GetClient(),
+		Scheme:          k8sManager.GetScheme(),
+		DatapathManager: datapathManager,
 	}
+	pCtrl.SetReadyToProcessGlobalRule(true)
 	err = (pCtrl).SetupWithManager(k8sManager, DefaultPolicyRuleEstimateLimit, 0, false, false)
 	Expect(err).ToNot(HaveOccurred())
 

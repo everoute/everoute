@@ -9,7 +9,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 
-	policyctrl "github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
@@ -21,7 +20,8 @@ type CLITool struct {
 	dpManager         *datapath.DpManager
 	proxyCache        *ctrlProxy.Cache
 	pprofSwitch       *PprofSwitch
-	policyGuardSetter policyctrl.GuardRuntimeSetter
+	policyGuardSetter GuardRuntimeSetter
+	flowRoundRuntime  FlowRoundRuntime
 }
 
 func (g *CLITool) GetAllRules(req *v1alpha1.StreamRulesRequest, sendFunc v1alpha1.CLI_GetAllRulesServer) error {
@@ -235,11 +235,63 @@ func (g *CLITool) GetPprofStatus(context.Context, *emptypb.Empty) (*v1alpha1.Ppr
 	return g.pprofStatus(), nil
 }
 
+func (g *CLITool) GetFlowRoundStatus(context.Context, *emptypb.Empty) (*v1alpha1.FlowRoundStatus, error) {
+	return g.flowRoundStatus()
+}
+
+func (g *CLITool) SkipGlobalPolicyWaitNormal(ctx context.Context, _ *emptypb.Empty) (*v1alpha1.FlowRoundStatus, error) {
+	if g.flowRoundRuntime == nil {
+		return nil, fmt.Errorf("flow round runtime is not available")
+	}
+	g.flowRoundRuntime.SkipGlobalPolicyWaitNormal(ctx)
+	return g.flowRoundStatus()
+}
+
+func (g *CLITool) CleanupPreviousRound(context.Context, *emptypb.Empty) (*v1alpha1.FlowRoundStatus, error) {
+	if g.dpManager == nil {
+		return nil, fmt.Errorf("datapath manager is not available")
+	}
+	if g.dpManager.StartupFlowSync() == nil {
+		return nil, fmt.Errorf("startup flow sync is not enabled")
+	}
+	g.dpManager.StartupFlowSync().TriggerManualCleanup()
+	return g.flowRoundStatus()
+}
+
 func (g *CLITool) pprofStatus() *v1alpha1.PprofStatus {
 	return &v1alpha1.PprofStatus{
 		Enabled: g.pprofSwitch.Enabled(),
 		URL:     g.pprofSwitch.URL(),
 	}
+}
+
+func (g *CLITool) flowRoundStatus() (*v1alpha1.FlowRoundStatus, error) {
+	if g.dpManager == nil {
+		return nil, fmt.Errorf("datapath manager is not available")
+	}
+	status, err := g.dpManager.GetFlowRoundStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	res := &v1alpha1.FlowRoundStatus{
+		NormalPolicyDone:              status.NormalPolicyDone,
+		GlobalPolicyDone:              status.GlobalPolicyDone,
+		TrafficRedirectDone:           status.TrafficRedirectDone,
+		ManualCleanupRequested:        status.ManualCleanupRequested,
+		GlobalPolicyWaitNormalSkipped: g.flowRoundRuntime != nil && g.flowRoundRuntime.GetReadyToProcessGlobalRule(),
+	}
+	for _, vdsStatus := range status.VDSStatuses {
+		res.VDSStatuses = append(res.VDSStatuses, &v1alpha1.FlowRoundVDSStatus{
+			VDSID:                   vdsStatus.VDSID,
+			Bridge:                  vdsStatus.Bridge,
+			PreviousRound:           vdsStatus.PreviousRound,
+			CurrentRound:            vdsStatus.CurrentRound,
+			PreviousDatapathVersion: vdsStatus.PreviousDatapathVersion,
+			CurrentDatapathVersion:  vdsStatus.CurrentDatapathVersion,
+		})
+	}
+	return res, nil
 }
 
 func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
@@ -260,12 +312,13 @@ func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {
 }
 
 func NewCLIToolServer(datapathManager *datapath.DpManager, proxyCache *ctrlProxy.Cache, pprofSwitch *PprofSwitch,
-	policyGuardSetter policyctrl.GuardRuntimeSetter) *CLITool {
+	policyGuardSetter GuardRuntimeSetter, flowRoundRuntime FlowRoundRuntime) *CLITool {
 	s := &CLITool{
 		dpManager:         datapathManager,
 		proxyCache:        proxyCache,
 		pprofSwitch:       pprofSwitch,
 		policyGuardSetter: policyGuardSetter,
+		flowRoundRuntime:  flowRoundRuntime,
 	}
 
 	return s

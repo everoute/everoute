@@ -298,6 +298,20 @@ type DpManager struct {
 	ippoolGWs     sets.Set[string]
 }
 
+type FlowRoundStatus struct {
+	StartupFlowSyncStatus
+	VDSStatuses []FlowRoundVDSStatus
+}
+
+type FlowRoundVDSStatus struct {
+	VDSID                   string
+	Bridge                  string
+	PreviousRound           uint64
+	CurrentRound            uint64
+	PreviousDatapathVersion string
+	CurrentDatapathVersion  string
+}
+
 type DpManagerInfo struct {
 	NodeName   string
 	PodCIDR    []cnitypes.IPNet
@@ -497,6 +511,55 @@ func (dp *DpManager) SetStartupFlowSync(startupFlowSync *StartupFlowSync) {
 
 func (dp *DpManager) StartupFlowSync() *StartupFlowSync {
 	return dp.startupFlowSync
+}
+
+func (dp *DpManager) GetFlowRoundStatus() (*FlowRoundStatus, error) {
+	if dp == nil {
+		return nil, fmt.Errorf("datapath manager is nil")
+	}
+
+	startupStatus := dp.StartupFlowSync().Status()
+	vdsStatuses, err := dp.getFlowRoundVDSStatuses()
+	if err != nil {
+		return nil, err
+	}
+
+	return &FlowRoundStatus{
+		StartupFlowSyncStatus: startupStatus,
+		VDSStatuses:           vdsStatuses,
+	}, nil
+}
+
+func (dp *DpManager) getFlowRoundVDSStatuses() ([]FlowRoundVDSStatus, error) {
+	vdsIDs := make([]string, 0, len(dp.BridgeChainMap))
+	for vdsID := range dp.BridgeChainMap {
+		vdsIDs = append(vdsIDs, vdsID)
+	}
+	sort.Strings(vdsIDs)
+
+	statuses := make([]FlowRoundVDSStatus, 0, len(vdsIDs))
+	for _, vdsID := range vdsIDs {
+		bridgeMap := dp.BridgeChainMap[vdsID]
+		localBridge := bridgeMap[LOCAL_BRIDGE_KEYWORD]
+		if localBridge == nil {
+			return nil, fmt.Errorf("local bridge not found for vds %s", vdsID)
+		}
+		roundInfo := localBridge.GetRoundInfo()
+		if roundInfo == nil {
+			return nil, fmt.Errorf("round info not found for vds %s", vdsID)
+		}
+
+		statuses = append(statuses, FlowRoundVDSStatus{
+			VDSID:                   vdsID,
+			Bridge:                  dp.Config.ManagedVDSMap[vdsID],
+			PreviousRound:           roundInfo.previousRoundNum,
+			CurrentRound:            roundInfo.currentRoundNum,
+			PreviousDatapathVersion: roundInfo.previousRoundDatapathVersion,
+			CurrentDatapathVersion:  roundInfo.currentRoundDatapathVersion,
+		})
+	}
+
+	return statuses, nil
 }
 
 // used by unittest

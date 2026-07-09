@@ -17,6 +17,7 @@ limitations under the License.
 package rpcserver
 
 import (
+	"context"
 	"net"
 	"os"
 
@@ -24,12 +25,25 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	policyctrl "github.com/everoute/everoute/pkg/agent/controller/policy"
+	policy "github.com/everoute/everoute/pkg/agent/controller/policy"
 	ctrlProxy "github.com/everoute/everoute/pkg/agent/controller/proxy"
 	"github.com/everoute/everoute/pkg/agent/datapath"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 )
+
+type GuardRuntimeSetter interface {
+	GetRuleEstimateLimit() uint64
+	SetRuleEstimateLimit(limit uint64) (uint64, uint64)
+	SetMemoryThreshold(threshold uint64) (uint64, uint64)
+	SetGuardEnabled(guardType string, enabled bool) (bool, bool, error)
+	GetGuardStatus() policy.GuardStatus
+}
+
+type FlowRoundRuntime interface {
+	GetReadyToProcessGlobalRule() bool
+	SkipGlobalPolicyWaitNormal(ctx context.Context) bool
+}
 
 type Server struct {
 	k8sClient client.Client
@@ -40,13 +54,14 @@ type Server struct {
 	enableCNI bool
 
 	pprofSwitch       *PprofSwitch
-	policyGuardSetter policyctrl.GuardRuntimeSetter
+	policyGuardSetter GuardRuntimeSetter
+	flowRoundRuntime  FlowRoundRuntime
 
 	stopChan <-chan struct{}
 }
 
 func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, enableCNI bool, proxyCache *ctrlProxy.Cache,
-	pprofSwitch *PprofSwitch, policyGuardSetter policyctrl.GuardRuntimeSetter) *Server {
+	pprofSwitch *PprofSwitch, policyGuardSetter GuardRuntimeSetter, flowRoundRuntime FlowRoundRuntime) *Server {
 	s := &Server{
 		dpManager:         datapathManager,
 		k8sClient:         k8sClient,
@@ -54,6 +69,7 @@ func Initialize(datapathManager *datapath.DpManager, k8sClient client.Client, en
 		enableCNI:         enableCNI,
 		pprofSwitch:       pprofSwitch,
 		policyGuardSetter: policyGuardSetter,
+		flowRoundRuntime:  flowRoundRuntime,
 	}
 
 	return s
@@ -96,7 +112,7 @@ func (s *Server) Run(stopChan <-chan struct{}) {
 	klog.Infoln("Enable collector rpc server")
 
 	// register cli server
-	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache, s.pprofSwitch, s.policyGuardSetter)
+	cliTool := NewCLIToolServer(s.dpManager, s.proxyCache, s.pprofSwitch, s.policyGuardSetter, s.flowRoundRuntime)
 	v1alpha1.RegisterCLIServer(rpcServer, cliTool)
 	klog.Infoln("Enable cli tools rpc server")
 

@@ -28,14 +28,22 @@ type StartupFlowSync struct {
 	lock sync.Mutex
 	done chan struct{}
 
-	normalPolicyDone    bool
-	globalPolicyDone    bool
-	trafficRedirectDone bool
+	manualCleanupRequestedCh chan struct{}
+
+	status StartupFlowSyncStatus
+}
+
+type StartupFlowSyncStatus struct {
+	NormalPolicyDone       bool
+	GlobalPolicyDone       bool
+	TrafficRedirectDone    bool
+	ManualCleanupRequested bool
 }
 
 func NewStartupFlowSync() *StartupFlowSync {
 	return &StartupFlowSync{
-		done: make(chan struct{}),
+		done:                     make(chan struct{}),
+		manualCleanupRequestedCh: make(chan struct{}),
 	}
 }
 
@@ -43,21 +51,21 @@ func (s *StartupFlowSync) MarkNormalPolicyDone() {
 	if s == nil {
 		return
 	}
-	s.markDone(&s.normalPolicyDone, "normal policy")
+	s.markDone(&s.status.NormalPolicyDone, "normal policy")
 }
 
 func (s *StartupFlowSync) MarkGlobalPolicyDone() {
 	if s == nil {
 		return
 	}
-	s.markDone(&s.globalPolicyDone, "global policy")
+	s.markDone(&s.status.GlobalPolicyDone, "global policy")
 }
 
 func (s *StartupFlowSync) MarkTrafficRedirectDone() {
 	if s == nil {
 		return
 	}
-	s.markDone(&s.trafficRedirectDone, "trafficredirect")
+	s.markDone(&s.status.TrafficRedirectDone, "trafficredirect")
 }
 
 func (s *StartupFlowSync) NormalPolicyDone() bool {
@@ -66,7 +74,7 @@ func (s *StartupFlowSync) NormalPolicyDone() bool {
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.normalPolicyDone
+	return s.status.NormalPolicyDone
 }
 
 func (s *StartupFlowSync) AllDone() bool {
@@ -75,7 +83,36 @@ func (s *StartupFlowSync) AllDone() bool {
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.normalPolicyDone && s.globalPolicyDone && s.trafficRedirectDone
+	return s.status.NormalPolicyDone && s.status.GlobalPolicyDone && s.status.TrafficRedirectDone
+}
+
+func (s *StartupFlowSync) TriggerManualCleanup() bool {
+	if s == nil {
+		return false
+	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.status.ManualCleanupRequested {
+		klog.Infof("Manual previous round cleanup requested, request already recorded")
+		return false
+	}
+	s.status.ManualCleanupRequested = true
+	close(s.manualCleanupRequestedCh)
+	klog.Infof("Manual previous round cleanup requested")
+	return true
+}
+
+func (s *StartupFlowSync) Status() StartupFlowSyncStatus {
+	if s == nil {
+		return StartupFlowSyncStatus{
+			NormalPolicyDone:    true,
+			GlobalPolicyDone:    true,
+			TrafficRedirectDone: true,
+		}
+	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.status
 }
 
 func (s *StartupFlowSync) WaitWithMinDelay(ctx context.Context, vdsID string, minDelay, logInterval time.Duration) error {
@@ -96,11 +133,13 @@ func (s *StartupFlowSync) WaitWithMinDelay(ctx context.Context, vdsID string, mi
 
 	startupFlowSyncDone := true
 	var startupFlowSyncDoneCh <-chan struct{}
+	var manualCleanupRequestedCh <-chan struct{}
 	if s != nil {
 		startupFlowSyncDone = s.AllDone()
 		if !startupFlowSyncDone {
 			startupFlowSyncDoneCh = s.done
 		}
+		manualCleanupRequestedCh = s.manualCleanupRequestedCh
 	}
 	if startupFlowSyncDone {
 		startupFlowSyncDoneCh = nil
@@ -116,6 +155,9 @@ func (s *StartupFlowSync) WaitWithMinDelay(ctx context.Context, vdsID string, mi
 		case <-ctx.Done():
 			klog.Infof("Stop waiting before deleting previous round flows because context is done, vdsID: %s, err: %v", vdsID, ctx.Err())
 			return ctx.Err()
+		case <-manualCleanupRequestedCh:
+			klog.Infof("Manual previous round cleanup request received, skip waiting startup flow sync and flow round clean delay")
+			return nil
 		case <-startupFlowSyncDoneCh:
 			startupFlowSyncDone = true
 			startupFlowSyncDoneCh = nil
@@ -130,14 +172,14 @@ func (s *StartupFlowSync) WaitWithMinDelay(ctx context.Context, vdsID string, mi
 				s.logReadyToDeletePreviousRoundFlows(vdsID, minDelayDone)
 				return nil
 			}
-			normalPolicyDone, globalPolicyDone, trafficRedirectDone := s.doneStatus()
+			status := s.Status()
 			klog.Infof("Flow round clean delay elapsed, waiting startup flow sync before deleting previous round flows, "+
 				"vdsID: %s, normalPolicyDone: %t, globalPolicyDone: %t, trafficRedirectDone: %t",
-				vdsID, normalPolicyDone, globalPolicyDone, trafficRedirectDone)
+				vdsID, status.NormalPolicyDone, status.GlobalPolicyDone, status.TrafficRedirectDone)
 		case <-ticker.C:
-			normalPolicyDone, globalPolicyDone, trafficRedirectDone := s.doneStatus()
+			status := s.Status()
 			klog.Infof("Waiting before deleting previous round flows, vdsID: %s, flowRoundCleanDelayDone: %t, normalPolicyDone: %t, globalPolicyDone: %t, trafficRedirectDone: %t",
-				vdsID, minDelayDone, normalPolicyDone, globalPolicyDone, trafficRedirectDone)
+				vdsID, minDelayDone, status.NormalPolicyDone, status.GlobalPolicyDone, status.TrafficRedirectDone)
 		}
 	}
 }
@@ -148,10 +190,10 @@ func (s *StartupFlowSync) logReadyToDeletePreviousRoundFlows(vdsID string, minDe
 			"vdsID: %s, flowRoundCleanDelayDone: %t", vdsID, minDelayDone)
 		return
 	}
-	normalPolicyDone, globalPolicyDone, trafficRedirectDone := s.doneStatus()
+	status := s.Status()
 	klog.Infof("Startup flow sync and flow round clean delay completed, ready to delete previous round flows, "+
 		"vdsID: %s, flowRoundCleanDelayDone: %t, normalPolicyDone: %t, globalPolicyDone: %t, trafficRedirectDone: %t",
-		vdsID, minDelayDone, normalPolicyDone, globalPolicyDone, trafficRedirectDone)
+		vdsID, minDelayDone, status.NormalPolicyDone, status.GlobalPolicyDone, status.TrafficRedirectDone)
 }
 
 func (s *StartupFlowSync) markDone(done *bool, name string) {
@@ -162,16 +204,7 @@ func (s *StartupFlowSync) markDone(done *bool, name string) {
 	}
 	*done = true
 	klog.Infof("Startup %s flow sync done", name)
-	if s.normalPolicyDone && s.globalPolicyDone && s.trafficRedirectDone {
+	if s.status.NormalPolicyDone && s.status.GlobalPolicyDone && s.status.TrafficRedirectDone {
 		close(s.done)
 	}
-}
-
-func (s *StartupFlowSync) doneStatus() (normalPolicyDone, globalPolicyDone, trafficRedirectDone bool) {
-	if s == nil {
-		return true, true, true
-	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.normalPolicyDone, s.globalPolicyDone, s.trafficRedirectDone
 }
