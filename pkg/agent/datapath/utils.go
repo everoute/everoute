@@ -32,7 +32,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 
-	policycache "github.com/everoute/everoute/pkg/agent/controller/policy/cache"
 	"github.com/everoute/everoute/pkg/apis/rpc/v1alpha1"
 	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/metrics"
@@ -504,40 +503,9 @@ func FlowKeyFromRuleName(ruleName string) string {
 	return keys[len(keys)-1]
 }
 
-// func (dm *DpManager) PolicyRuleLimit(policyIDs []string, addList, deleteList []*policycache.PolicyRule) bool {
-func (dm *DpManager) PolicyRuleLimit(_ []string, _, _ []*policycache.PolicyRule) bool {
-	return false
-	/*
-		dm.lockflowReplayWithTimeout()
-		defer dm.flowReplayMutex.Unlock()
-
-		if !dm.AgentMetric.ShouldLimit(policyIDs) {
-			return false
-		}
-
-		// count real rule num after changes
-		addCnt := 0
-		delCnt := 0
-		for _, item := range addList {
-			if dm.GetRuleEntryByRuleID(FlowKeyFromRuleName(item.Name)) == nil {
-				addCnt++
-			}
-		}
-		for _, item := range deleteList {
-			entry := dm.GetRuleEntryByRuleID(FlowKeyFromRuleName(item.Name))
-			if entry != nil && len(entry.PolicyRuleReference.List()) <= 1 {
-				delCnt++
-			}
-		}
-
-		diffSize := addCnt - delCnt
-		return len(dm.ListRuleEntry())*len(dm.BridgeChainMap)+diffSize > RuleEntryCap
-	*/
-}
-
-func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string, limited bool) {
+func (dm *DpManager) PolicyRuleMetricsUpdate(policyIDs []string) {
 	for _, k := range policyIDs {
-		dm.AgentMetric.SetRuleEntryNum(k, dm.policyRuleNums[k], limited)
+		dm.AgentMetric.SetRuleEntryNum(k, dm.policyRuleNums[k])
 	}
 
 	dm.AgentMetric.SetRuleEntryTotalNum(len(dm.Rules))
