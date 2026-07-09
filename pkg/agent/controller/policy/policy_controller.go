@@ -26,7 +26,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -868,11 +867,6 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 		}
 	}
 
-	if r.DatapathManager.PolicyRuleLimit(policyName, addRuleList, delRuleList) {
-		r.DatapathManager.PolicyRuleMetricsUpdate(policyName, true)
-		return apierrors.NewForbidden(schema.GroupResource{}, "", nil)
-	}
-
 	if len(addRuleList) == 0 && len(delRuleList) == 0 {
 		return nil
 	}
@@ -890,7 +884,7 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 		)
 	}
 
-	r.DatapathManager.PolicyRuleMetricsUpdate(policyName, false)
+	r.DatapathManager.PolicyRuleMetricsUpdate(policyName)
 
 	return errors.NewAggregate(errList)
 }
@@ -926,17 +920,6 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 
 	return r.DatapathManager.AddEveroutePolicyRule(ctx, everoutePolicyRule, ruleBase)
 }
-
-// func (r *Reconciler) getSecurityPolicyByCompleteRule(ruleID string) *securityv1alpha1.SecurityPolicy {
-// 	sp := securityv1alpha1.SecurityPolicy{}
-// 	if err := r.Get(context.Background(), k8stypes.NamespacedName{
-// 		Namespace: strings.Split(ruleID, "/")[0],
-// 		Name:      strings.Split(ruleID, "/")[1],
-// 	}, &sp); err != nil {
-// 		return nil
-// 	}
-// 	return &sp
-// }
 
 func (r *Reconciler) isReadyToProcessGlobalRule(ctx context.Context) bool {
 	log := ctrl.LoggerFrom(ctx)

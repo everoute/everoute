@@ -20,7 +20,6 @@ const (
 
 	MetricRuleEntryNumTotal        = "rule_entry_num_total"
 	MetricRuleEntryNum             = "rule_entry_num"
-	MetricRuleEntryNumLimit        = "rule_entry_num_limit"
 	MetricRuleEntryPolicyNameLabel = "name"
 
 	// globalRule

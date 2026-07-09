@@ -39,7 +39,6 @@ type AgentMetric struct {
 
 	ruleEntryTotalNum prometheus.Gauge
 	ruleEntryNum      prometheus.GaugeVec
-	ruleEntryLimitNum prometheus.GaugeVec
 
 	policyNameMap map[string]string
 
@@ -96,10 +95,6 @@ func NewAgentMetric() *AgentMetric {
 		ruleEntryNum: *prometheus.NewGaugeVec(newAgentGaugeOpt(
 			constants.MetricRuleEntryNum,
 			"The count of datapath policy rule for each policy",
-		), []string{constants.MetricRuleEntryPolicyNameLabel}),
-		ruleEntryLimitNum: *prometheus.NewGaugeVec(newAgentGaugeOpt(
-			constants.MetricRuleEntryNumLimit,
-			"The count of datapath policy rule for each policy currently limited",
 		), []string{constants.MetricRuleEntryPolicyNameLabel}),
 		policyNameMap: map[string]string{},
 		flowIDUsedCount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
@@ -203,16 +198,6 @@ func (m *AgentMetric) UpdatePolicyName(policyID string, policy *securityv1alpha1
 	}
 }
 
-func (m *AgentMetric) ShouldLimit(policyID []string) bool {
-	for _, item := range policyID {
-		_, ok := m.policyNameMap[item]
-		if ok {
-			return true
-		}
-	}
-	return false
-}
-
 func (m *AgentMetric) ArpInc() {
 	m.arpCount.Inc()
 }
@@ -221,17 +206,12 @@ func (m *AgentMetric) ArpRejectInc() {
 	m.arpRejectCount.Inc()
 }
 
-func (m *AgentMetric) SetRuleEntryNum(policyID string, num int, limited bool) {
+func (m *AgentMetric) SetRuleEntryNum(policyID string, num int) {
 	name, ok := m.policyNameMap[policyID]
 	if !ok {
 		return
 	}
-	if limited {
-		m.ruleEntryLimitNum.WithLabelValues(name).Set(float64(num))
-	} else {
-		m.ruleEntryNum.WithLabelValues(name).Set(float64(num))
-		m.ruleEntryLimitNum.DeleteLabelValues(name)
-	}
+	m.ruleEntryNum.WithLabelValues(name).Set(float64(num))
 }
 
 func (m *AgentMetric) SetRuleEntryTotalNum(num int) {
@@ -242,7 +222,7 @@ func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust}
 	if config.EnableMs {
 		klog.Infof("Register ms metrics for enabled ms")
-		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum, m.ruleEntryLimitNum,
+		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum,
 			m.policyGuardEnabled,
 			m.policyMemoryBreakerOpen,
 			m.policyMemoryBreakerOpenTotal,
