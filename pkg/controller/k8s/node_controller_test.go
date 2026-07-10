@@ -29,7 +29,8 @@ var _ = Describe("node controller test", func() {
 				Name: GwEpNs,
 			},
 		}
-		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+		err := k8sClient.Create(ctx, &ns)
+		Expect(err == nil || errors.IsAlreadyExists(err)).Should(BeTrue())
 	})
 
 	Context("delete node", func() {
@@ -61,6 +62,62 @@ var _ = Describe("node controller test", func() {
 					g.Expect(err2).ShouldNot(BeNil())
 					g.Expect(errors.IsNotFound(err2)).Should(BeTrue())
 				}, timeout, interval).Should(Succeed())
+			})
+		})
+	})
+
+	Context("cleanup stale gw endpoint by endpoint watch", func() {
+		When("node doesn't exist", func() {
+			BeforeEach(func() {
+				ep := v1alpha1.Endpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      utils.GetGwEndpointName(nodeName),
+						Namespace: GwEpNs,
+					},
+				}
+				Expect(k8sClient.Create(ctx, &ep)).Should(Succeed())
+			})
+
+			It("should delete stale gw-ep endpoint", func() {
+				epKey := k8stypes.NamespacedName{
+					Namespace: GwEpNs,
+					Name:      utils.GetGwEndpointName(nodeName),
+				}
+				Eventually(func(g Gomega) {
+					ep := v1alpha1.Endpoint{}
+					err := k8sClient.Get(ctx, epKey, &ep)
+					g.Expect(err).ShouldNot(BeNil())
+					g.Expect(errors.IsNotFound(err)).Should(BeTrue())
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("node exists", func() {
+			BeforeEach(func() {
+				node = corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: nodeName,
+					},
+				}
+				Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
+				ep := v1alpha1.Endpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      utils.GetGwEndpointName(nodeName),
+						Namespace: GwEpNs,
+					},
+				}
+				Expect(k8sClient.Create(ctx, &ep)).Should(Succeed())
+			})
+
+			It("should keep gw-ep endpoint", func() {
+				epKey := k8stypes.NamespacedName{
+					Namespace: GwEpNs,
+					Name:      utils.GetGwEndpointName(nodeName),
+				}
+				Consistently(func() error {
+					ep := v1alpha1.Endpoint{}
+					return k8sClient.Get(ctx, epKey, &ep)
+				}, interval*3, interval).Should(Succeed())
 			})
 		})
 	})

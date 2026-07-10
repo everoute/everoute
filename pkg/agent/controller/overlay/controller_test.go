@@ -263,7 +263,11 @@ var _ = Describe("overlay controller", func() {
 					}
 					Expect(k8sClient.Status().Update(ctx, &node)).Should(Succeed())
 					Eventually(func() bool {
-						return checkNodeIPsInCache(nodeName, "")
+						_, exists, err := overlayReconciler.nodeIPsCache.GetByKey(nodeName)
+						if err != nil {
+							return false
+						}
+						return !exists
 					}, Timeout, Interval).Should(BeTrue())
 				})
 
@@ -347,13 +351,85 @@ var _ = Describe("overlay controller", func() {
 				It("delete node", func() {
 					Expect(k8sClient.Delete(ctx, &node)).Should(Succeed())
 					Eventually(func(g Gomega) {
-						_, exists, err := overlayReconciler.nodeIPsCache.GetByKey(nodeName)
-						g.Expect(err).Should(BeNil())
-						g.Expect(exists).Should(BeFalse())
+						g.Expect(checkNodeIPsInCache(nodeName, "")).Should(BeTrue())
+						g.Expect(checkEndpointInCache(epIndex, nodeName, []string{epIP})).Should(BeTrue())
 						g.Expect(checkRemoteFlow(epIP)).Should(BeFalse())
 					}, Timeout, Interval).Should(Succeed())
 				})
 			})
+		})
+	})
+
+	Context("test node recreate", func() {
+		It("should recover remote flow after node recreate without gw endpoint recreate", func() {
+			gwEpName := "gw-ep-" + nodeName
+			gwEpIP := "123.1.1.254"
+			gwEpIndex := ercache.GenEpRefIndex(nsName, gwEpName)
+
+			gwEp := v1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwEpName,
+					Namespace: nsName,
+				},
+				Spec: v1alpha1.EndpointSpec{
+					Type: v1alpha1.EndpointStatic,
+					Reference: v1alpha1.EndpointReference{
+						ExternalIDName:  "gw-ep",
+						ExternalIDValue: nodeName,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &gwEp)).Should(Succeed())
+			gwEp.Status.Agents = []string{nodeName}
+			gwEp.Status.IPs = []ertypes.IPAddress{ertypes.IPAddress(gwEpIP)}
+			Expect(k8sClient.Status().Update(ctx, &gwEp)).Should(Succeed())
+			Eventually(func() bool {
+				return checkEndpointInCache(gwEpIndex, nodeName, []string{gwEpIP})
+			}, Timeout, Interval).Should(BeTrue())
+
+			node = corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nodeName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
+			node.Status.Addresses = []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: internalIP,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, &node)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(checkNodeIPsInCache(nodeName, internalIP)).Should(BeTrue())
+				g.Expect(checkRemoteFlow(gwEpIP, internalIP)).Should(BeTrue())
+			}, Timeout, Interval).Should(Succeed())
+
+			Expect(k8sClient.Delete(ctx, &node)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(checkNodeIPsInCache(nodeName, "")).Should(BeTrue())
+				g.Expect(checkEndpointInCache(gwEpIndex, nodeName, []string{gwEpIP})).Should(BeTrue())
+				g.Expect(checkRemoteFlow(gwEpIP)).Should(BeFalse())
+			}, Timeout, Interval).Should(Succeed())
+
+			node = corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nodeName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
+			node.Status.Addresses = []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: internalIP,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, &node)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(checkNodeIPsInCache(nodeName, internalIP)).Should(BeTrue())
+				g.Expect(checkEndpointInCache(gwEpIndex, nodeName, []string{gwEpIP})).Should(BeTrue())
+				g.Expect(checkRemoteFlow(gwEpIP, internalIP)).Should(BeTrue())
+			}, Timeout, Interval).Should(Succeed())
 		})
 	})
 

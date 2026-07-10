@@ -199,7 +199,7 @@ func (r *Reconciler) deleteEndpoint(key types.NamespacedName) error {
 			}
 		}
 		delete(nodeIPs.PodIPs, epIndex)
-		_ = r.nodeIPsCache.Update(nodeIPs)
+		r.updateOrDeleteNodeIPs(nodeIPs)
 	}
 
 	return nil
@@ -243,7 +243,7 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 					}
 				}
 				nodeIPs.PodIPs[epIndex] = newIPs
-				_ = r.nodeIPsCache.Update(nodeIPs)
+				r.updateOrDeleteNodeIPs(nodeIPs)
 			}
 		}
 	}
@@ -277,7 +277,7 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 				}
 			}
 			nodeIPs.PodIPs[epIndex] = newIPs
-			_ = r.nodeIPsCache.Update(nodeIPs)
+			r.updateOrDeleteNodeIPs(nodeIPs)
 		} else {
 			// delete endpoint in this node
 			if nodeIPs.IP != "" {
@@ -295,7 +295,7 @@ func (r *Reconciler) updateEndpoint(ep v1alpha1.Endpoint) error {
 				}
 			}
 			delete(nodeIPs.PodIPs, epIndex)
-			_ = r.nodeIPsCache.Update(nodeIPs)
+			r.updateOrDeleteNodeIPs(nodeIPs)
 		}
 	}
 
@@ -316,12 +316,12 @@ func (r *Reconciler) deleteNode(key types.NamespacedName) error {
 
 	nodeIPs := obj.(*ercache.NodeIPs).DeepCopy()
 	if nodeIPs.IP == "" {
-		_ = r.nodeIPsCache.Delete(nodeIPs)
+		r.updateOrDeleteNodeIPs(nodeIPs)
 		return nil
 	}
 
 	ips := nodeIPs.ListPodIPs()
-	klog.Infof("Delete all remote ips %v of node %s with node ip %s", ips, nodeIPs.Name, nodeIPs.IP)
+	klog.Infof("Delete remote flows for ips %v of node %s with node ip %s, then clear node ip and keep pod ips cache", ips, nodeIPs.Name, nodeIPs.IP)
 	var errs []error
 	for _, ip := range ips {
 		if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
@@ -332,7 +332,8 @@ func (r *Reconciler) deleteNode(key types.NamespacedName) error {
 	if errors.Join(errs...) != nil {
 		return fmt.Errorf("failed to remove remote ips in dp")
 	}
-	_ = r.nodeIPsCache.Delete(nodeIPs)
+	nodeIPs.IP = ""
+	r.updateOrDeleteNodeIPs(nodeIPs)
 	return nil
 }
 
@@ -362,12 +363,12 @@ func (r *Reconciler) updateNode(node corev1.Node) error {
 	allPodIPs := nodeIPs.ListPodIPs()
 	if len(allPodIPs) == 0 {
 		nodeIPs.IP = newNodeIP
-		_ = r.nodeIPsCache.Update(nodeIPs)
+		r.updateOrDeleteNodeIPs(nodeIPs)
 		return nil
 	}
 
 	if nodeIPs.IP != "" {
-		klog.Infof("Delete all remote ips %v with node ip %s in node %s for update node ip from %s to %s", allPodIPs, nodeIPs.IP, nodeName, nodeIPs.IP, newNodeIP)
+		klog.Infof("Delete remote flows for ips %v in node %s for node ip update from %s to %s", allPodIPs, nodeName, nodeIPs.IP, newNodeIP)
 		var errs []error
 		for _, ip := range allPodIPs {
 			if err := r.UplinkBr.RemoveRemoteEndpoint(ip); err != nil {
@@ -381,7 +382,7 @@ func (r *Reconciler) updateNode(node corev1.Node) error {
 	}
 
 	if newNodeIP != "" {
-		klog.Infof("Add all remote ips %v with node ip %s in node %s for update node ip from %s to %s", allPodIPs, newNodeIP, nodeName, nodeIPs.IP, newNodeIP)
+		klog.Infof("Restore remote flows for ips %v in node %s after node ip update from %s to %s", allPodIPs, nodeName, nodeIPs.IP, newNodeIP)
 		var errs []error
 		for _, ip := range allPodIPs {
 			if err := r.UplinkBr.AddRemoteEndpoint(net.ParseIP(ip), net.ParseIP(newNodeIP)); err != nil {
@@ -394,7 +395,7 @@ func (r *Reconciler) updateNode(node corev1.Node) error {
 		}
 	}
 	nodeIPs.IP = newNodeIP
-	_ = r.nodeIPsCache.Update(nodeIPs)
+	r.updateOrDeleteNodeIPs(nodeIPs)
 	return nil
 }
 
@@ -440,4 +441,16 @@ func ipAddressesToStringSet(ips []ertypes.IPAddress) sets.Set[string] {
 	}
 
 	return res
+}
+
+func (r *Reconciler) updateOrDeleteNodeIPs(nodeIPs *ercache.NodeIPs) {
+	if nodeIPs == nil {
+		return
+	}
+	if nodeIPs.IP == "" && len(nodeIPs.PodIPs) == 0 {
+		klog.Infof("Delete node %s pod ips cache entry after node ip is cleared and no endpoint ips remain", nodeIPs.Name)
+		_ = r.nodeIPsCache.Delete(nodeIPs)
+		return
+	}
+	_ = r.nodeIPsCache.Update(nodeIPs)
 }

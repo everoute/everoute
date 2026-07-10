@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/everoute/everoute/pkg/apis/security/v1alpha1"
+	cniconst "github.com/everoute/everoute/pkg/constants/cni"
 	"github.com/everoute/everoute/pkg/source"
 	"github.com/everoute/everoute/pkg/utils"
 )
@@ -59,6 +61,7 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		klog.Errorf("Failed to delete gw-ep endpoint for node %s", req.Name)
 		return ctrl.Result{}, err
 	}
+	klog.Infof("Deleted gw-ep endpoint %s/%s for node %s", ep.GetNamespace(), ep.GetName(), req.Name)
 
 	return ctrl.Result{}, nil
 }
@@ -73,7 +76,14 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate())
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{}, nodePredicate()); err != nil {
+		return err
+	}
+	return c.Watch(
+		source.Kind(mgr.GetCache(), &v1alpha1.Endpoint{}),
+		handler.EnqueueRequestsFromMapFunc(r.enqueueNodeByGwEndpoint),
+		gwEndpointPredicate(r.GwEpNamespace),
+	)
 }
 
 func nodePredicate() predicate.Predicate {
@@ -91,4 +101,55 @@ func nodePredicate() predicate.Predicate {
 			return false
 		},
 	}
+}
+
+func (r *NodeReconciler) enqueueNodeByGwEndpoint(_ context.Context, obj client.Object) []ctrl.Request {
+	if obj == nil {
+		return nil
+	}
+	nodeName, isGwEp := getGwEndpointNodeName(obj.GetName())
+	if !isGwEp {
+		return nil
+	}
+	return []ctrl.Request{{NamespacedName: k8stypes.NamespacedName{Name: nodeName}}}
+}
+
+func gwEndpointPredicate(namespace string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isGwEndpointObject(e.Object, namespace)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isGwEndpointObject(e.ObjectNew, namespace)
+		},
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+func isGwEndpointObject(obj client.Object, namespace string) bool {
+	if obj == nil {
+		return false
+	}
+	if obj.GetNamespace() != namespace {
+		return false
+	}
+	_, isGwEp := getGwEndpointNodeName(obj.GetName())
+	return isGwEp
+}
+
+func getGwEndpointNodeName(epName string) (string, bool) {
+	prefix := cniconst.GwEpNamePrefix + "-"
+	if !strings.HasPrefix(epName, prefix) {
+		return "", false
+	}
+	nodeName := strings.TrimPrefix(epName, prefix)
+	if nodeName == "" {
+		return "", false
+	}
+	return nodeName, true
 }
