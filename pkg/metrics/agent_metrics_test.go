@@ -29,3 +29,27 @@ everoute_ms_policy_rule_estimate_rejected_value{name="policy-a",namespace="tower
 		t.Fatalf("expected rejected value metric to be deleted, got %d metrics", count)
 	}
 }
+
+func TestStartupPreviousRoundFlowDeletedMetric(t *testing.T) {
+	metric := NewAgentMetric()
+
+	expectedUndeleted := `
+# HELP everoute_ms_startup_previous_round_flow_deleted Whether previous round flows have been deleted during startup cleanup
+# TYPE everoute_ms_startup_previous_round_flow_deleted gauge
+everoute_ms_startup_previous_round_flow_deleted 0
+`
+	if err := testutil.CollectAndCompare(metric.startupPreviousRoundFlowDeleted, strings.NewReader(expectedUndeleted)); err != nil {
+		t.Fatalf("unexpected undeleted startup flow metric: %s", err)
+	}
+
+	metric.SetStartupPreviousRoundFlowDeleted(true)
+
+	expectedDeleted := `
+# HELP everoute_ms_startup_previous_round_flow_deleted Whether previous round flows have been deleted during startup cleanup
+# TYPE everoute_ms_startup_previous_round_flow_deleted gauge
+everoute_ms_startup_previous_round_flow_deleted 1
+`
+	if err := testutil.CollectAndCompare(metric.startupPreviousRoundFlowDeleted, strings.NewReader(expectedDeleted)); err != nil {
+		t.Fatalf("unexpected deleted startup flow metric: %s", err)
+	}
+}

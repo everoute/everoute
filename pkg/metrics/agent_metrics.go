@@ -42,8 +42,9 @@ type AgentMetric struct {
 
 	policyNameMap map[string]string
 
-	flowIDUsedCount prometheus.GaugeVec
-	flowIDExhaust   prometheus.GaugeVec
+	flowIDUsedCount                 prometheus.GaugeVec
+	flowIDExhaust                   prometheus.GaugeVec
+	startupPreviousRoundFlowDeleted prometheus.Gauge
 
 	trNicMount  prometheus.GaugeVec
 	trNicStatus prometheus.GaugeVec
@@ -105,6 +106,10 @@ func NewAgentMetric() *AgentMetric {
 			agentconst.MetricFlowIDExhaust,
 			"flow seq ids has exhaust or not",
 		), []string{agentconst.MetricFlowIDLabel}),
+		startupPreviousRoundFlowDeleted: prometheus.NewGauge(newAgentGaugeOpt(
+			"startup_previous_round_flow_deleted",
+			"Whether previous round flows have been deleted during startup cleanup",
+		)),
 		trNicMount: *prometheus.NewGaugeVec(newAgentGaugeOpt(
 			MetricTRNicMount,
 			"trafficredirect nic mount status",
@@ -118,6 +123,7 @@ func NewAgentMetric() *AgentMetric {
 			"trafficredirect nic link status",
 		), []string{BridgeLabel, TypeLabel}),
 	}
+	m.startupPreviousRoundFlowDeleted.Set(0)
 	m.initPolicyGuardMetrics()
 
 	return m
@@ -219,7 +225,7 @@ func (m *AgentMetric) SetRuleEntryTotalNum(num int) {
 }
 
 func (m *AgentMetric) GetCollectors() []prometheus.Collector {
-	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust}
+	res := []prometheus.Collector{m.flowIDUsedCount, m.flowIDExhaust, m.startupPreviousRoundFlowDeleted}
 	if config.EnableMs {
 		klog.Infof("Register ms metrics for enabled ms")
 		res = append(res, m.arpCount, m.arpRejectCount, m.ruleEntryTotalNum, m.ruleEntryNum,
@@ -242,6 +248,10 @@ func (m *AgentMetric) GetCollectors() []prometheus.Collector {
 
 func (m *AgentMetric) SetPolicyMemoryBreakerOpen(open bool) {
 	m.policyMemoryBreakerOpen.WithLabelValues().Set(boolToFloat64(open))
+}
+
+func (m *AgentMetric) SetStartupPreviousRoundFlowDeleted(deleted bool) {
+	m.startupPreviousRoundFlowDeleted.Set(boolToFloat64(deleted))
 }
 
 func (m *AgentMetric) IncPolicyMemoryBreakerOpen(reason string) {
