@@ -1395,6 +1395,7 @@ func DeletePreviousRoundFlow(ctx context.Context, datapathManager *DpManager, vd
 			b.PostDeletePreviousRoundFlow(roundInfo)
 		}
 	}
+	datapathManager.AgentMetric.SetStartupPreviousRoundFlowDeleted(true)
 
 	err := persistentRoundInfo(*roundInfo, datapathManager.OvsdbDriverMap[vdsID][LOCAL_BRIDGE_KEYWORD])
 	if err != nil {
