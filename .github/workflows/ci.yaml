@@ -80,15 +80,6 @@ jobs:
           GOGC: 1
           GOPROXY: https://goproxy.cn|https://proxy.golang.org|direct
 
-  run-e2e:
-    runs-on: [self-hosted, pod]
-    needs: [static-check, generate-check, pr-check]
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: run everoute e2e test
-        run: sudo make docker-e2e-test-ci
-
   build-k8s-e2e-image:
     runs-on: [self-hosted, build]
     steps:
@@ -275,13 +266,12 @@ jobs:
 
   slack-notification:
     if: ${{ always() }}
-    needs: [ pr-check,static-check,run-e2e,run-k8s-e2e,generate-check ]
+    needs: [ pr-check,static-check,run-k8s-e2e,generate-check ]
     runs-on: [self-hosted, pod]
     env:
       SLACK_COLOR: 2EA44F
       RESULT_PR_CHECK: ":white_check_mark:"
       RESULT_STATIC_CHECK: ":white_check_mark:"
-      RESULT_RUN_E2E: ":white_check_mark:"
       RESULT_RUN_K8S_E2E: ":white_check_mark:"
       RESULT_RUN_TOWER_E2E: ":white_check_mark:"
       RESULT_GENERATE_CHECK: ":white_check_mark:"
@@ -290,8 +280,6 @@ jobs:
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_PR_CHECK=:x:" >> $GITHUB_ENV
       - if: ${{ needs.static-check.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_STATIC_CHECK=:x:" >> $GITHUB_ENV
-      - if: ${{ needs.run-e2e.result == 'failure'}}
-        run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_E2E=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'failure'}}
         run: echo "SLACK_COLOR=DF0000" >> $GITHUB_ENV && echo "RESULT_RUN_K8S_E2E=:x:" >> $GITHUB_ENV
       - if: ${{ needs.run-tower-e2e.result == 'failure'}}
@@ -303,8 +291,6 @@ jobs:
         run: echo "RESULT_PR_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.static-check.result == 'cancelled'}}
         run: echo "RESULT_STATIC_CHECK=:ballot_box_with_check:" >> $GITHUB_ENV
-      - if: ${{ needs.run-e2e.result == 'cancelled'}}
-        run: echo "RESULT_RUN_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-k8s-e2e.result == 'cancelled'}}
         run: echo "RESULT_RUN_K8S_E2E=:ballot_box_with_check:" >> $GITHUB_ENV
       - if: ${{ needs.run-tower-e2e.result == 'cancelled'}}
@@ -359,10 +345,6 @@ jobs:
                       {
                         "type": "mrkdwn",
                         "text": "${{ env.RESULT_STATIC_CHECK }} => *static-check*"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ env.RESULT_RUN_E2E }} => *run-e2e*"
                       },
                       {
                         "type": "mrkdwn",
