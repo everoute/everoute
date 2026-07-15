@@ -103,6 +103,7 @@ func main() {
 	defer klog.Flush()
 
 	ctrl.SetLogger(klog.Background())
+	utils.InitCurrentAgentName()
 	// complete options
 	err := opts.complete()
 	if err != nil {

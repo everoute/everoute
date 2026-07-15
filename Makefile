@@ -72,13 +72,11 @@ e2e-tools:
 		-X github.com/everoute/everoute/pkg/version.releaseCommit=$(GIT_COMMIT)" \
 	tests/e2e/tools/net-utils/*.go
 
-agent-uuid:
-	mkdir -p /var/lib/everoute/agent
-	cat /proc/sys/kernel/random/uuid > /var/lib/everoute/agent/name
+TEST_AGENT_NAME ?= unit-test-agent
 
-test: agent-uuid
+test:
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
-	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
+	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
 	rm -rf ut_tmp
 
 debug-test: image-test
@@ -93,9 +91,9 @@ docker-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
-cover-test: agent-uuid
+cover-test:
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
-	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
+	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 	rm -rf ut_tmp
 
@@ -107,9 +105,9 @@ docker-cover-test-ci:
 	$(eval WORKDIR := /go/src/github.com/everoute/everoute)
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make cover-test
 
-race-test: agent-uuid
+race-test:
 	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
-	go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
+	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
 	rm -rf ut_tmp
 
 docker-race-test: image-test

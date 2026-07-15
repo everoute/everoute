@@ -2,6 +2,7 @@ package utils
 
 import (
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/everoute/everoute/pkg/constants"
@@ -90,27 +91,66 @@ func TestCurrentAgentNameFromEnv(t *testing.T) {
 		currentAgentName = ""
 	})
 
+	InitCurrentAgentName()
 	if got := CurrentAgentName(); got != "node-from-env" {
 		t.Fatalf("CurrentAgentName() = %q, want %q", got, "node-from-env")
 	}
 }
 
-func TestCurrentAgentNameCache(t *testing.T) {
-	t.Setenv(constants.AgentNodeNameENV, "node-first")
+func TestCurrentAgentNameInitOnce(t *testing.T) {
+	t.Setenv(constants.AgentNodeNameENV, "node-init")
 	currentAgentName = ""
 	t.Cleanup(func() {
 		currentAgentName = ""
 	})
 
-	if got := CurrentAgentName(); got != "node-first" {
-		t.Fatalf("CurrentAgentName() first = %q, want %q", got, "node-first")
+	InitCurrentAgentName()
+	if got := CurrentAgentName(); got != "node-init" {
+		t.Fatalf("CurrentAgentName() = %q, want %q", got, "node-init")
+	}
+}
+
+func TestInitCurrentAgentNameFatalOnEmpty(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=TestInitCurrentAgentNameFatalOnEmptyHelper")
+	cmd.Env = append(os.Environ(),
+		"GO_WANT_HELPER_PROCESS=1",
+		constants.AgentNodeNameENV+"=",
+	)
+
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("InitCurrentAgentName() should exit when NODE_NAME is empty")
+	}
+}
+
+func TestInitCurrentAgentNameFatalOnEmptyHelper(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
 	}
 
-	if err := os.Setenv(constants.AgentNodeNameENV, "node-second"); err != nil {
-		t.Fatalf("Setenv() error = %v", err)
-	}
+	currentAgentName = ""
+	InitCurrentAgentName()
+}
 
-	if got := CurrentAgentName(); got != "node-first" {
-		t.Fatalf("CurrentAgentName() cached = %q, want %q", got, "node-first")
+func TestCurrentAgentNameConcurrentRead(t *testing.T) {
+	t.Setenv(constants.AgentNodeNameENV, "node-concurrent")
+	currentAgentName = ""
+	t.Cleanup(func() {
+		currentAgentName = ""
+	})
+
+	InitCurrentAgentName()
+
+	done := make(chan struct{}, 8)
+	for i := 0; i < 8; i++ {
+		go func() {
+			if got := CurrentAgentName(); got != "node-concurrent" {
+				t.Errorf("CurrentAgentName() = %q, want %q", got, "node-concurrent")
+			}
+			done <- struct{}{}
+		}()
+	}
+	for i := 0; i < 8; i++ {
+		<-done
 	}
 }

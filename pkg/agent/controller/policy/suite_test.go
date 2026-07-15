@@ -42,6 +42,7 @@ import (
 	msconst "github.com/everoute/everoute/pkg/constants/ms"
 	"github.com/everoute/everoute/pkg/metrics"
 	"github.com/everoute/everoute/pkg/types"
+	"github.com/everoute/everoute/pkg/utils"
 	"github.com/everoute/everoute/plugin/tower/pkg/informer"
 )
 
@@ -74,6 +75,8 @@ var _ = BeforeSuite(func() {
 	//l.Set("4")
 
 	ctrl.SetLogger(klog.Background())
+	Expect(os.Setenv("NODE_NAME", "policy-controller-ut")).To(Succeed())
+	utils.InitCurrentAgentName()
 	if os.Getenv(RunTestWithExistingCluster) == "true" {
 		By("testing with existing cluster")
 		useExistingCluster = true
