@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 
 	coretypes "k8s.io/apimachinery/pkg/types"
@@ -72,13 +71,8 @@ func CurrentAgentName() string {
 		return currentAgentName
 	}
 
-	content, err := os.ReadFile(constants.AgentNameConfigPath)
-	if err == nil {
-		currentAgentName = strings.TrimSpace(string(content))
-	} else {
-		// use node name for agent name in kubernetes
-		currentAgentName = os.Getenv(constants.AgentNodeNameENV)
-	}
+	// use node name for agent name in kubernetes
+	currentAgentName = os.Getenv(constants.AgentNodeNameENV)
 
 	klog.Infof("Current AgentName: %s", currentAgentName)
 	return currentAgentName

@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"os"
 	"testing"
+
+	"github.com/everoute/everoute/pkg/constants"
 )
 
 func makeMap(kvs ...string) map[string]string {
@@ -77,5 +80,37 @@ func TestIsK8sLabelDiff(t *testing.T) {
 		if res != tests[i].exp {
 			t.Errorf("test %s failed, real is %v, expect is %v", tests[i].name, res, tests[i].exp)
 		}
+	}
+}
+
+func TestCurrentAgentNameFromEnv(t *testing.T) {
+	t.Setenv(constants.AgentNodeNameENV, "node-from-env")
+	currentAgentName = ""
+	t.Cleanup(func() {
+		currentAgentName = ""
+	})
+
+	if got := CurrentAgentName(); got != "node-from-env" {
+		t.Fatalf("CurrentAgentName() = %q, want %q", got, "node-from-env")
+	}
+}
+
+func TestCurrentAgentNameCache(t *testing.T) {
+	t.Setenv(constants.AgentNodeNameENV, "node-first")
+	currentAgentName = ""
+	t.Cleanup(func() {
+		currentAgentName = ""
+	})
+
+	if got := CurrentAgentName(); got != "node-first" {
+		t.Fatalf("CurrentAgentName() first = %q, want %q", got, "node-first")
+	}
+
+	if err := os.Setenv(constants.AgentNodeNameENV, "node-second"); err != nil {
+		t.Fatalf("Setenv() error = %v", err)
+	}
+
+	if got := CurrentAgentName(); got != "node-first" {
+		t.Fatalf("CurrentAgentName() cached = %q, want %q", got, "node-first")
 	}
 }
