@@ -16,7 +16,7 @@ image-generate:
 	docker buildx build -f build/images/generate/Dockerfile -t everoute/generate ./build/images/generate/ --load
 
 image-test:
-	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load
+	docker buildx build -f build/images/unit-test/Dockerfile -t everoute/unit-test ./build/images/unit-test/ --load $(DOCKER_BUILD_OPTS)
 
 image-test-pull:
 	docker pull registry.smtx.io/everoute/unit-test:latest
