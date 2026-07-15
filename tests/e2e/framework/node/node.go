@@ -118,6 +118,10 @@ func (n *Node) fetchFile(name string) ([]byte, error) {
 }
 
 func (n *Node) reRunProcess(name string) error {
+	return n.reRunProcessWithEnv(name, nil)
+}
+
+func (n *Node) reRunProcessWithEnv(name string, envs map[string]string) error {
 	rc, out, err := n.runCommand(fmt.Sprintf("ps -o cmd= -p $(pidof %s)", name))
 	if err != nil || rc != 0 {
 		return fmt.Errorf("can't found process %s", name)
@@ -144,12 +148,24 @@ func (n *Node) reRunProcess(name string) error {
 	defer session.Close()
 
 	// start as daemon, and redirect output to log file
-	return session.Start(fmt.Sprintf("%s >> /var/log/%s.log 2>&1", processCommand, name))
+	return session.Start(fmt.Sprintf("%s %s >> /var/log/%s.log 2>&1", renderShellEnv(envs), processCommand, name))
 }
 
 func (n *Node) checkProcess(name string) (bool, error) {
 	rc, out, err := n.runCommand(fmt.Sprintf("pidof %s", name))
 	return rc == 0 && len(out) != 0, err
+}
+
+func renderShellEnv(envs map[string]string) string {
+	if len(envs) == 0 {
+		return ""
+	}
+
+	var result string
+	for key, value := range envs {
+		result += fmt.Sprintf("%s=%q ", key, value)
+	}
+	return result
 }
 
 func (n *Node) runCommand(cmd string) (int, []byte, error) {

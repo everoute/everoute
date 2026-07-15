@@ -66,15 +66,15 @@ func EqualStringSlice(list1, list2 []string) bool {
 
 var currentAgentName string
 
-func CurrentAgentName() string {
-	if currentAgentName != "" {
-		return currentAgentName
-	}
-
-	// use node name for agent name in kubernetes
+func InitCurrentAgentName() {
 	currentAgentName = os.Getenv(constants.AgentNodeNameENV)
-
+	if currentAgentName == "" {
+		klog.Fatalf("%s is empty", constants.AgentNodeNameENV)
+	}
 	klog.Infof("Current AgentName: %s", currentAgentName)
+}
+
+func CurrentAgentName() string {
 	return currentAgentName
 }
 

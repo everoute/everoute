@@ -48,7 +48,7 @@ for agent in $(IFS=','; echo ${EVEROUTE_AGENT_HOSTLIST}); do
   scp ${ssh_args} bin/net-utils ${agent}:/usr/local/bin/net-utils
   scp ${ssh_args} /etc/everoute/kubeconfig/everoute-agent.yaml ${agent}:${agent_kubeconfig}
 
-  ssh ${ssh_args} ${agent} 'bash -s' < ${LOCAL_PATH}/agent-setup.sh ${UPLINK_IFACE} ${agent_kubeconfig}
+  ssh ${ssh_args} ${agent} 'bash -s' < ${LOCAL_PATH}/agent-setup.sh ${UPLINK_IFACE} ${agent_kubeconfig} ${agent}
 done
 
 echo "generate everoute e2e environment config"

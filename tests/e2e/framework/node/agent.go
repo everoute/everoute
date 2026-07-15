@@ -32,8 +32,9 @@ type Agent struct {
 }
 
 const (
-	agentBinaryName = "everoute-agent"
-	ovsRestart      = "systemctl restart openvswitch"
+	agentBinaryName  = "everoute-agent"
+	agentNodeNameEnv = "NODE_NAME"
+	ovsRestart       = "systemctl restart openvswitch"
 )
 
 func (n *Agent) Restart() error {
@@ -41,7 +42,7 @@ func (n *Agent) Restart() error {
 		return nil
 	}
 	if rand.Intn(2) == 0 {
-		return n.reRunProcess(agentBinaryName)
+		return n.reRunProcessWithEnv(agentBinaryName, map[string]string{agentNodeNameEnv: n.Name})
 	}
 	_, _, err := n.runCommand(ovsRestart)
 	return err

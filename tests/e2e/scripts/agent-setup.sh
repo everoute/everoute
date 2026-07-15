@@ -20,9 +20,9 @@ set -o nounset
 
 UPLINK_IFACE=${1:-ens11}
 KUBECONFIG_PATH=${2:-/var/lib/everoute/agent-kubeconfig.yaml}
+AGENT_NODE_NAME=${3:-$(hostname)}
 OFPORT_NUM=10
 AGENT_CONFIG_PATH=/var/lib/everoute/agentconfig.yaml
-AGENT_NAME_PATH=/var/lib/everoute/agent/name
 
 DEFAULT_BRIDGE="ovsbr1"
 POLICY_BRIDGE="${DEFAULT_BRIDGE}-policy"
@@ -74,8 +74,7 @@ vdsConfigs:
         bridgeName: ${DEFAULT_BRIDGE}
         enableMS: true
 EOF
-mkdir -p "$(dirname ${AGENT_NAME_PATH})"
-cat /proc/sys/kernel/random/uuid > ${AGENT_NAME_PATH}
+echo "generate everoute-agent node name: ${AGENT_NODE_NAME}"
 
 echo "start everoute-agent"
-nohup /usr/local/bin/everoute-agent --kubeconfig "${KUBECONFIG_PATH}" --ready-to-process-global-rule true > /var/log/everoute-agent.log 2>&1 &
+NODE_NAME="${AGENT_NODE_NAME}" nohup /usr/local/bin/everoute-agent --kubeconfig "${KUBECONFIG_PATH}" --ready-to-process-global-rule true > /var/log/everoute-agent.log 2>&1 &

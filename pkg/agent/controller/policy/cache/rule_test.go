@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -147,6 +148,11 @@ func TestResolveDstPort(t *testing.T) {
 }
 
 func TestCompleteRuleHasLocalRule(t *testing.T) {
+	if err := os.Setenv(constants.AgentNodeNameENV, "rule-cache-ut"); err != nil {
+		t.Fatalf("Setenv() error = %v", err)
+	}
+	utils.InitCurrentAgentName()
+
 	rule := &CompleteRule{}
 	currentAgent := utils.CurrentAgentName()
 	otherAgent := currentAgent + "-other"
