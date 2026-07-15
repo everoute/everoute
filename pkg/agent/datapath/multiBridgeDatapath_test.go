@@ -477,7 +477,7 @@ func testERPolicyRule(t *testing.T) {
 				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
-				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPProtocol: avoidNamedProtocolInFlowDump(unix.AF_INET, uint8(rand.IntnRange(20, 254))),
 				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
@@ -506,7 +506,7 @@ func testERPolicyRule(t *testing.T) {
 				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
-				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPProtocol: avoidNamedProtocolInFlowDump(unix.AF_INET, uint8(rand.IntnRange(20, 254))),
 				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
@@ -523,6 +523,7 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.IPProtocol = avoidNamedProtocolInFlowDump(unix.AF_INET6, ruleV6.IPProtocol)
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -592,7 +593,7 @@ func testERPolicyRule(t *testing.T) {
 				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
-				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPProtocol: avoidNamedProtocolInFlowDump(unix.AF_INET, uint8(rand.IntnRange(20, 254))),
 				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
@@ -609,6 +610,7 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.IPProtocol = avoidNamedProtocolInFlowDump(unix.AF_INET6, ruleV6.IPProtocol)
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -632,7 +634,7 @@ func testERPolicyRule(t *testing.T) {
 				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
-				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPProtocol: avoidNamedProtocolInFlowDump(unix.AF_INET, uint8(rand.IntnRange(20, 254))),
 				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
@@ -649,6 +651,7 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.IPProtocol = avoidNamedProtocolInFlowDump(unix.AF_INET6, ruleV6.IPProtocol)
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -672,7 +675,7 @@ func testERPolicyRule(t *testing.T) {
 				Priority:   rand.IntnRange(DEFAULT_FLOW_MISS_PRIORITY, HIGH_MATCH_FLOW_PRIORITY),
 				SrcIPAddr:  randomIP(),
 				DstIPAddr:  randomIP(),
-				IPProtocol: uint8(rand.IntnRange(20, 254)),
+				IPProtocol: avoidNamedProtocolInFlowDump(unix.AF_INET, uint8(rand.IntnRange(20, 254))),
 				IPFamily:   unix.AF_INET,
 				SrcPort:    uint16(rand.IntnRange(1, 65534)),
 				DstPort:    uint16(rand.IntnRange(1, 65534)),
@@ -689,6 +692,7 @@ func testERPolicyRule(t *testing.T) {
 
 			ruleV6 := rule.DeepCopy()
 			ruleV6.IPFamily = unix.AF_INET6
+			ruleV6.IPProtocol = avoidNamedProtocolInFlowDump(unix.AF_INET6, ruleV6.IPProtocol)
 			ruleV6.SrcIPAddr = randomIPv6()
 			ruleV6.DstIPAddr = randomIPv6()
 			err = datapathManager.AddEveroutePolicyRule(ctx, ruleV6, baseInfo)
@@ -1153,6 +1157,18 @@ func randomIP() string {
 
 func randomIPv6() string {
 	return fmt.Sprintf("2401::%d:%d:%d:%d", rand.IntnRange(1, 255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
+}
+
+func avoidNamedProtocolInFlowDump(ipFamily int, proto uint8) uint8 {
+	if proto == 132 {
+		// ovs-ofctl dumps protocol 132 as sctp/sctp6 instead of nw_proto=132.
+		return 133
+	}
+	if ipFamily == unix.AF_INET6 && proto == 58 {
+		// ovs-ofctl dumps ipv6 protocol 58 as icmp6 instead of nw_proto=58.
+		return 59
+	}
+	return proto
 }
 
 func TestReleaseRuleSeqID(t *testing.T) {
