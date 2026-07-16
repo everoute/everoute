@@ -168,7 +168,7 @@ func (f *CrcFactory) processVds(oldObj, newObj schema.Object) {
 }
 
 func (f *CrcFactory) eventHandler(event *models.ResourceChangeEvent) {
-	klog.V(4).Infof("crc eventHandler %s %s old: %+v new: %+v", *event.Action, *event.ResourceType, lo.FromPtr(event.OldValue), lo.FromPtr(event.NewValue))
+	klog.V(6).Infof("crc eventHandler %s %s old: %+v new: %+v", *event.Action, *event.ResourceType, lo.FromPtr(event.OldValue), lo.FromPtr(event.NewValue))
 
 	var oldObj, newObj schema.Object
 	if event.OldValue != nil {
