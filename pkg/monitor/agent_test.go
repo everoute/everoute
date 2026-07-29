@@ -17,6 +17,7 @@ limitations under the License.
 package monitor
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	agentv1alpha1 "github.com/everoute/everoute/pkg/apis/agent/v1alpha1"
 	"github.com/everoute/everoute/pkg/constants"
 	"github.com/everoute/everoute/pkg/types"
 )
@@ -213,7 +215,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 			return hasIPAddr && iface.Ofport == int32(ofPort)
 		}, timeout, interval).Should(BeTrue())
 
-		fakeClock.Step(probeIPInterval * 2)
+		Expect(monitor.probeTimeoutIP(context.Background(), probeIPTimeout)).Should(Succeed())
 		Eventually(func() int32 {
 			for {
 				select {
@@ -250,7 +252,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 			return hasIPAddr && iface.Ofport == int32(ofPort)
 		}, timeout, interval).Should(BeTrue())
 
-		fakeClock.Step(probeIPInterval * 2)
+		Expect(monitor.probeTimeoutIP(context.Background(), probeIPTimeout)).Should(Succeed())
 		Eventually(func() int32 {
 			for {
 				select {
@@ -287,7 +289,7 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 			return hasIPAddr && iface.Ofport == int32(ofPort)
 		}, timeout, interval).Should(BeTrue())
 
-		fakeClock.Step(probeIPInterval * 2)
+		Expect(monitor.probeTimeoutIP(context.Background(), probeIPTimeout)).Should(Succeed())
 		Eventually(func() int32 {
 			for {
 				select {
@@ -300,5 +302,31 @@ func TestAgentMonitorProbeTimeoutIP(t *testing.T) {
 				}
 			}
 		}, timeout, interval).Should(Equal(int32(120)))
+	})
+
+	t.Run("should skip bridge without timeout ip before fetching internal mac", func(t *testing.T) {
+		idleBridgeName := rand.String(10)
+		Expect(createBridge(ovsClient, idleBridgeName)).Should(Succeed())
+		Expect(createPort(ovsClient, idleBridgeName, idleBridgeName, &Iface{
+			IfaceName: idleBridgeName,
+			IfaceType: "internal",
+		})).Should(Succeed())
+		Eventually(func() error {
+			_, err := getBridge(k8sClient, idleBridgeName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
+
+		var internalMacFetchCount int
+		idleBridgePatch := gomonkey.ApplyMethodFunc(&AgentMonitor{}, "GetBridgeInternalMac", func(bridge agentv1alpha1.OVSBridge) (*net.HardwareAddr, error) {
+			if bridge.Name == idleBridgeName {
+				internalMacFetchCount++
+			}
+			hw := net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+			return &hw, nil
+		})
+		defer idleBridgePatch.Reset()
+
+		Expect(monitor.probeTimeoutIP(context.Background(), probeIPTimeout)).Should(Succeed())
+		Expect(internalMacFetchCount).Should(BeZero())
 	})
 }

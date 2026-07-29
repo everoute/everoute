@@ -227,6 +227,10 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 	wg := usync.NewGroup(0)
 
 	for _, bridge := range agentInfo.OVSInfo.Bridges {
+		if !monitor.hasPendingProbe(bridge, probeIPTimeout) {
+			continue
+		}
+
 		mac, err := monitor.GetBridgeInternalMac(bridge)
 		if err != nil || mac == nil {
 			klog.Errorf("fail to get internal port mac on bridge %s, err = %s", bridge.Name, err)
@@ -264,6 +268,23 @@ func (monitor *AgentMonitor) probeTimeoutIP(ctx context.Context, probeIPTimeout 
 	}
 
 	return wg.WaitResult()
+}
+
+func (monitor *AgentMonitor) hasPendingProbe(bridge agentv1alpha1.OVSBridge, probeIPTimeout time.Duration) bool {
+	for _, port := range bridge.Ports {
+		for _, iface := range port.Interfaces {
+			if iface.Ofport <= 0 || iface.Type == "internal" || iface.Type == "patch" {
+				continue
+			}
+			for _, info := range iface.IPMap {
+				if time.Since(info.UpdateTime.Time) > probeIPTimeout {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 func (monitor *AgentMonitor) syncAgentInfoWorker() {
@@ -314,7 +335,9 @@ func (monitor *AgentMonitor) syncAgentInfo() error {
 	if err != nil {
 		return err
 	}
-	klog.Infof("Successed learn new ips %s to agentinfo", newIPs)
+	if len(newIPs) > 0 {
+		klog.Infof("Successed learn new ips %s to agentinfo", newIPs)
+	}
 	monitor.ipCache = make(map[string]map[types.IPAddress]*types.EndpointIP)
 
 	return nil
