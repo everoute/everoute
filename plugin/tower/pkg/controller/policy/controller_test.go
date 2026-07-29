@@ -185,7 +185,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
-						assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -387,7 +387,7 @@ var _ = Describe("PolicyController", func() {
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
 					)
 					assertAllowlist(ctx)
-					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 						NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 						NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 						NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -422,7 +422,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
-						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.WorkMode, v1alpha1.DefaultRuleNone, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -443,7 +443,7 @@ var _ = Describe("PolicyController", func() {
 							NewSecurityPolicyRuleEgress("udp", "123", nil, labelA, labelC),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
 						)
-						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.MonitorMode, v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+						assertHasPolicy(ctx, constants.Tier2, false, v1alpha1.MonitorMode, v1alpha1.DefaultRuleNone, allPolicyTypes(),
 							NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 							NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 							NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -533,7 +533,7 @@ var _ = Describe("PolicyController", func() {
 						v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
 					)
 
-					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+					assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 						&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
 						&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
 						v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
@@ -774,7 +774,7 @@ var _ = Describe("PolicyController", func() {
 					nil,
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
 				)
-				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 					NewSecurityPolicyRuleIngress("", "", nil, labelA, labelB),
 					NewSecurityPolicyRuleEgress("", "", nil, labelA, labelB),
 					NewSecurityPolicyApplyPeer("", labelA, labelB),
@@ -1768,7 +1768,7 @@ var _ = Describe("PolicyController", func() {
 					v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
 				)
 
-				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleDrop, allPolicyTypes(),
+				assertHasPolicy(ctx, constants.Tier2, false, "", v1alpha1.DefaultRuleNone, allPolicyTypes(),
 					&v1alpha1.Rule{From: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
 					&v1alpha1.Rule{To: []v1alpha1.SecurityPolicyPeer{{EndpointSelector: &labels.Selector{MatchNothing: true}}}},
 					v1alpha1.ApplyToPeer{EndpointSelector: &labels.Selector{MatchNothing: true}},
@@ -2194,7 +2194,7 @@ var _ = Describe("PolicyController", func() {
 						}
 					}
 					g.Expect(sp).ShouldNot(BeNil())
-					matchSpBase(g, &v1alpha1.SecurityPolicySpec{}, &sp.Spec)
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{DefaultRule: v1alpha1.DefaultRuleNone}, &sp.Spec)
 					//applyto
 					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
 					exp = v1alpha1.ApplyToPeer{
@@ -2329,7 +2329,7 @@ var _ = Describe("PolicyController", func() {
 						}
 					}
 					g.Expect(sp).ShouldNot(BeNil())
-					matchSpBase(g, &v1alpha1.SecurityPolicySpec{}, &sp.Spec)
+					matchSpBase(g, &v1alpha1.SecurityPolicySpec{DefaultRule: v1alpha1.DefaultRuleNone}, &sp.Spec)
 					//applyto
 					g.Expect(len(sp.Spec.AppliedTo)).Should(Equal(1))
 					exp = v1alpha1.ApplyToPeer{

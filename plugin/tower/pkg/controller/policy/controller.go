@@ -1308,7 +1308,7 @@ func (c *Controller) generateIntragroupPolicy(
 				To:   c.appliedPeersAsPolicyPeers(appliedPeers, false, false),
 			}},
 			SecurityPolicyEnforcementMode: policyMode,
-			DefaultRule:                   v1alpha1.DefaultRuleDrop,
+			DefaultRule:                   v1alpha1.DefaultRuleNone,
 			Logging:                       loggingOptions,
 			PolicyTypes:                   []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 		},
