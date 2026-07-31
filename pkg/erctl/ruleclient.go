@@ -238,42 +238,26 @@ func GetGOMemLimit() (int64, error) {
 }
 
 // SetPolicyMemoryThreshold sets policy memory guard threshold via RPC.
-func SetPolicyMemoryThreshold(threshold uint64) (uint64, uint64, error) {
-	res, err := ruleconn.SetPolicyMemoryThreshold(context.Background(), &v1alpha1.SetPolicyMemoryThresholdRequest{Threshold: threshold})
-	if err != nil {
-		return 0, 0, err
-	}
-	return res.GetPrevThreshold(), res.GetCurrentThreshold(), nil
+func SetPolicyMemoryThreshold(threshold uint64) (*v1alpha1.SetPolicyMemoryThresholdResponse, error) {
+	return ruleconn.SetPolicyMemoryThreshold(context.Background(), &v1alpha1.SetPolicyMemoryThresholdRequest{Threshold: threshold})
 }
 
 // SetPolicyRuleEstimateLimit sets policy rule estimate limit via RPC.
-func SetPolicyRuleEstimateLimit(limit uint64) (uint64, uint64, error) {
-	res, err := ruleconn.SetPolicyRuleEstimateLimit(context.Background(), &v1alpha1.SetPolicyRuleEstimateLimitRequest{Limit: limit})
-	if err != nil {
-		return 0, 0, err
-	}
-	return res.GetPrevLimit(), res.GetCurrentLimit(), nil
+func SetPolicyRuleEstimateLimit(limit uint64) (*v1alpha1.SetPolicyRuleEstimateLimitResponse, error) {
+	return ruleconn.SetPolicyRuleEstimateLimit(context.Background(), &v1alpha1.SetPolicyRuleEstimateLimitRequest{Limit: limit})
 }
 
 // GetPolicyRuleEstimateLimit retrieves current policy rule estimate limit via RPC.
-func GetPolicyRuleEstimateLimit() (uint64, error) {
-	res, err := ruleconn.GetPolicyRuleEstimateLimit(context.Background(), &emptypb.Empty{})
-	if err != nil {
-		return 0, err
-	}
-	return res.GetLimit(), nil
+func GetPolicyRuleEstimateLimit() (*v1alpha1.GetPolicyRuleEstimateLimitResponse, error) {
+	return ruleconn.GetPolicyRuleEstimateLimit(context.Background(), &emptypb.Empty{})
 }
 
 // SetPolicyGuardEnabled enables or disables a policy guard via RPC.
-func SetPolicyGuardEnabled(guard string, enabled bool) (bool, bool, error) {
-	res, err := ruleconn.SetPolicyGuardEnabled(context.Background(), &v1alpha1.SetPolicyGuardEnabledRequest{
+func SetPolicyGuardEnabled(guard string, enabled bool) (*v1alpha1.SetPolicyGuardEnabledResponse, error) {
+	return ruleconn.SetPolicyGuardEnabled(context.Background(), &v1alpha1.SetPolicyGuardEnabledRequest{
 		Guard:   guard,
 		Enabled: enabled,
 	})
-	if err != nil {
-		return false, false, err
-	}
-	return res.GetPrevEnabled(), res.GetCurrentEnabled(), nil
 }
 
 // GetPolicyGuardStatus retrieves current policy guard status via RPC.

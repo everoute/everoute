@@ -177,6 +177,18 @@ message GetGOMemLimitResponse {
 	int64 Limit = 1;
 }
 
+// CommandResult describes the semantic result of a CLI RPC.
+message CommandResult {
+	enum ResultCode {
+		OK = 0;
+		SKIP_NORMAL = 1;
+	}
+
+	ResultCode Code = 1;
+	string Reason = 2;
+	string Message = 3;
+}
+
 // SetPolicyMemoryThresholdRequest requests setting the policy memory guard threshold.
 message SetPolicyMemoryThresholdRequest {
 	uint64 Threshold = 1;
@@ -186,6 +198,7 @@ message SetPolicyMemoryThresholdRequest {
 message SetPolicyMemoryThresholdResponse {
 	uint64 PrevThreshold = 1;
 	uint64 CurrentThreshold = 2;
+	CommandResult Result = 3;
 }
 
 // SetPolicyRuleEstimateLimitRequest requests setting the policy rule estimate limit.
@@ -197,11 +210,13 @@ message SetPolicyRuleEstimateLimitRequest {
 message SetPolicyRuleEstimateLimitResponse {
 	uint64 PrevLimit = 1;
 	uint64 CurrentLimit = 2;
+	CommandResult Result = 3;
 }
 
 // GetPolicyRuleEstimateLimitResponse returns current policy rule estimate limit.
 message GetPolicyRuleEstimateLimitResponse {
 	uint64 Limit = 1;
+	CommandResult Result = 2;
 }
 
 // SetPolicyGuardEnabledRequest requests enabling or disabling a policy guard.
@@ -215,6 +230,7 @@ message SetPolicyGuardEnabledResponse {
 	string Guard = 1;
 	bool PrevEnabled = 2;
 	bool CurrentEnabled = 3;
+	CommandResult Result = 4;
 }
 
 // PolicyGuardStatus returns current policy admission guard status.
@@ -224,6 +240,7 @@ message PolicyGuardStatus {
 	uint64 MemoryThreshold = 3;
 	bool RuleEnabled = 4;
 	uint64 RuleEstimateLimit = 5;
+	CommandResult Result = 6;
 }
 
 // PprofStatus returns the agent pprof switch state.
@@ -247,5 +264,6 @@ message FlowRoundStatus {
 	bool TrafficRedirectDone = 3;
 	bool GlobalPolicyWaitNormalSkipped = 4;
 	bool ManualCleanupRequested = 5;
+	CommandResult Result = 6;
 	repeated FlowRoundVDSStatus VDSStatuses = 7;
 }
