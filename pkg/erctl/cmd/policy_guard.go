@@ -39,6 +39,14 @@ var policyGuardMemoryThresholdCmd = &cobra.Command{
 	Short: "Manage policy memory guard threshold",
 }
 
+var (
+	connectPolicyGuardClient      = erctl.ConnectClient
+	getPolicyGuardStatus          = erctl.GetPolicyGuardStatus
+	setPolicyMemoryThresholdRPC   = erctl.SetPolicyMemoryThreshold
+	setPolicyRuleEstimateLimitRPC = erctl.SetPolicyRuleEstimateLimit
+	setPolicyGuardEnabledRPC      = erctl.SetPolicyGuardEnabled
+)
+
 var setPolicyMemoryThresholdCmd = &cobra.Command{
 	Use:   "set [threshold]",
 	Short: "Set policy memory guard threshold on agent in bytes (0 disables the threshold)",
@@ -48,14 +56,18 @@ var setPolicyMemoryThresholdCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := erctl.ConnectClient(); err != nil {
+		if err := connectPolicyGuardClient(); err != nil {
 			return err
 		}
-		prev, cur, err := erctl.SetPolicyMemoryThreshold(threshold)
+		res, err := setPolicyMemoryThresholdRPC(threshold)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("prev: %d, current: %d\n", prev, cur)
+		if isSkipResult(res.GetResult()) {
+			printPolicyGuardSkipped(fmt.Sprintf("memory-threshold set %d", threshold), resultReason(res.GetResult()))
+			return nil
+		}
+		fmt.Printf("prev: %d, current: %d\n", res.GetPrevThreshold(), res.GetCurrentThreshold())
 		return nil
 	},
 }
@@ -69,14 +81,18 @@ var setPolicyRuleLimitCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := erctl.ConnectClient(); err != nil {
+		if err := connectPolicyGuardClient(); err != nil {
 			return err
 		}
-		prev, cur, err := erctl.SetPolicyRuleEstimateLimit(limit)
+		res, err := setPolicyRuleEstimateLimitRPC(limit)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("prev: %d, current: %d\n", prev, cur)
+		if isSkipResult(res.GetResult()) {
+			printPolicyGuardSkipped(fmt.Sprintf("rule-limit set %d", limit), resultReason(res.GetResult()))
+			return nil
+		}
+		fmt.Printf("prev: %d, current: %d\n", res.GetPrevLimit(), res.GetCurrentLimit())
 		return nil
 	},
 }
@@ -115,24 +131,37 @@ func newPolicyGuardStatusCmd() *cobra.Command {
 }
 
 func setPolicyGuardEnabled(guard string, enabled bool) error {
-	if err := erctl.ConnectClient(); err != nil {
+	if err := connectPolicyGuardClient(); err != nil {
 		return err
 	}
-	prev, cur, err := erctl.SetPolicyGuardEnabled(guard, enabled)
+	res, err := setPolicyGuardEnabledRPC(guard, enabled)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("guard: %s, prev: %t, current: %t\n", guard, prev, cur)
+	if isSkipResult(res.GetResult()) {
+		action := "disable"
+		if enabled {
+			action = "enable"
+		}
+		printPolicyGuardSkipped(fmt.Sprintf("%s %s", guard, action), resultReason(res.GetResult()))
+		return nil
+	}
+	fmt.Printf("guard: %s, prev: %t, current: %t\n", guard, res.GetPrevEnabled(), res.GetCurrentEnabled())
 	return nil
 }
 
 func printPolicyGuardStatus() error {
-	if err := erctl.ConnectClient(); err != nil {
+	if err := connectPolicyGuardClient(); err != nil {
 		return err
 	}
-	status, err := erctl.GetPolicyGuardStatus()
+	status, err := getPolicyGuardStatus()
 	if err != nil {
 		return err
+	}
+	if isSkipResult(status.GetResult()) {
+		fmt.Println("policy guard: unavailable")
+		fmt.Printf("reason: %s\n", resultReason(status.GetResult()))
+		return nil
 	}
 	fmt.Println("memory:")
 	fmt.Printf("  enabled: %t\n", status.GetMemoryEnabled())
@@ -142,6 +171,11 @@ func printPolicyGuardStatus() error {
 	fmt.Printf("  enabled: %t\n", status.GetRuleEnabled())
 	fmt.Printf("  rule-limit: %d\n", status.GetRuleEstimateLimit())
 	return nil
+}
+
+func printPolicyGuardSkipped(action, reason string) {
+	fmt.Printf("policy guard %s: skipped\n", action)
+	fmt.Printf("reason: %s\n", reason)
 }
 
 func init() {

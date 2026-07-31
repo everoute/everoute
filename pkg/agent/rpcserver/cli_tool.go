@@ -154,43 +154,55 @@ func (g *CLITool) SetGOMemLimit(_ context.Context, in *v1alpha1.SetGOMemLimitReq
 
 func (g *CLITool) GetPolicyRuleEstimateLimit(context.Context, *emptypb.Empty) (*v1alpha1.GetPolicyRuleEstimateLimitResponse, error) {
 	if g.policyGuardSetter == nil {
-		return nil, fmt.Errorf("policy guard is not available")
+		return &v1alpha1.GetPolicyRuleEstimateLimitResponse{
+			Result: skippedCommandResult("micro-segmentation is disabled", "policy guard is not available"),
+		}, nil
 	}
 	return &v1alpha1.GetPolicyRuleEstimateLimitResponse{
-		Limit: g.policyGuardSetter.GetRuleEstimateLimit(),
+		Limit:  g.policyGuardSetter.GetRuleEstimateLimit(),
+		Result: okCommandResult(),
 	}, nil
 }
 
 func (g *CLITool) SetPolicyMemoryThreshold(_ context.Context,
 	in *v1alpha1.SetPolicyMemoryThresholdRequest) (*v1alpha1.SetPolicyMemoryThresholdResponse, error) {
 	if g.policyGuardSetter == nil {
-		return nil, fmt.Errorf("policy guard is not available")
+		return &v1alpha1.SetPolicyMemoryThresholdResponse{
+			Result: skippedCommandResult("micro-segmentation is disabled", "policy guard is not available"),
+		}, nil
 	}
 	prevThreshold, curThreshold := g.policyGuardSetter.SetMemoryThreshold(in.GetThreshold())
 	klog.Infof("Set policy memory guard threshold, prev: %d, current: %d", prevThreshold, curThreshold)
 	return &v1alpha1.SetPolicyMemoryThresholdResponse{
 		PrevThreshold:    prevThreshold,
 		CurrentThreshold: curThreshold,
+		Result:           okCommandResult(),
 	}, nil
 }
 
 func (g *CLITool) SetPolicyRuleEstimateLimit(_ context.Context,
 	in *v1alpha1.SetPolicyRuleEstimateLimitRequest) (*v1alpha1.SetPolicyRuleEstimateLimitResponse, error) {
 	if g.policyGuardSetter == nil {
-		return nil, fmt.Errorf("policy guard is not available")
+		return &v1alpha1.SetPolicyRuleEstimateLimitResponse{
+			Result: skippedCommandResult("micro-segmentation is disabled", "policy guard is not available"),
+		}, nil
 	}
 	prevLimit, curLimit := g.policyGuardSetter.SetRuleEstimateLimit(in.GetLimit())
 	klog.Infof("Set policy rule estimate limit, prev: %d, current: %d", prevLimit, curLimit)
 	return &v1alpha1.SetPolicyRuleEstimateLimitResponse{
 		PrevLimit:    prevLimit,
 		CurrentLimit: curLimit,
+		Result:       okCommandResult(),
 	}, nil
 }
 
 func (g *CLITool) SetPolicyGuardEnabled(_ context.Context,
 	in *v1alpha1.SetPolicyGuardEnabledRequest) (*v1alpha1.SetPolicyGuardEnabledResponse, error) {
 	if g.policyGuardSetter == nil {
-		return nil, fmt.Errorf("policy guard is not available")
+		return &v1alpha1.SetPolicyGuardEnabledResponse{
+			Guard:  in.GetGuard(),
+			Result: skippedCommandResult("micro-segmentation is disabled", "policy guard is not available"),
+		}, nil
 	}
 	prevEnabled, currentEnabled, err := g.policyGuardSetter.SetGuardEnabled(in.GetGuard(), in.GetEnabled())
 	if err != nil {
@@ -202,12 +214,15 @@ func (g *CLITool) SetPolicyGuardEnabled(_ context.Context,
 		Guard:          in.GetGuard(),
 		PrevEnabled:    prevEnabled,
 		CurrentEnabled: currentEnabled,
+		Result:         okCommandResult(),
 	}, nil
 }
 
 func (g *CLITool) GetPolicyGuardStatus(context.Context, *emptypb.Empty) (*v1alpha1.PolicyGuardStatus, error) {
 	if g.policyGuardSetter == nil {
-		return nil, fmt.Errorf("policy guard is not available")
+		return &v1alpha1.PolicyGuardStatus{
+			Result: skippedCommandResult("micro-segmentation is disabled", "policy guard is not available"),
+		}, nil
 	}
 	status := g.policyGuardSetter.GetGuardStatus()
 	return &v1alpha1.PolicyGuardStatus{
@@ -216,6 +231,7 @@ func (g *CLITool) GetPolicyGuardStatus(context.Context, *emptypb.Empty) (*v1alph
 		MemoryThreshold:   status.MemoryThreshold,
 		RuleEnabled:       status.RuleEnabled,
 		RuleEstimateLimit: status.RuleEstimateLimit,
+		Result:            okCommandResult(),
 	}, nil
 }
 
@@ -241,7 +257,9 @@ func (g *CLITool) GetFlowRoundStatus(context.Context, *emptypb.Empty) (*v1alpha1
 
 func (g *CLITool) SkipGlobalPolicyWaitNormal(ctx context.Context, _ *emptypb.Empty) (*v1alpha1.FlowRoundStatus, error) {
 	if g.flowRoundRuntime == nil {
-		return nil, fmt.Errorf("flow round runtime is not available")
+		return &v1alpha1.FlowRoundStatus{
+			Result: skippedCommandResult("flow round runtime is not available", "skip global policy wait normal skipped"),
+		}, nil
 	}
 	g.flowRoundRuntime.SkipGlobalPolicyWaitNormal(ctx)
 	return g.flowRoundStatus()
@@ -252,7 +270,9 @@ func (g *CLITool) CleanupPreviousRound(context.Context, *emptypb.Empty) (*v1alph
 		return nil, fmt.Errorf("datapath manager is not available")
 	}
 	if g.dpManager.StartupFlowSync() == nil {
-		return nil, fmt.Errorf("startup flow sync is not enabled")
+		return &v1alpha1.FlowRoundStatus{
+			Result: skippedCommandResult("startup flow sync is not enabled", "cleanup previous round skipped"),
+		}, nil
 	}
 	g.dpManager.StartupFlowSync().TriggerManualCleanup()
 	return g.flowRoundStatus()
@@ -280,6 +300,7 @@ func (g *CLITool) flowRoundStatus() (*v1alpha1.FlowRoundStatus, error) {
 		TrafficRedirectDone:           status.TrafficRedirectDone,
 		ManualCleanupRequested:        status.ManualCleanupRequested,
 		GlobalPolicyWaitNormalSkipped: g.flowRoundRuntime != nil && g.flowRoundRuntime.GetReadyToProcessGlobalRule(),
+		Result:                        okCommandResult(),
 	}
 	for _, vdsStatus := range status.VDSStatuses {
 		res.VDSStatuses = append(res.VDSStatuses, &v1alpha1.FlowRoundVDSStatus{
@@ -292,6 +313,18 @@ func (g *CLITool) flowRoundStatus() (*v1alpha1.FlowRoundStatus, error) {
 		})
 	}
 	return res, nil
+}
+
+func okCommandResult() *v1alpha1.CommandResult {
+	return &v1alpha1.CommandResult{Code: v1alpha1.CommandResult_OK}
+}
+
+func skippedCommandResult(reason, message string) *v1alpha1.CommandResult {
+	return &v1alpha1.CommandResult{
+		Code:    v1alpha1.CommandResult_SKIP_NORMAL,
+		Reason:  reason,
+		Message: message,
+	}
 }
 
 func trRulesDpToRPC(dpRules []*datapath.DPTRRule) []*v1alpha1.TRRule {

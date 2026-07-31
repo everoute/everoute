@@ -14,6 +14,13 @@ var flowRoundCmd = &cobra.Command{
 	Short: "Manage agent flow round runtime state",
 }
 
+var (
+	connectFlowRoundClient        = erctl.ConnectClient
+	getFlowRoundStatusRPC         = erctl.GetFlowRoundStatus
+	skipGlobalPolicyWaitNormalRPC = erctl.SkipGlobalPolicyWaitNormal
+	cleanupPreviousRoundRPC       = erctl.CleanupPreviousRound
+)
+
 var flowRoundStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Get flow round status from agent",
@@ -28,12 +35,16 @@ var skipGlobalPolicyWaitNormalCmd = &cobra.Command{
 	Short: "Allow GlobalPolicy to proceed without waiting for normal policy in current agent runtime",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if err := erctl.ConnectClient(); err != nil {
+		if err := connectFlowRoundClient(); err != nil {
 			return err
 		}
-		status, err := erctl.SkipGlobalPolicyWaitNormal()
+		status, err := skipGlobalPolicyWaitNormalRPC()
 		if err != nil {
 			return err
+		}
+		if isSkipResult(status.GetResult()) {
+			printFlowRoundSkipped("skip-global-policy-wait-normal", resultReason(status.GetResult()))
+			return nil
 		}
 		fmt.Println("skip global policy wait normal requested")
 		printFlowRoundStatus(status)
@@ -46,12 +57,16 @@ var cleanupPreviousRoundCmd = &cobra.Command{
 	Short: "Trigger previous round cleanup without waiting for startup flow sync or clean delay",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if err := erctl.ConnectClient(); err != nil {
+		if err := connectFlowRoundClient(); err != nil {
 			return err
 		}
-		status, err := erctl.CleanupPreviousRound()
+		status, err := cleanupPreviousRoundRPC()
 		if err != nil {
 			return err
+		}
+		if isSkipResult(status.GetResult()) {
+			printFlowRoundSkipped("cleanup-previous-round", resultReason(status.GetResult()))
+			return nil
 		}
 		fmt.Println("previous round cleanup requested")
 		printFlowRoundStatus(status)
@@ -60,15 +75,25 @@ var cleanupPreviousRoundCmd = &cobra.Command{
 }
 
 func printFlowRoundStatusFromAgent() error {
-	if err := erctl.ConnectClient(); err != nil {
+	if err := connectFlowRoundClient(); err != nil {
 		return err
 	}
-	status, err := erctl.GetFlowRoundStatus()
+	status, err := getFlowRoundStatusRPC()
 	if err != nil {
 		return err
 	}
+	if isSkipResult(status.GetResult()) {
+		fmt.Println("flow round: unavailable")
+		fmt.Printf("reason: %s\n", resultReason(status.GetResult()))
+		return nil
+	}
 	printFlowRoundStatus(status)
 	return nil
+}
+
+func printFlowRoundSkipped(action, reason string) {
+	fmt.Printf("flow round %s: skipped\n", action)
+	fmt.Printf("reason: %s\n", reason)
 }
 
 func printFlowRoundStatus(status *v1alpha1.FlowRoundStatus) {
