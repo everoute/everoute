@@ -19,6 +19,7 @@ package endpoint
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -448,8 +450,50 @@ func TestEndpointController(t *testing.T) {
 	testMarkAgentProcessedFromHandlers(t)
 	testProcessAgentinfo(t)
 	testInterfaceIPUpdate(t)
+	testIPMigrateEvent(t)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "endpoint controller")
+}
+
+func testIPMigrateEvent(t *testing.T) {
+	t.Run("ip-migrate-event", func(t *testing.T) {
+		r := newFakeReconciler()
+		recorder := record.NewFakeRecorder(10)
+		r.Recorder = recorder
+
+		endpoint := &securityv1alpha1.Endpoint{
+			ObjectMeta: v1.ObjectMeta{
+				Namespace: "tower-space",
+				Name:      "ep-a",
+			},
+			Spec: securityv1alpha1.EndpointSpec{
+				VMID: "vm-new",
+			},
+		}
+		ip := types.IPAddress("10.10.1.23")
+
+		r.ipMigrateCountUpdate(endpoint, []types.IPAddress{ip}, endpoint.Spec.VMID)
+		select {
+		case event := <-recorder.Events:
+			t.Fatalf("unexpected event for first observation: %s", event)
+		default:
+		}
+
+		r.IPMigrateCount.Inc(ip.String(), "vm-old")
+
+		r.ipMigrateCountUpdate(endpoint, []types.IPAddress{ip}, endpoint.Spec.VMID)
+		select {
+		case event := <-recorder.Events:
+			if !strings.Contains(event, "IPMigrated_10.10.1.23") {
+				t.Fatalf("unexpected event reason: %s", event)
+			}
+			if !strings.Contains(event, "oldVM=vm-old newVM=vm-new") {
+				t.Fatalf("unexpected event message: %s", event)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("expected ip migrate event")
+		}
+	})
 }
 
 func testCheckIfaceInitDone(t *testing.T) {

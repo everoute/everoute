@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -58,6 +60,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
+	Recorder       record.EventRecorder
 	IPMigrateCount *metrics.IPMigrateCount
 
 	ifaceCacheLock sync.RWMutex
@@ -167,7 +170,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	r.ipMigrateCountUpdate(endpoint.Status.IPs, expectStatus.IPs, endpoint.Spec.VMID)
+	r.ipMigrateCountUpdate(&endpoint, expectStatus.IPs, endpoint.Spec.VMID)
 	endpoint.Status = *expectStatus
 	if err := r.Status().Update(ctx, &endpoint); err != nil {
 		klog.Errorf("failed to update endpoint %s status: %s", endpoint.Name, err.Error())
@@ -252,6 +255,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	if r.IPMigrateCount == nil {
 		return fmt.Errorf("can't setup with nil IPMigrateCount")
+	}
+	if r.Recorder == nil {
+		r.Recorder = mgr.GetEventRecorderFor("ms-controller")
 	}
 
 	c, err := controller.New("endpoint-controller", mgr, controller.Options{
@@ -410,13 +416,25 @@ func (r *Reconciler) onAgentInfoUpdate(_ context.Context, e event.UpdateEvent, q
 	r.enqueueEndpointsOnAgentLocked(epList, newAgentInfo.Name, q)
 }
 
-func (r *Reconciler) ipMigrateCountUpdate(srcIPs, expIPs []types.IPAddress, vmID string) {
-	srcSets := sets.New[types.IPAddress](srcIPs...)
+func (r *Reconciler) ipMigrateCountUpdate(endpoint *securityv1alpha1.Endpoint, expIPs []types.IPAddress, vmID string) {
+	srcSets := sets.New[types.IPAddress](endpoint.Status.IPs...)
 	for _, ip := range expIPs {
 		if !srcSets.Has(ip) {
-			r.IPMigrateCount.Inc(ip.String(), vmID)
+			oldVMID, migrated := r.IPMigrateCount.Inc(ip.String(), vmID)
+			if migrated && oldVMID != "" && r.Recorder != nil {
+				r.Recorder.Eventf(endpoint, "Normal", formatIPMigrateEventReason(ip.String()),
+					"oldVM=%s newVM=%s", oldVMID, vmID)
+			}
 		}
 	}
+}
+
+func formatIPMigrateEventReason(ip string) string {
+	return "IPMigrated_" + replaceColonForEventReason(ip)
+}
+
+func replaceColonForEventReason(ip string) string {
+	return strings.ReplaceAll(ip, ":", "_")
 }
 
 func (r *Reconciler) onAgentInfoDelete(_ context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {

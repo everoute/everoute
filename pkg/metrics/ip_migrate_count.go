@@ -32,20 +32,20 @@ func NewIPMigrateCount() *IPMigrateCount {
 	}
 }
 
-func (i *IPMigrateCount) Inc(ip, vm string) {
+func (i *IPMigrateCount) Inc(ip, vm string) (string, bool) {
 	i.lock.RLock()
 	defer i.lock.RUnlock()
 
 	last, _ := i.lastLowner.Swap(ip, vm)
-	if last != nil {
-		if last.(string) == vm {
-			return
-		}
+	lastVM, _ := last.(string)
+	if last != nil && lastVM == vm {
+		return lastVM, false
 	}
 	l := make(map[string]string, 1)
 	l[constants.MetricIPLabel] = ip
 	i.data.With(l).Inc()
 	i.index.Store(ip, time.Now())
+	return lastVM, true
 }
 
 func (i *IPMigrateCount) Run(ctx context.Context) {
