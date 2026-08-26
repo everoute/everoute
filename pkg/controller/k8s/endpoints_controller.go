@@ -2,8 +2,7 @@ package k8s
 
 import (
 	"context"
-	// #nosec
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"net"
 
@@ -176,8 +175,7 @@ func compareServicePorts(new, old map[string]*svc.ServicePort) (addSvcPort, upda
 }
 
 func genSvcPortName(svcName, portName string) string {
-	// #nosec
-	sum := md5.Sum([]byte(svcName + "/" + portName))
+	sum := sha256.Sum256([]byte(svcName + "/" + portName))
 	return hex.EncodeToString(sum[:])
 }
 
