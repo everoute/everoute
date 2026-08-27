@@ -5,12 +5,13 @@ linkTitle: "Policy Guard Frontline"
 
 # Policy Guard Frontline Guide
 
-这份文档面向一线，目标是快速判断 Everoute 的两类策略熔断问题：
+为了缓解安全策略规则过多或变更过快导致 everoute agent 进程 OOM 的问题，在 Everoute agent 处理安全策略时，添加了两个熔断机制：
 
 - 内存熔断
 - 规则数量熔断
 
-只讲结论、现象、怎么查、怎么调，不展开源码细节。
+这份文档面向一线，目标是快速判断这两类问题。
+
 核心目标是让一线先回答三个问题：
 
 - 这是哪类熔断
