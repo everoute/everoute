@@ -83,7 +83,48 @@ agent 会把这两个熔断的状态都暴露成 metrics，常用的看法如下
 - `policy_rule_estimate_limit` 是当前规则上限
 - `policy_rule_estimate_rejected_value` 是被规则数量熔断挡下来的对象对应的预计规则数
 
-### 3.3 告警阈值的小坑
+### 3.3 看整体策略压力的指标
+
+下面这两个指标不是熔断本身的判定条件，但在看内存熔断时非常有用，因为它们能告诉你当前 agent 的策略规模有多大：
+
+- `everoute_ms_rule_entry_num_total`
+- `everoute_ms_rule_entry_num`
+
+你可以这样理解：
+
+- `rule_entry_num_total` 是 agent 当前承载的总规则数
+- `rule_entry_num` 是单条策略当前承载的规则数，label 里 `name` 对应策略名
+
+如果内存熔断已经打开，优先对比这两个指标：
+
+- 总规则数是否明显偏高
+- 是否某一条策略特别大，导致整体规则规模被拉高
+
+带 `hostname` 的查看示例：
+
+```promql
+everoute_ms_rule_entry_num_total
+  * on (_tenant_id, instance_id) group_left (hostname)
+    everoute_observe_instance_info
+```
+
+```promql
+topk(10,
+  everoute_ms_rule_entry_num
+    * on (_tenant_id, instance_id) group_left (hostname)
+      everoute_observe_instance_info
+)
+```
+
+如果你想直接看某一条策略：
+
+```promql
+everoute_ms_rule_entry_num{name="tower-space/tower.sp.internal-controller"}
+  * on (_tenant_id, instance_id) group_left (hostname)
+    everoute_observe_instance_info
+```
+
+### 3.4 告警阈值的小坑
 
 内存熔断告警里，页面展示的是 MiB，因为告警表达式把字节除以了 `1024 / 1024` 再比较。
 
@@ -243,6 +284,11 @@ erctl policy-guard status
 - `everoute_ms_policy_memory_threshold_bytes`
 - `everoute_ms_policy_memory_breaker_open`
 - `everoute_ms_policy_memory_breaker_rejected_objects`
+
+如果要判断是不是“整体策略配置压力”导致的内存问题，再一起看：
+
+- `everoute_ms_rule_entry_num_total`
+- `everoute_ms_rule_entry_num`
 
 规则数量熔断优先看：
 
