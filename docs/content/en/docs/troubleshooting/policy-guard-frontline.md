@@ -11,6 +11,11 @@ linkTitle: "Policy Guard Frontline"
 - 规则数量熔断
 
 只讲结论、现象、怎么查、怎么调，不展开源码细节。
+核心目标是让一线先回答三个问题：
+
+- 这是哪类熔断
+- 影响到哪个对象
+- 现在该改策略还是改阈值
 
 ## 1. 这两个熔断分别在保护什么
 
@@ -83,9 +88,9 @@ agent 会把这两个熔断的状态都暴露成 metrics，常用的看法如下
 - `policy_rule_estimate_limit` 是当前规则上限
 - `policy_rule_estimate_rejected_value` 是被规则数量熔断挡下来的对象对应的预计规则数
 
-### 3.3 看整体策略压力的指标
+### 3.3 辅助指标：看整体策略压力
 
-下面这两个指标不是熔断本身的判定条件，但在看内存熔断时非常有用，因为它们能告诉你当前 agent 的策略规模有多大：
+如果要进一步判断是不是“整体策略规模偏大”导致内存压力上来，可以再看这两个辅助指标：
 
 - `everoute_ms_rule_entry_num_total`
 - `everoute_ms_rule_entry_num`
@@ -95,7 +100,7 @@ agent 会把这两个熔断的状态都暴露成 metrics，常用的看法如下
 - `rule_entry_num_total` 是 agent 当前承载的总规则数
 - `rule_entry_num` 是单条策略当前承载的规则数，label 里 `name` 对应策略名
 
-如果内存熔断已经打开，优先对比这两个指标：
+如果内存熔断已经打开，或者内存持续接近阈值，可以对比这两个指标：
 
 - 总规则数是否明显偏高
 - 是否某一条策略特别大，导致整体规则规模被拉高
@@ -289,6 +294,8 @@ erctl policy-guard status
 
 - `everoute_ms_rule_entry_num_total`
 - `everoute_ms_rule_entry_num`
+
+这两个是辅助指标，不是熔断条件本身。
 
 规则数量熔断优先看：
 
