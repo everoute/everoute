@@ -70,6 +70,15 @@ func (s *CNIServer) ParseConf(request *cnipb.CniRequest) (*cnitypes.NetConf, *et
 	return conf, args, err
 }
 
+func logCNIRequest(stage string, request *cnipb.CniRequest) {
+	klog.Infof("%s cni request raw: containerID=%s netns=%s ifname=%s args=%q path=%q stdin=%s",
+		stage, request.ContainerId, request.Netns, request.Ifname, request.Args, request.Path, string(request.Stdin))
+}
+
+func logCNIParsedConf(stage string, conf *cnitypes.NetConf, args *etypes.CNIArgs) {
+	klog.Infof("%s cni request parsed: conf=%+v args=%+v", stage, conf, args)
+}
+
 func (s *CNIServer) ParseResult(result *cniv1.Result) (*cnipb.CniResponse, error) {
 	// convert result to target version
 	newResult, err := result.GetAsVersion(result.CNIVersion)
@@ -92,6 +101,7 @@ func (s *CNIServer) ParseResult(result *cniv1.Result) (*cnipb.CniResponse, error
 
 func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cnipb.CniResponse, error) {
 	klog.Infof("Create new pod %s", request)
+	logCNIRequest("ADD", request)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -101,6 +111,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 		klog.Errorf("Parse request conf error, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "Parse request conf error", err)
 	}
+	logCNIParsedConf("ADD", conf, args)
 
 	// require ipam for a new ip address
 	SetEnv(request)
@@ -186,6 +197,7 @@ func (s *CNIServer) CmdAdd(ctx context.Context, request *cnipb.CniRequest) (*cni
 
 func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*cnipb.CniResponse, error) {
 	klog.Infof("Check pod %s", request)
+	logCNIRequest("CHECK", request)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -195,6 +207,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 		klog.Errorf("failed to decode request, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "failed to decode request", err)
 	}
+	logCNIParsedConf("CHECK", conf, args)
 
 	vethName := "_" + request.ContainerId[:12]
 
@@ -217,6 +230,7 @@ func (s *CNIServer) CmdCheck(ctx context.Context, request *cnipb.CniRequest) (*c
 
 func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cnipb.CniResponse, error) {
 	klog.Infof("Delete pod %s", request)
+	logCNIRequest("DELETE", request)
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -226,6 +240,7 @@ func (s *CNIServer) CmdDel(ctx context.Context, request *cnipb.CniRequest) (*cni
 		klog.Errorf("Parse request conf error, err: %s", err)
 		return s.RetError(cnipb.ErrorCode_DECODING_FAILURE, "Parse request conf error", err)
 	}
+	logCNIParsedConf("DELETE", conf, args)
 
 	vethName := "_" + request.ContainerId[:12]
 
