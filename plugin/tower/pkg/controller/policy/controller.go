@@ -1375,6 +1375,9 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 	egress = make([]v1alpha1.Rule, 0, len(egressRules))
 
 	for item, rule := range ingressRules {
+		if rule.Disabled {
+			continue
+		}
 		peers, ports, err := c.parseNetworkPolicyRule(&ingressRules[item])
 		if err != nil {
 			return nil, nil, err
@@ -1384,14 +1387,22 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 			// because of empty peer means match all in everoute security policy
 			continue
 		}
+		name := rule.ID
+		if name == "" {
+			name = fmt.Sprintf("ingress%d", item)
+			klog.Warningf("ingress rule %d has empty id, falling back to name %q", item, name)
+		}
 		ingress = append(ingress, v1alpha1.Rule{
-			Name:  fmt.Sprintf("ingress%d", item),
+			Name:  name,
 			Ports: ports,
 			From:  peers,
 		})
 	}
 
 	for item, rule := range egressRules {
+		if rule.Disabled {
+			continue
+		}
 		peers, ports, err := c.parseNetworkPolicyRule(&egressRules[item])
 		if err != nil {
 			return nil, nil, err
@@ -1401,8 +1412,13 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 			// because of empty peer means match all in everoute security policy
 			continue
 		}
+		name := rule.ID
+		if name == "" {
+			name = fmt.Sprintf("egress%d", item)
+			klog.Warningf("egress rule %d has empty id, falling back to name %q", item, name)
+		}
 		egress = append(egress, v1alpha1.Rule{
-			Name:  fmt.Sprintf("egress%d", item),
+			Name:  name,
 			Ports: ports,
 			To:    peers,
 		})

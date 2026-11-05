@@ -178,7 +178,9 @@ type ComplexityRoot struct {
 	}
 
 	NetworkPolicyRule struct {
+		Disabled                   func(childComplexity int) int
 		ExceptIPBlock              func(childComplexity int) int
+		ID                         func(childComplexity int) int
 		IPBlock                    func(childComplexity int) int
 		OnlyApplyToExternalTraffic func(childComplexity int) int
 		Ports                      func(childComplexity int) int
@@ -830,12 +832,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.Login(childComplexity, args["data"].(model.LoginInput)), true
 
+	case "NetworkPolicyRule.disabled":
+		if e.complexity.NetworkPolicyRule.Disabled == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.Disabled(childComplexity), true
+
 	case "NetworkPolicyRule.except_ip_block":
 		if e.complexity.NetworkPolicyRule.ExceptIPBlock == nil {
 			break
 		}
 
 		return e.complexity.NetworkPolicyRule.ExceptIPBlock(childComplexity), true
+
+	case "NetworkPolicyRule.id":
+		if e.complexity.NetworkPolicyRule.ID == nil {
+			break
+		}
+
+		return e.complexity.NetworkPolicyRule.ID(childComplexity), true
 
 	case "NetworkPolicyRule.ip_block":
 		if e.complexity.NetworkPolicyRule.IPBlock == nil {
@@ -1912,6 +1928,8 @@ enum IsolationMode {
 }
 
 type NetworkPolicyRule {
+    id: String
+    disabled: Boolean
     only_apply_to_external_traffic: Boolean
     type: NetworkPolicyRuleType!
     ip_block: String
@@ -3427,6 +3445,10 @@ func (ec *executionContext) fieldContext_EverouteClusterWhitelist_egress(ctx con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -3530,6 +3552,10 @@ func (ec *executionContext) fieldContext_EverouteClusterWhitelist_ingress(ctx co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -4316,6 +4342,10 @@ func (ec *executionContext) fieldContext_IsolationPolicy_ingress(ctx context.Con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -4375,6 +4405,10 @@ func (ec *executionContext) fieldContext_IsolationPolicy_egress(ctx context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -5152,6 +5186,88 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 	if fc.Args, err = ec.field_Mutation_login_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkPolicyRule_id(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkPolicyRule_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkPolicyRule_disabled(ctx context.Context, field graphql.CollectedField, obj *schema.NetworkPolicyRule) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Disabled, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkPolicyRule_disabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkPolicyRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -7745,6 +7861,10 @@ func (ec *executionContext) fieldContext_SecurityPolicy_ingress(ctx context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -7804,6 +7924,10 @@ func (ec *executionContext) fieldContext_SecurityPolicy_egress(ctx context.Conte
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkPolicyRule_id(ctx, field)
+			case "disabled":
+				return ec.fieldContext_NetworkPolicyRule_disabled(ctx, field)
 			case "only_apply_to_external_traffic":
 				return ec.fieldContext_NetworkPolicyRule_only_apply_to_external_traffic(ctx, field)
 			case "type":
@@ -13515,6 +13639,14 @@ func (ec *executionContext) _NetworkPolicyRule(ctx context.Context, sel ast.Sele
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("NetworkPolicyRule")
+		case "id":
+
+			out.Values[i] = ec._NetworkPolicyRule_id(ctx, field, obj)
+
+		case "disabled":
+
+			out.Values[i] = ec._NetworkPolicyRule_disabled(ctx, field, obj)
+
 		case "only_apply_to_external_traffic":
 
 			out.Values[i] = ec._NetworkPolicyRule_only_apply_to_external_traffic(ctx, field, obj)

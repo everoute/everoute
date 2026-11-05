@@ -43,6 +43,8 @@ enum IsolationMode {
 }
 
 type NetworkPolicyRule {
+    id: String
+    disabled: Boolean
     only_apply_to_external_traffic: Boolean
     type: NetworkPolicyRuleType!
     ip_block: String
