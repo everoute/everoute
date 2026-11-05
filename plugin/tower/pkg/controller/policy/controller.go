@@ -583,6 +583,7 @@ func (c *Controller) handleSecurityPolicy(obj interface{}) {
 	policy := obj.(*schema.SecurityPolicy)
 	// when policy delete, policy.EverouteCluster.ID would be empty
 	if policy.EverouteCluster.ID == "" || policy.EverouteCluster.ID == c.everouteCluster {
+		klog.Infof("xuchen handleSecurityPolicy addto queue %s", policy.GetID())
 		c.securityPolicyQueue.Add(policy.GetID())
 	}
 }
@@ -1375,6 +1376,13 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 	egress = make([]v1alpha1.Rule, 0, len(egressRules))
 
 	for item, rule := range ingressRules {
+		if rule.Disabled {
+			continue
+		}
+		if rule.Id == "" {
+			klog.Errorf("failed to parse ingress rule %d: rule id is empty", item)
+			return nil, nil, fmt.Errorf("ingress rule %d has empty rule id", item)
+		}
 		peers, ports, err := c.parseNetworkPolicyRule(&ingressRules[item])
 		if err != nil {
 			return nil, nil, err
@@ -1385,13 +1393,20 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 			continue
 		}
 		ingress = append(ingress, v1alpha1.Rule{
-			Name:  fmt.Sprintf("ingress%d", item),
+			Name:  rule.Id,
 			Ports: ports,
 			From:  peers,
 		})
 	}
 
 	for item, rule := range egressRules {
+		if rule.Disabled {
+			continue
+		}
+		if rule.Id == "" {
+			klog.Errorf("failed to parse egress rule %d: rule id is empty", item)
+			return nil, nil, fmt.Errorf("egress rule %d has empty rule id", item)
+		}
 		peers, ports, err := c.parseNetworkPolicyRule(&egressRules[item])
 		if err != nil {
 			return nil, nil, err
@@ -1402,7 +1417,7 @@ func (c *Controller) parseNetworkPolicyRules(ingressRules, egressRules []schema.
 			continue
 		}
 		egress = append(egress, v1alpha1.Rule{
-			Name:  fmt.Sprintf("egress%d", item),
+			Name:  rule.Id,
 			Ports: ports,
 			To:    peers,
 		})

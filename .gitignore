@@ -32,3 +32,9 @@ ut_tmp/
 
 # benchmark output files
 out/
+
+# codex and designs
+AGENTS.md
+CODE_NOTES.md
+designs.md
+tests_design.md
