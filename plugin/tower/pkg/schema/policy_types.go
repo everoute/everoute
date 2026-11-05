@@ -67,6 +67,10 @@ type NetworkPolicyRule struct {
 	Type                       NetworkPolicyRuleType   `json:"type"`
 	Ports                      []NetworkPolicyRulePort `json:"ports,omitempty"`
 	Services                   []ObjectReference       `json:"services,omitempty"`
+	// ID is the stable identity of this rule assigned by Tower.
+	ID string `json:"id"`
+	// Disabled indicates whether this rule is disabled.
+	Disabled bool `json:"disabled"`
 	// IPBlock may be multi ip blocks, ip ranges or single ip
 	IPBlock       *string           `json:"ip_block"`
 	ExceptIPBlock []string          `json:"except_ip_block,omitempty"`

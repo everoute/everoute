@@ -460,9 +460,11 @@ var _ = Describe("PolicyController", func() {
 					policy = NewSecurityPolicy(everouteCluster, false, nil, labelA, labelB)
 					policy.Ingress = []schema.NetworkPolicyRule{{
 						Type: schema.NetworkPolicyRuleTypeAll,
+						ID:   "ingress-all",
 					}}
 					policy.Egress = []schema.NetworkPolicyRule{{
 						Type: schema.NetworkPolicyRuleTypeAll,
+						ID:   "egress-all",
 					}}
 					By(fmt.Sprintf("create SecurityPolicy %+v", policy))
 					server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
@@ -1887,6 +1889,7 @@ var _ = Describe("PolicyController", func() {
 					{
 						Type:     schema.NetworkPolicyRuleTypeSelector,
 						Selector: LabelAsReference(labelA),
+						ID:       "egress-selector",
 					},
 				}
 				port1 := "22"
@@ -1894,6 +1897,7 @@ var _ = Describe("PolicyController", func() {
 					{
 						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
 						SecurityGroup: (*schema.ObjectReference)(&podKscGroup.ObjectMeta),
+						ID:            "ingress-security-group",
 						Ports: []schema.NetworkPolicyRulePort{
 							{
 								Port:     &port1,
@@ -1987,6 +1991,7 @@ var _ = Describe("PolicyController", func() {
 					{
 						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
 						SecurityGroup: (*schema.ObjectReference)(&vmGroup2.ObjectMeta),
+						ID:            "egress-security-group",
 					},
 				}
 				port1 := "22"
@@ -1994,6 +1999,7 @@ var _ = Describe("PolicyController", func() {
 					{
 						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
 						SecurityGroup: (*schema.ObjectReference)(&podLabelGroup.ObjectMeta),
+						ID:            "ingress-security-group",
 						Ports: []schema.NetworkPolicyRulePort{
 							{
 								Port:     &port1,
@@ -2082,12 +2088,14 @@ var _ = Describe("PolicyController", func() {
 					{
 						Type:     schema.NetworkPolicyRuleTypeSelector,
 						Selector: LabelAsReference(labelA),
+						ID:       "egress-selector",
 					},
 				}
 				p.Ingress = []schema.NetworkPolicyRule{
 					{
 						Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
 						SecurityGroup: (*schema.ObjectReference)(&podKscGroup.ObjectMeta),
+						ID:            "ingress-security-group",
 					},
 				}
 				server.TrackerFactory().SecurityPolicy().CreateOrUpdate(p)
@@ -2387,6 +2395,7 @@ var _ = Describe("PolicyController", func() {
 						{
 							Type:          schema.NetworkPolicyRuleTypeSecurityGroup,
 							SecurityGroup: (*schema.ObjectReference)(&podNsGroup.ObjectMeta),
+							ID:            "ingress-security-group",
 						},
 					},
 				}
@@ -2749,3 +2758,113 @@ func matchRule(g Gomega, exp, res v1alpha1.Rule) {
 		g.Expect(res.Ports).Should(ContainElement(exp.Ports[i]))
 	}
 }
+
+var _ = Describe("Rule enable and disable", func() {
+	var ctx context.Context
+	var labelA, labelB *schema.Label
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		labelA = NewRandomLabel()
+		labelB = NewRandomLabel()
+		server.TrackerFactory().Label().CreateOrUpdate(labelA)
+		server.TrackerFactory().Label().CreateOrUpdate(labelB)
+	})
+
+	AfterEach(func() {
+		server.TrackerFactory().ResetAll()
+		Expect(crdClient.SecurityV1alpha1().SecurityPolicies(namespace).DeleteCollection(ctx,
+			metav1.DeleteOptions{}, metav1.ListOptions{})).Should(Succeed())
+		Expect(crdClient.SecurityV1alpha1().SecurityPolicies(podNamespace).DeleteCollection(ctx,
+			metav1.DeleteOptions{}, metav1.ListOptions{})).Should(Succeed())
+	})
+
+	It("filters disabled rules from the generated CRD", func() {
+		policy := NewSecurityPolicy(everouteCluster, false, nil, labelA)
+		ingressTCP := NewNetworkPolicyRule("TCP", "22", nil, nil, labelB)
+		ingressTCP.ID = "rule-tcp"
+		ingressUDP := NewNetworkPolicyRule("UDP", "53", nil, nil, labelB)
+		ingressUDP.ID = "rule-udp"
+		ingressUDP.Disabled = true
+		policy.Ingress = []schema.NetworkPolicyRule{*ingressTCP, *ingressUDP}
+		server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+		Eventually(func() error {
+			sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+policy.ID, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if len(sp.Spec.IngressRules) != 1 {
+				return fmt.Errorf("expected 1 ingress rule, got %d", len(sp.Spec.IngressRules))
+			}
+			if sp.Spec.IngressRules[0].Name != "rule-tcp" {
+				return fmt.Errorf("expected rule id rule-tcp, got %s", sp.Spec.IngressRules[0].Name)
+			}
+			return nil
+		}, timeout, interval).Should(Succeed())
+	})
+
+	It("falls back to legacy names for enabled rules with empty rule id", func() {
+		policy := NewSecurityPolicy(everouteCluster, false, nil, labelA)
+		ingressRule := NewNetworkPolicyRule("TCP", "22", nil, nil, labelB)
+		ingressRule.ID = ""
+		egressRule := NewNetworkPolicyRule("UDP", "53", nil, nil, labelB)
+		egressRule.ID = ""
+		policy.Ingress = []schema.NetworkPolicyRule{*ingressRule}
+		policy.Egress = []schema.NetworkPolicyRule{*egressRule}
+		server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+		Eventually(func() error {
+			sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+policy.ID, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if len(sp.Spec.IngressRules) != 1 || sp.Spec.IngressRules[0].Name != "ingress0" {
+				return fmt.Errorf("unexpected ingress rules: %#v", sp.Spec.IngressRules)
+			}
+			if len(sp.Spec.EgressRules) != 1 || sp.Spec.EgressRules[0].Name != "egress0" {
+				return fmt.Errorf("unexpected egress rules: %#v", sp.Spec.EgressRules)
+			}
+			return nil
+		}, timeout, interval).Should(Succeed())
+	})
+
+	It("disable and enable an existing rule updates the generated CRD", func() {
+		policy := NewSecurityPolicy(everouteCluster, false, nil, labelA)
+		rule := NewNetworkPolicyRule("TCP", "22", nil, nil, labelB)
+		rule.ID = "rule-tcp"
+		policy.Ingress = []schema.NetworkPolicyRule{*rule}
+		server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+
+		Eventually(func() int {
+			sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+policy.ID, metav1.GetOptions{})
+			if err != nil {
+				return -1
+			}
+			return len(sp.Spec.IngressRules)
+		}, timeout, interval).Should(Equal(1))
+
+		policy.Ingress[0].Disabled = true
+		server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+		Eventually(func() int {
+			sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+policy.ID, metav1.GetOptions{})
+			if err != nil {
+				return -1
+			}
+			return len(sp.Spec.IngressRules)
+		}, timeout, interval).Should(Equal(0))
+
+		policy.Ingress[0].Disabled = false
+		server.TrackerFactory().SecurityPolicy().CreateOrUpdate(policy)
+		Eventually(func() error {
+			sp, err := crdClient.SecurityV1alpha1().SecurityPolicies(namespace).Get(ctx, "tower.sp-"+policy.ID, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			if len(sp.Spec.IngressRules) != 1 || sp.Spec.IngressRules[0].Name != "rule-tcp" {
+				return fmt.Errorf("unexpected rules: %#v", sp.Spec.IngressRules)
+			}
+			return nil
+		}, timeout, interval).Should(Succeed())
+	})
+})

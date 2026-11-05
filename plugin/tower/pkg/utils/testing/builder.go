@@ -124,7 +124,9 @@ func NewIsolationPolicy(everouteCluster string, vm *schema.VM, isolationMode sch
 
 func NewNetworkPolicyRule(protocol, port string, ipBlock *networkingv1.IPBlock, group *schema.SecurityGroup,
 	selectors ...*schema.Label) *schema.NetworkPolicyRule {
-	var rule schema.NetworkPolicyRule
+	rule := schema.NetworkPolicyRule{
+		ID: "rule-" + rand.String(8),
+	}
 
 	if protocol != "" {
 		rule.Ports = append(rule.Ports, schema.NetworkPolicyRulePort{
