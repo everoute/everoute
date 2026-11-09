@@ -82,12 +82,26 @@ func (c *Collector) Policy(ctx context.Context, req *v1alpha1.PolicyRequest) (*v
 				Name:       item.Name,
 				Namespace:  item.Namespace,
 				PolicyType: string(item.PolicyType),
+				RuleName:   item.RuleName,
+				RuleType:   resolveRuleType(item.RuleName, p.Dir),
 			})
 		}
 		policyList = append(policyList, policy)
 	}
 
 	return &v1alpha1.PolicyResponse{List: policyList}, nil
+}
+
+func resolveRuleType(ruleName string, direction uint8) v1alpha1.RuleType {
+	if ruleName == "" {
+		switch direction {
+		case datapath.POLICY_DIRECTION_IN:
+			return v1alpha1.RuleType_RULE_TYPE_DEFAULT_INGRESS
+		case datapath.POLICY_DIRECTION_OUT:
+			return v1alpha1.RuleType_RULE_TYPE_DEFAULT_EGRESS
+		}
+	}
+	return v1alpha1.RuleType_RULE_TYPE_NORMAL
 }
 
 func (c *Collector) GetBridgeIndexWithFlowID(ctx context.Context, req *v1alpha1.BridgeIndexRequest) (*v1alpha1.BridgeIndexResponse, error) {

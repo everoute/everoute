@@ -617,6 +617,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		for _, rule := range policy.Spec.IngressRules {
 			ingressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "ingress", rule.Name),
+				OriginRuleName:  rule.Name,
 				Policy:          policyID,
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
@@ -676,6 +677,7 @@ func (r *Reconciler) completePolicy(ctx context.Context, policy *securityv1alpha
 		for _, rule := range policy.Spec.EgressRules {
 			egressRuleTmpl := &policycache.CompleteRule{
 				RuleID:          fmt.Sprintf("%s/%s/%s/%s.%s", policy.Namespace, policy.Name, policycache.NormalPolicy, "egress", rule.Name),
+				OriginRuleName:  rule.Name,
 				Policy:          policyID,
 				Tier:            policy.Spec.Tier,
 				Priority:        policy.Spec.Priority,
@@ -934,8 +936,9 @@ func (r *Reconciler) compareAndApplyPolicyRulesChanges(ctx context.Context, poli
 func (r *Reconciler) processPolicyRuleDelete(ctx context.Context, policyRule *policycache.PolicyRule) error {
 	ruleBase := datapath.RuleBaseInfo{
 		Ref: datapath.PolicyRuleRef{
-			Policy: policyRule.Policy,
-			Rule:   policyRule.Name,
+			Policy:         policyRule.Policy,
+			Rule:           policyRule.Name,
+			OriginRuleName: policyRule.OriginRuleName,
 		},
 	}
 	return r.DatapathManager.RemoveEveroutePolicyRule(ctx, datapath.FlowKeyFromRuleName(policyRule.Name), ruleBase)
@@ -952,8 +955,9 @@ func (r *Reconciler) addPolicyRuleToDatapath(ctx context.Context, ruleID string,
 	ruleTier := getRuleTier(rule.Tier)
 	ruleBase := datapath.RuleBaseInfo{
 		Ref: datapath.PolicyRuleRef{
-			Policy: rule.Policy,
-			Rule:   rule.Name,
+			Policy:         rule.Policy,
+			Rule:           rule.Name,
+			OriginRuleName: rule.OriginRuleName,
 		},
 		Direction: ruleDirection,
 		Tier:      ruleTier,

@@ -496,6 +496,7 @@ var _ = Describe("rule unit-test", func() {
 		It("ignore skip Name field", func() {
 			pRule2 := pRule.DeepCopy()
 			pRule2.Name = "rule1"
+			pRule2.OriginRuleName = "rule1"
 			res2 := GenerateFlowKey(*pRule2)
 			Expect(res2).Should(Equal(exp))
 

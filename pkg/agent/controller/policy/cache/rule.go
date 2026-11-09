@@ -61,9 +61,10 @@ const (
 
 type PolicyRule struct {
 	// Name format policyNamespace/policyName/policyType/ruleName-flowKey
-	Name   string     `json:"name"`
-	Policy string     `json:"policy"`
-	Action RuleAction `json:"action"`
+	Name           string     `json:"name"`
+	OriginRuleName string     `json:"-"`
+	Policy         string     `json:"policy"`
+	Action         RuleAction `json:"action"`
 
 	// match fields
 	Direction       RuleDirection `json:"direction"`
@@ -89,6 +90,7 @@ type PolicyRule struct {
 func (p *PolicyRule) DeepCopy() *PolicyRule {
 	return &PolicyRule{
 		Name:            p.Name,
+		OriginRuleName:  p.OriginRuleName,
 		Policy:          p.Policy,
 		RuleType:        p.RuleType,
 		Tier:            p.Tier,
@@ -164,8 +166,9 @@ type CompleteRule struct {
 	lock sync.RWMutex
 
 	// RuleID is a unique identifier of rule, it's always set to policyNamespace/policyName/policyType/ruleName.
-	RuleID string
-	Policy string
+	RuleID         string
+	OriginRuleName string
+	Policy         string
 
 	Tier            string
 	Priority        int32
@@ -226,6 +229,7 @@ func (rule *CompleteRule) Clone() *CompleteRule {
 
 	return &CompleteRule{
 		RuleID:            rule.RuleID,
+		OriginRuleName:    rule.OriginRuleName,
 		Policy:            rule.Policy,
 		Tier:              rule.Tier,
 		Priority:          rule.Priority,
@@ -510,6 +514,7 @@ func (rule *CompleteRule) generateRule(srcIPBlock, dstIPBlock string, direction 
 	}
 
 	policyRule := PolicyRule{
+		OriginRuleName:  rule.OriginRuleName,
 		Policy:          rule.Policy,
 		Direction:       direction,
 		RuleType:        ruleType,

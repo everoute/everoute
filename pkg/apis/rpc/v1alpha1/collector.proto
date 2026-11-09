@@ -28,10 +28,19 @@ message PolicyList{
   int64 priority = 7;
 }
 
+enum RuleType {
+  RULE_TYPE_UNSPECIFIED = 0;
+  RULE_TYPE_NORMAL = 1;
+  RULE_TYPE_DEFAULT_INGRESS = 2;
+  RULE_TYPE_DEFAULT_EGRESS = 3;
+}
+
 message PolicyItem{
   string name = 1;
   string namespace = 2;
   string policyType = 3;
+  string ruleName = 4; // empty for default rules
+  RuleType ruleType = 5;
 }
 
 
