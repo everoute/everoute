@@ -106,8 +106,9 @@ type FlowEntry struct {
 }
 
 type PolicyRuleRef struct {
-	Policy string
-	Rule   string
+	Policy         string
+	Rule           string
+	OriginRuleName string
 }
 
 type EveroutePolicyRuleEntry struct {

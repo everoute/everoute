@@ -435,6 +435,7 @@ type PolicyItem struct {
 	Name       string
 	Namespace  string
 	PolicyType policycache.PolicyType
+	RuleName   string
 }
 
 type ArpInfo struct {
@@ -898,6 +899,7 @@ func (dp *DpManager) GetPolicyByFlowID(flowID ...uint64) []*PolicyInfo {
 					Name:       res[1],
 					Namespace:  res[0],
 					PolicyType: policycache.PolicyType(res[2]),
+					RuleName:   p.OriginRuleName,
 				})
 			}
 			policyInfoList = append(policyInfoList, policyInfo)
