@@ -65,22 +65,24 @@ func EqualStringSlice(list1, list2 []string) bool {
 	return true
 }
 
-var currentAgentName string
+var (
+	currentAgentName     string
+	currentAgentNameOnce sync.Once
+)
 
 func CurrentAgentName() string {
-	if currentAgentName != "" {
-		return currentAgentName
-	}
+	currentAgentNameOnce.Do(func() {
+		content, err := os.ReadFile(constants.AgentNameConfigPath)
+		if err == nil {
+			currentAgentName = strings.TrimSpace(string(content))
+		} else {
+			// use node name for agent name in kubernetes
+			currentAgentName = os.Getenv(constants.AgentNodeNameENV)
+		}
 
-	content, err := os.ReadFile(constants.AgentNameConfigPath)
-	if err == nil {
-		currentAgentName = strings.TrimSpace(string(content))
-	} else {
-		// use node name for agent name in kubernetes
-		currentAgentName = os.Getenv(constants.AgentNodeNameENV)
-	}
+		klog.Infof("Current AgentName: %s", currentAgentName)
+	})
 
-	klog.Infof("Current AgentName: %s", currentAgentName)
 	return currentAgentName
 }
 
