@@ -32,6 +32,7 @@ jobs:
             "deploy/chart/templates/crds/*"
             "deploy/base/*"
             "deploy/microsegment/*"
+            "deploy/everoute.yaml"
             "*generated*.go"
             "*.pb.go"
             "pkg/client/*"
