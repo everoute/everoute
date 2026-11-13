@@ -2,7 +2,6 @@ package trafficredirect
 
 import (
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/everoute/trafficredirect/api/trafficredirect/v1alpha1"
@@ -162,7 +161,6 @@ func TestLocalRule_toDPTRRuleSpec(t *testing.T) {
 func Test_ruleCache_get(t *testing.T) {
 	type fields struct {
 		cache map[types.NamespacedName]*LocalRule
-		lock  sync.RWMutex
 	}
 	type args struct {
 		k types.NamespacedName
@@ -200,7 +198,6 @@ func Test_ruleCache_get(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := &ruleCache{
 				cache: tt.fields.cache,
-				lock:  tt.fields.lock,
 			}
 			if got := rc.get(tt.args.k); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ruleCache.get() = %v, want %v", got, tt.want)
@@ -212,7 +209,6 @@ func Test_ruleCache_get(t *testing.T) {
 func Test_ruleCache_delete(t *testing.T) {
 	type fields struct {
 		cache map[types.NamespacedName]*LocalRule
-		lock  sync.RWMutex
 	}
 	type args struct {
 		k types.NamespacedName
@@ -247,7 +243,6 @@ func Test_ruleCache_delete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := &ruleCache{
 				cache: tt.fields.cache,
-				lock:  tt.fields.lock,
 			}
 			rc.delete(tt.args.k)
 			if _, ok := rc.cache[tt.args.k]; ok {
@@ -260,7 +255,6 @@ func Test_ruleCache_delete(t *testing.T) {
 func Test_ruleCache_add(t *testing.T) {
 	type fields struct {
 		cache map[types.NamespacedName]*LocalRule
-		lock  sync.RWMutex
 	}
 	type args struct {
 		k types.NamespacedName
@@ -299,7 +293,6 @@ func Test_ruleCache_add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := &ruleCache{
 				cache: tt.fields.cache,
-				lock:  tt.fields.lock,
 			}
 			rc.add(tt.args.k, tt.args.r)
 			_, ok := rc.cache[tt.args.k]

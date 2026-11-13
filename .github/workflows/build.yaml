@@ -46,8 +46,33 @@ jobs:
             registry.smtx.io/everoute/release:${{ env.IMAGE_TAG }}
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
           cache-from: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build
           cache-to: type=registry,ref=${{ env.cache-registry }}/everoute/cni/build, mod=max
+
+      - name: Print Go version from release binaries
+        run: |
+          set -e
+          image="registry.smtx.io/everoute/release:${{ env.IMAGE_TAG }}"
+          container="everoute-release-version-${GITHUB_RUN_ID}"
+          version_dir="${RUNNER_TEMP}/everoute-version-${GITHUB_RUN_ID}"
+
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            rm -rf "$version_dir"
+          }
+          trap cleanup EXIT
+
+          mkdir -p "$version_dir"
+          docker create --name "$container" "$image" >/dev/null
+          for binary in everoute-controller everoute-agent everoute-cni erctl; do
+            docker cp "$container:/opt/everoute/bin/$binary" "$version_dir/$binary"
+          done
+
+          docker run --rm \
+            -v "$version_dir:/verify:ro" \
+            registry.smtx.io/sdn-base/golang:1.26 \
+            sh -c 'for binary in /verify/*; do echo "=== $binary ==="; go version -m "$binary" | sed -n "1,4p"; done'
 
       - name: Check if tag is a release tag
         run: |
