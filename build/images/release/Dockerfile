@@ -1,4 +1,6 @@
-FROM registry.smtx.io/sdn-base/golang:1.20 as builder
+FROM registry.smtx.io/sdn-base/golang:1.26 as builder
+
+RUN go version
 
 # Download deps
 RUN mkdir -p $GOPATH/src/everoute
