@@ -1,11 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: groupmemberspatches.group.everoute.io
 spec:
   group: group.everoute.io
@@ -26,7 +24,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -78,9 +77,11 @@ spec:
               type: object
             type: array
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           appliedToGroupMembers:
             description: AppliedToGroupMembers means specific revision of GroupMembers
@@ -96,9 +97,12 @@ spec:
             - revision
             type: object
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -108,7 +112,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -165,7 +170,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -221,9 +227,3 @@ spec:
         type: object
     served: true
     storage: true
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

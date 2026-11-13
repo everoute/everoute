@@ -390,7 +390,7 @@ loopread:
 		case DataMsg:
 			break loopread
 		case ErrorMsg, ConnectionErrorMsg:
-			return connectErrorMessage(string(msg.PayLoad))
+			return connectErrorMessage("%s", string(msg.PayLoad))
 		case CompleteMsg:
 			return connectErrorMessage("unexpect complete msg, payload: %+v", string(msg.PayLoad))
 		default:

@@ -1,61 +1,20 @@
-linters-settings:
-  errcheck:
-    # [deprecated] comma-separated list of pairs of the form pkg:regex
-    # the regex is used to ignore names within pkg. (default "fmt:.*").
-    exclude-functions:
-    - fmt:.*
-    - io/ioutil:^Read.*
-    - io:Close
-  lll:
-    line-length: 170
-  funlen:
-    lines: 100
-    statements: 80
-  depguard:
-    rules:
-      main:
-        files:
-          - $all
-          - "!$test"
-        allow:
-          - $gostd
-          - github.com
-          - k8s.io
-          - sigs.k8s.io
-        deny: []
-
+version: "2"
 run:
-  timeout: 30m
   issues-exit-code: 1
-
-issues:
-  exclude-files:
-    - ".*_test.go$"
-    - plugin/tower/pkg/server/fake/graph/resolver/query.resolvers.go
-    - plugin/tower/pkg/server/fake/graph/resolver/types.resolvers.go
-  exclude-dirs:
-    - tests/e2e
-
 linters:
-  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - depguard
     - dogsled
     - dupl
     - errcheck
-    - exportloopref
     - funlen
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - revive
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -63,10 +22,60 @@ linters:
     - nakedret
     - noctx
     - nolintlint
+    - revive
     - rowserrcheck
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unused
     - whitespace
+  settings:
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+            - '!$test'
+          allow:
+            - $gostd
+            - github.com
+            - k8s.io
+            - sigs.k8s.io
+    errcheck:
+      exclude-functions:
+        - fmt:.*
+        - io/ioutil:^Read.*
+        - io:Close
+    funlen:
+      lines: 100
+      statements: 80
+    lll:
+      line-length: 170
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - .*_test.go$
+      - plugin/tower/pkg/server/fake/graph/resolver/query.resolvers.go
+      - plugin/tower/pkg/server/fake/graph/resolver/types.resolvers.go
+      - tests/e2e
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - .*_test.go$
+      - plugin/tower/pkg/server/fake/graph/resolver/query.resolvers.go
+      - plugin/tower/pkg/server/fake/graph/resolver/types.resolvers.go
+      - tests/e2e
+      - third_party$
+      - builtin$
+      - examples$

@@ -54,7 +54,8 @@ type ServicePortSpec struct {
 
 // Backend provides the specification of a ServicePortSpec.Backends
 type Backend struct {
-	IP       string          `json:"ip"`
+	IP string `json:"ip"`
+	// +kubebuilder:default=TCP
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
 	Port     int32           `json:"port"`
 	Node     string          `json:"node"`

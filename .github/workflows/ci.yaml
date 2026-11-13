@@ -25,6 +25,7 @@ jobs:
           tags: registry.smtx.io/everoute/unit-test
           context: ./build/images/unit-test/
           push: true
+          pull: true
 
       - name: build generate image
         uses: docker/build-push-action@v4
@@ -33,13 +34,14 @@ jobs:
           tags: registry.smtx.io/everoute/generate
           context: ./build/images/generate/
           push: true
+          pull: true
 
   pr-check:
     needs: [build-unit-test-image, static-check, generate-check]
     runs-on: ubuntu-24.04
     env:
       DOCKER_BUILD_OPTS: >-
-        --build-context registry.smtx.io/sdn-base/golang:1.20=docker-image://golang:1.20
+        --build-context registry.smtx.io/sdn-base/golang:1.26=docker-image://golang:1.26
         --build-context registry.smtx.io/sdn-base/ubuntu:22.04=docker-image://ubuntu:22.04
     strategy:
       matrix:
@@ -63,7 +65,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '1.26'
 
       - uses: actions/checkout@v2
 
@@ -76,9 +78,9 @@ jobs:
       - name: Check golang lint
         # skip it for branch main can't pass this check
         if: ${{ github.event_name == 'pull_request' }}
-        uses: qingwusunny/golangci-lint-action@v1.0.0
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.60.1
+          version: v2.15.0
           only-new-issues: true
         env:
           GOGC: 1
@@ -96,6 +98,7 @@ jobs:
           tags: registry.smtx.io/everoute/everoute_release:${{ github.sha }}
           context: .
           push: true
+          pull: true
 
   run-k8s-e2e:
     needs: [build-k8s-e2e-image, static-check, generate-check, pr-check]
@@ -114,7 +117,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: '1.22'
+          go-version: '1.26'
 
       - name: config PATH
         run: |
@@ -249,17 +252,20 @@ jobs:
   #       run: sudo go test ./tests/e2e/cases/. -v --count=1 --timeout=1h
 
   generate-check:
-    runs-on: [self-hosted, pod]
+    runs-on: ubuntu-24.04
     needs: [build-unit-test-image]
+    env:
+      DOCKER_BUILD_OPTS: >-
+        --build-context registry.smtx.io/sdn-base/golang:1.26=docker-image://golang:1.26
     steps:
       - uses: actions/checkout@v2
 
-      - name: make docker-generate-ci
+      - name: make docker-generate
         uses: nick-fields/retry@v2
         with:
-          timeout_minutes: 10
+          timeout_minutes: 30
           max_attempts: 2
-          command: sudo sh -c "make docker-generate-ci"
+          command: make docker-generate DOCKER_BUILD_OPTS="$DOCKER_BUILD_OPTS"
 
       - name: check if code changes
         run: sudo sh -c "git add -A && git diff HEAD --exit-code"
