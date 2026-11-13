@@ -401,18 +401,16 @@ const (
 )
 
 type Endpoint struct {
-	InterfaceUUID        string
-	InterfaceName        string // interface name that endpoint attached to
-	IPAddr               net.IP
-	IPAddrMutex          sync.RWMutex
-	IPAddrLastUpdateTime time.Time
-	PortNo               uint32 // endpoint of port
-	IfaceID              string
-	MacAddrStr           string
-	VlanID               uint16 // endpoint vlan id
-	Trunk                string // vlan trunk config
-	BridgeName           string // bridge name that endpoint attached to
-	State                LinkState
+	InterfaceUUID string
+	InterfaceName string // interface name that endpoint attached to
+	IPAddr        net.IP
+	PortNo        uint32 // endpoint of port
+	IfaceID       string
+	MacAddrStr    string
+	VlanID        uint16 // endpoint vlan id
+	Trunk         string // vlan trunk config
+	BridgeName    string // bridge name that endpoint attached to
+	State         LinkState
 }
 
 type RoundInfo struct {
@@ -1279,9 +1277,6 @@ func InitializeVDS(ctx context.Context,
 
 	if datapathManager.Config.EnableIPLearning {
 		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalIPAddressCacheWorker(
-			IPAddressCacheUpdateInterval, IPAddressTimeout, ctx.Done())
-
-		go datapathManager.BridgeChainMap[vdsID][LOCAL_BRIDGE_KEYWORD].(*LocalBridge).cleanLocalEndpointIPAddrWorker(
 			IPAddressCacheUpdateInterval, IPAddressTimeout, ctx.Done())
 	}
 
