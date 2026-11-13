@@ -189,11 +189,8 @@ func (l *LocalBridge) MultipartReply(*ofctrl.OFSwitch, *openflow13.MultipartRepl
 func (l *LocalBridge) processIPLearn(srcIP net.IP, srcMac net.HardwareAddr, vlanID uint16, inPort uint32) {
 	l.learnedIPAddressMapMutex.Lock()
 	defer l.learnedIPAddressMapMutex.Unlock()
-	l.setLocalEndpointIPAddr(srcIP, srcMac, inPort)
 	ipReference, ok := l.learnedIPAddressMap[srcIP.String()]
-	if !ok {
-		l.processLocalEndpointUpdate(srcIP, srcMac, vlanID, inPort)
-	} else if ok && ipReference.updateTimes > 0 {
+	if !ok || ipReference.updateTimes > 0 {
 		l.processLocalEndpointUpdate(srcIP, srcMac, vlanID, inPort)
 	}
 }
@@ -221,54 +218,9 @@ func (l *LocalBridge) cleanLocalIPAddressCache(timeout int) {
 	}
 }
 
-func (l *LocalBridge) cleanLocalEndpointIPAddrWorker(cycle, timeout int, stopChan <-chan struct{}) {
-	ticker := time.NewTicker(time.Duration(cycle) * time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			l.cleanLocalIPAddr(timeout)
-		case <-stopChan:
-			return
-		}
-	}
-}
-
-func (l *LocalBridge) cleanLocalIPAddr(timeout int) {
-	for endpointObj := range l.datapathManager.localEndpointDB.IterBuffered() {
-		endpoint := endpointObj.Val.(*Endpoint)
-		endpoint.IPAddrMutex.Lock()
-		if endpoint.IPAddr == nil {
-			endpoint.IPAddrMutex.Unlock()
-			continue
-		}
-		ipExpiredTime := endpoint.IPAddrLastUpdateTime.Add(time.Duration(timeout) * time.Second)
-		if time.Now().After(ipExpiredTime) {
-			endpoint.IPAddr = nil
-		}
-		endpoint.IPAddrMutex.Unlock()
-	}
-}
-
-func (l *LocalBridge) setLocalEndpointIPAddr(srcIP net.IP, srcMac net.HardwareAddr, inPort uint32) {
-	endpoint, isExist := l.getEndpointByPort(inPort)
-	if !isExist {
-		return
-	}
-	endpoint.IPAddrMutex.Lock()
-	defer endpoint.IPAddrMutex.Unlock()
-	if endpoint.MacAddrStr == srcMac.String() && endpoint.IPAddr == nil {
-		copy(endpoint.IPAddr, srcIP)
-		endpoint.IPAddrLastUpdateTime = time.Now()
-	}
-}
-
 func (l *LocalBridge) processLocalEndpointUpdate(srcIP net.IP, srcMac net.HardwareAddr, vlanID uint16, inPort uint32) {
-	endpoint, isExist := l.getEndpointByPort(inPort)
+	_, isExist := l.getEndpointByPort(inPort)
 	if !isExist {
-		return
-	}
-
-	if endpoint.MacAddrStr != srcMac.String() && endpoint.IPAddr != nil {
 		return
 	}
 
