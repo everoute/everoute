@@ -106,7 +106,7 @@ func runWithOutput(args ...string) ([]string, error) {
 	if err := cmd.Run(); err != nil {
 		switch err.(type) {
 		case *exec.ExitError:
-			return []string{}, fmt.Errorf(stderr.String())
+			return []string{}, fmt.Errorf("%s", stderr.String())
 		default:
 			return []string{}, err
 		}

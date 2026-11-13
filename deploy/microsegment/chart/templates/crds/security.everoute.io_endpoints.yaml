@@ -1,11 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: endpoints.security.everoute.io
 spec:
   group: security.everoute.io
@@ -35,19 +33,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Endpoint is a network communication entity. It's provided by
-          the endpoint provider, it could be a virtual network interface, a pod, an
-          ovs port or other entities.
+        description: |-
+          Endpoint is a network communication entity. It's provided by the endpoint provider,
+          it could be a virtual network interface, a pod, an ovs port or other entities.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -68,10 +71,10 @@ spec:
                   items:
                     type: string
                   type: array
-                description: ExtendLabels contains extend labels of endpoint. Each
-                  key in the labels could have multiple values, but at least one should
-                  be specified. The ExtendLabels could be selected by selector in
-                  SecurityPolicy or EndpointGroup.
+                description: |-
+                  ExtendLabels contains extend labels of endpoint. Each key in the labels
+                  could have multiple values, but at least one should be specified.
+                  The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.
                 type: object
               ports:
                 items:
@@ -98,9 +101,9 @@ spec:
                   type: object
                 type: array
               reference:
-                description: Reference of an endpoint, also the external_id of an
-                  ovs interface. We map between endpoint and ovs interface use the
-                  Reference.
+                description: |-
+                  Reference of an endpoint, also the external_id of an ovs interface.
+                  We map between endpoint and ovs interface use the Reference.
                 properties:
                   externalIDName:
                     description: ExternalIDName of an endpoint.
@@ -113,8 +116,10 @@ spec:
                 - externalIDValue
                 type: object
               strictMac:
-                description: 'StrictMac is a ip filter switch true: filter ip which
-                  src mac does not equal interface mac false: no action'
+                description: |-
+                  StrictMac is a ip filter switch
+                  true: filter ip which src mac does not equal interface mac
+                  false: no action
                 type: boolean
               type:
                 default: dynamic
@@ -161,9 +166,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

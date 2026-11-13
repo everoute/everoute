@@ -85,8 +85,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: agentinfos.agent.everoute.io
 spec:
   group: agent.everoute.io
@@ -102,9 +101,11 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           conditions:
             items:
@@ -129,9 +130,12 @@ spec:
           hostname:
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -211,20 +215,13 @@ spec:
         type: object
     served: true
     storage: true
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/group.everoute.io_endpointgroups.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: endpointgroups.group.everoute.io
 spec:
   group: group.everoute.io
@@ -253,14 +250,19 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -283,46 +285,48 @@ spec:
                 - namespace
                 type: object
               endpointSelector:
-                description: "EndpointSelector selects endpoints. This field follows
-                  extend label selector semantics; if present but empty, it selects
-                  all endpoints. \n If NamespaceSelector is set, then the EndpointGroup
-                  would select the endpoints matching EndpointSelector in the Namespaces
-                  selected by NamespaceSelector. If Namespace is set, then the EndpointGroup
-                  would select the endpoints matching EndpointSelector in the specific
-                  Namespace. If neither of NamespaceSelector or Namespace set, then
-                  the EndpointGroup would select the endpoints in all namespaces."
+                description: |-
+                  EndpointSelector selects endpoints. This field follows extend label
+                  selector semantics; if present but empty, it selects all endpoints.
+
+                  If NamespaceSelector is set, then the EndpointGroup would select the endpoints
+                  matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                  If Namespace is set, then the EndpointGroup would select the endpoints
+                  matching EndpointSelector in the specific Namespace.
+                  If neither of NamespaceSelector or Namespace set, then the EndpointGroup
+                  would select the endpoints in all namespaces.
                 properties:
                   extendMatchLabels:
                     additionalProperties:
                       items:
                         type: string
                       type: array
-                    description: 'ExtendMatchLabels allows match labels with the same
-                      key but different value. e.g. {key: [v1, v2]} matches labels:
-                      {key: v1, key: v2} and {key: v1, key: v2, key: v3}'
+                    description: |-
+                      ExtendMatchLabels allows match labels with the same key but different value.
+                      e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                     type: object
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
                       The requirements are ANDed.
                     items:
-                      description: A label selector requirement is a selector that
-                        contains values, a key, and an operator that relates the key
-                        and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           description: key is the label key that the selector applies
                             to.
                           type: string
                         operator:
-                          description: operator represents a key's relationship to
-                            a set of values. Valid operators are In, NotIn, Exists
-                            and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                           type: string
                         values:
-                          description: values is an array of string values. If the
-                            operator is In or NotIn, the values array must be non-empty.
-                            If the operator is Exists or DoesNotExist, the values
-                            array must be empty. This array is replaced during a strategic
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
                             merge patch.
                           items:
                             type: string
@@ -335,53 +339,56 @@ spec:
                   matchLabels:
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single
-                      {key,value} in the matchLabels map is equivalent to an element
-                      of matchExpressions, whose key field is "key", the operator
-                      is "In", and the values array contains only "value". The requirements
-                      are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                     type: object
                   matchNothing:
                     description: MatchNothing does not match any labels when set to
                       true
                     type: boolean
                 type: object
+                x-kubernetes-map-type: atomic
               namespace:
-                description: "This is a namespace for select endpoints in. \n If Namespace
-                  is set, then the EndpointGroup would select the endpoints matching
-                  EndpointSelector in the specific Namespace. If this field is set
-                  then the NamespaceSelector field cannot be set."
+                description: |-
+                  This is a namespace for select endpoints in.
+
+                  If Namespace is set, then the EndpointGroup would select the endpoints
+                  matching EndpointSelector in the specific Namespace.
+                  If this field is set then the NamespaceSelector field cannot be set.
                 type: string
               namespaceSelector:
-                description: "NamespaceSelector selects namespaces. This field follows
-                  standard label selector semantics; if present but empty, it selects
-                  all namespaces. \n If NamespaceSelector is set, then the EndpointGroup
-                  would select the endpoints matching EndpointSelector in the Namespaces
-                  selected by NamespaceSelector. If this field is set then the Namespace
-                  field cannot be set."
+                description: |-
+                  NamespaceSelector selects namespaces. This field follows standard label
+                  selector semantics; if present but empty, it selects all namespaces.
+
+                  If NamespaceSelector is set, then the EndpointGroup would select the endpoints
+                  matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                  If this field is set then the Namespace field cannot be set.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
                       The requirements are ANDed.
                     items:
-                      description: A label selector requirement is a selector that
-                        contains values, a key, and an operator that relates the key
-                        and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           description: key is the label key that the selector applies
                             to.
                           type: string
                         operator:
-                          description: operator represents a key's relationship to
-                            a set of values. Valid operators are In, NotIn, Exists
-                            and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                           type: string
                         values:
-                          description: values is an array of string values. If the
-                            operator is In or NotIn, the values array must be non-empty.
-                            If the operator is Exists or DoesNotExist, the values
-                            array must be empty. This array is replaced during a strategic
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
                             merge patch.
                           items:
                             type: string
@@ -394,13 +401,13 @@ spec:
                   matchLabels:
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single
-                      {key,value} in the matchLabels map is equivalent to an element
-                      of matchExpressions, whose key field is "key", the operator
-                      is "In", and the values array contains only "value". The requirements
-                      are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
             type: object
         required:
         - spec
@@ -408,20 +415,13 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/group.everoute.io_groupmembers.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: groupmembers.group.everoute.io
 spec:
   group: group.everoute.io
@@ -444,9 +444,11 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           groupMembers:
             items:
@@ -454,7 +456,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -506,9 +509,12 @@ spec:
               type: object
             type: array
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -522,20 +528,13 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/group.everoute.io_groupmemberspatches.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: groupmemberspatches.group.everoute.io
 spec:
   group: group.everoute.io
@@ -556,7 +555,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -608,9 +608,11 @@ spec:
               type: object
             type: array
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           appliedToGroupMembers:
             description: AppliedToGroupMembers means specific revision of GroupMembers
@@ -626,9 +628,12 @@ spec:
             - revision
             type: object
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -638,7 +643,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -695,7 +701,8 @@ spec:
                 in Groups.
               properties:
                 endpointAgent:
-                  description: EndpointAgent means where this groupMember may appear.
+                  description: |-
+                    EndpointAgent means where this groupMember may appear.
                     if this field is empty, this group member will apply to all agents.
                   items:
                     type: string
@@ -751,12 +758,6 @@ spec:
         type: object
     served: true
     storage: true
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/ipam.everoute.io_ippools.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -867,8 +868,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: k8sclusters.pod.everoute.io
 spec:
   group: pod.everoute.io
@@ -897,14 +897,19 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -940,20 +945,13 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/security.everoute.io_endpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: endpoints.security.everoute.io
 spec:
   group: security.everoute.io
@@ -983,19 +981,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Endpoint is a network communication entity. It's provided by
-          the endpoint provider, it could be a virtual network interface, a pod, an
-          ovs port or other entities.
+        description: |-
+          Endpoint is a network communication entity. It's provided by the endpoint provider,
+          it could be a virtual network interface, a pod, an ovs port or other entities.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -1016,10 +1019,10 @@ spec:
                   items:
                     type: string
                   type: array
-                description: ExtendLabels contains extend labels of endpoint. Each
-                  key in the labels could have multiple values, but at least one should
-                  be specified. The ExtendLabels could be selected by selector in
-                  SecurityPolicy or EndpointGroup.
+                description: |-
+                  ExtendLabels contains extend labels of endpoint. Each key in the labels
+                  could have multiple values, but at least one should be specified.
+                  The ExtendLabels could be selected by selector in SecurityPolicy or EndpointGroup.
                 type: object
               ports:
                 items:
@@ -1046,9 +1049,9 @@ spec:
                   type: object
                 type: array
               reference:
-                description: Reference of an endpoint, also the external_id of an
-                  ovs interface. We map between endpoint and ovs interface use the
-                  Reference.
+                description: |-
+                  Reference of an endpoint, also the external_id of an ovs interface.
+                  We map between endpoint and ovs interface use the Reference.
                 properties:
                   externalIDName:
                     description: ExternalIDName of an endpoint.
@@ -1061,8 +1064,10 @@ spec:
                 - externalIDValue
                 type: object
               strictMac:
-                description: 'StrictMac is a ip filter switch true: filter ip which
-                  src mac does not equal interface mac false: no action'
+                description: |-
+                  StrictMac is a ip filter switch
+                  true: filter ip which src mac does not equal interface mac
+                  false: no action
                 type: boolean
               type:
                 default: dynamic
@@ -1109,20 +1114,13 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/security.everoute.io_globalpolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: globalpolicies.security.everoute.io
 spec:
   group: security.everoute.io
@@ -1140,18 +1138,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: GlobalPolicy allow defines default action of traffics and global
+        description: |-
+          GlobalPolicy allow defines default action of traffics and global
           ip whitelist. Only one GlobalPolicy can exist on kubernetes.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -1188,20 +1192,13 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/security.everoute.io_securitypolicies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: securitypolicies.security.everoute.io
 spec:
   group: security.everoute.io
@@ -1234,18 +1231,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: SecurityPolicy describes what network traffic is allowed for
-          a set of Endpoint. Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
+        description: |-
+          SecurityPolicy describes what network traffic is allowed for a set of Endpoint.
+          Follow NetworkPolicy https://github.com/kubernetes/api/blob/v0.22.1/networking/v1/types.go#L29.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -1253,63 +1256,65 @@ spec:
             description: Specification of the desired behavior for this SecurityPolicy.
             properties:
               appliedTo:
-                description: 'Selects the endpoints to which this SecurityPolicy object
-                  applies. Empty or nil means select all endpoints. Notice: if AppliedTo
-                  is empty, IngressRule''s Ports can''t be namedPorts.'
+                description: |-
+                  Selects the endpoints to which this SecurityPolicy object applies.
+                  Empty or nil means select all endpoints.
+                  Notice: if AppliedTo is empty, IngressRule's Ports can't be namedPorts.
                 items:
-                  description: ApplyToPeer describes sets of endpoints which this
-                    SecurityPolicy object applies At least one field (Endpoint or
-                    EndpointSelector) should be set.
+                  description: |-
+                    ApplyToPeer describes sets of endpoints which this SecurityPolicy object applies
+                    At least one field (Endpoint or EndpointSelector) should be set.
                   properties:
                     endpoint:
-                      description: "Endpoint defines policy on a specific Endpoint.
-                        \n If Endpoint is set, then the SecurityPolicy would apply
-                        to the endpoint in the SecurityPolicy Namespace. If Endpoint
-                        doesnot exist OR has empty IPAddr, the ApplyToPeer would be
-                        ignored. If this field is set then neither of the other fields
-                        can be."
+                      description: |-
+                        Endpoint defines policy on a specific Endpoint.
+
+                        If Endpoint is set, then the SecurityPolicy would apply to the endpoint
+                        in the SecurityPolicy Namespace. If Endpoint doesnot exist OR has empty
+                        IPAddr, the ApplyToPeer would be ignored.
+                        If this field is set then neither of the other fields can be.
                       type: string
                     endpointSelector:
-                      description: "EndpointSelector selects endpoints. This field
-                        follows extend label selector semantics; if present but empty,
-                        it selects all endpoints. \n If EndpointSelector is set, then
-                        the SecurityPolicy would apply to the endpoints matching EndpointSelector
-                        in the SecurityPolicy Namespace. If this field is set then
-                        neither of the other fields can be."
+                      description: |-
+                        EndpointSelector selects endpoints. This field follows extend label
+                        selector semantics; if present but empty, it selects all endpoints.
+
+                        If EndpointSelector is set, then the SecurityPolicy would apply to the
+                        endpoints matching EndpointSelector in the SecurityPolicy Namespace.
+                        If this field is set then neither of the other fields can be.
                       properties:
                         extendMatchLabels:
                           additionalProperties:
                             items:
                               type: string
                             type: array
-                          description: 'ExtendMatchLabels allows match labels with
-                            the same key but different value. e.g. {key: [v1, v2]}
-                            matches labels: {key: v1, key: v2} and {key: v1, key:
-                            v2, key: v3}'
+                          description: |-
+                            ExtendMatchLabels allows match labels with the same key but different value.
+                            e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                           type: object
                         matchExpressions:
                           description: matchExpressions is a list of label selector
                             requirements. The requirements are ANDed.
                           items:
-                            description: A label selector requirement is a selector
-                              that contains values, a key, and an operator that relates
-                              the key and values.
+                            description: |-
+                              A label selector requirement is a selector that contains values, a key, and an operator that
+                              relates the key and values.
                             properties:
                               key:
                                 description: key is the label key that the selector
                                   applies to.
                                 type: string
                               operator:
-                                description: operator represents a key's relationship
-                                  to a set of values. Valid operators are In, NotIn,
-                                  Exists and DoesNotExist.
+                                description: |-
+                                  operator represents a key's relationship to a set of values.
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.
                                 type: string
                               values:
-                                description: values is an array of string values.
-                                  If the operator is In or NotIn, the values array
-                                  must be non-empty. If the operator is Exists or
-                                  DoesNotExist, the values array must be empty. This
-                                  array is replaced during a strategic merge patch.
+                                description: |-
+                                  values is an array of string values. If the operator is In or NotIn,
+                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                  the values array must be empty. This array is replaced during a strategic
+                                  merge patch.
                                 items:
                                   type: string
                                 type: array
@@ -1321,29 +1326,30 @@ spec:
                         matchLabels:
                           additionalProperties:
                             type: string
-                          description: matchLabels is a map of {key,value} pairs.
-                            A single {key,value} in the matchLabels map is equivalent
-                            to an element of matchExpressions, whose key field is
-                            "key", the operator is "In", and the values array contains
-                            only "value". The requirements are ANDed.
+                          description: |-
+                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                            map is equivalent to an element of matchExpressions, whose key field is "key", the
+                            operator is "In", and the values array contains only "value". The requirements are ANDed.
                           type: object
                         matchNothing:
                           description: MatchNothing does not match any labels when
                             set to true
                           type: boolean
                       type: object
+                      x-kubernetes-map-type: atomic
                     ipBlock:
                       description: IPBlock defines policy on a particular IPBlock.
                       properties:
                         cidr:
-                          description: cidr is a string representing the IPBlock Valid
-                            examples are "192.168.1.0/24" or "2001:db8::/64"
+                          description: |-
+                            cidr is a string representing the IPBlock
+                            Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                           type: string
                         except:
-                          description: except is a slice of CIDRs that should not
-                            be included within an IPBlock Valid examples are "192.168.1.0/24"
-                            or "2001:db8::/64" Except values will be rejected if they
-                            are outside the cidr range
+                          description: |-
+                            except is a slice of CIDRs that should not be included within an IPBlock
+                            Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                            Except values will be rejected if they are outside the cidr range
                           items:
                             type: string
                           type: array
@@ -1361,37 +1367,36 @@ spec:
                 - none
                 type: string
               egressRules:
-                description: List of egress rules to be applied to the selected endpoints.
-                  If this field is empty then this SecurityPolicy limits all outgoing
-                  traffic.
+                description: |-
+                  List of egress rules to be applied to the selected endpoints. If this field
+                  is empty then this SecurityPolicy limits all outgoing traffic.
                 items:
-                  description: Rule describes a particular set of traffic that is
-                    allowed from/to the endpoints matched by a SecurityPolicySpec's
-                    AppliedTo.
+                  description: |-
+                    Rule describes a particular set of traffic that is allowed from/to the endpoints
+                    matched by a SecurityPolicySpec's AppliedTo.
                   properties:
                     from:
-                      description: List of sources which should be able to access
-                        the endpoints selected for this rule. Items in this list are
-                        combined using a logical OR operation. If this field is empty
-                        or missing, this rule matches all sources (traffic not restricted
-                        by source). If this field is present and contains at least
-                        one item, this rule allows traffic only if the traffic matches
-                        at least one item in the from list. This field only works
-                        when rule is ingress.
+                      description: |-
+                        List of sources which should be able to access the endpoints selected for this rule.
+                        Items in this list are combined using a logical OR operation. If this field is
+                        empty or missing, this rule matches all sources (traffic not restricted by
+                        source). If this field is present and contains at least one item, this rule
+                        allows traffic only if the traffic matches at least one item in the from list.
+                        This field only works when rule is ingress.
                       items:
-                        description: SecurityPolicyPeer describes a peer to allow
-                          traffic to/from. Only certain combinations of fields are
-                          allowed
+                        description: |-
+                          SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+                          of fields are allowed
                         properties:
                           disableSymmetric:
-                            description: DisableSymmetric if set true, won't generate
-                              symmetric rules for the peer even if SymmetricMode of
-                              policy set true, the default value is false
+                            description: |-
+                              DisableSymmetric if set true, won't generate symmetric rules for the peer even if
+                              SymmetricMode of policy set true, the default value is false
                             type: boolean
                           endpoint:
-                            description: Endpoint defines policy on a specific Endpoint.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              Endpoint defines policy on a specific Endpoint. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               name:
                                 description: Name is unique within a namespace to
@@ -1406,30 +1411,29 @@ spec:
                             - namespace
                             type: object
                           endpointSelector:
-                            description: "EndpointSelector selects endpoints. This
-                              field follows extend label selector semantics; if present
-                              but empty, it selects all endpoints. \n If NamespaceSelector
-                              is also set, then the Rule would select the endpoints
-                              matching EndpointSelector in the Namespaces selected
-                              by NamespaceSelector. Otherwise, it selects the Endpoints
-                              matching EndpointSelector in the policy's own Namespace."
+                            description: |-
+                              EndpointSelector selects endpoints. This field follows extend label
+                              selector semantics; if present but empty, it selects all endpoints.
+
+                              If NamespaceSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
                             properties:
                               extendMatchLabels:
                                 additionalProperties:
                                   items:
                                     type: string
                                   type: array
-                                description: 'ExtendMatchLabels allows match labels
-                                  with the same key but different value. e.g. {key:
-                                  [v1, v2]} matches labels: {key: v1, key: v2} and
-                                  {key: v1, key: v2, key: v3}'
+                                description: |-
+                                  ExtendMatchLabels allows match labels with the same key but different value.
+                                  e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1437,17 +1441,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1459,31 +1462,32 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                               matchNothing:
                                 description: MatchNothing does not match any labels
                                   when set to true
                                 type: boolean
                             type: object
+                            x-kubernetes-map-type: atomic
                           ipBlock:
-                            description: IPBlock defines policy on a particular IPBlock.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              IPBlock defines policy on a particular IPBlock. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               cidr:
-                                description: cidr is a string representing the IPBlock
+                                description: |-
+                                  cidr is a string representing the IPBlock
                                   Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: except is a slice of CIDRs that should
-                                  not be included within an IPBlock Valid examples
-                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
-                                  will be rejected if they are outside the cidr range
+                                description: |-
+                                  except is a slice of CIDRs that should not be included within an IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                  Except values will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -1491,20 +1495,20 @@ spec:
                             - cidr
                             type: object
                           namespaceSelector:
-                            description: "NamespaceSelector selects namespaces. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all namespaces. \n If
-                              EndpointSelector is also set, then the Rule would select
-                              the endpoints matching EndpointSelector in the Namespaces
-                              selected by NamespaceSelector. Otherwise, it selects
-                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            description: |-
+                              NamespaceSelector selects namespaces. This field follows standard label
+                              selector semantics; if present but empty, it selects all namespaces.
+
+                              If EndpointSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1512,17 +1516,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1534,13 +1537,13 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       type: array
                     name:
@@ -1548,25 +1551,22 @@ spec:
                         RFC 1123.
                       type: string
                     ports:
-                      description: List of ports which should be made accessible on
-                        the endpoints selected for this rule. Each item in this list
-                        is combined using a logical OR. If this field is empty or
-                        missing, this rule matches all ports (traffic not restricted
-                        by port). If this field is present and contains at least one
-                        item, then this rule allows traffic only if the traffic matches
-                        at least one port in the list.
+                      description: |-
+                        List of ports which should be made accessible on the endpoints selected for this
+                        rule. Each item in this list is combined using a logical OR. If this field is
+                        empty or missing, this rule matches all ports (traffic not restricted by port).
+                        If this field is present and contains at least one item, then this rule allows
+                        traffic only if the traffic matches at least one port in the list.
                       items:
                         description: SecurityPolicyPort describes the port and protocol
                           to match in a rule.
                         properties:
                           portRange:
-                            description: PortRange is a range of port. If you want
-                              match all ports, you should set empty. If you want match
-                              single port, you should write like 22. If you want match
-                              a range of port, you should write like 20-80, ports
-                              between 20 and 80 (include 20 and 80) will matches.
-                              If you want match multiple ports, you should write like
-                              20,22-24,90.
+                            description: |-
+                              PortRange is a range of port. If you want match all ports, you should set empty. If you
+                              want match single port, you should write like 22. If you want match a range of port, you
+                              should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
+                              want match multiple ports, you should write like 20,22-24,90.
                             type: string
                           protocol:
                             description: The ip protocol which traffic must match.
@@ -1579,8 +1579,8 @@ spec:
                             type: string
                           type:
                             default: number
-                            description: Type defines the PortRange is real port numbers
-                              or port names which needed resolve. If it is empty,
+                            description: |-
+                              Type defines the PortRange is real port numbers or port names which needed resolve. If it is empty,
                               the effect is equal to "number" for compatibility.
                             enum:
                             - number
@@ -1591,28 +1591,27 @@ spec:
                         type: object
                       type: array
                     to:
-                      description: List of destinations for outgoing traffic of endpoints
-                        selected for this rule. Items in this list are combined using
-                        a logical OR operation. If this field is empty or missing,
-                        this rule matches all destinations (traffic not restricted
-                        by destination). If this field is present and contains at
-                        least one item, this rule allows traffic only if the traffic
-                        matches at least one item in the to list. This field only
-                        works when rule is egress.
+                      description: |-
+                        List of destinations for outgoing traffic of endpoints selected for this rule.
+                        Items in this list are combined using a logical OR operation. If this field is
+                        empty or missing, this rule matches all destinations (traffic not restricted by
+                        destination). If this field is present and contains at least one item, this rule
+                        allows traffic only if the traffic matches at least one item in the to list.
+                        This field only works when rule is egress.
                       items:
-                        description: SecurityPolicyPeer describes a peer to allow
-                          traffic to/from. Only certain combinations of fields are
-                          allowed
+                        description: |-
+                          SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+                          of fields are allowed
                         properties:
                           disableSymmetric:
-                            description: DisableSymmetric if set true, won't generate
-                              symmetric rules for the peer even if SymmetricMode of
-                              policy set true, the default value is false
+                            description: |-
+                              DisableSymmetric if set true, won't generate symmetric rules for the peer even if
+                              SymmetricMode of policy set true, the default value is false
                             type: boolean
                           endpoint:
-                            description: Endpoint defines policy on a specific Endpoint.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              Endpoint defines policy on a specific Endpoint. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               name:
                                 description: Name is unique within a namespace to
@@ -1627,30 +1626,29 @@ spec:
                             - namespace
                             type: object
                           endpointSelector:
-                            description: "EndpointSelector selects endpoints. This
-                              field follows extend label selector semantics; if present
-                              but empty, it selects all endpoints. \n If NamespaceSelector
-                              is also set, then the Rule would select the endpoints
-                              matching EndpointSelector in the Namespaces selected
-                              by NamespaceSelector. Otherwise, it selects the Endpoints
-                              matching EndpointSelector in the policy's own Namespace."
+                            description: |-
+                              EndpointSelector selects endpoints. This field follows extend label
+                              selector semantics; if present but empty, it selects all endpoints.
+
+                              If NamespaceSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
                             properties:
                               extendMatchLabels:
                                 additionalProperties:
                                   items:
                                     type: string
                                   type: array
-                                description: 'ExtendMatchLabels allows match labels
-                                  with the same key but different value. e.g. {key:
-                                  [v1, v2]} matches labels: {key: v1, key: v2} and
-                                  {key: v1, key: v2, key: v3}'
+                                description: |-
+                                  ExtendMatchLabels allows match labels with the same key but different value.
+                                  e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1658,17 +1656,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1680,31 +1677,32 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                               matchNothing:
                                 description: MatchNothing does not match any labels
                                   when set to true
                                 type: boolean
                             type: object
+                            x-kubernetes-map-type: atomic
                           ipBlock:
-                            description: IPBlock defines policy on a particular IPBlock.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              IPBlock defines policy on a particular IPBlock. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               cidr:
-                                description: cidr is a string representing the IPBlock
+                                description: |-
+                                  cidr is a string representing the IPBlock
                                   Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: except is a slice of CIDRs that should
-                                  not be included within an IPBlock Valid examples
-                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
-                                  will be rejected if they are outside the cidr range
+                                description: |-
+                                  except is a slice of CIDRs that should not be included within an IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                  Except values will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -1712,20 +1710,20 @@ spec:
                             - cidr
                             type: object
                           namespaceSelector:
-                            description: "NamespaceSelector selects namespaces. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all namespaces. \n If
-                              EndpointSelector is also set, then the Rule would select
-                              the endpoints matching EndpointSelector in the Namespaces
-                              selected by NamespaceSelector. Otherwise, it selects
-                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            description: |-
+                              NamespaceSelector selects namespaces. This field follows standard label
+                              selector semantics; if present but empty, it selects all namespaces.
+
+                              If EndpointSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1733,17 +1731,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1755,13 +1752,13 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       type: array
                   required:
@@ -1769,37 +1766,36 @@ spec:
                   type: object
                 type: array
               ingressRules:
-                description: List of ingress rules to be applied to the selected endpoints.
-                  If this field is empty then this SecurityPolicy does not allow any
-                  traffic.
+                description: |-
+                  List of ingress rules to be applied to the selected endpoints. If this field
+                  is empty then this SecurityPolicy does not allow any traffic.
                 items:
-                  description: Rule describes a particular set of traffic that is
-                    allowed from/to the endpoints matched by a SecurityPolicySpec's
-                    AppliedTo.
+                  description: |-
+                    Rule describes a particular set of traffic that is allowed from/to the endpoints
+                    matched by a SecurityPolicySpec's AppliedTo.
                   properties:
                     from:
-                      description: List of sources which should be able to access
-                        the endpoints selected for this rule. Items in this list are
-                        combined using a logical OR operation. If this field is empty
-                        or missing, this rule matches all sources (traffic not restricted
-                        by source). If this field is present and contains at least
-                        one item, this rule allows traffic only if the traffic matches
-                        at least one item in the from list. This field only works
-                        when rule is ingress.
+                      description: |-
+                        List of sources which should be able to access the endpoints selected for this rule.
+                        Items in this list are combined using a logical OR operation. If this field is
+                        empty or missing, this rule matches all sources (traffic not restricted by
+                        source). If this field is present and contains at least one item, this rule
+                        allows traffic only if the traffic matches at least one item in the from list.
+                        This field only works when rule is ingress.
                       items:
-                        description: SecurityPolicyPeer describes a peer to allow
-                          traffic to/from. Only certain combinations of fields are
-                          allowed
+                        description: |-
+                          SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+                          of fields are allowed
                         properties:
                           disableSymmetric:
-                            description: DisableSymmetric if set true, won't generate
-                              symmetric rules for the peer even if SymmetricMode of
-                              policy set true, the default value is false
+                            description: |-
+                              DisableSymmetric if set true, won't generate symmetric rules for the peer even if
+                              SymmetricMode of policy set true, the default value is false
                             type: boolean
                           endpoint:
-                            description: Endpoint defines policy on a specific Endpoint.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              Endpoint defines policy on a specific Endpoint. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               name:
                                 description: Name is unique within a namespace to
@@ -1814,30 +1810,29 @@ spec:
                             - namespace
                             type: object
                           endpointSelector:
-                            description: "EndpointSelector selects endpoints. This
-                              field follows extend label selector semantics; if present
-                              but empty, it selects all endpoints. \n If NamespaceSelector
-                              is also set, then the Rule would select the endpoints
-                              matching EndpointSelector in the Namespaces selected
-                              by NamespaceSelector. Otherwise, it selects the Endpoints
-                              matching EndpointSelector in the policy's own Namespace."
+                            description: |-
+                              EndpointSelector selects endpoints. This field follows extend label
+                              selector semantics; if present but empty, it selects all endpoints.
+
+                              If NamespaceSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
                             properties:
                               extendMatchLabels:
                                 additionalProperties:
                                   items:
                                     type: string
                                   type: array
-                                description: 'ExtendMatchLabels allows match labels
-                                  with the same key but different value. e.g. {key:
-                                  [v1, v2]} matches labels: {key: v1, key: v2} and
-                                  {key: v1, key: v2, key: v3}'
+                                description: |-
+                                  ExtendMatchLabels allows match labels with the same key but different value.
+                                  e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1845,17 +1840,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1867,31 +1861,32 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                               matchNothing:
                                 description: MatchNothing does not match any labels
                                   when set to true
                                 type: boolean
                             type: object
+                            x-kubernetes-map-type: atomic
                           ipBlock:
-                            description: IPBlock defines policy on a particular IPBlock.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              IPBlock defines policy on a particular IPBlock. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               cidr:
-                                description: cidr is a string representing the IPBlock
+                                description: |-
+                                  cidr is a string representing the IPBlock
                                   Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: except is a slice of CIDRs that should
-                                  not be included within an IPBlock Valid examples
-                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
-                                  will be rejected if they are outside the cidr range
+                                description: |-
+                                  except is a slice of CIDRs that should not be included within an IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                  Except values will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -1899,20 +1894,20 @@ spec:
                             - cidr
                             type: object
                           namespaceSelector:
-                            description: "NamespaceSelector selects namespaces. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all namespaces. \n If
-                              EndpointSelector is also set, then the Rule would select
-                              the endpoints matching EndpointSelector in the Namespaces
-                              selected by NamespaceSelector. Otherwise, it selects
-                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            description: |-
+                              NamespaceSelector selects namespaces. This field follows standard label
+                              selector semantics; if present but empty, it selects all namespaces.
+
+                              If EndpointSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -1920,17 +1915,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -1942,13 +1936,13 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       type: array
                     name:
@@ -1956,25 +1950,22 @@ spec:
                         RFC 1123.
                       type: string
                     ports:
-                      description: List of ports which should be made accessible on
-                        the endpoints selected for this rule. Each item in this list
-                        is combined using a logical OR. If this field is empty or
-                        missing, this rule matches all ports (traffic not restricted
-                        by port). If this field is present and contains at least one
-                        item, then this rule allows traffic only if the traffic matches
-                        at least one port in the list.
+                      description: |-
+                        List of ports which should be made accessible on the endpoints selected for this
+                        rule. Each item in this list is combined using a logical OR. If this field is
+                        empty or missing, this rule matches all ports (traffic not restricted by port).
+                        If this field is present and contains at least one item, then this rule allows
+                        traffic only if the traffic matches at least one port in the list.
                       items:
                         description: SecurityPolicyPort describes the port and protocol
                           to match in a rule.
                         properties:
                           portRange:
-                            description: PortRange is a range of port. If you want
-                              match all ports, you should set empty. If you want match
-                              single port, you should write like 22. If you want match
-                              a range of port, you should write like 20-80, ports
-                              between 20 and 80 (include 20 and 80) will matches.
-                              If you want match multiple ports, you should write like
-                              20,22-24,90.
+                            description: |-
+                              PortRange is a range of port. If you want match all ports, you should set empty. If you
+                              want match single port, you should write like 22. If you want match a range of port, you
+                              should write like 20-80, ports between 20 and 80 (include 20 and 80) will matches. If you
+                              want match multiple ports, you should write like 20,22-24,90.
                             type: string
                           protocol:
                             description: The ip protocol which traffic must match.
@@ -1987,8 +1978,8 @@ spec:
                             type: string
                           type:
                             default: number
-                            description: Type defines the PortRange is real port numbers
-                              or port names which needed resolve. If it is empty,
+                            description: |-
+                              Type defines the PortRange is real port numbers or port names which needed resolve. If it is empty,
                               the effect is equal to "number" for compatibility.
                             enum:
                             - number
@@ -1999,28 +1990,27 @@ spec:
                         type: object
                       type: array
                     to:
-                      description: List of destinations for outgoing traffic of endpoints
-                        selected for this rule. Items in this list are combined using
-                        a logical OR operation. If this field is empty or missing,
-                        this rule matches all destinations (traffic not restricted
-                        by destination). If this field is present and contains at
-                        least one item, this rule allows traffic only if the traffic
-                        matches at least one item in the to list. This field only
-                        works when rule is egress.
+                      description: |-
+                        List of destinations for outgoing traffic of endpoints selected for this rule.
+                        Items in this list are combined using a logical OR operation. If this field is
+                        empty or missing, this rule matches all destinations (traffic not restricted by
+                        destination). If this field is present and contains at least one item, this rule
+                        allows traffic only if the traffic matches at least one item in the to list.
+                        This field only works when rule is egress.
                       items:
-                        description: SecurityPolicyPeer describes a peer to allow
-                          traffic to/from. Only certain combinations of fields are
-                          allowed
+                        description: |-
+                          SecurityPolicyPeer describes a peer to allow traffic to/from. Only certain combinations
+                          of fields are allowed
                         properties:
                           disableSymmetric:
-                            description: DisableSymmetric if set true, won't generate
-                              symmetric rules for the peer even if SymmetricMode of
-                              policy set true, the default value is false
+                            description: |-
+                              DisableSymmetric if set true, won't generate symmetric rules for the peer even if
+                              SymmetricMode of policy set true, the default value is false
                             type: boolean
                           endpoint:
-                            description: Endpoint defines policy on a specific Endpoint.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              Endpoint defines policy on a specific Endpoint. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               name:
                                 description: Name is unique within a namespace to
@@ -2035,30 +2025,29 @@ spec:
                             - namespace
                             type: object
                           endpointSelector:
-                            description: "EndpointSelector selects endpoints. This
-                              field follows extend label selector semantics; if present
-                              but empty, it selects all endpoints. \n If NamespaceSelector
-                              is also set, then the Rule would select the endpoints
-                              matching EndpointSelector in the Namespaces selected
-                              by NamespaceSelector. Otherwise, it selects the Endpoints
-                              matching EndpointSelector in the policy's own Namespace."
+                            description: |-
+                              EndpointSelector selects endpoints. This field follows extend label
+                              selector semantics; if present but empty, it selects all endpoints.
+
+                              If NamespaceSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects the Endpoints matching EndpointSelector in the policy's own Namespace.
                             properties:
                               extendMatchLabels:
                                 additionalProperties:
                                   items:
                                     type: string
                                   type: array
-                                description: 'ExtendMatchLabels allows match labels
-                                  with the same key but different value. e.g. {key:
-                                  [v1, v2]} matches labels: {key: v1, key: v2} and
-                                  {key: v1, key: v2, key: v3}'
+                                description: |-
+                                  ExtendMatchLabels allows match labels with the same key but different value.
+                                  e.g. {key: [v1, v2]} matches labels: {key: v1, key: v2} and {key: v1, key: v2, key: v3}
                                 type: object
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -2066,17 +2055,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -2088,31 +2076,32 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                               matchNothing:
                                 description: MatchNothing does not match any labels
                                   when set to true
                                 type: boolean
                             type: object
+                            x-kubernetes-map-type: atomic
                           ipBlock:
-                            description: IPBlock defines policy on a particular IPBlock.
-                              If this field is set then neither of the other fields
-                              can be.
+                            description: |-
+                              IPBlock defines policy on a particular IPBlock. If this field is set then
+                              neither of the other fields can be.
                             properties:
                               cidr:
-                                description: cidr is a string representing the IPBlock
+                                description: |-
+                                  cidr is a string representing the IPBlock
                                   Valid examples are "192.168.1.0/24" or "2001:db8::/64"
                                 type: string
                               except:
-                                description: except is a slice of CIDRs that should
-                                  not be included within an IPBlock Valid examples
-                                  are "192.168.1.0/24" or "2001:db8::/64" Except values
-                                  will be rejected if they are outside the cidr range
+                                description: |-
+                                  except is a slice of CIDRs that should not be included within an IPBlock
+                                  Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+                                  Except values will be rejected if they are outside the cidr range
                                 items:
                                   type: string
                                 type: array
@@ -2120,20 +2109,20 @@ spec:
                             - cidr
                             type: object
                           namespaceSelector:
-                            description: "NamespaceSelector selects namespaces. This
-                              field follows standard label selector semantics; if
-                              present but empty, it selects all namespaces. \n If
-                              EndpointSelector is also set, then the Rule would select
-                              the endpoints matching EndpointSelector in the Namespaces
-                              selected by NamespaceSelector. Otherwise, it selects
-                              all Endpoints in the Namespaces selected by NamespaceSelector."
+                            description: |-
+                              NamespaceSelector selects namespaces. This field follows standard label
+                              selector semantics; if present but empty, it selects all namespaces.
+
+                              If EndpointSelector is also set, then the Rule would select the endpoints
+                              matching EndpointSelector in the Namespaces selected by NamespaceSelector.
+                              Otherwise, it selects all Endpoints in the Namespaces selected by NamespaceSelector.
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
                                   requirements. The requirements are ANDed.
                                 items:
-                                  description: A label selector requirement is a selector
-                                    that contains values, a key, and an operator that
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
                                     relates the key and values.
                                   properties:
                                     key:
@@ -2141,17 +2130,16 @@ spec:
                                         applies to.
                                       type: string
                                     operator:
-                                      description: operator represents a key's relationship
-                                        to a set of values. Valid operators are In,
-                                        NotIn, Exists and DoesNotExist.
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
                                       type: string
                                     values:
-                                      description: values is an array of string values.
-                                        If the operator is In or NotIn, the values
-                                        array must be non-empty. If the operator is
-                                        Exists or DoesNotExist, the values array must
-                                        be empty. This array is replaced during a
-                                        strategic merge patch.
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
                                       items:
                                         type: string
                                       type: array
@@ -2163,13 +2151,13 @@ spec:
                               matchLabels:
                                 additionalProperties:
                                   type: string
-                                description: matchLabels is a map of {key,value} pairs.
-                                  A single {key,value} in the matchLabels map is equivalent
-                                  to an element of matchExpressions, whose key field
-                                  is "key", the operator is "In", and the values array
-                                  contains only "value". The requirements are ANDed.
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
                                 type: object
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       type: array
                   required:
@@ -2177,8 +2165,9 @@ spec:
                   type: object
                 type: array
               isBlocklist:
-                description: IsBlocklist specify the SecurityPolicy is allowlist or
-                  blocklist Default is false
+                description: |-
+                  IsBlocklist specify the SecurityPolicy is allowlist or blocklist
+                  Default is false
                 type: boolean
               logging:
                 description: Logging defines the policy logging configuration.
@@ -2195,26 +2184,26 @@ spec:
                 - enabled
                 type: object
               policyTypes:
-                description: List of rule types that the Security relates to. Valid
-                  options are "Ingress", "Egress", or "Ingress,Egress". If this field
-                  is not specified, it will default based on the existence of Ingress
-                  or Egress rules; policies that contain an Egress section are assumed
-                  to affect Egress, and all policies (whether or not they contain
-                  an Ingress section) are assumed to affect Ingress. If you want to
-                  write an egress-only policy, you must explicitly specify policyTypes
-                  [ "Egress" ]. Likewise, if you want to write a policy that specifies
-                  that no egress is allowed, you must specify a policyTypes value
-                  that include "Egress" (since such a policy would not include an
-                  Egress section and would otherwise default to just [ "Ingress" ]).
+                description: |-
+                  List of rule types that the Security relates to.
+                  Valid options are "Ingress", "Egress", or "Ingress,Egress".
+                  If this field is not specified, it will default based on the existence of Ingress or Egress rules;
+                  policies that contain an Egress section are assumed to affect Egress, and all policies
+                  (whether or not they contain an Ingress section) are assumed to affect Ingress.
+                  If you want to write an egress-only policy, you must explicitly specify policyTypes [ "Egress" ].
+                  Likewise, if you want to write a policy that specifies that no egress is allowed,
+                  you must specify a policyTypes value that include "Egress" (since such a policy would not include
+                  an Egress section and would otherwise default to just [ "Ingress" ]).
                 items:
-                  description: PolicyType string describes the NetworkPolicy type
+                  description: |-
+                    PolicyType string describes the NetworkPolicy type
                     This type is beta-level in 1.8
                   type: string
                 type: array
               priority:
                 default: 30
-                description: Priority Specifies the priority of the SecurityPolicy
-                  on the tier to which it belongs (only valid when spec.tier=tier2)
+                description: |-
+                  Priority Specifies the priority of the SecurityPolicy on the tier to which it belongs (only valid when spec.tier=tier2)
                   Blocklist and Allowlist can't set same priority
                 format: int32
                 maximum: 100
@@ -2226,13 +2215,14 @@ spec:
                   or work'
                 type: string
               symmetricMode:
-                description: SymmetricMode will generate symmetry rules for the policy.
+                description: |-
+                  SymmetricMode will generate symmetry rules for the policy.
                   Defaults to false.
                 type: boolean
               tier:
-                description: Tier specifies the tier to which this SecurityPolicy
-                  belongs to. In v1alpha1, Tier only support tier0, tier1, tier2,
-                  tier-ecp.
+                description: |-
+                  Tier specifies the tier to which this SecurityPolicy belongs to.
+                  In v1alpha1, Tier only support tier0, tier1, tier2, tier-ecp.
                 type: string
             required:
             - tier
@@ -2244,20 +2234,13 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/security.everoute.io_shareips.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: shareips.security.everoute.io
 spec:
   group: security.everoute.io
@@ -2280,14 +2263,19 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -2313,20 +2301,13 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/crds/service.everoute.io_serviceports.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: serviceports.service.everoute.io
 spec:
   group: service.everoute.io
@@ -2355,14 +2336,19 @@ spec:
         description: ServicePort collect info from service endpoints
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -2383,6 +2369,8 @@ spec:
                       type: integer
                     protocol:
                       default: TCP
+                      description: Protocol defines network protocols supported for
+                        things like container ports.
                       type: string
                   required:
                   - ip
@@ -2403,12 +2391,6 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 ---
 # Source: everoute/templates/agent/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
