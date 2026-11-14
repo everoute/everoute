@@ -1,5 +1,7 @@
-#FROM golang:1.20 as builder
-FROM registry.smtx.io/sdn-base/golang:1.20 as builder
+#FROM golang:1.26 as builder
+FROM registry.smtx.io/sdn-base/golang:1.26 as builder
+
+RUN go version
 
 WORKDIR $GOPATH/src/github.com/everoute/everoute/
 ADD go.* $GOPATH/src/github.com/everoute/everoute/

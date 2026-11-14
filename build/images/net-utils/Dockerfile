@@ -1,4 +1,6 @@
-FROM golang:1.20 as builder
+FROM golang:1.26 as builder
+
+RUN go version
 
 # Download deps
 RUN mkdir -p $GOPATH/src/everoute/bin
