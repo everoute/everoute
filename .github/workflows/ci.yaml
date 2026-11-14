@@ -33,7 +33,6 @@ jobs:
       fail-fast: false
       matrix:
         enable-proxy: [false]
-        ipam: [everoute]
         encap-mode: ["", geneve]
     runs-on: [self-hosted, pod-k8s-e2e-v2]
     steps:
