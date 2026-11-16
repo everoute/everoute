@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 
 	coretypes "k8s.io/apimachinery/pkg/types"
@@ -67,20 +66,15 @@ func EqualStringSlice(list1, list2 []string) bool {
 
 var currentAgentName string
 
-func CurrentAgentName() string {
-	if currentAgentName != "" {
-		return currentAgentName
+func InitCurrentAgentName() {
+	currentAgentName = os.Getenv(constants.AgentNodeNameENV)
+	if currentAgentName == "" {
+		klog.Fatalf("%s is empty", constants.AgentNodeNameENV)
 	}
-
-	content, err := os.ReadFile(constants.AgentNameConfigPath)
-	if err == nil {
-		currentAgentName = strings.TrimSpace(string(content))
-	} else {
-		// use node name for agent name in kubernetes
-		currentAgentName = os.Getenv(constants.AgentNodeNameENV)
-	}
-
 	klog.Infof("Current AgentName: %s", currentAgentName)
+}
+
+func CurrentAgentName() string {
 	return currentAgentName
 }
 
