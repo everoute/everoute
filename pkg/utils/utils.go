@@ -64,17 +64,27 @@ func EqualStringSlice(list1, list2 []string) bool {
 	return true
 }
 
-var currentAgentName string
+var (
+	currentAgentName     string
+	currentAgentNameOnce sync.Once
+)
 
 func InitCurrentAgentName() {
-	currentAgentName = os.Getenv(constants.AgentNodeNameENV)
-	if currentAgentName == "" {
+	if CurrentAgentName() == "" {
 		klog.Fatalf("%s is empty", constants.AgentNodeNameENV)
 	}
-	klog.Infof("Current AgentName: %s", currentAgentName)
 }
 
 func CurrentAgentName() string {
+	currentAgentNameOnce.Do(func() {
+		currentAgentName = os.Getenv(constants.AgentNodeNameENV)
+		if currentAgentName == "" {
+			klog.Errorf("%s is empty", constants.AgentNodeNameENV)
+		} else {
+			klog.Infof("Current AgentName: %s", currentAgentName)
+		}
+	})
+
 	return currentAgentName
 }
 

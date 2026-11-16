@@ -3,10 +3,20 @@ package utils
 import (
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
 
 	"github.com/everoute/everoute/pkg/constants"
 )
+
+func resetCurrentAgentName(t *testing.T) {
+	currentAgentName = ""
+	currentAgentNameOnce = sync.Once{}
+	t.Cleanup(func() {
+		currentAgentName = ""
+		currentAgentNameOnce = sync.Once{}
+	})
+}
 
 func makeMap(kvs ...string) map[string]string {
 	m := make(map[string]string)
@@ -86,10 +96,7 @@ func TestIsK8sLabelDiff(t *testing.T) {
 
 func TestCurrentAgentNameFromEnv(t *testing.T) {
 	t.Setenv(constants.AgentNodeNameENV, "node-from-env")
-	currentAgentName = ""
-	t.Cleanup(func() {
-		currentAgentName = ""
-	})
+	resetCurrentAgentName(t)
 
 	InitCurrentAgentName()
 	if got := CurrentAgentName(); got != "node-from-env" {
@@ -99,10 +106,7 @@ func TestCurrentAgentNameFromEnv(t *testing.T) {
 
 func TestCurrentAgentNameInitOnce(t *testing.T) {
 	t.Setenv(constants.AgentNodeNameENV, "node-init")
-	currentAgentName = ""
-	t.Cleanup(func() {
-		currentAgentName = ""
-	})
+	resetCurrentAgentName(t)
 
 	InitCurrentAgentName()
 	if got := CurrentAgentName(); got != "node-init" {
@@ -129,15 +133,13 @@ func TestInitCurrentAgentNameFatalOnEmptyHelper(t *testing.T) {
 	}
 
 	currentAgentName = ""
+	currentAgentNameOnce = sync.Once{}
 	InitCurrentAgentName()
 }
 
 func TestCurrentAgentNameConcurrentRead(t *testing.T) {
 	t.Setenv(constants.AgentNodeNameENV, "node-concurrent")
-	currentAgentName = ""
-	t.Cleanup(func() {
-		currentAgentName = ""
-	})
+	resetCurrentAgentName(t)
 
 	InitCurrentAgentName()
 
