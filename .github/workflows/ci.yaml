@@ -138,7 +138,7 @@ jobs:
         run: cp /home/runner/tool/helm /runner/_work/bin/
 
       - name: install k8se2e binary
-        run: sudo mkdir -p /runner/_work/everoute/everoute/k8se2e && sudo cp -r /home/runner/k8se2e/bin/ /runner/_work/everoute/everoute/k8se2e/bin/
+        run: mkdir -p k8se2e && cp -rL /home/runner/k8se2e/bin k8se2e/
 
       - name: generate everoute cni deploy yaml
         run: helm template deploy/chart -n ci-deploy-cni --set CNIConf.encapMode=${{ matrix.encap-mode }},CNIConf.enableProxy=${{ matrix.enable-proxy }},CNIConf.ipam=${{ matrix.ipam }},image.repository=registry.smtx.io/everoute/everoute_release,image.tag=${{ github.sha }} > deploy/everoute.yaml
