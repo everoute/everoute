@@ -84,6 +84,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
+	// Remove a stale bridge from a previous run before connecting controllers.
+	if err := datapath.ExcuteCommand(datapath.CleanBridgeChain, brName); err != nil {
+		klog.Infof("clean stale bridge %s: %v", brName, err)
+	}
 	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, brName)).ToNot(HaveOccurred())
 
 	dpMgr = datapath.NewDatapathManager(&datapath.DpManagerConfig{
@@ -120,10 +124,15 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	By("stop controller manager")
 	cancel()
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, brName)).NotTo(HaveOccurred())
+
+	// Do not delete the OVS bridge here. Closing its OpenFlow connections
+	// makes libOpenflow write to a closed unix socket and exit the test
+	// process with a fatal error. The unit-test container is ephemeral and
+	// cleans up OVS when it exits; BeforeSuite removes any stale bridge.
 })
 
 func validDpCache(g Gomega, r datapath.DPTRRuleSpec, refs sets.Set[string], exists bool) uint64 {
