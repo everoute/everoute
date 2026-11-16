@@ -89,10 +89,10 @@ const (
 		UPLINK_BRIDGE="${DEFAULT_BRIDGE}-uplink"
 
 		ovs-vsctl \
-			-- del-br ${DEFAULT_BRIDGE} \
-			-- del-br ${POLICY_BRIDGE} \
-			-- del-br ${CLS_BRIDGE} \
-			-- del-br ${UPLINK_BRIDGE}
+			-- --if-exists del-br ${DEFAULT_BRIDGE} \
+			-- --if-exists del-br ${POLICY_BRIDGE} \
+			-- --if-exists del-br ${CLS_BRIDGE} \
+			-- --if-exists del-br ${UPLINK_BRIDGE}
     `
 
 	SetupCNIBridgeChain = `

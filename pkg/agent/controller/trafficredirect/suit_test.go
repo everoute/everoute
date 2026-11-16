@@ -84,6 +84,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sManager).ToNot(BeNil())
 
+	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, brName)).ToNot(HaveOccurred())
 	Expect(datapath.ExcuteCommand(datapath.SetupBridgeChain, brName)).ToNot(HaveOccurred())
 
 	dpMgr = datapath.NewDatapathManager(&datapath.DpManagerConfig{
@@ -123,7 +124,7 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-	Expect(datapath.ExcuteCommand(datapath.CleanBridgeChain, brName)).NotTo(HaveOccurred())
+	// DO NOT delete bridge: libOpenflow fatals on closed-socket writes
 })
 
 func validDpCache(g Gomega, r datapath.DPTRRuleSpec, refs sets.Set[string], exists bool) uint64 {
