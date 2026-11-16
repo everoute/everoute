@@ -75,7 +75,7 @@ e2e-tools:
 TEST_AGENT_NAME ?= unit-test-agent
 
 test:
-	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/f06e9064969e/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/...
 	rm -rf ut_tmp
 
@@ -92,7 +92,7 @@ docker-test-ci:
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules --privileged registry.smtx.io/everoute/unit-test make test
 
 cover-test:
-	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/f06e9064969e/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -coverprofile=coverage.out \
 		-coverpkg=./pkg/...,./plugin/tower/pkg/controller/...
 	rm -rf ut_tmp
@@ -106,7 +106,7 @@ docker-cover-test-ci:
 	docker run --rm -iu 0:0 -w $(WORKDIR) -v $(CURDIR):$(WORKDIR) -v /lib/modules:/lib/modules -e GOPROXY=http://goproxy.smartx.com,https://goproxy.cn,direct --privileged registry.smtx.io/everoute/unit-test:$(COMMIT_ID) make cover-test
 
 race-test:
-	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/7078b1baad07d7e07c073274b6de123073272fe7/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
+	mkdir -p ut_tmp; curl https://raw.githubusercontent.com/everoute/trafficredirect/f06e9064969e/deploy/chart/templates/crds/tr.everoute.io_rules.yaml -o ut_tmp/tr_crd.yaml
 	NODE_NAME=$(TEST_AGENT_NAME) go test --gcflags=all=-l -p 1 ./plugin/... ./pkg/... -race
 	rm -rf ut_tmp
 
