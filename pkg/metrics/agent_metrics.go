@@ -5,14 +5,12 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/samber/lo"
 	klog "k8s.io/klog/v2"
 
 	securityv1alpha1 "github.com/everoute/everoute/pkg/apis/security/v1alpha1"
 	"github.com/everoute/everoute/pkg/config"
 	agentconst "github.com/everoute/everoute/pkg/constants"
 	constants "github.com/everoute/everoute/pkg/constants/ms"
-	"github.com/everoute/everoute/plugin/tower/pkg/controller/policy"
 )
 
 const (
@@ -22,14 +20,6 @@ const (
 	BridgeLabel       = "ovs_bridge"
 	TypeLabel         = "type"
 )
-
-var limitTowerPolicyPrefix = []string{
-	policy.SecurityPolicyPrefix,
-	policy.IsolationPolicyPrefix,
-	policy.IsolationPolicyIngressPrefix,
-	policy.IsolationPolicyEgressPrefix,
-	policy.SecurityPolicyCommunicablePrefix,
-}
 
 type AgentMetric struct {
 	reg *prometheus.Registry
@@ -183,25 +173,23 @@ func (m *AgentMetric) UpdatePolicyName(policyID string, policy *securityv1alpha1
 		return
 	}
 
-	// for user-defined networkpolicy from sks
+	// Keep the existing name format for user-defined network policies from SKS.
 	if policy.Namespace == constants.SKSObjectNamespace &&
 		strings.HasPrefix(policy.Name, constants.SKSNetworkpolicyPrefix) {
 		clusterName := policy.Labels[constants.SKSLabelKeyCluster]
-		objName := policy.Labels[constants.SKSLabelKeyCluster]
-		objNamespace := policy.Labels[constants.SKSLabelKeyCluster]
+		objName := policy.Labels[constants.SKSLabelKeyObjectName]
+		objNamespace := policy.Labels[constants.SKSLabelKeyObjectNamespace]
 		m.policyNameMap[policyID] = fmt.Sprintf("%s/%s/%s", clusterName, objName, objNamespace)
 		return
 	}
 
-	// for tower UI policy
-	if policy.Spec.Logging != nil &&
-		lo.CountBy(limitTowerPolicyPrefix, func(item string) bool { return strings.HasPrefix(policy.Name, item) }) != 0 {
-		if name, ok := policy.Spec.Logging.Tags[constants.LoggingTagPolicyName]; ok {
-			m.policyNameMap[policyID] = name
-		} else {
-			m.policyNameMap[policyID] = policyID
+	name := policyID
+	if policy.Spec.Logging != nil {
+		if loggingName, ok := policy.Spec.Logging.Tags[constants.LoggingTagPolicyName]; ok {
+			name = loggingName
 		}
 	}
+	m.policyNameMap[policyID] = name
 }
 
 func (m *AgentMetric) ArpInc() {
