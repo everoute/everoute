@@ -271,14 +271,6 @@ jobs:
           command: |
             $COUSU bwait -p "${{ steps.version.outputs.version }}"
 
-      - name: upload package to tower
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 5
-          command: |
-            $COUSU upload -p "${{ steps.version.outputs.version }}" -t "${{ secrets.TOWER_ENDPOINT }}"
-
   run-tower-e2e:
     runs-on: [self-hosted, pod]
     needs: [build-tower-e2e-package]
@@ -291,6 +283,14 @@ jobs:
 
       - name: write kubeconfig
         run: echo "${{ secrets.TOWER_E2E_KUBECONFIG }}" > kubeconfig
+
+      - name: upload package to tower
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 5
+          command: |
+            $COUSU upload -p "${{ needs.build-tower-e2e-package.outputs.version }}" -t "${{ secrets.TOWER_ENDPOINT }}"
 
       - name: upgrade everoute on cluster
         uses: nick-fields/retry@v2
