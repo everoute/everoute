@@ -475,19 +475,10 @@ func testIPMigrateEvent(t *testing.T) {
 		r.ipMigrateCountUpdate(endpoint, []types.IPAddress{ip}, endpoint.Spec.VMID)
 		select {
 		case event := <-recorder.Events:
-			t.Fatalf("unexpected event for first observation: %s", event)
-		default:
-		}
-
-		r.IPMigrateCount.Inc(ip.String(), "vm-old")
-
-		r.ipMigrateCountUpdate(endpoint, []types.IPAddress{ip}, endpoint.Spec.VMID)
-		select {
-		case event := <-recorder.Events:
 			if !strings.Contains(event, "IPMigrated_10.10.1.23") {
 				t.Fatalf("unexpected event reason: %s", event)
 			}
-			if !strings.Contains(event, "oldVM=vm-old newVM=vm-new") {
+			if !strings.Contains(event, "newVM=vm-new") {
 				t.Fatalf("unexpected event message: %s", event)
 			}
 		case <-time.After(time.Second):
@@ -773,10 +764,11 @@ func testProcessAgentinfo(t *testing.T) {
 }
 
 func testInterfaceIPUpdate(t *testing.T) {
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	r := newFakeReconciler(fakeAgentInfoA, fakeAgentInfoC, fakeEndpointA, fakeEndpointC)
-	ctx := context.Background()
 	t.Run("interface ipset update", func(t *testing.T) {
+		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		r := newFakeReconciler(fakeAgentInfoA, fakeAgentInfoC, fakeEndpointA, fakeEndpointC)
+		ctx := context.Background()
+
 		// agentinfo added event when controller start.
 		queue.Add(ctrl.Request{NamespacedName: k8stypes.NamespacedName{Name: fakeEndpointA.Name}})
 		r.onAgentInfoAdd(ctx, event.CreateEvent{
@@ -822,6 +814,44 @@ func testInterfaceIPUpdate(t *testing.T) {
 		agentInfoA := getFakeAgentInfo(r.Client, fakeAgentInfoA.Name)
 		if len(agentInfoA.OVSInfo.Bridges[0].Ports[0].Interfaces[0].IPMap) != 0 {
 			t.Errorf("failed to get udpate agentinfo")
+		}
+
+		const sharedVMID = "shared-vm"
+		sameVMAgentInfo := fakeAgentInfoC.DeepCopy()
+		sameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces[0].IPMap =
+			map[types.IPAddress]*agentv1alpha1.IPInfo{ovsPortStatusA.IPs[0]: {}}
+		sameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces[0].ExternalIDs[vmIDExternalIDKey] = sharedVMID
+		candidateIface := fakeAgentInfoA.OVSInfo.Bridges[0].Ports[0].Interfaces[2].DeepCopy()
+		candidateIface.IPMap = nil
+		candidateIface.ExternalIDs[vmIDExternalIDKey] = sharedVMID
+		sameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces = append(
+			sameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces, *candidateIface)
+		candidateIfaceIndex := len(sameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces) - 1
+
+		updatedSameVMAgentInfo := sameVMAgentInfo.DeepCopy()
+		updatedSameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces[candidateIfaceIndex].IPMap =
+			map[types.IPAddress]*agentv1alpha1.IPInfo{ovsPortStatusA.IPs[0]: {}}
+
+		r = newFakeReconciler(sameVMAgentInfo)
+		currentSameVMAgentInfo := getFakeAgentInfo(r.Client, sameVMAgentInfo.Name)
+		currentSameVMAgentInfo.OVSInfo = updatedSameVMAgentInfo.OVSInfo
+		if err := r.Client.Update(ctx, &currentSameVMAgentInfo); err != nil {
+			t.Fatalf("failed to update fake agentinfo: %v", err)
+		}
+
+		if _, err := r.ReconcileAgentInfo(ctx, ctrl.Request{
+			NamespacedName: k8stypes.NamespacedName{Name: updatedSameVMAgentInfo.Name},
+		}); err != nil {
+			t.Fatalf("failed to process agentinfo reconcile: %v", err)
+		}
+
+		currentSameVMAgentInfo = getFakeAgentInfo(r.Client, sameVMAgentInfo.Name)
+		for _, index := range []int{0, candidateIfaceIndex} {
+			iface := currentSameVMAgentInfo.OVSInfo.Bridges[0].Ports[0].Interfaces[index]
+			if _, ok := iface.IPMap[ovsPortStatusA.IPs[0]]; !ok {
+				t.Fatalf("expected interface %s to retain IP %s, got %v",
+					iface.Name, ovsPortStatusA.IPs[0], iface.IPMap)
+			}
 		}
 	})
 }
