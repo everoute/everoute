@@ -113,6 +113,7 @@ const (
 	externalIDIndex              = "externalIDIndex"
 	ipAddrIndex                  = "ipaddrIndex"
 	agentIndex                   = "agentIndex"
+	vmIDExternalIDKey            = "vm-id"
 	IfaceIPAddrCleanInterval int = 5
 	ifaceInitRetryInterval       = 1 * time.Second
 	shareIPInitRetryInterval     = 1 * time.Second
@@ -420,10 +421,10 @@ func (r *Reconciler) ipMigrateCountUpdate(endpoint *securityv1alpha1.Endpoint, e
 	srcSets := sets.New[types.IPAddress](endpoint.Status.IPs...)
 	for _, ip := range expIPs {
 		if !srcSets.Has(ip) {
-			oldVMID, migrated := r.IPMigrateCount.Inc(ip.String(), vmID)
-			if migrated && oldVMID != "" && r.Recorder != nil {
+			r.IPMigrateCount.Inc(ip.String())
+			if r.Recorder != nil {
 				r.Recorder.Eventf(endpoint, "Normal", formatIPMigrateEventReason(ip.String()),
-					"oldVM=%s newVM=%s", oldVMID, vmID)
+					"newVM=%s", vmID)
 			}
 		}
 	}
@@ -576,6 +577,14 @@ func (r *Reconciler) getDeletedIP(agentName string, ovsInterface agentv1alpha1.O
 		for _, port := range bridge.Ports {
 			for _, ovsIface := range port.Interfaces {
 				if agentInfo.Name == agentName && ovsIface.Name == ovsInterface.Name {
+					continue
+				}
+				// Multiple NICs belonging to the same VM may legitimately report
+				// the same IP during ARP flux. Keep those observations so a
+				// transient flapping between NICs doesn't remove the IP from all
+				// endpoints and trigger unnecessary policy flow churn.
+				vmID := ovsInterface.ExternalIDs[vmIDExternalIDKey]
+				if agentInfo.Name == agentName && vmID != "" && vmID == ovsIface.ExternalIDs[vmIDExternalIDKey] {
 					continue
 				}
 				ipNeedDelete := toIPStringSet(ovsIface.IPMap).Intersection(toIPStringSet(ovsInterface.IPMap))
