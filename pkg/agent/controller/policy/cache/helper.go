@@ -36,28 +36,31 @@ const (
 	multiplePort = `^(\d{1,5}-\d{1,5})$`
 )
 
+// The patterns above are constant, compile them once instead of on every call.
+var (
+	matchIPV4Re    = regexp.MustCompile(matchIPV4)
+	emptyPortRe    = regexp.MustCompile(emptyPort)
+	singlePortRe   = regexp.MustCompile(singlePort)
+	multiplePortRe = regexp.MustCompile(multiplePort)
+)
+
 func GetIPCidr(ip types.IPAddress) string {
-	var ipCidr string
-
-	if regexp.MustCompile(matchIPV4).Match([]byte(ip)) {
-		ipCidr = fmt.Sprintf("%s/%d", ip, 32)
-	} else {
-		ipCidr = fmt.Sprintf("%s/%d", ip, 128)
+	if matchIPV4Re.MatchString(string(ip)) {
+		return string(ip) + "/32"
 	}
-
-	return ipCidr
+	return string(ip) + "/128"
 }
 
 func UnmarshalPortRange(portRange string) (uint16, uint16, error) {
 	var begin, end uint16
 
 	switch {
-	case regexp.MustCompile(emptyPort).Match([]byte(portRange)):
+	case emptyPortRe.MatchString(portRange):
 		begin, end = 0, 0
-	case regexp.MustCompile(singlePort).Match([]byte(portRange)):
+	case singlePortRe.MatchString(portRange):
 		dstPort, _ := strconv.ParseUint(portRange, 10, 16)
 		begin, end = uint16(dstPort), uint16(dstPort)
-	case regexp.MustCompile(multiplePort).Match([]byte(portRange)):
+	case multiplePortRe.MatchString(portRange):
 		port := strings.Split(portRange, "-")
 		portBegin, _ := strconv.ParseUint(port[0], 10, 16)
 		portEnd, _ := strconv.ParseUint(port[1], 10, 16)
