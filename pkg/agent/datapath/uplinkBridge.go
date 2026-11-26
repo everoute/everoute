@@ -73,16 +73,16 @@ func (u *UplinkBridge) BridgeInit() {
 		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
 	}
 
-	clsToUplinkPort, ok := u.datapathManager.BridgeChainPortMap[u.ovsBrName][ClsToUplinkSuffix]
+	uplinkToClsPort, ok := u.datapathManager.BridgeChainPortMap[u.ovsBrName][UplinkToClsSuffix]
 	if !ok {
-		log.Fatalf("failed to get cls to uplink port")
+		log.Fatalf("failed to get uplink to cls port")
 	}
-	clsToUplinkFlow, _ := u.defaultTable.NewFlow(ofctrl.FlowMatch{
+	uplinkToClsFlow, _ := u.defaultTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  NORMAL_MATCH_FLOW_PRIORITY,
-		InputPort: clsToUplinkPort,
+		InputPort: uplinkToClsPort,
 	})
 
-	if err := clsToUplinkFlow.Next(sw.NormalLookup()); err != nil {
+	if err := uplinkToClsFlow.Next(sw.NormalLookup()); err != nil {
 		log.Fatalf("failed to install uplink default table default flow, error: %v", err)
 	}
 }

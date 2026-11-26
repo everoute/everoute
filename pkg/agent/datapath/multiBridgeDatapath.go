@@ -1228,7 +1228,7 @@ func NewVDSForConfigBase(datapathManager *DpManager, vdsID, ovsbrname string) {
 	if err != nil {
 		klog.Fatalf("Failed to get clsToUplinkOfPort of ovsbrname %v-cls, error: %v", ovsbrname, err)
 	}
-	uplinkToClsOfPort, err := vdsOvsdbDriverMap[CLS_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToClsSuffix))
+	uplinkToClsOfPort, err := vdsOvsdbDriverMap[UPLINK_BRIDGE_KEYWORD].GetOfpPortNo(fmt.Sprintf("%s-uplink-%s", ovsbrname, UplinkToClsSuffix))
 	if err != nil {
 		klog.Fatalf("Failed to get uplinkToClsOfPort of ovsbrname %v-uplink, error: %v", ovsbrname, err)
 	}
